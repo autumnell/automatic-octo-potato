@@ -1,10 +1,14 @@
 package com.mtgscanner.data
 
+import com.mtgscanner.data.db.Box
+import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.CardDao
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.scan.CardTextGuess
 import com.mtgscanner.scan.CardTextParser
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 
 /** A Scryfall match for what the camera read, and whether it's safe to add without asking. */
 data class Identification(val card: ScryfallCard, val confident: Boolean)
@@ -15,6 +19,46 @@ class CollectionRepository(
 ) {
     fun observeAll(): Flow<List<CollectionCard>> = dao.observeAll()
     fun observe(id: Long): Flow<CollectionCard?> = dao.observe(id)
+    fun observeBoxes(): Flow<List<Box>> = dao.observeBoxes()
+
+    /** Every box with how many cards it holds and what they're worth. */
+    fun observeBoxSummaries(): Flow<List<BoxSummary>> = combine(dao.observeBoxes(), dao.observeAll()) { boxes, cards ->
+        val byBox = cards.groupBy { it.boxId }
+        boxes.map { b ->
+            val inBox = byBox[b.id].orEmpty()
+            BoxSummary(b.id, b.name, b.kind, inBox.sumOf { it.quantity }, inBox.sumOf { it.totalPrice() })
+        }
+    }
+
+    suspend fun createBox(name: String, kind: String): Long = dao.insertBox(Box(name = name.trim(), kind = kind))
+
+    suspend fun updateBox(id: Long, name: String, kind: String) {
+        val b = dao.box(id) ?: return
+        dao.updateBox(b.copy(name = name.trim(), kind = kind))
+    }
+
+    /** Deletes a box and moves its cards into Bulk. Bulk itself can't be deleted. */
+    suspend fun deleteBox(id: Long) {
+        if (id == Box.BULK_ID) return
+        dao.inBox(id).forEach { moveToBox(it.id, Box.BULK_ID) }
+        dao.box(id)?.let { dao.deleteBox(it) }
+    }
+
+    /** Moves an entry to another box, merging with the same printing already there. Returns the surviving id. */
+    suspend fun moveToBox(id: Long, boxId: Long): Long {
+        val c = dao.get(id) ?: return id
+        if (c.boxId == boxId) return id
+        val other = dao.find(c.scryfallId, c.foil, boxId)
+        val now = System.currentTimeMillis()
+        return if (other != null) {
+            dao.update(other.copy(quantity = other.quantity + c.quantity, updatedAt = now))
+            dao.delete(c)
+            other.id
+        } else {
+            dao.update(c.copy(boxId = boxId, updatedAt = now))
+            id
+        }
+    }
 
     private val lookupCache = HashMap<String, Identification?>()
 
@@ -63,14 +107,14 @@ class CollectionRepository(
     }
 
     /** Adds [qty] copies, merging with an existing entry for the same printing and finish. Returns the row id. */
-    suspend fun add(card: ScryfallCard, foil: Boolean, qty: Int = 1): Long {
+    suspend fun add(card: ScryfallCard, foil: Boolean, qty: Int = 1, boxId: Long = Box.BULK_ID): Long {
         val now = System.currentTimeMillis()
-        val existing = dao.find(card.id, foil)
+        val existing = dao.find(card.id, foil, boxId)
         if (existing != null) {
             dao.update(existing.copy(quantity = existing.quantity + qty, updatedAt = now))
             return existing.id
         }
-        return dao.insert(card.toEntity(foil, qty, now))
+        return dao.insert(card.toEntity(foil, qty, now).copy(boxId = boxId))
     }
 
     /** Removes [qty] copies (used for undo). Deletes the row when it reaches zero. */
@@ -91,7 +135,7 @@ class CollectionRepository(
     suspend fun setFoil(id: Long, foil: Boolean): Long {
         val c = dao.get(id) ?: return id
         if (c.foil == foil) return id
-        val other = dao.find(c.scryfallId, foil)
+        val other = dao.find(c.scryfallId, foil, c.boxId)
         return if (other != null) {
             dao.update(other.copy(quantity = other.quantity + c.quantity, updatedAt = System.currentTimeMillis()))
             dao.delete(c)

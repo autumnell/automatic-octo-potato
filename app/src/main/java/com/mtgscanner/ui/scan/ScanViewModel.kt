@@ -4,45 +4,72 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.ScryfallCard
+import com.mtgscanner.data.db.Box
 import com.mtgscanner.scan.CardTextGuess
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class AddedEntry(val rowId: Long, val name: String, val foil: Boolean, val count: Int)
+/** One add during this scanning session, newest first in the scan list. */
+data class ScanEntry(
+    val key: Long,
+    val rowId: Long,
+    val card: ScryfallCard,
+    val foil: Boolean,
+    val count: Int,
+) {
+    val value: Double get() = (card.price(foil)?.toDoubleOrNull() ?: 0.0) * count
+}
 
 data class ScanUiState(
-    val status: String = "Point the camera at a card",
+    val status: String = "Point your camera at a card",
     val reading: String? = null,
     val current: ScryfallCard? = null,
     val confident: Boolean = false,
     val lookingUp: Boolean = false,
+    val paused: Boolean = false,
     val autoAdd: Boolean = false,
     val foil: Boolean = false,
     val torch: Boolean = false,
-    val lastAdded: AddedEntry? = null,
-    val sessionCount: Int = 0,
+    val boxId: Long = Box.BULK_ID,
+    val session: List<ScanEntry> = emptyList(),
+    /** Bumps on every add so the screen can buzz and flash. */
+    val addedPulse: Int = 0,
     val showPrintings: Boolean = false,
     val printings: List<ScryfallCard>? = null,
+    val showSettings: Boolean = false,
+    val showList: Boolean = false,
     val error: String? = null,
-)
+) {
+    val sessionCount: Int get() = session.sumOf { it.count }
+    val sessionValue: Double get() = session.sumOf { it.value }
+}
 
 class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     private val _state = MutableStateFlow(ScanUiState())
     val state: StateFlow<ScanUiState> = _state
 
-    // Frame-to-frame bookkeeping. Only touched from onGuess, which runs one frame at a time.
+    val boxes: StateFlow<List<Box>> = repo.observeBoxes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Frame-to-frame bookkeeping for the camera analyzer.
     private var lastKey: String? = null
     private var sameKeyFrames = 0
     private var emptyFrames = 0
     private var lookedUpKey: String? = null
     private var lastAutoAddedId: String? = null
+    private var entryKeys = 0L
 
-    /** Manual mode freezes on a found card until the user adds or skips it. */
+    /** The analyzer skips frames while this is true. */
     val isPaused: Boolean
-        get() = _state.value.let { (!it.autoAdd && it.current != null) || it.lookingUp || it.showPrintings }
+        get() = _state.value.let {
+            it.paused || (!it.autoAdd && it.current != null) || it.lookingUp ||
+                it.showPrintings || it.showSettings || it.showList
+        }
 
     fun onGuess(guess: CardTextGuess) {
         val key = guess.key
@@ -53,7 +80,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 lastAutoAddedId = null
                 lastKey = null
                 lookedUpKey = null
-                if (_state.value.autoAdd) _state.update { it.copy(reading = null, status = "Point the camera at a card") }
+                _state.update {
+                    it.copy(reading = null, status = if (it.autoAdd && it.current != null) it.status else "Point your camera at a card")
+                }
             }
             return
         }
@@ -69,7 +98,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     private fun lookup(guess: CardTextGuess) {
-        _state.update { it.copy(lookingUp = true, status = "Looking up on Scryfall…", error = null) }
+        _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null) }
         viewModelScope.launch {
             val result = runCatching { repo.identify(guess) }
             result.onFailure { e ->
@@ -78,7 +107,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             }
             val id = result.getOrNull()
             if (result.isSuccess && id == null) {
-                _state.update { it.copy(lookingUp = false, status = "No match yet. Hold the card flat and well lit") }
+                _state.update { it.copy(lookingUp = false, status = "No match yet · hold the card flat and well lit") }
             }
             if (id != null) {
                 _state.update {
@@ -86,8 +115,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                         lookingUp = false,
                         current = id.card,
                         confident = id.confident,
-                        status = if (id.confident) "Found" else "Is this right?",
-                        foil = it.foil && id.card.hasFoil,
+                        status = if (id.confident) id.card.name else "Is this right?",
                     )
                 }
                 if (_state.value.autoAdd && id.confident && id.card.id != lastAutoAddedId) {
@@ -103,11 +131,12 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         val card = s.current ?: return
         val foil = s.foil && card.hasFoil || !card.hasNonFoil
         viewModelScope.launch {
-            val rowId = repo.add(card, foil, qty)
+            val rowId = repo.add(card, foil, qty, s.boxId)
+            val entry = ScanEntry(++entryKeys, rowId, card, foil, qty)
             _state.update {
                 it.copy(
-                    lastAdded = AddedEntry(rowId, card.name, foil, qty),
-                    sessionCount = it.sessionCount + qty,
+                    session = listOf(entry) + it.session,
+                    addedPulse = it.addedPulse + 1,
                     status = "Added ${card.name}",
                     current = if (it.autoAdd) it.current else null,
                 )
@@ -116,16 +145,19 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    fun undoLast() {
-        val last = _state.value.lastAdded ?: return
+    /** Takes a scan back out of the collection and the list. */
+    fun remove(entry: ScanEntry) {
         viewModelScope.launch {
-            repo.remove(last.rowId, last.count)
-            _state.update { it.copy(lastAdded = null, sessionCount = (it.sessionCount - last.count).coerceAtLeast(0), status = "Removed ${last.name}") }
+            repo.remove(entry.rowId, entry.count)
+            _state.update { it.copy(session = it.session.filterNot { e -> e.key == entry.key }, status = "Removed ${entry.card.name}") }
         }
     }
 
+    /** Clears the list on screen. Cards stay in the collection. */
+    fun clearList() = _state.update { it.copy(session = emptyList(), showList = false) }
+
     fun skip() {
-        _state.update { it.copy(current = null, status = "Point the camera at a card") }
+        _state.update { it.copy(current = null, status = "Point your camera at a card") }
         resetTracking()
     }
 
@@ -135,9 +167,17 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         sameKeyFrames = 0
     }
 
+    fun togglePause() = _state.update {
+        val p = !it.paused
+        it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null)
+    }
+
     fun setAutoAdd(on: Boolean) = _state.update { it.copy(autoAdd = on) }
     fun setFoil(on: Boolean) = _state.update { it.copy(foil = on) }
     fun setTorch(on: Boolean) = _state.update { it.copy(torch = on) }
+    fun setBox(id: Long) = _state.update { it.copy(boxId = id) }
+    fun showSettings(show: Boolean) = _state.update { it.copy(showSettings = show) }
+    fun showList(show: Boolean) = _state.update { it.copy(showList = show) }
 
     fun openPrintings() {
         val card = _state.value.current ?: return
@@ -152,6 +192,4 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         _state.update { it.copy(current = card, confident = true, showPrintings = false, printings = null) }
 
     fun closePrintings() = _state.update { it.copy(showPrintings = false, printings = null) }
-
-    fun clearError() = _state.update { it.copy(error = null) }
 }

@@ -73,6 +73,25 @@ class ScryfallApi(
         return json.decodeFromString(CardList.serializer(), body).data
     }
 
+    /** One page (up to 175 cards) of a full Scryfall search. Empty when nothing matches. */
+    suspend fun searchPage(query: String, order: String = "name", page: Int = 1, unique: String = "cards"): CardList {
+        val url = base.newBuilder().addPathSegments("cards/search")
+            .addQueryParameter("q", query)
+            .addQueryParameter("unique", unique)
+            .addQueryParameter("order", order)
+            .addQueryParameter("page", page.toString())
+            .build()
+        val body = request(Request.Builder().url(url).build()) ?: return CardList()
+        return json.decodeFromString(CardList.serializer(), body)
+    }
+
+    /** Paper sets, newest first. */
+    suspend fun sets(): List<ScryfallSet> {
+        val body = request(Request.Builder().url(base.newBuilder().addPathSegment("sets").build()).build())
+            ?: return emptyList()
+        return json.decodeFromString(SetList.serializer(), body).data.filter { !it.digital && it.cardCount > 0 }
+    }
+
     suspend fun autocomplete(text: String): List<String> {
         if (text.length < 2) return emptyList()
         val url = base.newBuilder().addPathSegments("cards/autocomplete")

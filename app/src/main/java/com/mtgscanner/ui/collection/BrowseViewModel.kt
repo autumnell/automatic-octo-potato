@@ -1,23 +1,17 @@
 package com.mtgscanner.ui.collection
 
-import android.content.ContentResolver
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
-import com.mtgscanner.util.CsvExporter
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 enum class SortBy(val label: String) {
     RECENT("Recently added"), NAME("Name"), PRICE("Price"), MANA("Mana value"), SET("Set & number"), COLOR("Color"),
@@ -42,65 +36,41 @@ data class Filters(
     val activeCount: Int get() = colors.size + rarities.size + types.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0)
 }
 
-data class CollectionUi(
+data class BrowseUi(
+    val title: String = "Collection",
     val groups: List<Pair<String, List<CollectionCard>>> = emptyList(),
     val shownCards: Int = 0,
     val shownValue: Double = 0.0,
     val totalCards: Int = 0,
-    val totalValue: Double = 0.0,
     val sets: List<Pair<String, String>> = emptyList(),
     val loaded: Boolean = false,
 )
 
-class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() {
+/** The card list for one box, or the whole collection when [boxId] is -1. */
+class BrowseViewModel(private val repo: CollectionRepository, private val boxId: Long) : ViewModel() {
     private val _filters = MutableStateFlow(Filters())
     val filters: StateFlow<Filters> = _filters
 
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message
+    private val _grid = MutableStateFlow(true)
+    val grid: StateFlow<Boolean> = _grid
+    fun toggleGrid() { _grid.value = !_grid.value }
 
-    private val _refreshing = MutableStateFlow(false)
-    val refreshing: StateFlow<Boolean> = _refreshing
-
-    val ui: StateFlow<CollectionUi> = combine(repo.observeAll(), _filters) { all, f ->
-        val shown = all.filter { matches(it, f) }.sortedWith(comparator(f.sort))
-        CollectionUi(
+    val ui: StateFlow<BrowseUi> = combine(repo.observeAll(), repo.observeBoxes(), _filters) { all, boxes, f ->
+        val inScope = if (boxId < 0) all else all.filter { it.boxId == boxId }
+        val shown = inScope.filter { matches(it, f) }.sortedWith(comparator(f.sort))
+        BrowseUi(
+            title = if (boxId < 0) "All cards" else boxes.firstOrNull { it.id == boxId }?.name ?: "Box",
             groups = group(shown, f.group),
             shownCards = shown.sumOf { it.quantity },
             shownValue = shown.sumOf { it.totalPrice() },
-            totalCards = all.sumOf { it.quantity },
-            totalValue = all.sumOf { it.totalPrice() },
-            sets = all.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
+            totalCards = inScope.sumOf { it.quantity },
+            sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
             loaded = true,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CollectionUi())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
 
     fun update(f: (Filters) -> Filters) = _filters.update(f)
     fun clearFilters() = _filters.update { Filters(query = it.query, sort = it.sort, group = it.group) }
-
-    fun refreshPrices() {
-        if (_refreshing.value) return
-        _refreshing.value = true
-        viewModelScope.launch {
-            _message.value = runCatching { repo.refreshPrices() }
-                .fold({ "Updated prices for $it cards" }, { "Couldn't refresh prices: ${it.message}" })
-            _refreshing.value = false
-        }
-    }
-
-    fun export(resolver: ContentResolver, uri: Uri) {
-        viewModelScope.launch {
-            _message.value = runCatching {
-                val cards = repo.allCards()
-                withContext(Dispatchers.IO) {
-                    resolver.openOutputStream(uri)?.bufferedWriter()?.use { CsvExporter.write(cards, it) }
-                }
-                cards.size
-            }.fold({ "Exported $it entries" }, { "Export failed: ${it.message}" })
-        }
-    }
-
-    fun messageShown() { _message.value = null }
 
     companion object {
         fun matches(c: CollectionCard, f: Filters): Boolean {

@@ -95,3 +95,18 @@ data class CardList(
 
 @Serializable
 data class Catalog(val data: List<String> = emptyList())
+
+@Serializable
+data class ScryfallSet(
+    val code: String,
+    val name: String,
+    @SerialName("set_type") val setType: String = "",
+    @SerialName("released_at") val releasedAt: String? = null,
+    @SerialName("card_count") val cardCount: Int = 0,
+    @SerialName("icon_svg_uri") val iconSvgUri: String? = null,
+    val digital: Boolean = false,
+    @SerialName("parent_set_code") val parentSetCode: String? = null,
+)
+
+@Serializable
+data class SetList(val data: List<ScryfallSet> = emptyList())
