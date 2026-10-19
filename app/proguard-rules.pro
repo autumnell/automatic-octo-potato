@@ -1,0 +1,5 @@
+-keepattributes *Annotation*, InnerClasses
+-keep,includedescriptorclasses class com.mtgscanner.**$$serializer { *; }
+-keepclassmembers class com.mtgscanner.** { *** Companion; }
+-keepclasseswithmembers class com.mtgscanner.** { kotlinx.serialization.KSerializer serializer(...); }
+-dontwarn org.slf4j.**
