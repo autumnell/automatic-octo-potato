@@ -3,7 +3,10 @@ package com.mtgscanner.ui.game
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.input.pointer.pointerInput
@@ -129,7 +132,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
     val view = LocalView.current
     DisposableEffect(Unit) {
         view.keepScreenOn = true
-        onDispose { view.keepScreenOn = false }
+        onDispose { view.keepScreenOn = false; vm.flush() }
     }
 
     // Full screen at the table: hide the status and navigation bars (swipe from an edge to see them).
@@ -270,7 +273,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PlayerPanel(
     g: GameState, i: Int, rotation: Int, style: TableStyle, modifier: Modifier,
@@ -318,6 +321,8 @@ private fun PlayerPanel(
     }
     // One life point per step of drag.
     val stepPx = with(LocalDensity.current) { SWIPE_STEP.toPx() }
+    // Set by a hold, so sliding the finger afterwards doesn't count the swipe too. Cleared on each new touch.
+    var held by remember { mutableStateOf(false) }
     Box(modifier.clip(shape).then(back)) {
         if (p.art != null) AsyncImage(
             p.art, null, Modifier.fillMaxSize().rotateLayout(rotation), contentScale = ContentScale.Crop, alpha = 0.55f,
@@ -331,10 +336,17 @@ private fun PlayerPanel(
             // Left half loses, right half gains. Hold for ten. Swipe up or down to count one by one;
             // the panel is turned to face its player, so "up" is up for them.
             Row(
-                Modifier.fillMaxSize().pointerInput(stepPx) {
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        held = false
+                    }
+                }.pointerInput(stepPx) {
                     var acc = 0f
-                    detectVerticalDragGestures(onDragStart = { acc = 0f }) { change, dy ->
+                    var skip = false
+                    detectVerticalDragGestures(onDragStart = { acc = 0f; skip = held }) { change, dy ->
                         change.consume()
+                        if (skip) return@detectVerticalDragGestures
                         acc -= dy
                         while (acc >= stepPx) {
                             acc -= stepPx
@@ -353,7 +365,7 @@ private fun PlayerPanel(
                     Box(
                         Modifier.weight(1f).fillMaxHeight().combinedClickable(
                             onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onLife(sign) },
-                            onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLife(sign * 10) },
+                            onLongClick = { held = true; haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLife(sign * HOLD_STEP) },
                         ),
                         contentAlignment = if (sign < 0) Alignment.CenterStart else Alignment.CenterEnd,
                     ) {
@@ -386,10 +398,12 @@ private fun PlayerPanel(
                 Text(p.name, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.titleSmall)
                 if (out != null) Text(out, color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
-            // Other counters along the top, shown only when they matter.
-            Row(
-                Modifier.align(Alignment.TopCenter).padding(top = 10.dp).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            // Other counters along the top, shown only when they matter. Not scrollable, so taps and
+            // swipes on them still change life.
+            FlowRow(
+                Modifier.align(Alignment.TopCenter).padding(top = 10.dp, start = 8.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (g.monarch == i) Badge("Monarch", com.mtgscanner.ui.components.ManaIcons.Monarch, gold = true)
                 if (g.initiative == i) Badge("Initiative", com.mtgscanner.ui.components.ManaIcons.Initiative, gold = true)
@@ -427,6 +441,9 @@ private fun PlayerPanel(
         }
     }
 }
+
+/** How much a held + or − changes life or a counter, on the panel and in the counter overlay. */
+internal const val HOLD_STEP = 10
 
 /** How long the running change stays after the last life change. */
 private const val RUN_PAUSE_MS = 2000L
@@ -515,7 +532,7 @@ internal fun ArtPicker(current: String?, vm: GameViewModel, onPick: (String?) ->
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Background", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         if (current != null) TextButton(onClick = { onPick(null) }) { Text("Remove") }
-        TextButton(onClick = { open = !open; if (open) vm.searchArt(query) }) { Text(if (open) "Close" else "Pick card art") }
+        TextButton(onClick = { open = !open; if (open) vm.searchArt(query, refresh = true) }) { Text(if (open) "Close" else "Pick card art") }
     }
     if (open) {
         OutlinedTextField(

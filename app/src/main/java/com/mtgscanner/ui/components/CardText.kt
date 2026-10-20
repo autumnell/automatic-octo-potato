@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -190,8 +191,8 @@ private val SYMBOL = Regex("""\{([^}]+)\}""")
 /** Rules text with {T}, {2}, {U} and friends drawn as symbols, and reminder text in italics. */
 @Composable
 private fun RulesText(text: String) {
-    val symbols = SYMBOL.findAll(text).map { it.value }.distinct().toList()
-    val annotated = buildAnnotatedString {
+    val symbols = remember(text) { SYMBOL.findAll(text).map { it.value }.distinct().toList() }
+    val annotated = remember(text) { buildAnnotatedString {
         var last = 0
         var inReminder = false
         fun plain(s: String) {
@@ -209,12 +210,14 @@ private fun RulesText(text: String) {
         }
         plain(text.substring(last))
         if (inReminder) pop()
-    }
+    } }
     // The placeholder grows with the system font size, so the symbol does too.
     val symbolSize = 15.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale
-    val inline = symbols.associateWith { sym ->
-        InlineTextContent(Placeholder(1.05.em, 1.05.em, PlaceholderVerticalAlign.TextCenter)) {
+    val inline = remember(symbols, symbolSize) {
+        symbols.associateWith { sym ->
+            InlineTextContent(Placeholder(1.05.em, 1.05.em, PlaceholderVerticalAlign.TextCenter)) {
                 ManaCost(sym, size = symbolSize)
+            }
         }
     }
     Text(annotated, inlineContent = inline, style = MaterialTheme.typography.bodyMedium)

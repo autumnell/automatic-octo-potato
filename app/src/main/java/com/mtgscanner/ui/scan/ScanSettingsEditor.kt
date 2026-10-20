@@ -137,6 +137,8 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
 @Composable
 private fun SoundPills(selected: ScanSound, onPick: (ScanSound) -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Previews made a tone generator; free it when the settings close (the scanner makes its own again).
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { ScanFeedback.release() } }
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ScanSound.entries.forEach { sound ->
             SelectPill(sound.label, selected == sound, {

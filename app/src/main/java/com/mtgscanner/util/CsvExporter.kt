@@ -59,6 +59,9 @@ object CsvExporter {
 
     private fun price(c: CollectionCard) = c.unitPrice()?.let { "%.2f".format(Locale.US, it) } ?: ""
 
+    /** What was paid per copy; blank when not recorded. */
+    private fun paid(c: CollectionCard) = c.purchasePrice?.let { "%.2f".format(Locale.US, it) } ?: ""
+
     private fun fullRow(c: CollectionCard) = listOf(
         c.quantity.toString(), c.name, c.setCode.lowercase(), conditionName(c.condition), c.lang,
         if (c.foil) "foil" else "", c.collectorNumber, c.setName, c.rarity, c.typeLine, c.manaCost,
@@ -75,7 +78,7 @@ object CsvExporter {
     private fun moxfieldRow(c: CollectionCard) = listOf(
         c.quantity.toString(), "0", c.name, c.setCode.lowercase(), conditionName(c.condition), languageName(c.lang),
         if (c.foil) "foil" else "", userTags(c), moxfieldTime(c.updatedAt), c.collectorNumber,
-        if (c.altered) "True" else "False", "False", price(c),
+        if (c.altered) "True" else "False", if (c.proxy) "True" else "False", paid(c),
     )
 
     /** Archidekt: Normal/Foil finish, short condition codes, upper-case language codes. */

@@ -133,10 +133,11 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             recent = all.sortedByDescending { it.addedAt }.take(12),
             valuable = all.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12),
             colors = colorCounts.toList(),
-            valueAtAdd = all.filter { it.priceAtAdd != null }.sumOf { (it.priceWhenAdded() ?: 0.0) * it.quantity },
-            valueNowTracked = all.filter { it.priceAtAdd != null }.sumOf { it.totalPrice() },
+            // Proxies are worth $0 today, so leave them out of "since added" on both sides.
+            valueAtAdd = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { (it.priceWhenAdded() ?: 0.0) * it.quantity },
+            valueNowTracked = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { it.totalPrice() },
             history = history,
-            gainers = all.filter { (it.changeSinceAdded() ?: 0.0) > 0.0 }
+            gainers = all.filter { !it.proxy && (it.changeSinceAdded() ?: 0.0) > 0.0 }
                 .sortedByDescending { (it.changeSinceAdded() ?: 0.0) * it.quantity }.take(12),
             bulkCards = HomeMath.bulk(all, 0.0).cards,
             boxCount = boxes.size,
@@ -154,11 +155,22 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ToSortUi())
 
-    /** Recomputed when cards change or prices refresh (a refresh writes a new snapshot). */
-    val prices: StateFlow<PriceData> = combine(repo.observeAll(), repo.observeSnapshots()) { all, _ -> all }
-        .map { all ->
-            val points = runCatching { repo.dao.allPricePoints() }.getOrDefault(emptyList())
-            val weekAgo = java.time.LocalDate.now().minusDays(7).toString()
+    /** Price history, and what it was loaded for: the day, the latest snapshot and the printings owned. */
+    private var pointsCache: Pair<Any, List<com.mtgscanner.data.db.PricePoint>>? = null
+
+    /**
+     * Recomputed when cards change or prices refresh (a refresh writes a new snapshot). The price
+     * history table is only re-read when the day, the snapshots or the set of printings owned change,
+     * not on every move or quantity edit.
+     */
+    val prices: StateFlow<PriceData> = combine(repo.observeAll(), repo.observeSnapshots()) { all, snaps -> all to snaps }
+        .map { (all, snaps) ->
+            val today = java.time.LocalDate.now()
+            val key = listOf(today.toString(), snaps.size, snaps.maxByOrNull { it.day }, all.mapTo(HashSet()) { it.scryfallId })
+            val points = pointsCache?.takeIf { it.first == key }?.second
+                ?: runCatching { repo.dao.pricePointsSince(today.minusDays(120).toString()) }.getOrNull()?.also { pointsCache = key to it }
+                ?: emptyList()
+            val weekAgo = today.minusDays(7).toString()
             PriceData(HomeMath.movers(all, points, weekAgo), HomeMath.boxValues(all, points))
         }
         .flowOn(Dispatchers.Default)
@@ -171,9 +183,10 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun sortAll() = viewModelScope.launch {
         val items = toSort.value.items
         if (items.isEmpty()) return@launch
-        val undo = repo.applyMoves(items.map { it.card.id to it.to })
-        val n = undo.size
-        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.applyMoves(undo) }
+        // Moving merges into rows already in the target box, so undo restores a snapshot instead of moving back.
+        val before = repo.snapshot(items.map { it.card.id })
+        val n = repo.applyMoves(items.map { it.card.id to it.to }).size
+        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.restore(before) }
     }
 
     suspend fun searchCards(text: String): List<ScryfallCard> {
@@ -195,7 +208,8 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun deleteUnknown(scan: PendingScan) = viewModelScope.launch {
         repo.deletePending(scan.id)
-        Undo.offer("Scan deleted") { repo.addUnknown(scan.name, scan.boxId, scan.foil) }
+        // Put the same scan back, quantity and all.
+        Undo.offer("Scan deleted") { repo.dao.addPending(scan) }
     }
 }
 
@@ -335,7 +349,7 @@ fun HomeScreen(
 @Composable
 private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("MTG Scanner", style = MaterialTheme.typography.titleLarge)
+        Text("Grimoire", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.weight(1f))
         TextButton(onClick = onEdit) { Text("Edit", color = Palette.Muted) }
         IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings") }

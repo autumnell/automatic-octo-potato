@@ -9,7 +9,10 @@ data class ImportRow(
     val foil: Boolean = false,
     val scryfallId: String? = null,
     val condition: String? = null,
+    /** Scryfall language code, like "en" or "ja". */
     val language: String? = null,
+    /** What was paid per copy, when the export has it. */
+    val purchasePrice: Double? = null,
 )
 
 /**
@@ -34,6 +37,7 @@ object CsvImport {
         val iId = idx(SCRYFALL_ID)
         val iCond = idx(CONDITION)
         val iLang = idx(LANGUAGE)
+        val iPaid = idx(PURCHASE_PRICE)
 
         return rows.drop(headerIndex + 1).mapNotNull { r ->
             fun get(i: Int) = if (i >= 0) r.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() } else null
@@ -50,7 +54,8 @@ object CsvImport {
                 foil = foilText in setOf("foil", "true", "yes", "1", "etched", "y"),
                 scryfallId = get(iId)?.takeIf { it.length == 36 },
                 condition = get(iCond)?.let(::conditionCode),
-                language = get(iLang),
+                language = get(iLang)?.let(::languageCode),
+                purchasePrice = get(iPaid)?.let(::money),
             )
         }
     }
@@ -65,6 +70,29 @@ object CsvImport {
     private val SCRYFALL_ID = setOf("scryfall id", "scryfallid", "scryfall uuid")
     private val CONDITION = setOf("condition")
     private val LANGUAGE = setOf("language", "lang")
+    private val PURCHASE_PRICE = setOf("purchase price", "purchaseprice", "price paid", "acquired price")
+
+    /** "$1.50", "1,50" or "1.50" as a number; null when blank, zero or not a price. */
+    internal fun money(s: String): Double? =
+        s.trim().removePrefix("$").replace(',', '.').trim().toDoubleOrNull()?.takeIf { it > 0 && it.isFinite() }
+
+    /** Scryfall's language code for a language name or code, like "Japanese" or "JA" → "ja". */
+    fun languageCode(s: String): String? = when (val l = s.trim().lowercase()) {
+        "" -> null
+        "english", "en" -> "en"
+        "japanese", "jp", "ja" -> "ja"
+        "german", "de" -> "de"
+        "french", "fr" -> "fr"
+        "italian", "it" -> "it"
+        "spanish", "es", "sp" -> "es"
+        "portuguese", "portuguese (brazil)", "pt" -> "pt"
+        "russian", "ru" -> "ru"
+        "korean", "ko", "kr" -> "ko"
+        "chinese simplified", "simplified chinese", "zhs", "cs", "zh-hans", "zh_cn", "zh-cn" -> "zhs"
+        "chinese traditional", "traditional chinese", "zht", "ct", "zh-hant", "zh_tw", "zh-tw" -> "zht"
+        "phyrexian", "ph" -> "ph"
+        else -> l.takeIf { it.length <= 3 && it.all(Char::isLetter) }
+    }
 
     fun conditionCode(s: String): String = when (s.trim().lowercase().replace("_", " ")) {
         "mint", "near mint", "nm", "m", "nm-m", "nearmint" -> "NM"

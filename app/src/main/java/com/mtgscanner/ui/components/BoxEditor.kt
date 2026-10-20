@@ -177,6 +177,13 @@ fun BoxEditorSheet(
                 LivePreview(rules(), editingId)
             }
 
+            if (step == 3) {
+                // A range whose low end is above its high end lets no card in.
+                rangeWarnings(rules()).forEach { w ->
+                    Text(w, style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+
             Spacer(Modifier.height(16.dp))
             when (step) {
                 1 -> Unit
@@ -478,6 +485,18 @@ private fun StatRule(
             }
         }
     }
+}
+
+/** Short warnings for ranges no card can fit, like price at least $5 and under $2. */
+fun rangeWarnings(r: BoxRules): List<String> = buildList {
+    // Price: at least is inclusive and under is exclusive, so equal values match nothing too.
+    if (r.minPrice != null && r.maxPrice != null && r.minPrice >= r.maxPrice) add("Price: \"At least\" must be below \"Under\".")
+    fun stat(name: String, min: Int?, max: Int?) {
+        if (min != null && max != null && min > max) add("$name: From is above To.")
+    }
+    stat("Mana value", r.minCmc, r.maxCmc)
+    stat("Power", r.minPower, r.maxPower)
+    stat("Toughness", r.minToughness, r.maxToughness)
 }
 
 private fun numTexts(r: BoxRules): Map<String, String> = mapOf(

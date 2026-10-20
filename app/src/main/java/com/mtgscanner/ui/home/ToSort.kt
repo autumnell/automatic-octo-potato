@@ -125,7 +125,7 @@ internal fun ToSortSection(
                         Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CardImage(item.card.smallImageUrl ?: item.card.imageUrl, Modifier.width(28.dp), corner = 3.dp)
+                        CardImage(item.card.smallImageUrl ?: item.card.imageUrl, Modifier.width(28.dp), corner = 3.dp, zoom = true)
                         Spacer(Modifier.width(10.dp))
                         Text(
                             (if (item.card.quantity > 1) "${item.card.quantity}× " else "") + item.card.name,
@@ -184,11 +184,12 @@ internal fun UnknownScanDialog(
     var results by remember { mutableStateOf<List<ScryfallCard>?>(null) }
     var loading by remember { mutableStateOf(false) }
     LaunchedEffect(query) {
+        loading = false
         if (query.isBlank()) { results = emptyList(); return@LaunchedEffect }
         kotlinx.coroutines.delay(350)
         loading = true
-        results = search(query)
-        loading = false
+        // A newer query cancels this one; don't leave the spinner on.
+        try { results = search(query) } finally { loading = false }
     }
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -76,14 +76,19 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
         .map { all -> all.filter { it.forSale }.sortedBy { it.name.lowercase() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    // Each change re-reads the row, so a stale copy from the list never overwrites newer edits.
     fun setAsk(c: CollectionCard, price: Double?) = viewModelScope.launch {
-        repo.update(c.copy(askPrice = price))
+        val now = repo.cardOnce(c.id) ?: return@launch
+        repo.update(now.copy(askPrice = price))
         Haptics.tick()
     }
 
     fun unlist(c: CollectionCard) = viewModelScope.launch {
-        repo.update(c.copy(forSale = false))
-        Undo.offer("Removed ${c.name} from sale") { repo.update(c) }
+        val now = repo.cardOnce(c.id) ?: return@launch
+        repo.update(now.copy(forSale = false))
+        Undo.offer("Removed ${c.name} from sale") {
+            repo.cardOnce(c.id)?.let { repo.update(it.copy(forSale = true)) }
+        }
     }
 
     companion object {
@@ -108,7 +113,7 @@ fun sellText(cards: List<CollectionCard>): String = buildString {
         appendLine("Total ${formatUsd(cards.sumOf { (it.salePrice() ?: 0.0) * it.quantity })}")
     }
     appendLine()
-    append("Shared from MTG Scanner")
+    append("Shared from Grimoire")
 }
 
 /** Cards marked for sale, with a total and a Share button. */
@@ -168,7 +173,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
 @Composable
 private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(c.smallImageUrl, Modifier.width(40.dp), corner = 4.dp)
+        CardImage(c.smallImageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

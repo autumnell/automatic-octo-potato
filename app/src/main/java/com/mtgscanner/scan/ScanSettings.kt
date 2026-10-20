@@ -52,7 +52,8 @@ data class ScanSettings(
     fun skipReason(typeLine: String, layout: String?, price: Double?, pricesShown: Boolean): String? = when {
         skipBasics && typeLine.startsWith("Basic") && typeLine.contains("Land") -> "basic land"
         skipTokens && (typeLine.contains("Token") || layout == "token" || layout == "double_faced_token" || layout == "emblem") -> "token"
-        pricesShown && skipUnder != null && (price ?: 0.0) < skipUnder -> "under $" + "%.2f".format(java.util.Locale.US, skipUnder)
+        // A card with no price isn't known to be cheap, so it's kept.
+        pricesShown && skipUnder != null && price != null && price < skipUnder -> "under $" + "%.2f".format(java.util.Locale.US, skipUnder)
         else -> null
     }
 }

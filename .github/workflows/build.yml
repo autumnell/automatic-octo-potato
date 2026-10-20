@@ -48,5 +48,5 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk mtg-scanner.apk
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest mtg-scanner.apk \
-            --title "MTG Scanner (latest build)" \
+            --title "Grimoire (latest build)" \
             --notes "Built from ${GITHUB_SHA::7}. Download mtg-scanner.apk on your phone and open it to install."

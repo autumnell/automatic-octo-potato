@@ -34,12 +34,16 @@ data class SearchUi(
     val sets: List<ScryfallSet>? = null,
     val setFilter: String = "",
     val message: String? = null,
-    /** The last search couldn't reach Scryfall (offline or server error). */
+    /** The last search failed: offline, server error, or a query Scryfall rejected. */
     val failed: Boolean = false,
+    /** Scryfall's own words when it rejected the query; null when it couldn't be reached. */
+    val error: String? = null,
+    /** Loading the next page failed; shows a retry button under the results. */
+    val moreFailed: Boolean = false,
     /** The sets list couldn't be loaded. */
     val setsFailed: Boolean = false,
     /** Recent searches, newest first. */
-    val recent: List<String> = emptyList(),
+    val recent: List<RecentSearch> = emptyList(),
     /** Cards recently opened from Search, newest first. */
     val viewed: List<Viewed> = emptyList(),
     /** Extra Scryfall filters from the filter sheet. */
@@ -73,7 +77,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val history = SearchHistory(repo.appContext)
 
     init {
-        com.mtgscanner.data.CardKingdom.init(repo.appContext)
+        com.mtgscanner.data.CardKingdom.loadSaved(repo.appContext)
         _ui.update { it.copy(recent = history.recent(), viewed = history.viewed(), saved = history.saved()) }
     }
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -123,7 +127,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         val text = q.trim()
         val f = _ui.value.filters
         if (text.isEmpty() && !f.narrows) return
-        _ui.update { it.copy(query = text, suggestions = emptyList(), recent = if (text.isEmpty()) it.recent else history.addRecent(text)) }
+        _ui.update { it.copy(query = text, suggestions = emptyList(), recent = history.addRecent(RecentSearch(text, f))) }
         run(f.combine(text), label = text.ifEmpty { "Filtered" }, order = f.order, unique = f.unique)
     }
 
@@ -149,8 +153,8 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun pickSuggestion(name: String) {
-        _ui.update { it.copy(query = name, suggestions = emptyList(), recent = history.addRecent(name)) }
-        run("!\"$name\"", label = name, order = "released", unique = "prints")
+        _ui.update { it.copy(query = name, suggestions = emptyList(), recent = history.addRecent(RecentSearch(name, exactName = true))) }
+        run(exactNameQuery(name), label = name, order = "released", unique = "prints")
     }
 
     fun openSet(set: ScryfallSet) {
@@ -174,14 +178,15 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         suggestJob?.cancel()
         searchJob?.cancel()
         lastRun = Triple(query, label, order)
-        _ui.update { it.copy(ranQuery = query, ranLabel = label, results = emptyList(), loading = true, hasMore = false, failed = false) }
+        _ui.update { it.copy(ranQuery = query, ranLabel = label, results = emptyList(), loading = true, hasMore = false, failed = false, error = null, moreFailed = false) }
         searchJob = viewModelScope.launch {
             runCatching { repo.api.searchPage(query, order, 1, unique) }
                 .onSuccess { r -> _ui.update { it.copy(results = r.data, hasMore = r.hasMore, loading = false) } }
                 .onFailure { e ->
                     // A newer search cancelled this one; it owns the spinner now.
                     if (e is kotlinx.coroutines.CancellationException) throw e
-                    _ui.update { it.copy(loading = false, failed = true) }
+                    val msg = (e as? com.mtgscanner.data.ScryfallQueryException)?.message
+                    _ui.update { it.copy(loading = false, failed = true, error = msg) }
                 }
         }
     }
@@ -190,21 +195,21 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         val s = _ui.value
         val q = s.ranQuery ?: return
         if (s.loading || !s.hasMore) return
-        _ui.update { it.copy(loading = true) }
+        _ui.update { it.copy(loading = true, moreFailed = false) }
         searchJob = viewModelScope.launch {
             runCatching { repo.api.searchPage(q, order, page + 1, unique) }
                 .onSuccess { r ->
                     page++
                     _ui.update { it.copy(results = it.results + r.data, hasMore = r.hasMore, loading = false) }
                 }
-                .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e; _ui.update { it.copy(loading = false) } }
+                .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e; _ui.update { it.copy(loading = false, moreFailed = true) } }
         }
     }
 
     fun clearResults() {
         suggestJob?.cancel()
         searchJob?.cancel()
-        _ui.update { it.copy(ranQuery = null, ranLabel = null, results = emptyList(), hasMore = false, query = "", failed = false, suggestions = emptyList(), loading = false) }
+        _ui.update { it.copy(ranQuery = null, ranLabel = null, results = emptyList(), hasMore = false, query = "", failed = false, error = null, moreFailed = false, suggestions = emptyList(), loading = false) }
     }
 
     private fun loadSets() {
@@ -229,9 +234,11 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         else it.copy(selected = card, viewed = history.addViewed(Viewed(card.id, card.name, card.smallImageUrl)))
     }
 
-    /** Runs a recent search again: names open their printings, anything else searches as typed. */
-    fun rerun(q: String) {
-        if (q.contains(':')) submit(q) else pickSuggestion(q)
+    /** Runs a recent search again: picked names open their printings, typed searches run with their filters. */
+    fun rerun(r: RecentSearch) {
+        if (r.exactName) { pickSuggestion(r.text); return }
+        _ui.update { it.copy(query = r.text, filters = r.filters) }
+        submit(r.text)
     }
 
     /** Opens a recently viewed card again. */
@@ -251,7 +258,14 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         val card = _ui.value.selected ?: return
         _ui.update { it.copy(showPrintings = true, printings = null) }
         viewModelScope.launch {
-            val list = runCatching { repo.api.printings(card) }.getOrDefault(listOf(card))
+            val list = try {
+                repo.api.printings(card)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _ui.update { it.copy(message = "Can't load printings") }
+                listOf(card)
+            }
             _ui.update { it.copy(printings = list) }
         }
     }
@@ -295,3 +309,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun messageShown() = _ui.update { it.copy(message = null) }
 }
+
+/** Scryfall query for every printing of exactly [name]; double quotes in the name are escaped. */
+fun exactNameQuery(name: String): String = "!\"" + name.replace("\"", "\\\"") + "\""
+

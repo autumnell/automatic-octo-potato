@@ -32,7 +32,12 @@ object SortPrefs {
         prefs = p
         playsetLimit = p.getInt("playset", 0)
         extrasBoxId = p.getLong("extrasBox", -1L).takeIf { it >= 0 }
-        bulkFloor = p.getFloat("bulkFloor", -1f).takeIf { it >= 0 }?.toDouble()
+        // Stored in whole cents, so $0.10 reads back as exactly 0.10. Older versions saved a Float.
+        if (!p.contains("bulkFloorCents") && p.contains("bulkFloor")) {
+            val cents = p.getFloat("bulkFloor", -1f).takeIf { it >= 0 }?.let { toCents(it.toDouble()) } ?: -1
+            p.edit().putInt("bulkFloorCents", cents).remove("bulkFloor").apply()
+        }
+        bulkFloor = fromCents(p.getInt("bulkFloorCents", -1))
         bulkBoxId = p.getLong("bulkBox", -1L).takeIf { it >= 0 }
         setLock = p.getString("setLock", null)?.takeIf { it.isNotBlank() }
     }
@@ -43,9 +48,13 @@ object SortPrefs {
     }
 
     fun updateBulk(floor: Double?, boxId: Long?) {
-        bulkFloor = floor; bulkBoxId = boxId
-        prefs?.edit()?.putFloat("bulkFloor", floor?.toFloat() ?: -1f)?.putLong("bulkBox", boxId ?: -1L)?.apply()
+        val cents = floor?.let(::toCents) ?: -1
+        bulkFloor = fromCents(cents); bulkBoxId = boxId
+        prefs?.edit()?.putInt("bulkFloorCents", cents)?.putLong("bulkBox", boxId ?: -1L)?.apply()
     }
+
+    internal fun toCents(dollars: Double): Int = Math.round(dollars * 100).toInt().coerceAtLeast(0)
+    internal fun fromCents(cents: Int): Double? = if (cents < 0) null else cents / 100.0
 
     fun updateSetLock(code: String?) {
         setLock = code?.lowercase()?.takeIf { it.isNotBlank() }

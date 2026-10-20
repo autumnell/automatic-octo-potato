@@ -193,7 +193,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Long-press to select · swipe rows in list view",
+                    "Hold a picture to zoom, a row to select · swipe rows",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                     modifier = Modifier.weight(1f),
@@ -450,7 +450,7 @@ private fun CardGrid(
             items(cards, key = { it.id }) { c ->
                 if (grid) {
                     CardTile(
-                        c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
+                        c.smallImageUrl ?: c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
                         onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
                     )
                 } else if (picking) {
@@ -471,11 +471,17 @@ private fun CardGrid(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeRow(onMove: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+    // One swipe can confirm more than once; act on the first only.
+    val last = remember { longArrayOf(0L) }
     val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
-        when (v) {
-            SwipeToDismissBoxValue.StartToEnd -> onMove()
-            SwipeToDismissBoxValue.EndToStart -> onDelete()
-            else -> Unit
+        val now = android.os.SystemClock.uptimeMillis()
+        if (v != SwipeToDismissBoxValue.Settled && now - last[0] > 600) {
+            last[0] = now
+            when (v) {
+                SwipeToDismissBoxValue.StartToEnd -> onMove()
+                SwipeToDismissBoxValue.EndToStart -> onDelete()
+                else -> Unit
+            }
         }
         // Always spring back: the list updates itself, and a move asks for the box first.
         false
@@ -514,7 +520,8 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, onClick
             .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(46.dp), corner = 4.dp)
+        // Holding the picture shows it big; holding the rest of the row still starts picking.
+        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(46.dp), corner = 4.dp, zoom = true, onTap = onClick)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -595,7 +602,7 @@ private fun BinderPages(cards: List<CollectionCard>, unslotted: Int, onNumber: (
                             Box(Modifier.weight(1f)) {
                                 if (c != null) {
                                     Box(Modifier.clip(RoundedCornerShape(6.dp)).clickable { onOpen(c) }) {
-                                        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 6.dp)
+                                        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 6.dp, zoom = true)
                                     }
                                 } else {
                                     Box(

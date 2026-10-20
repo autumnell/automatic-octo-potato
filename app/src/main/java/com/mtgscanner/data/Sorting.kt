@@ -51,7 +51,9 @@ object Sorting {
      * 1. Under the bulk price floor → the bulk box.
      * 2. Already own [SortPolicy.playsetLimit] copies in main boxes → the extras box.
      * 3. The first box whose rules fit and that has room, else the first that fits even if full.
-     * 4. The fallback box, else the first box that takes any card (trade binders never catch leftovers).
+     * 4. The fallback box, else the first open box (takes any card, or any card in its name range) that fits.
+     *    Trade binders and decks never catch leftovers.
+     * Open boxes (see [BoxRules.isOpen]) never take a card ahead of a box with real rules.
      * [ownedInMain] counts copies of this card already in main boxes (see [isMainBox]).
      */
     fun decide(boxes: List<BoxInfo>, card: CardFacts, policy: SortPolicy = SortPolicy(), ownedInMain: Int = 0): SortDecision? {
@@ -63,11 +65,13 @@ object Sorting {
         if (policy.playsetLimit > 0 && extras != null && ownedInMain >= policy.playsetLimit) {
             return SortDecision(extras.id, SortReason.EXTRA, extras.isFull)
         }
-        val fits = boxes.filter { !it.rules.isCatchAll && it.rules.matches(card) }
+        val fits = boxes.filter { !it.rules.isOpen && it.rules.matches(card) }
         (fits.firstOrNull { !it.isFull } ?: fits.firstOrNull())?.let { return SortDecision(it.id, SortReason.RULES, it.isFull) }
-        val fb = boxes.firstOrNull { it.fallback }
-            ?: boxes.firstOrNull { it.rules.isCatchAll && it.kind != "trade" && !it.isFull }
-            ?: boxes.firstOrNull { it.rules.isCatchAll && it.kind != "trade" }
+        val open = boxes.filter { it.rules.isOpen && it.kind != "trade" && it.kind != "deck" && it.rules.matches(card) }
+        // A fallback box that is half of a split box only takes cards in its name range.
+        val fb = boxes.firstOrNull { it.fallback && (!it.rules.isOpen || it.rules.matches(card)) }
+            ?: open.firstOrNull { !it.isFull }
+            ?: open.firstOrNull()
             ?: return null
         return SortDecision(fb.id, SortReason.FALLBACK, fb.isFull)
     }
@@ -160,26 +164,35 @@ object Sorting {
             if (from.kind == "trade" || from.kind == "deck") return@mapNotNull null
             if (from.id == policy.extrasBoxId || from.id == policy.bulkBoxId) return@mapNotNull null
             val f = facts(item)
-            val stillFits = if (from.rules.isCatchAll) false else from.rules.matches(f)
+            val stillFits = !from.rules.isOpen && from.rules.matches(f)
             if (stillFits) return@mapNotNull null
             val target = decide(boxes, f, policy.copy(playsetLimit = 0)) ?: return@mapNotNull null
             if (target.boxId == from.id) return@mapNotNull null
-            // A card in a catch-all box only moves when a rule box fits it.
-            if (from.rules.isCatchAll && target.reason != SortReason.RULES && target.reason != SortReason.BULK) return@mapNotNull null
+            // A card in an open box that fits its name range only moves when a rule box fits it.
+            if (from.rules.isOpen && from.rules.matches(f) && target.reason != SortReason.RULES && target.reason != SortReason.BULK) {
+                return@mapNotNull null
+            }
             Move(item, from.id, target.boxId)
         }
     }
 
-    /** Splits a box's cards into two halves by first letter, for "split a full box". Returns the letter the second half starts at. */
+    /**
+     * Splits a box's cards into two halves by first letter, for "split a full box". Returns the letter the
+     * second half starts at. Pass only the cards in the box's name range. Letters follow [BoxRules.nameLetter];
+     * names starting with a digit or symbol fit any range, so they stay with the first half.
+     */
     fun splitLetter(names: List<Pair<String, Int>>): Char? {
-        val byLetter = names.groupBy { it.first.trimStart().firstOrNull()?.uppercaseChar() ?: '#' }
-            .mapValues { (_, v) -> v.sumOf { it.second } }.toSortedMap()
-        val total = byLetter.values.sum()
+        val grouped = names.groupBy { BoxRules.nameLetter(it.first) }.mapValues { (_, v) -> v.sumOf { it.second } }
+        val other = grouped['#'] ?: 0
+        val byLetter = grouped.filterKeys { it != '#' }.toSortedMap()
         if (byLetter.size < 2) return null
-        var run = 0
+        val total = other + byLetter.values.sum()
+        var run = other
+        var first = true
         for ((letter, n) in byLetter) {
-            if (run > 0 && run + n / 2 >= total / 2) return letter
+            if (!first && run + n / 2 >= total / 2) return letter
             run += n
+            first = false
         }
         return byLetter.lastKey()
     }

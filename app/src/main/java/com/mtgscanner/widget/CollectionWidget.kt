@@ -25,7 +25,7 @@ class CollectionWidget : AppWidgetProvider() {
         /** Saves the latest totals and redraws any widgets on the home screen. */
         fun publish(context: Context, value: Double, cards: Int) {
             context.getSharedPreferences("widget", Context.MODE_PRIVATE).edit()
-                .putFloat("value", value.toFloat()).putInt("cards", cards).apply()
+                .putString("valueUsd", value.toString()).remove("value").putInt("cards", cards).apply()
             refresh(context)
         }
 
@@ -38,7 +38,8 @@ class CollectionWidget : AppWidgetProvider() {
         private fun views(context: Context): RemoteViews {
             val p = context.getSharedPreferences("widget", Context.MODE_PRIVATE)
             val showPrices = context.getSharedPreferences("app", Context.MODE_PRIVATE).getBoolean("showPrices", true)
-            val value = p.getFloat("value", 0f).toDouble()
+            // Saved as text so big totals keep their cents; older versions saved a Float under "value".
+            val value = p.getString("valueUsd", null)?.toDoubleOrNull() ?: p.getFloat("value", 0f).toDouble()
             val cards = p.getInt("cards", 0)
             val v = RemoteViews(context.packageName, R.layout.widget_collection)
             // Just the total value (or the card count when prices are hidden). Tap opens the app.

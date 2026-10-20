@@ -55,16 +55,17 @@ data class CardTextGuess(
  */
 object CardTextParser {
 
-    // "123/280", "0045/0281"
-    private val COLLECTOR_FRACTION = Regex("""(?<![\d/])0*(\d{1,4})\s*/\s*\d{1,4}(?![\d/])""")
+    // "123/280", "0045/0281". Power/toughness ("3/3") and "+1/+1" are told apart by the size of the set.
+    private val COLLECTOR_FRACTION = Regex("""(?<![\d/+\-])(0*)(\d{1,4})\s*/\s*(0*)(\d{1,4})(?![\d/])""")
 
     // "R 0123", "C 0045", "M 0200" (rarity letter then number), or "0123 R"
     private val RARITY_THEN_NUMBER = Regex("""(?<![A-Z0-9])[CURMLSTP]\s+0*(\d{1,4}[a-z]?)(?![0-9])""")
     private val NUMBER_THEN_RARITY = Regex("""(?<![A-Z0-9/])0*(\d{1,4}[a-z]?)\s+[CURMLSTP](?![A-Za-z0-9])""")
 
-    // "MOM • EN", OCR often reads the bullet as *, ., -, or drops it.
+    // "MOM • EN", OCR often reads the bullet as *, ., -, or drops it. Matched as printed (capitals),
+    // so rules text like "loses", "Spirit" or "token" never reads as a footer.
     private val LANGS = "EN|ES|FR|DE|IT|PT|JA|JP|KO|RU|ZHS|ZHT|CS|CT|PH"
-    private val SET_LANG = Regex("""(?<![A-Z0-9])([A-Z0-9]{3,5})\s*[•·*.\-+]?\s*($LANGS)(?![A-Z])""")
+    private val SET_LANG = Regex("""(?<![A-Za-z0-9])([A-Z0-9]{3,5})\s*[•·*.\-+]?\s*($LANGS)(?![A-Za-z])""")
 
     // Words that are never part of a card name but often show up near the top.
     private val NOISE_WORDS = setOf(
@@ -92,7 +93,8 @@ object CardTextParser {
         val (setCode, number) = parseFooter(clean)
         val names = nameCandidates(clean)
         val text = clean.sortedBy { it.top }.joinToString("\n") { it.text }.take(600)
-        val footerLang = clean.firstNotNullOfOrNull { findLangCode(it.text) }
+        // The language code is printed in the footer only.
+        val footerLang = lowerLines(clean).firstNotNullOfOrNull { findLangCode(it.text) }
         return CardTextGuess(
             names, setCode, number, score, findArtBox(clean) ?: estimateArtBox(clean),
             lang = LanguageDetector.detect(text, footerLang), text = text,
@@ -142,12 +144,18 @@ object CardTextParser {
             .filter { w -> w.length >= 3 && w.count { it.isLetter() } >= w.length - 1 }
             .sumOf { it.length }
 
-    private fun parseFooter(lines: List<OcrLine>): Pair<String?, String?> {
-        // The footer is in the lower part of the text block. Look there first, then anywhere.
+    /** Lines in the lower part of the text block, left first: where the footer is. */
+    private fun lowerLines(lines: List<OcrLine>): List<OcrLine> {
         val minTop = lines.minOf { it.top }
         val maxBottom = lines.maxOf { it.bottom }
         val cutoff = minTop + (maxBottom - minTop) * 0.6
-        val lower = lines.filter { it.top >= cutoff }
+        return lines.filter { it.top >= cutoff }.sortedBy { it.left }
+    }
+
+    private fun parseFooter(lines: List<OcrLine>): Pair<String?, String?> {
+        // The footer is in the lower left of the text block (power/toughness sits lower right).
+        // Look there first, then anywhere.
+        val lower = lowerLines(lines)
         for (pool in listOf(lower, lines)) {
             val number = pool.firstNotNullOfOrNull { findCollectorNumber(it.text) }
             val set = pool.firstNotNullOfOrNull { findSetCode(it.text) }
@@ -201,13 +209,21 @@ object CardTextParser {
 
     /** The language code from a footer like "MOM • DE", as printed. */
     fun findLangCode(text: String): String? {
-        val m = SET_LANG.find(text.uppercase()) ?: return null
+        val m = SET_LANG.find(text) ?: return null
         if (m.groupValues[1].none { it.isLetter() }) return null
         return m.groupValues[2]
     }
 
     fun findCollectorNumber(text: String): String? {
-        COLLECTOR_FRACTION.find(text)?.let { return it.groupValues[1] }
+        for (m in COLLECTOR_FRACTION.findAll(text)) {
+            val (zeroA, num, zeroB, total) = m.destructured
+            val n = num.toInt()
+            val t = total.toInt()
+            // A set has at least 20 cards; smaller fractions are power/toughness ("3/3", "1/1").
+            // Leading zeros ("0003/0281") are only ever printed in a footer.
+            val padded = zeroA.isNotEmpty() || zeroB.isNotEmpty()
+            if (padded || (t >= 20 && n != t)) return num
+        }
         val upper = text.uppercase()
         RARITY_THEN_NUMBER.find(upper)?.let { return it.groupValues[1].lowercase() }
         NUMBER_THEN_RARITY.find(upper)?.let { return it.groupValues[1].lowercase() }
@@ -215,7 +231,7 @@ object CardTextParser {
     }
 
     fun findSetCode(text: String): String? {
-        val m = SET_LANG.find(text.uppercase()) ?: return null
+        val m = SET_LANG.find(text) ?: return null
         val code = m.groupValues[1]
         // A set code has at least one letter; pure numbers are collector numbers.
         if (code.none { it.isLetter() }) return null

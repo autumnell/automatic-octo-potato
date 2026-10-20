@@ -119,4 +119,73 @@ class CardTextParserTest {
         assertTrue(kotlin.math.abs((720 - f.right) - f.left) <= 1)
         assertTrue(f.height > f.width)
     }
+
+    // Real rules text must not read as a footer (B1, B2).
+
+    @Test fun rulesTextIsNotAFooter() {
+        val lines = listOf(
+            line("Serra Angel 3WW", 0, height = 30),
+            line("Creature — Angel", 300),
+            line("Target creature loses flying until end of turn.", 340),
+            line("Create a 1/1 white Spirit creature token with flying.", 370),
+            line("Whenever this effect gives a creature protection, copies it.", 400),
+            line("3/3", 560, left = 250),
+        )
+        val g = CardTextParser.parse(lines)
+        assertEquals("Serra Angel", g.nameCandidates.first())
+        assertNull(g.setCode)
+        assertNull(g.collectorNumber)
+        assertNull(g.lang)
+        assertEquals("serraangel", g.key)
+    }
+
+    @Test fun rulesWordsAreNotLanguageCodes() {
+        listOf(
+            "Target creature loses flying", "Create a 1/1 white Spirit creature token", "Draw a card, except",
+            "It gains protection from the color of your choice", "Infect", "The creature can't block. Evade it.",
+        ).forEach {
+            assertNull(it, CardTextParser.findLangCode(it))
+            assertNull(it, CardTextParser.findSetCode(it))
+        }
+    }
+
+    @Test fun powerToughnessIsNotACollectorNumber() {
+        assertNull(CardTextParser.findCollectorNumber("3/3"))
+        assertNull(CardTextParser.findCollectorNumber("Create a 1/1 white Spirit creature token"))
+        assertNull(CardTextParser.findCollectorNumber("Target creature gets +2/+2 until end of turn"))
+        assertNull(CardTextParser.findCollectorNumber("Create Marit Lage, a legendary 20/20 black Avatar"))
+        assertEquals("123", CardTextParser.findCollectorNumber("123/281 R"))
+        assertEquals("3", CardTextParser.findCollectorNumber("0003/0281 C"))
+        assertEquals("301", CardTextParser.findCollectorNumber("301/280 M"))
+    }
+
+    @Test fun readsFooterNextToPowerToughness() {
+        val lines = listOf(
+            line("Grizzly Bears 1G", 0, height = 30),
+            line("Creature — Bear", 300),
+            line("Create a 1/1 white Spirit creature token.", 340),
+            line("123/281 R", 560, left = 10),
+            line("MOM • EN Artist Name", 580, left = 10),
+            line("3/3", 570, left = 400),
+        )
+        val g = CardTextParser.parse(lines)
+        assertEquals("123", g.collectorNumber)
+        assertEquals("MOM", g.setCode)
+        assertEquals("MOM#123", g.key)
+        assertNull(g.lang)
+    }
+
+    @Test fun readsForeignFooterLanguage() {
+        val lines = listOf(
+            line("Engel von Serra 3WW", 0, height = 30),
+            line("Kreatur — Engel", 300),
+            line("Fliegend, Wachsamkeit", 340),
+            line("0035/0281 U", 560),
+            line("MOM • DE Artist Name", 580),
+        )
+        val g = CardTextParser.parse(lines)
+        assertEquals("de", g.lang)
+        assertEquals("MOM", g.setCode)
+        assertEquals("35", g.collectorNumber)
+    }
 }

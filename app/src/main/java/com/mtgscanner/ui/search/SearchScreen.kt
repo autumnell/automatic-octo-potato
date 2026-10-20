@@ -251,6 +251,8 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                 Modifier.align(Alignment.TopCenter).padding(top = 24.dp),
             )
             ui.results.isEmpty() && ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
+            ui.results.isEmpty() && ui.failed && ui.error != null ->
+                EmptyState(Icons.Filled.SearchOff, "Can't run this search", ui.error.orEmpty(), Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             ui.results.isEmpty() -> EmptyState(Icons.Filled.SearchOff, "No cards found", "Check the spelling, or try fewer words.", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             else -> Results(ui, vm, owned)
@@ -276,7 +278,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
             if (i >= ui.results.size - 8) LaunchedEffect(ui.results.size) { vm.loadMore() }
             val have = owned.of(c)?.count ?: 0
             if (ui.grid) {
-                CardTile(c.imageUrl, c.name, formatUsd(c.prices.usd ?: c.prices.usdFoil), owned = have, onClick = { vm.select(c) })
+                CardTile(c.smallImageUrl, c.name, formatUsd(c.prices.usd ?: c.prices.usdFoil), owned = have, onClick = { vm.select(c) })
             } else {
                 ResultRow(c, have) { vm.select(c) }
             }
@@ -284,6 +286,12 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
         if (ui.loading) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+            }
+        } else if (ui.moreFailed) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.TextButton(onClick = vm::loadMore) { Text("Couldn't load more · Retry", color = Palette.AccentText) }
+                }
             }
         }
     }
@@ -295,7 +303,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl, Modifier.width(46.dp), corner = 4.dp)
+        CardImage(c.smallImageUrl, Modifier.width(46.dp), corner = 4.dp, zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -338,7 +346,7 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
                 LazyRow(contentPadding = PaddingValues(horizontal = 14.dp)) {
                     items(ui.viewed, key = { it.id }) { v ->
                         Column(Modifier.width(84.dp).clip(RoundedCornerShape(10.dp)).clickable { vm.openViewed(v) }.padding(4.dp)) {
-                            CardImage(v.image, Modifier.fillMaxWidth(), corner = 6.dp)
+                            CardImage(v.image, Modifier.fillMaxWidth(), corner = 6.dp, zoom = true)
                             Text(v.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                         }
                     }
@@ -358,7 +366,11 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
                 ) {
                     Icon(Icons.Filled.History, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(14.dp))
-                    Text(q, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Column {
+                        Text(q.text.ifEmpty { "Filtered" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val f = q.filterLabel
+                        if (f.isNotEmpty()) Text(f, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }

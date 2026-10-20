@@ -23,6 +23,9 @@ class DeckStatsMathTest {
         assertEquals(setOf('W', 'U', 'B', 'R', 'G'), DeckStatsMath.produces("Land", "{T}: Add one mana of any color."))
         assertEquals(setOf('C'), DeckStatsMath.produces("Artifact", "{T}: Add {C}{C}."))
         assertEquals(emptySet<Char>(), DeckStatsMath.produces("Instant", "Deal 3 damage to any target."))
+        // Reminder text doesn't count.
+        assertEquals(emptySet<Char>(), DeckStatsMath.produces("Sorcery",
+            "Create a Treasure token. (It's an artifact with \"{T}, Sacrifice this artifact: Add one mana of any color.\")"))
     }
 
     @Test

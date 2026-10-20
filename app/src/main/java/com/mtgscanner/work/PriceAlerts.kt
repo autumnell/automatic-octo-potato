@@ -21,7 +21,9 @@ import androidx.work.WorkerParameters
 import com.mtgscanner.MainActivity
 import com.mtgscanner.MtgApp
 import com.mtgscanner.R
+import com.mtgscanner.data.BackupIO
 import com.mtgscanner.data.PriceMove
+import kotlinx.coroutines.CancellationException
 import com.mtgscanner.ui.theme.AppSettings
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -30,12 +32,24 @@ import java.util.concurrent.TimeUnit
 class PriceAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         if (!AppSettings.alertsWanted(applicationContext)) return Result.success()
-        val p = applicationContext.getSharedPreferences("app", Context.MODE_PRIVATE)
         val repo = (applicationContext as MtgApp).repository
-        val moves = runCatching {
+        // Without permission to notify, don't check: checking moves each card's "last alerted" price,
+        // so moves found now would never be shown.
+        if (!PriceAlerts.canNotify(applicationContext)) {
+            runCatching { repo.refreshPricesIfStale() }
+            BackupIO.prunePriceHistory(repo.db)
+            return Result.success()
+        }
+        val p = applicationContext.getSharedPreferences("app", Context.MODE_PRIVATE)
+        val moves = try {
             repo.priceMoves(p.getFloat("alertPercent", 20f).toDouble(), p.getFloat("alertDollars", 1f).toDouble())
-        }.getOrElse { return Result.retry() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Result.retry()
+        }
         if (moves.isNotEmpty()) PriceAlerts.notify(applicationContext, moves)
+        BackupIO.prunePriceHistory(repo.db)
         return Result.success()
     }
 }
@@ -57,10 +71,16 @@ object PriceAlerts {
         wm.enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.KEEP, req)
     }
 
-    fun notify(context: Context, moves: List<PriceMove>) {
+    /** Whether a notification would actually be shown: permission granted and notifications on for the app. */
+    fun canNotify(context: Context): Boolean {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) return
+        ) return false
+        return NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    fun notify(context: Context, moves: List<PriceMove>) {
+        if (!canNotify(context)) return
         val nm = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "Price alerts", NotificationManager.IMPORTANCE_DEFAULT))

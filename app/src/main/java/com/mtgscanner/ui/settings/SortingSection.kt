@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mtgscanner.MtgApp
 import com.mtgscanner.data.SortPrefs
-import com.mtgscanner.data.db.BoxSummary
+import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.theme.Palette
@@ -47,7 +47,8 @@ private val bulkFloors = listOf(0.10, 0.25, 0.50, 1.00)
 fun SortingSection() {
     val ctx = LocalContext.current
     val repo = remember { (ctx.applicationContext as MtgApp).repository }
-    val flow = remember { repo.observeBoxSummaries() }
+    // Only names and kinds are needed here, not every box's card count and value.
+    val flow = remember { repo.observeBoxes() }
     val boxes by flow.collectAsStateWithLifecycle(emptyList())
 
     Card {
@@ -90,7 +91,7 @@ fun SortingSection() {
 
 /** "Extras → Trade binder" chip that opens a box menu. No box picked means the rule does nothing yet. */
 @Composable
-private fun BoxChoice(label: String, boxes: List<BoxSummary>, current: Long?, onPick: (Long) -> Unit) {
+private fun BoxChoice(label: String, boxes: List<CardBox>, current: Long?, onPick: (Long) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val here = boxes.firstOrNull { it.id == current }
     Box {

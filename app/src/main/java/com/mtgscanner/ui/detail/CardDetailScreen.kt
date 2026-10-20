@@ -121,11 +121,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : ViewModel() {
@@ -143,14 +144,42 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     val boxes: StateFlow<List<CardBox>> = repo.observeBoxes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** The card's full text from Scryfall (flavor, faces, every format); null offline. */
-    val live: StateFlow<com.mtgscanner.data.ScryfallCard?> = card
+    /** Scryfall's copy of the card, and whether fetching it failed (offline). */
+    private val liveState: StateFlow<Pair<com.mtgscanner.data.ScryfallCard?, Boolean>> = card
         .map { it?.scryfallId }
         .distinctUntilChanged()
-        .mapLatest { id -> id?.let { runCatching { repo.api.byId(it) }.getOrNull() } }
+        // Clear at once on a new card so the old card's text never shows under it while loading.
+        .transformLatest { id ->
+            emit(Pair<com.mtgscanner.data.ScryfallCard?, Boolean>(null, false))
+            if (id != null) {
+                val got = runCatching { repo.api.byId(id) }.getOrNull()
+                emit(Pair(got, got == null))
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Pair<com.mtgscanner.data.ScryfallCard?, Boolean>(null, false))
+
+    /** The card's full text from Scryfall (flavor, faces, every format); null while loading or offline. */
+    val live: StateFlow<com.mtgscanner.data.ScryfallCard?> = liveState
+        .map { it.first }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun setQuantity(q: Int) = viewModelScope.launch { repo.setQuantity(currentId.value, q) }
+    /** Scryfall couldn't be reached for this card. */
+    val liveFailed: StateFlow<Boolean> = liveState
+        .map { it.second }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    private val quantityLock = kotlinx.coroutines.sync.Mutex()
+
+    /** Adds [delta] copies (never below 1), reading the stored count so fast taps all count. */
+    fun changeQuantity(delta: Int) = viewModelScope.launch {
+        if (delta == 0) return@launch
+        quantityLock.withLock {
+            val id = currentId.value
+            val cur = repo.cardOnce(id)?.quantity ?: return@withLock
+            val next = (cur + delta).coerceAtLeast(1)
+            if (next != cur) repo.setQuantity(id, next)
+        }
+    }
     fun setFoil(foil: Boolean) = viewModelScope.launch { currentId.value = repo.setFoil(currentId.value, foil) }
     fun moveTo(boxId: Long) = viewModelScope.launch {
         val from = currentId.value
@@ -197,7 +226,9 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
 
     /** Daily prices recorded for this printing, oldest first. */
     val priceHistory: StateFlow<List<PricePoint>> = card
-        .flatMapLatest { c -> if (c == null) flowOf(emptyList()) else repo.observePriceHistory(c.scryfallId) }
+        .map { it?.scryfallId }
+        .distinctUntilChanged()
+        .flatMapLatest { sid -> if (sid == null) flowOf(emptyList()) else repo.observePriceHistory(sid) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Every tag used anywhere in the collection, for suggestions. */
@@ -251,10 +282,15 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         .flatMapLatest { sid -> if (sid == null) flowOf(emptyList()) else repo.observeHistory(sid) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Row ids in this card's box, in swipe order; only re-sorted when the collection or the box changes, not on edits to this card. */
+    private val boxOrder: kotlinx.coroutines.flow.Flow<List<Long>> = combine(card.map { it?.boxId }.distinctUntilChanged(), repo.observeAll()) { boxId, all ->
+        if (boxId == null) emptyList() else boxOrderOf(boxId, all)
+    }.distinctUntilChanged()
+
     /** The other cards in the same box, in name order, for swiping. */
-    val neighbors: StateFlow<Neighbors> = combine(card, repo.observeAll()) { c, all ->
-        if (c == null) Neighbors() else neighborsOf(c, all)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Neighbors())
+    val neighbors: StateFlow<Neighbors> = combine(card.map { it?.id }.distinctUntilChanged(), boxOrder) { id, order ->
+        if (id == null) Neighbors() else neighborsIn(id, order)
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Neighbors())
 
     fun go(id: Long) { currentId.value = id }
 
@@ -307,7 +343,14 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     /** Switches this copy to another printing of the same card, with undo. */
     fun changePrinting(p: com.mtgscanner.data.ScryfallCard) = viewModelScope.launch {
         val from = currentId.value
-        val change = runCatching { repo.changePrinting(from, p) }.getOrNull() ?: return@launch
+        val change = try {
+            repo.changePrinting(from, p)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Undo.offer("Couldn't change printing")
+            return@launch
+        } ?: return@launch
         currentId.value = change.newId
         Undo.offer("Now ${p.set.uppercase()} #${p.collectorNumber}") {
             repo.restore(change.before)
@@ -319,12 +362,18 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
 data class Neighbors(val prev: Long? = null, val next: Long? = null, val index: Int = 0, val total: Int = 0)
 
 /** Previous and next card in [c]'s box, by name (then set, number, foil). Pure, for tests. */
-internal fun neighborsOf(c: CollectionCard, all: List<CollectionCard>): Neighbors {
-    val inBox = all.filter { it.boxId == c.boxId }
-        .sortedWith(compareBy<CollectionCard>({ it.name.lowercase() }, { it.setCode }, { it.collectorNumber }, { it.foil }, { it.id }))
-    val i = inBox.indexOfFirst { it.id == c.id }
+internal fun neighborsOf(c: CollectionCard, all: List<CollectionCard>): Neighbors = neighborsIn(c.id, boxOrderOf(c.boxId, all))
+
+/** Row ids in box [boxId], by name (then set, number, foil). */
+internal fun boxOrderOf(boxId: Long, all: List<CollectionCard>): List<Long> = all.filter { it.boxId == boxId }
+    .sortedWith(compareBy<CollectionCard>({ it.name.lowercase() }, { it.setCode }, { it.collectorNumber }, { it.foil }, { it.id }))
+    .map { it.id }
+
+/** Previous and next of [id] in [order]. */
+internal fun neighborsIn(id: Long, order: List<Long>): Neighbors {
+    val i = order.indexOf(id)
     if (i < 0) return Neighbors()
-    return Neighbors(inBox.getOrNull(i - 1)?.id, inBox.getOrNull(i + 1)?.id, i + 1, inBox.size)
+    return Neighbors(order.getOrNull(i - 1), order.getOrNull(i + 1), i + 1, order.size)
 }
 
 private val LANGUAGES = listOf(
@@ -463,7 +512,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Palette.Surface) {
                         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                QuantityStepper(c.quantity, onChange = { vm.setQuantity(it.coerceAtLeast(1)) })
+                                QuantityStepper(c.quantity, onChange = { vm.changeQuantity(it - c.quantity) })
                                 Spacer(Modifier.weight(1f))
                                 SelectPill("Foil", c.foil, onClick = { vm.setFoil(!c.foil) })
                                 ConditionPicker(c.condition) { vm.setCondition(it) }
@@ -736,6 +785,7 @@ private fun Hero(c: CollectionCard, onPhoto: () -> Unit) {
             c.imageUrl,
             Modifier.align(Alignment.Center).statusBarsPadding().padding(top = 8.dp, bottom = 20.dp).height(170.dp),
             corner = 10.dp,
+            zoom = true,
         )
         // Your own copy's photo, small in the corner; tap to view.
         if (c.photo.isNotBlank()) {

@@ -150,6 +150,10 @@ object Game {
         return next.copy(history = merged.takeLast(300), undoStack = stack)
     }
 
+    /** Saves the current state as an undo step without a history line. */
+    private fun GameState.pushUndo(): GameState =
+        copy(undoStack = (undoStack + copy(undoStack = emptyList())).takeLast(GameState.MAX_UNDO))
+
     private fun GameState.updatePlayer(i: Int, f: (Player) -> Player): GameState =
         copy(players = players.mapIndexed { j, p -> if (j == i) f(p) else p })
 
@@ -202,6 +206,7 @@ object Game {
     fun concede(s: GameState, i: Int, out: Boolean, now: Long = System.currentTimeMillis()): GameState =
         s.record(i, if (out) "Conceded" else "Back in", 0, now, s.updatePlayer(i) { it.copy(conceded = out) })
 
+    // Names, colors and art aren't undo steps; [undo] keeps them as they are now.
     fun rename(s: GameState, i: Int, name: String): GameState = s.updatePlayer(i) { it.copy(name = name.trim().ifEmpty { it.name }) }
     fun recolor(s: GameState, i: Int, color: Int): GameState = s.updatePlayer(i) { it.copy(color = color) }
     fun setArt(s: GameState, i: Int, art: String?): GameState = s.updatePlayer(i) { it.copy(art = art) }
@@ -227,16 +232,17 @@ object Game {
     }
 
     /** Hands the turn to a player without counting a new round. */
-    fun setActive(s: GameState, i: Int?): GameState = s.copy(active = i)
+    fun setActive(s: GameState, i: Int?): GameState = if (s.active == i) s else s.pushUndo().copy(active = i)
 
     /** Sets who goes first: turn 1 starts with them, and each new round starts with them. */
-    fun setFirst(s: GameState, i: Int): GameState = s.copy(active = i, firstSeat = i, turn = 1)
+    fun setFirst(s: GameState, i: Int): GameState =
+        if (s.active == i && s.firstSeat == i && s.turn == 1) s else s.pushUndo().copy(active = i, firstSeat = i, turn = 1)
 
     fun monarch(s: GameState, i: Int?, now: Long = System.currentTimeMillis()): GameState =
-        s.record(i ?: -1, "Monarch", 0, now, s.copy(monarch = i))
+        s.record(i ?: -1, if (i == null) "No monarch" else "Monarch", 0, now, s.copy(monarch = i))
 
     fun initiative(s: GameState, i: Int?, now: Long = System.currentTimeMillis()): GameState =
-        s.record(i ?: -1, "Initiative", 0, now, s.copy(initiative = i))
+        s.record(i ?: -1, if (i == null) "No initiative" else "Initiative", 0, now, s.copy(initiative = i))
 
     fun dayNight(s: GameState, value: String?, now: Long = System.currentTimeMillis()): GameState =
         if (value == s.dayNight) s
@@ -245,7 +251,11 @@ object Game {
     fun undo(s: GameState): GameState {
         val prev = s.undoStack.lastOrNull() ?: return s
         // A game already saved to the stats stays saved, so undoing and replaying the last hit doesn't count it twice.
-        return prev.copy(undoStack = s.undoStack.dropLast(1), recorded = s.recorded)
+        // Names, colors and art aren't undo steps, so they stay as they are now.
+        val players = prev.players.mapIndexed { j, p ->
+            s.players.getOrNull(j)?.let { now -> p.copy(name = now.name, color = now.color, art = now.art) } ?: p
+        }
+        return prev.copy(players = players, undoStack = s.undoStack.dropLast(1), recorded = s.recorded)
     }
 
     /** Same players and format, fresh life totals. */

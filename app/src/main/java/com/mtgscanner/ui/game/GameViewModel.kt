@@ -9,9 +9,14 @@ import com.mtgscanner.game.Game
 import com.mtgscanner.game.GameFormat
 import com.mtgscanner.game.GameRecord
 import com.mtgscanner.game.GameState
+import com.mtgscanner.data.db.CollectionCard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -24,6 +29,8 @@ data class ArtChoice(val name: String, val set: String, val art: String)
 /** The life counter. The game in progress is saved, so it survives leaving the app. */
 class GameViewModel(context: Context, private val repo: CollectionRepository) : ViewModel() {
     private val prefs = context.applicationContext.getSharedPreferences("game", Context.MODE_PRIVATE)
+    /** Finished games live in their own file, so saving the game in progress doesn't rewrite them. */
+    private val recordPrefs = context.applicationContext.getSharedPreferences("game_records", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val recordsSerializer = ListSerializer(GameRecord.serializer())
 
@@ -41,9 +48,19 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
 
     /** Finished games, newest first. */
     private val _records = MutableStateFlow(
-        prefs.getString("records", null)?.let { runCatching { json.decodeFromString(recordsSerializer, it) }.getOrNull() }.orEmpty(),
+        loadRecords()?.let { runCatching { json.decodeFromString(recordsSerializer, it) }.getOrNull() }.orEmpty(),
     )
     val records: StateFlow<List<GameRecord>> = _records
+
+    /** Reads saved records, moving them out of the old shared "game" file the first time. */
+    private fun loadRecords(): String? {
+        recordPrefs.getString("records", null)?.let { return it }
+        val old = prefs.getString("records", null) ?: return null
+        // commit, so the copy is on disk before the old one is removed.
+        recordPrefs.edit().putString("records", old).commit()
+        prefs.edit().remove("records").apply()
+        return old
+    }
 
     fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean) {
         saveIfWon()
@@ -61,8 +78,13 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun end(save: Boolean = false, winner: Int? = null) {
         val g = _game.value
         if (save && g != null && !g.recorded) addRecord(g.toRecord(winner))
-        _game.value = null
-        prefs.edit().remove("current").apply()
+        saveJob?.cancel()
+        // Locked with flush, so a save already under way can't bring the ended game back.
+        synchronized(this) {
+            pending.set(null)
+            _game.value = null
+            prefs.edit().remove("current").apply()
+        }
     }
 
     fun deleteRecord(r: GameRecord) = saveRecords(_records.value - r)
@@ -72,7 +94,7 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
 
     private fun saveRecords(list: List<GameRecord>) {
         _records.value = list
-        prefs.edit().putString("records", json.encodeToString(recordsSerializer, list)).apply()
+        recordPrefs.edit().putString("records", json.encodeToString(recordsSerializer, list)).apply()
     }
 
     /**
@@ -81,12 +103,37 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
      */
     private fun saveIfWon() {
         val g = _game.value ?: return
-        if (g.winner != null && !g.recorded) addRecord(g.toRecord())
+        if (g.winner != null && !g.recorded) {
+            addRecord(g.toRecord())
+            set(g.copy(recorded = true))
+        }
     }
 
+    /** The newest game not yet written to disk. */
+    private val pending = java.util.concurrent.atomic.AtomicReference<GameState?>(null)
+    private var saveJob: Job? = null
+
+    /** Shows the change right away and writes it a moment later, so a swipe of 20 points is one write. */
     private fun set(g: GameState) {
         _game.value = g
+        pending.set(g)
+        saveJob?.cancel()
+        saveJob = viewModelScope.launch(Dispatchers.Default) {
+            delay(SAVE_DELAY_MS)
+            flush()
+        }
+    }
+
+    /** Writes the game in progress now, if there's a change waiting. */
+    @Synchronized
+    fun flush() {
+        val g = pending.getAndSet(null) ?: return
+        if (_game.value == null) return
         prefs.edit().putString("current", json.encodeToString(GameState.serializer(), g)).apply()
+    }
+
+    override fun onCleared() {
+        flush()
     }
 
     // Card art from your collection, for player backgrounds.
@@ -94,17 +141,30 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     private val _art = MutableStateFlow<List<ArtChoice>>(emptyList())
     val art: StateFlow<List<ArtChoice>> = _art
 
-    fun searchArt(query: String) {
-        viewModelScope.launch {
+    private var artJob: Job? = null
+    /** Collection cards with art, sorted, loaded when the picker opens rather than on every keystroke. */
+    private var artCards: List<CollectionCard>? = null
+
+    /** [refresh] reloads the collection, for when the picker opens. */
+    fun searchArt(query: String, refresh: Boolean = false) {
+        // A newer search replaces an older one, so results can't arrive out of order.
+        artJob?.cancel()
+        artJob = viewModelScope.launch {
+            if (!refresh) delay(150)
             val q = query.trim()
-            val all = runCatching { repo.allCards() }.getOrDefault(emptyList())
-            _art.value = all.asSequence()
-                .filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) }
-                .sortedWith(compareByDescending<com.mtgscanner.data.db.CollectionCard> { it.typeLine.contains("Legendary") }.thenBy { it.name })
-                .mapNotNull { c -> artCropUrl(c.imageUrl)?.let { ArtChoice(c.name, c.setCode.uppercase(), it) } }
-                .distinctBy { it.art }
-                .take(60)
-                .toList()
+            val all = artCards.takeUnless { refresh } ?: withContext(Dispatchers.Default) {
+                runCatching { repo.allCards() }.getOrDefault(emptyList())
+                    .filter { artCropUrl(it.imageUrl) != null }
+                    .sortedWith(compareByDescending<CollectionCard> { it.typeLine.contains("Legendary") }.thenBy { it.name })
+            }.also { artCards = it }
+            _art.value = withContext(Dispatchers.Default) {
+                all.asSequence()
+                    .filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) }
+                    .mapNotNull { c -> artCropUrl(c.imageUrl)?.let { ArtChoice(c.name, c.setCode.uppercase(), it) } }
+                    .distinctBy { it.art }
+                    .take(60)
+                    .toList()
+            }
         }
     }
 
@@ -116,4 +176,8 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun undo() = update { Game.undo(it) }
     fun nextTurn() = update { Game.nextTurn(it) }
     fun restart() { saveIfWon(); update { Game.restart(it) } }
+
+    private companion object {
+        const val SAVE_DELAY_MS = 300L
+    }
 }

@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,7 +35,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.MtgApp
+import com.mtgscanner.data.Found
 import com.mtgscanner.data.Placement
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.CardImage
@@ -52,7 +57,16 @@ fun FindCardSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
     val cards by remember { repo.observeAll() }.collectAsState(initial = emptyList())
     val boxes by remember { repo.observeBoxes() }.collectAsState(initial = emptyList())
     var query by remember { mutableStateOf("") }
-    val found = remember(query, cards, boxes) { Placement.find(query, cards, boxes) }
+    // Results for which query: worked out off the main thread once typing pauses.
+    var result by remember { mutableStateOf("" to emptyList<Found>()) }
+    LaunchedEffect(query, cards, boxes) {
+        val q = query
+        if (q.trim().length < 2) { result = q to emptyList<Found>(); return@LaunchedEffect }
+        delay(150)
+        result = q to withContext(Dispatchers.Default) { Placement.find(q, cards, boxes) }
+    }
+    val found = result.second
+    val settled = result.first == query
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -68,6 +82,7 @@ fun FindCardSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                 )
+                found.isEmpty() && !settled -> Spacer(Modifier.height(48.dp))
                 found.isEmpty() -> EmptyState(
                     Icons.Filled.SearchOff, "Not in your collection", "Check the spelling.",
                     action = { TextButton(onClick = { query = "" }) { Text("Clear") } },

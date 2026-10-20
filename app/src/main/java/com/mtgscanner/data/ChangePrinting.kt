@@ -2,14 +2,15 @@ package com.mtgscanner.data
 
 import androidx.room.withTransaction
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.mergedWith
 
 /** Result of [changePrinting]: the row now holding the copies, and what undo puts back. */
 data class PrintingChange(val newId: Long, val before: List<CollectionCard>)
 
 /**
  * Switches a collection row to another printing of the same card ([to]), keeping quantity,
- * box, condition, notes and your own details. Merges into an existing row of that printing
- * and finish in the same box. Null when the row is gone or already this printing.
+ * box, condition, notes and your own details. Merges into an existing row of identical copies
+ * of that printing in the same box. Null when the row is gone or already this printing.
  */
 suspend fun CollectionRepository.changePrinting(id: Long, to: ScryfallCard): PrintingChange? {
     val c = dao.get(id) ?: return null
@@ -26,9 +27,9 @@ suspend fun CollectionRepository.changePrinting(id: Long, to: ScryfallCard): Pri
     val now = System.currentTimeMillis()
     val e = to.toEntity(foil, c.quantity, now)
     val newId = db.withTransaction {
-        val other = dao.find(to.id, foil, c.boxId)
+        val other = twinOf(c, scryfallId = to.id, foil = foil)
         if (other != null && other.id != c.id) {
-            dao.update(other.copy(quantity = other.quantity + c.quantity, updatedAt = now))
+            dao.update(other.mergedWith(c, now = now))
             dao.delete(c)
             other.id
         } else {

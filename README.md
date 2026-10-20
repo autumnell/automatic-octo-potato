@@ -1,4 +1,4 @@
-# MTG Scanner
+# Grimoire
 
 An Android app that scans Magic: The Gathering cards with the camera, identifies them on
 [Scryfall](https://scryfall.com), and keeps your collection organized.
@@ -8,7 +8,7 @@ An Android app that scans Magic: The Gathering cards with the camera, identifies
 1. On your phone, open this repository's **Releases** page and download `mtg-scanner.apk`
    from the **latest** release.
 2. Open the file. Android will ask you to allow installs from your browser the first time.
-3. Open **MTG Scanner** and allow the camera.
+3. Open **Grimoire** and allow the camera.
 
 Each new build replaces the "latest" release, and installs cleanly over the previous version.
 

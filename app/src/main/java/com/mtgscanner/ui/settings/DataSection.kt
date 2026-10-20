@@ -4,6 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +49,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mtgscanner.data.Backup
+import com.mtgscanner.data.BackupIO
+import com.mtgscanner.data.BadBackupException
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.PendingScan
@@ -63,7 +69,9 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.runtime.mutableDoubleStateOf
 import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.util.ImportRow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -76,12 +84,26 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/** Settings jobs (backup, import, restore…) run one at a time, in the app's scope, so leaving Settings doesn't stop them. */
+object DataJobs {
+    /** What's running, like "Importing 40 cards…"; null when idle. */
+    val busy = MutableStateFlow<String?>(null)
+}
+
+/** A backup that's been read and checked, waiting for the user to confirm the restore. */
+class RestorePreview(val backup: Backup) {
+    val cards: Int get() = backup.cardCount
+    val boxes: Int get() = backup.boxes.size
+    val savedAt: Long get() = backup.exportedAt
+    /** It holds settings (deck folders, saved searches…) that need a fresh start to show. */
+    val restarts: Boolean get() = BackupIO.needsRestart(backup)
+}
+
 class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val pending: StateFlow<List<PendingScan>> = repo.observePending().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _busy = MutableStateFlow<String?>(null)
-    val busy: StateFlow<String?> = _busy
+    val busy: StateFlow<String?> = DataJobs.busy
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
@@ -89,68 +111,140 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val _importRows = MutableStateFlow<List<ImportRow>?>(null)
     val importRows: StateFlow<List<ImportRow>?> = _importRows
 
-    /** Runs one action at a time. Returns false (and says why) if another is still running. */
-    private fun run(label: String, block: suspend () -> String): Boolean {
-        _busy.value?.let { _message.value = "Wait for \"${it.removeSuffix("…")}\" to finish"; return false }
-        _busy.value = label
-        viewModelScope.launch {
-            _message.value = runCatching { block() }.getOrElse { "Something went wrong: ${it.message}" }
-            _busy.value = null
+    private val _restore = MutableStateFlow<RestorePreview?>(null)
+    val restorePreview: StateFlow<RestorePreview?> = _restore
+
+    private val _canUndoRestore = MutableStateFlow(BackupIO.safetyFile(repo.appContext).exists())
+    /** A safety copy from before the last restore exists. */
+    val canUndoRestore: StateFlow<Boolean> = _canUndoRestore
+
+    /**
+     * Runs one action at a time in the app's scope, so it finishes even after leaving Settings.
+     * Its result shows app-wide. Returns false (and says why) if another is still running.
+     */
+    private fun run(label: String, block: suspend () -> String?): Boolean {
+        if (!DataJobs.busy.compareAndSet(null, label)) {
+            _message.value = "Wait for \"${DataJobs.busy.value?.removeSuffix("…")}\" to finish"
+            return false
+        }
+        repo.appScope.launch {
+            val result = try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: BadBackupException) {
+                e.message
+            } catch (e: Throwable) {
+                "Something went wrong: ${e.message}"
+            } finally {
+                DataJobs.busy.value = null
+            }
+            result?.let { com.mtgscanner.ui.components.Undo.offer(it) }
         }
         return true
     }
 
-    fun backup(ctx: android.content.Context, uri: Uri) = run("Saving backup…") {
-        val out = withContext(Dispatchers.IO) { ctx.contentResolver.openOutputStream(uri) } ?: return@run "Couldn't save to that file"
-        repo.exportBackup(out)
-        "Backup saved"
+    fun backup(ctx: android.content.Context, uri: Uri) {
+        val app = ctx.applicationContext
+        run("Saving backup…") {
+            if (BackupIO.export(repo) { openForWrite(app, uri) }) "Backup saved" else "Couldn't save to that file"
+        }
     }
 
-    fun exportCsv(ctx: android.content.Context, uri: Uri, format: CsvFormat) = run("Exporting…") {
-        val cards = repo.allCards()
-        val ok = withContext(Dispatchers.IO) {
-            ctx.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { CsvExporter.write(cards, it, format) } != null
+    fun exportCsv(ctx: android.content.Context, uri: Uri, format: CsvFormat) {
+        val app = ctx.applicationContext
+        run("Exporting…") {
+            val cards = repo.allCards()
+            // Built in memory first, so a failure doesn't leave a half-written file.
+            val text = java.io.StringWriter().also { CsvExporter.write(cards, it, format) }.toString()
+            val ok = withContext(Dispatchers.IO + NonCancellable) {
+                openForWrite(app, uri)?.bufferedWriter()?.use { it.write(text) } != null
+            }
+            if (ok) "Exported ${cards.size} entries" else "Couldn't save to that file"
         }
-        if (ok) "Exported ${cards.size} entries" else "Couldn't save to that file"
     }
 
     /** Writes the weekly backup file now. */
-    fun backupNow(ctx: android.content.Context) = run("Backing up…") {
-        if (DriveBackup.backupNow(ctx.applicationContext)) "Backup saved" else "Backup failed"
+    fun backupNow(ctx: android.content.Context) {
+        val app = ctx.applicationContext
+        run("Backing up…") {
+            if (DriveBackup.backupNow(app)) "Backup saved" else "Backup failed"
+        }
     }
 
     /** Saves a PDF of every card worth at least [min] per copy. */
-    fun insuranceReport(ctx: android.content.Context, uri: Uri, min: Double) = run("Making report…") {
-        val cards = repo.allCards()
-        val n = withContext(Dispatchers.IO) {
-            ctx.contentResolver.openOutputStream(uri)?.use { InsuranceReport.write(cards, min, it, ctx.filesDir) }
-        } ?: return@run "Couldn't save to that file"
-        if (n == 1) "Report saved: 1 card" else "Report saved: $n cards"
+    fun insuranceReport(ctx: android.content.Context, uri: Uri, min: Double) {
+        val app = ctx.applicationContext
+        run("Making report…") {
+            val cards = repo.allCards()
+            val n = withContext(Dispatchers.IO) {
+                app.contentResolver.openOutputStream(uri)?.use { InsuranceReport.write(cards, min, it, app.filesDir) }
+            } ?: return@run "Couldn't save to that file"
+            if (n == 1) "Report saved: 1 card" else "Report saved: $n cards"
+        }
     }
 
-    fun restore(ctx: android.content.Context, uri: Uri) = run("Restoring…") {
-        val input = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri) } ?: return@run "Couldn't open that file"
-        val n = repo.restoreBackup(input)
-        "Restored $n cards"
+    /** Reads and checks a backup; the user then confirms with its card and box counts in front of them. */
+    fun previewRestore(ctx: android.content.Context, uri: Uri) {
+        val app = ctx.applicationContext
+        run("Reading backup…") {
+            val input = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri) } ?: return@run "Couldn't open that file"
+            _restore.value = RestorePreview(BackupIO.read(input))
+            null
+        }
     }
 
-    fun readCsv(ctx: android.content.Context, uri: Uri) = run("Reading file…") {
-        val text = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
-            ?: return@run "Couldn't open that file"
-        val rows = CsvImport.parse(text)
-        if (rows.isEmpty()) return@run "No cards found. Is it a collection CSV?"
-        _importRows.value = rows
-        "Found ${rows.sumOf { it.quantity }} cards"
+    fun cancelRestore() { _restore.value = null }
+
+    fun restore(ctx: android.content.Context, preview: RestorePreview) {
+        val app = ctx.applicationContext
+        _restore.value = null
+        run("Restoring…") {
+            val n = BackupIO.restore(repo, preview.backup)
+            _canUndoRestore.value = true
+            // Deck folders and saved searches are only read at start-up, so restored ones need a fresh start.
+            if (BackupIO.needsRestart(preview.backup)) restartApp(app)
+            com.mtgscanner.ui.components.Undo.offer(if (n == 1) "Restored 1 card" else "Restored $n cards") { undoRestore(app) }
+            null
+        }
+    }
+
+    /** Puts back what the app held before the last restore. */
+    fun undoRestore(ctx: android.content.Context) {
+        val app = ctx.applicationContext
+        run("Undoing restore…") {
+            val n = BackupIO.undoRestore(repo) ?: return@run "Nothing to undo"
+            restartApp(app)
+            if (n == 1) "Back to 1 card" else "Back to $n cards"
+        }
+    }
+
+    fun readCsv(ctx: android.content.Context, uri: Uri) {
+        val app = ctx.applicationContext
+        run("Reading file…") {
+            val text = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
+                ?: return@run "Couldn't open that file"
+            val rows = withContext(Dispatchers.Default) { CsvImport.parse(text) }
+            if (rows.isEmpty()) return@run "No cards found. Is it a collection CSV?"
+            _importRows.value = rows
+            "Found ${rows.sumOf { it.quantity }} cards"
+        }
     }
 
     /** [choice] is a box id, [Box.AUTO_SORT], or 0 for a new "Imported" box. */
     fun import(choice: Long) {
         val rows = _importRows.value ?: return
         // Keep the rows if something else is still running, so the import can be tried again.
-        val started = run("Importing ${rows.size} cards…") {
+        val started = run("Importing ${rows.sumOf { it.quantity }} cards…") {
             val newBox: suspend () -> Long = { repo.createBox("Imported", "box") }
-            val target = if (choice == 0L) newBox() else choice
-            val r = repo.importRows(rows, target, newBox)
+            val r = try {
+                // 0 sends every card to the new box, made only once a card is found.
+                repo.importRows(rows, choice, newBox)
+            } catch (e: java.io.IOException) {
+                // Nothing was added (cards are looked up before anything is saved): offer the same rows again.
+                _importRows.value = rows
+                return@run "Couldn't reach Scryfall. Try again when online."
+            }
             buildString {
                 append("Imported ${r.added} cards")
                 if (r.notFound.isNotEmpty()) append(". Not found: ${r.notFound.take(5).joinToString()}${if (r.notFound.size > 5) " and ${r.notFound.size - 5} more" else ""}")
@@ -174,6 +268,18 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun messageShown() { _message.value = null }
 }
 
+/** Opens [uri] to replace its contents ("wt" truncates; some providers only accept "w"). */
+private fun openForWrite(context: android.content.Context, uri: Uri): java.io.OutputStream? =
+    runCatching { context.contentResolver.openOutputStream(uri, "wt") }.getOrNull()
+        ?: context.contentResolver.openOutputStream(uri)
+
+/** Starts the app afresh, so every screen reads restored settings. */
+private fun restartApp(context: android.content.Context) {
+    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+    context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK))
+    Runtime.getRuntime().exit(0)
+}
+
 /** Backup, restore, import, and maintenance actions. The caller shows [vm]'s messages, so they still appear after leaving this tab. */
 @Composable
 fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory)) {
@@ -182,18 +288,20 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     val rows by vm.importRows.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
-    var confirmRestore by remember { mutableStateOf<Uri?>(null) }
+    val restorePreview by vm.restorePreview.collectAsStateWithLifecycle()
+    val canUndoRestore by vm.canUndoRestore.collectAsStateWithLifecycle()
     var choosingExport by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf(CsvFormat.FULL) }
     var choosingReport by remember { mutableStateOf(false) }
     var reportMin by remember { mutableDoubleStateOf(10.0) }
+    var confirmUndo by remember { mutableStateOf(false) }
     remember { DriveBackup.load(ctx.applicationContext) }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) vm.backup(ctx, uri)
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) confirmRestore = uri
+        if (uri != null) vm.previewRestore(ctx, uri)
     }
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.readCsv(ctx, uri)
@@ -247,6 +355,10 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             Action(Icons.Filled.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/*"))
             }
+            if (canUndoRestore) {
+                HorizontalDivider(color = Palette.Outline)
+                Action(Icons.AutoMirrored.Filled.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
+            }
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Sell, "Refresh card roles", "Removal, ramp, draw tags") { vm.refreshRoles() }
             if (pending.isNotEmpty()) {
@@ -256,14 +368,31 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         }
     }
 
-    confirmRestore?.let { uri ->
+    restorePreview?.let { p ->
         AlertDialog(
-            onDismissRequest = { confirmRestore = null },
+            onDismissRequest = vm::cancelRestore,
             containerColor = Palette.Surface,
             title = { Text("Restore this backup?") },
-            text = { Text("Everything currently in the app is replaced by the backup.") },
-            confirmButton = { TextButton(onClick = { vm.restore(ctx, uri); confirmRestore = null }) { Text("Restore", color = Palette.Danger) } },
-            dismissButton = { TextButton(onClick = { confirmRestore = null }) { Text("Cancel") } },
+            text = {
+                Text(
+                    "${p.cards} cards, ${p.boxes} boxes" + (if (p.savedAt > 0) ", saved ${backupDay(p.savedAt, withYear = true)}" else "") +
+                        ".\n\nIt replaces everything in the app" + (if (p.restarts) ", which then restarts" else "") +
+                        ". A copy of what's here now is kept, so you can undo.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { vm.restore(ctx, p) }) { Text("Restore", color = Palette.Danger) } },
+            dismissButton = { TextButton(onClick = vm::cancelRestore) { Text("Cancel") } },
+        )
+    }
+
+    if (confirmUndo) {
+        AlertDialog(
+            onDismissRequest = { confirmUndo = false },
+            containerColor = Palette.Surface,
+            title = { Text("Undo last restore?") },
+            text = { Text("Puts back what was in the app before you restored. The app restarts.") },
+            confirmButton = { TextButton(onClick = { confirmUndo = false; vm.undoRestore(ctx) }) { Text("Undo restore", color = Palette.Danger) } },
+            dismissButton = { TextButton(onClick = { confirmUndo = false }) { Text("Cancel") } },
         )
     }
 
@@ -325,9 +454,9 @@ private fun ReportDialog(min: Double, onMin: (Double) -> Unit, onDismiss: () -> 
     )
 }
 
-private fun backupDay(millis: Long): String =
+private fun backupDay(millis: Long, withYear: Boolean = false): String =
     if (millis <= 0) "never"
-    else DateTimeFormatter.ofPattern("MMM d", Locale.US).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+    else DateTimeFormatter.ofPattern(if (withYear) "MMM d, yyyy" else "MMM d", Locale.US).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 
 @Composable
 private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -> Unit, onImport: (Long) -> Unit) {
@@ -337,7 +466,8 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
         containerColor = Palette.Surface,
         title = { Text("Import ${rows.sumOf { it.quantity }} cards") },
         text = {
-            Column {
+            // Many boxes would push the buttons off screen without scrolling.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (boxes.isEmpty()) {
                     Text("They'll go into a new box called \"Imported\".")
                 } else {
