@@ -4,8 +4,10 @@ import android.content.ContentResolver
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +69,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,7 +81,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.mtgscanner.data.BoxArt
+import com.mtgscanner.data.BoxCovers
 import com.mtgscanner.data.BoxRules
+import com.mtgscanner.data.BoxStats
 import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.Sorting
@@ -118,12 +129,19 @@ data class OverviewUi(
     val totalCards: Int = 0,
     val totalValue: Double = 0.0,
     val boxes: List<BoxSummary> = emptyList(),
+    /** Value change and cover art per box id. */
+    val stats: Map<Long, BoxStats> = emptyMap(),
 )
 
 class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() {
-    val ui: StateFlow<OverviewUi> = combine(repo.observeAll(), repo.observeBoxSummaries()) { all, boxes ->
-        OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, boxes)
+    private val covers = BoxCovers(repo.appContext)
+
+    val ui: StateFlow<OverviewUi> = combine(repo.observeAll(), repo.observeBoxSummaries(), covers.covers) { all, boxes, cv ->
+        OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, boxes, BoxArt.stats(all, cv))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OverviewUi())
+
+    /** [cardId] null goes back to the box's most valuable card. */
+    fun setCover(boxId: Long, cardId: Long?) = covers.set(boxId, cardId)
 
     val wishlist: StateFlow<List<WishlistItem>> = repo.observeWishlist()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -382,13 +400,12 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     var ordering by remember { mutableStateOf(false) }
     var sorting by remember { mutableStateOf<BoxSummary?>(null) }
     var sortingNew by remember { mutableStateOf<BoxSummary?>(null) }
+    var covering by remember { mutableStateOf<BoxSummary?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val colors = remember(ui.boxes) { boxStripeColors(ui.boxes) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Number of cards", "${ui.totalCards}", Modifier.weight(1f))
-            if (AppSettings.showPrices) StatTile("Total value", formatUsd(ui.totalValue), Modifier.weight(1f))
-            else StatTile("Boxes", "${ui.boxes.size}", Modifier.weight(1f))
-        }
+        ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue)
 
         Surface(
             onClick = { onBrowse(-1L) },
@@ -424,9 +441,17 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                 action = { GradientButton("Create a box", { creating = true }, icon = Icons.Filled.Add) },
             )
         }
-        ui.boxes.forEach { b ->
+        // A search field once the list gets long.
+        val searching = ui.boxes.size > 6
+        if (searching) SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search boxes")
+        val shown = if (searching && query.isNotBlank()) ui.boxes.filter { it.name.contains(query.trim(), ignoreCase = true) } else ui.boxes
+        if (searching && shown.isEmpty()) {
+            Text("No boxes match", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+        }
+        shown.forEach { b ->
             BoxCard(
-                b, onClick = { onBrowse(b.id) }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
+                b, ui.stats[b.id], colors[b.id] ?: boxColor(b.color),
+                onClick = { onBrowse(b.id) }, onCover = { covering = b }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
                 onSplit = { splitting = b }, onTrade = { onTrade(b.id) },
             )
         }
@@ -477,6 +502,13 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             text = { Text("Makes two boxes by first letter, like A–M and N–Z.") },
             confirmButton = { TextButton(onClick = { vm.splitBox(b); splitting = null }) { Text("Split") } },
             dismissButton = { TextButton(onClick = { splitting = null }) { Text("Cancel") } },
+        )
+    }
+    covering?.let { b ->
+        CoverPickerDialog(
+            b.name, vm.cardsIn(b.id), ui.stats[b.id]?.coverCardId,
+            onPick = { vm.setCover(b.id, it); covering = null },
+            onDismiss = { covering = null },
         )
     }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
@@ -582,33 +614,60 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** A box row: its cover card's art behind, a color stripe, count, value and change since added. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BoxCard(
-    b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit,
+    b: BoxSummary, stats: BoxStats?, stripe: Color, onClick: () -> Unit, onCover: () -> Unit,
+    onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit,
     onSplit: () -> Unit, onTrade: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     // Nearly full at 90%.
     val nearlyFull = b.capacity > 0 && b.cards * 10 >= b.capacity * 9
+    val art = if (b.cards > 0) stats?.artUrl else null
+    val onArt = art != null
+    val fg = if (onArt) Color.White else Palette.Text
+    val muted = if (onArt) Color.White.copy(alpha = 0.72f) else Palette.Muted
+    val shape = RoundedCornerShape(24.dp)
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Surface(
-            onClick = onClick,
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(24.dp),
-            color = Palette.BoxCard,
+        Box(
+            Modifier.weight(1f).clip(shape)
+                .background(if (onArt) Color(0xFF15161A) else Palette.BoxCard)
+                .combinedClickable(onClick = onClick, onLongClick = { if (b.cards > 0) onCover() })
+                .drawWithContent {
+                    drawContent()
+                    drawRect(stripe, size = Size(5.dp.toPx(), size.height))
+                },
         ) {
-            Column(Modifier.padding(horizontal = 22.dp, vertical = 18.dp)) {
+            if (art != null) {
+                AsyncImage(
+                    model = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
+                )
+                Box(
+                    Modifier.matchParentSize().background(
+                        Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.88f), Color.Black.copy(alpha = 0.66f), Color.Black.copy(alpha = 0.3f))),
+                    ),
+                )
+            }
+            Column(Modifier.padding(start = 22.dp, end = 18.dp, top = 16.dp, bottom = 16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(24.dp))
+                    Icon(boxIcon(b.kind), null, tint = stripe, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(b.name, style = MaterialTheme.typography.titleLarge, color = boxColor(b.color), modifier = Modifier.weight(1f, fill = false))
+                    Text(
+                        b.name, style = MaterialTheme.typography.titleLarge, color = if (onArt) Color.White else boxColor(b.color),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                    )
                     if (b.fallback) {
                         Spacer(Modifier.width(8.dp))
-                        Text("Fallback", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                        Text("Fallback", style = MaterialTheme.typography.labelSmall, color = muted)
                     }
                 }
-                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -618,10 +677,32 @@ private fun BoxCard(
                             else -> "${b.cards} cards"
                         } + (if (b.cards >= b.capacity && b.capacity > 0) " · Full" else ""),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (nearlyFull) Palette.Gold else Palette.Text,
+                        color = if (nearlyFull) Palette.Gold else fg,
                         modifier = Modifier.weight(1f).padding(bottom = 4.dp),
                     )
-                    if (AppSettings.showPrices) Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall)
+                    if (AppSettings.showPrices) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall, color = fg)
+                            val pct = stats?.changePercent
+                            if (stats != null && pct != null) {
+                                Text(
+                                    boxChangeLabel(stats.change, pct),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = boxChangeColor(stats.change, onDark = onArt),
+                                )
+                            }
+                        }
+                    }
+                }
+                if (b.capacity > 0) {
+                    // How full the box is.
+                    Spacer(Modifier.height(8.dp))
+                    Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(if (onArt) Color.White.copy(alpha = 0.2f) else Palette.Outline)) {
+                        Box(
+                            Modifier.fillMaxWidth((b.cards.toFloat() / b.capacity).coerceIn(0f, 1f)).height(4.dp)
+                                .background(if (nearlyFull) Palette.Gold else stripe),
+                        )
+                    }
                 }
             }
         }
@@ -629,6 +710,7 @@ private fun BoxCard(
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
+                if (b.cards > 0) DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
                 if (b.kind == "trade") DropdownMenuItem(text = { Text("Trade") }, onClick = { menu = false; onTrade() })
                 if (nearlyFull && b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
