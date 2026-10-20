@@ -37,6 +37,10 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,13 +83,19 @@ import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityDot
+import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
 @Composable
-fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory)) {
+fun SearchScreen(
+    vm: SearchViewModel = viewModel(factory = AppViewModels.Factory),
+    /** Opens the set browser for a set code; without it, a set opens as a card search. */
+    onOpenSet: ((String) -> Unit)? = null,
+) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val ownedSets by vm.ownedBySet.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
     val owned by vm.owned.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -96,7 +106,7 @@ fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             TabBar(ui.tab, vm::setTab)
-            if (ui.tab == 0) CardsTab(ui, vm, owned) else SetsTab(ui, vm)
+            if (ui.tab == 0) CardsTab(ui, vm, owned) else SetsTab(ui, vm, ownedSets, onOpenSet)
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
@@ -150,6 +160,8 @@ private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifie
 @Composable
 private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>) {
     val focus = LocalFocusManager.current
+    var showFilters by remember { mutableStateOf(false) }
+    var saveName by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
@@ -187,11 +199,33 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                 Icon(if (ui.grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Text)
             }
         }
-        Text(
-            "Try  t:dragon c:r  or  e:mh3 r:mythic",
-            style = MaterialTheme.typography.bodySmall,
-            color = Palette.Muted,
-            modifier = Modifier.padding(top = 8.dp),
+        Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            val n = ui.filters.activeCount
+            SelectPill(
+                if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
+                leading = { Icon(Icons.Filled.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Text) },
+            )
+            Spacer(Modifier.width(8.dp))
+            SavedMenu(ui.saved, onSave = { saveName = ui.query.trim() }, onLoad = { focus.clearFocus(); vm.loadSaved(it) }, onDelete = vm::deleteSaved)
+            Spacer(Modifier.width(10.dp))
+            Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+
+    if (showFilters) FilterSheet(
+        filters = ui.filters,
+        onChange = vm::setFilters,
+        onApply = { showFilters = false; focus.clearFocus(); vm.submit() },
+        onDismiss = { showFilters = false },
+    )
+    saveName?.let { name ->
+        AlertDialog(
+            onDismissRequest = { saveName = null },
+            containerColor = Palette.Surface,
+            title = { Text("Save search") },
+            text = { OutlinedTextField(name, { saveName = it }, singleLine = true, label = { Text("Name") }) },
+            confirmButton = { TextButton(onClick = { vm.saveSearch(name); saveName = null }, enabled = name.isNotBlank()) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { saveName = null }) { Text("Cancel") } },
         )
     }
 
@@ -346,7 +380,7 @@ private fun OfflineState(onRetry: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SetsTab(ui: SearchUi, vm: SearchViewModel) {
+private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, Int>, onOpenSet: ((String) -> Unit)?) {
     SearchField(ui.setFilter, vm::setSetFilter, Modifier.padding(16.dp), placeholder = "Filter sets")
     val sets = ui.sets
     if (ui.setsFailed) {
@@ -359,13 +393,19 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel) {
     }
     val q = ui.setFilter.trim().lowercase()
     val shown = if (q.isEmpty()) sets else sets.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q }
+    if (shown.isEmpty()) {
+        EmptyState(Icons.Filled.SearchOff, "No sets found", "Try another name or code.", Modifier.padding(top = 24.dp))
+        return
+    }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        items(shown, key = { it.code }) { s -> SetRow(s) { vm.openSet(s) } }
+        items(shown, key = { it.code }) { s ->
+            SetRow(s, ownedSets[s.code.lowercase()] ?: 0) { if (onOpenSet != null) onOpenSet(s.code) else vm.openSet(s) }
+        }
     }
 }
 
 @Composable
-private fun SetRow(s: ScryfallSet, onClick: () -> Unit) {
+private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -387,6 +427,10 @@ private fun SetRow(s: ScryfallSet, onClick: () -> Unit) {
                 color = Palette.Muted,
             )
         }
-        Text("${s.cardCount}", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+        Text(
+            if (owned > 0) "$owned / ${s.cardCount}" else "${s.cardCount}",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (owned > 0) Palette.AccentText else Palette.Muted,
+        )
     }
 }

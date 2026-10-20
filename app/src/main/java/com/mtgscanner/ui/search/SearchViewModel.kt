@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -41,6 +42,10 @@ data class SearchUi(
     val recent: List<String> = emptyList(),
     /** Cards recently opened from Search, newest first. */
     val viewed: List<Viewed> = emptyList(),
+    /** Extra Scryfall filters from the filter sheet. */
+    val filters: SearchFilters = SearchFilters(),
+    /** Saved searches, newest first. */
+    val saved: List<SavedScryfallSearch> = emptyList(),
 )
 
 /** A card opened from Search, kept for "Recently viewed". */
@@ -69,7 +74,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     init {
         com.mtgscanner.data.CardKingdom.init(repo.appContext)
-        _ui.update { it.copy(recent = history.recent(), viewed = history.viewed()) }
+        _ui.update { it.copy(recent = history.recent(), viewed = history.viewed(), saved = history.saved()) }
     }
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -85,6 +90,11 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         cards.filter { it.oracleId != null }.groupBy { it.oracleId!! }.forEach { (k, rows) -> out["o:$k"] = summarize(rows) }
         cards.groupBy { it.name.lowercase() }.forEach { (k, rows) -> out["n:$k"] = summarize(rows) }
         out.toMap()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Different collector numbers owned per set code (lowercase), for the Sets tab. */
+    val ownedBySet: StateFlow<Map<String, Int>> = repo.observeAll().map { cards ->
+        cards.groupBy { it.setCode.lowercase() }.mapValues { (_, rows) -> rows.map { it.collectorNumber.lowercase() }.distinct().size }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private var suggestJob: Job? = null
@@ -111,9 +121,31 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Runs the typed query. Plain words search names; Scryfall syntax like "t:dragon c:r" also works. */
     fun submit(q: String = _ui.value.query) {
         val text = q.trim()
-        if (text.isEmpty()) return
-        _ui.update { it.copy(query = text, suggestions = emptyList(), recent = history.addRecent(text)) }
-        run(text, label = text, order = "name")
+        val f = _ui.value.filters
+        if (text.isEmpty() && !f.narrows) return
+        _ui.update { it.copy(query = text, suggestions = emptyList(), recent = if (text.isEmpty()) it.recent else history.addRecent(text)) }
+        run(f.combine(text), label = text.ifEmpty { "Filtered" }, order = f.order, unique = f.unique)
+    }
+
+    fun setFilters(f: SearchFilters) = _ui.update { it.copy(filters = f) }
+
+    /** Saves the current words and filters under [name]. */
+    fun saveSearch(name: String) {
+        val n = name.trim()
+        if (n.isEmpty()) return
+        val s = _ui.value
+        val list = history.save(SavedScryfallSearch(n, s.query.trim(), s.filters))
+        _ui.update { it.copy(saved = list, message = "Saved \"$n\"") }
+    }
+
+    fun loadSaved(s: SavedScryfallSearch) {
+        _ui.update { it.copy(query = s.text, filters = s.filters, suggestions = emptyList()) }
+        submit(s.text)
+    }
+
+    fun deleteSaved(name: String) {
+        val list = history.deleteSaved(name)
+        _ui.update { it.copy(saved = list) }
     }
 
     fun pickSuggestion(name: String) {

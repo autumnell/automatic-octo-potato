@@ -25,6 +25,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ContentCopy
@@ -52,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,7 +74,12 @@ import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.AppViewModels
+import com.mtgscanner.ui.components.AddCardSheet
+import com.mtgscanner.ui.components.BoxEditorSheet
 import com.mtgscanner.ui.components.CardImage
+import com.mtgscanner.ui.components.OwnedBadge
+import com.mtgscanner.ui.components.PrintingsSheet
+import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
@@ -79,6 +88,8 @@ import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
+import com.mtgscanner.ui.search.SearchViewModel
+import com.mtgscanner.ui.search.of
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,6 +124,7 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
     // Sets
 
     private val _sets = MutableStateFlow<List<ScryfallSet>?>(null)
+    val sets: StateFlow<List<ScryfallSet>?> = _sets
     private val _setsFailed = MutableStateFlow(false)
     val setsFailed: StateFlow<Boolean> = _setsFailed
 
@@ -217,12 +229,16 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         TopBar("Set tracker", "How much of each set you own", onBack)
+        var filter by remember { mutableStateOf("") }
+        SearchField(filter, { filter = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter sets")
         if (failed) Text(
             "Offline: set sizes missing.",
             style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(horizontal = 20.dp),
         )
-        val list = progress
+        val q = filter.trim().lowercase()
+        val list = progress?.let { all -> if (q.isEmpty()) all else all.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q } }
         when {
+            list != null && list.isEmpty() && q.isNotEmpty() -> EmptyState(Icons.Filled.SearchOff, "No sets found", "Try another name or code.")
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
             list.isEmpty() -> EmptyState(Icons.Filled.Inventory2, "No sets yet", "Scan or add cards and their sets show up here.")
             else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -264,62 +280,105 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
     }
 }
 
-/** One set: every card in it, with the ones you own lit up and the missing ones dimmed. */
+/** One set: every card in it by rarity, with the ones you own marked and the missing ones dimmed. */
 @Composable
 fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
     val vm = toolsVm()
+    // Search's add flow, for cards you don't own yet.
+    val search: SearchViewModel = viewModel(factory = AppViewModels.Factory)
+    val sui by search.ui.collectAsStateWithLifecycle()
+    val addBoxes by search.boxes.collectAsStateWithLifecycle()
+    val ownedAny by search.owned.collectAsStateWithLifecycle()
     val cards by vm.setCards.collectAsStateWithLifecycle()
     val failed by vm.setFailed.collectAsStateWithLifecycle()
     val owned by vm.cards.collectAsStateWithLifecycle()
+    val sets by vm.sets.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     var show by remember { mutableStateOf("all") }
+    var query by remember { mutableStateOf("") }
+    var grid by remember { mutableStateOf(true) }
     var confirmWish by remember { mutableStateOf(false) }
+    var newBox by remember { mutableStateOf(false) }
     LaunchedEffect(code) { vm.loadSet(code) }
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
+    LaunchedEffect(sui.message) { sui.message?.let { Undo.offer(it); search.messageShown() } }
 
+    val info = sets?.firstOrNull { it.code.equals(code, ignoreCase = true) }
     val mine = remember(owned, code) {
         owned.filter { it.setCode.equals(code, ignoreCase = true) }.groupBy { it.collectorNumber.lowercase() }
     }
     val all = cards.orEmpty()
     val missing = all.filter { it.collectorNumber.lowercase() !in mine }
     val missingCost = missing.sumOf { it.prices.usd?.toDoubleOrNull() ?: 0.0 }
+    val have = all.size - missing.size
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        TopBar(
-            vm.setName(code),
-            if (all.isEmpty()) null else "${all.size - missing.size} of ${all.size} owned · ${missing.size} missing${priceSuffix(missingCost)}",
-            onBack,
+        Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { grid = !grid }) {
+                Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Text)
+            }
+            if (missing.isNotEmpty()) IconButton(onClick = { confirmWish = true }) {
+                Icon(Icons.Filled.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Accent)
+            }
+        }
+        SetHeader(
+            name = info?.name ?: vm.setName(code),
+            code = code,
+            iconUrl = info?.iconSvgUri,
+            releasedAt = info?.releasedAt ?: all.firstOrNull()?.releasedAt,
+            count = if (all.isNotEmpty()) all.size else info?.cardCount ?: 0,
+            have = have,
+            total = all.size,
+            missingCost = if (missing.isEmpty()) null else missingCost,
         )
         when {
-            failed && cards == null -> EmptyState(Icons.Filled.CloudOff, "Couldn't load this set", "Check your connection and try again.",
+            failed && cards == null -> EmptyState(Icons.Filled.CloudOff, "Couldn't load this set", "Check your connection.",
                 action = { TextButton(onClick = { vm.loadSet(code) }) { Text("Try again") } })
             cards == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
             else -> {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter this set")
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("All", show == "all", { show = "all" })
                     SelectPill("Owned", show == "owned", { show = "owned" })
                     SelectPill("Missing", show == "missing", { show = "missing" })
-                    Spacer(Modifier.weight(1f))
-                    if (missing.isNotEmpty()) IconButton(onClick = { confirmWish = true }) {
-                        Icon(Icons.Filled.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Accent)
-                    }
                 }
-                val shown = when (show) {
-                    "owned" -> all.filter { it.collectorNumber.lowercase() in mine }
-                    "missing" -> missing
-                    else -> all
+                val q = query.trim().lowercase()
+                val shown = all.filter { c ->
+                    val isMine = c.collectorNumber.lowercase() in mine
+                    (show == "all" || (show == "owned") == isMine) &&
+                        (q.isEmpty() || c.name.lowercase().contains(q) || c.collectorNumber.lowercase() == q || c.effectiveTypeLine.lowercase().contains(q))
                 }
-                LazyVerticalGrid(GridCells.Adaptive(100.dp), contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp)) {
-                    items(shown, key = { it.id }) { c ->
-                        val rows = mine[c.collectorNumber.lowercase()]
-                        Column(
-                            Modifier.padding(4.dp).clip(RoundedCornerShape(10.dp))
-                                .clickable(enabled = rows != null) { rows?.firstOrNull()?.let { onOpenCard(it.id) } }
-                                .alpha(if (rows != null) 1f else 0.38f),
-                        ) {
-                            CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 8.dp)
-                            Text("#${c.collectorNumber}" + (rows?.let { " · ×${it.sumOf { r -> r.quantity }}" } ?: ""),
-                                style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                val groups = RARITY_GROUPS.map { (key, label) -> Triple(key, label, shown.filter { rarityGroup(it.rarity) == key }) }
+                    .filter { it.third.isNotEmpty() }
+                if (groups.isEmpty()) {
+                    EmptyState(Icons.Filled.SearchOff, "No cards", if (show == "missing" && q.isEmpty()) "You own the whole set." else "Try another filter.")
+                } else {
+                    LazyVerticalGrid(
+                        GridCells.Fixed(if (grid) 3 else 1),
+                        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        groups.forEach { (key, label, list) ->
+                            item(key = "h_$key", span = { GridItemSpan(maxLineSpan) }) {
+                                val got = list.count { it.collectorNumber.lowercase() in mine }
+                                Row(Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    RarityDot(key, 10.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                                    Text("$got / ${list.size}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                                }
+                            }
+                            items(list, key = { it.id }) { c ->
+                                val rows = mine[c.collectorNumber.lowercase()]
+                                val qty = rows?.sumOf { it.quantity } ?: 0
+                                val open: () -> Unit = {
+                                    val first = rows?.firstOrNull()
+                                    if (first != null) onOpenCard(first.id) else search.select(c)
+                                }
+                                if (grid) SetCardTile(c, qty, open) else SetCardRow(c, qty, open)
+                            }
                         }
                     }
                 }
@@ -327,14 +386,145 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         }
     }
 
+    sui.selected?.let { card ->
+        if (!sui.showPrintings) AddCardSheet(
+            card = card,
+            boxes = addBoxes,
+            defaultBoxId = search.lastBoxId,
+            onAdd = search::add,
+            onChangePrinting = search::openPrintings,
+            onDismiss = { search.select(null) },
+            onCreateBox = { newBox = true },
+            onWishlist = search::wishlist,
+            owned = ownedAny.of(card)?.label,
+        )
+    }
+    if (sui.showPrintings) PrintingsSheet(sui.printings, sui.selected?.id, search::pickPrinting, search::closePrintings)
+    if (newBox) BoxEditorSheet(title = "New box", onSave = { search.createBox(it); newBox = false }, onDismiss = { newBox = false })
+
     if (confirmWish) AlertDialog(
         onDismissRequest = { confirmWish = false },
         containerColor = Palette.Surface,
-        title = { Text("Add ${missing.size} missing cards to your wishlist?") },
-        text = { Text("Any printing you scan later counts toward them." + if (AppSettings.showPrices) " Together they cost about ${formatUsd(missingCost)}." else "") },
+        title = { Text("Wishlist ${missing.size} missing cards?") },
+        text = { Text("Any printing counts." + if (AppSettings.showPrices) " About ${formatUsd(missingCost)} total." else "") },
         confirmButton = { TextButton(onClick = { vm.wishlistMissing(missing); confirmWish = false }) { Text("Add") } },
         dismissButton = { TextButton(onClick = { confirmWish = false }) { Text("Cancel") } },
     )
+}
+
+/** Rarity group key to heading, in display order. */
+private val RARITY_GROUPS = listOf("mythic" to "Mythics", "rare" to "Rares", "uncommon" to "Uncommons", "common" to "Commons", "special" to "Special")
+
+private fun rarityGroup(rarity: String): String = when (val r = rarity.lowercase()) {
+    "mythic", "rare", "uncommon", "common" -> r
+    else -> "special"
+}
+
+private fun ScryfallCard.anyPrice(): String? = prices.usd ?: prices.usdFoil ?: prices.usdEtched
+
+@Composable
+private fun SetHeader(
+    name: String,
+    code: String,
+    iconUrl: String?,
+    releasedAt: String?,
+    count: Int,
+    have: Int,
+    total: Int,
+    missingCost: Double?,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(Palette.Surface), contentAlignment = Alignment.Center) {
+                if (iconUrl != null) AsyncImage(iconUrl, null, Modifier.size(32.dp), colorFilter = ColorFilter.tint(Palette.Accent))
+                else Text(code.uppercase().take(4), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    listOfNotNull(code.uppercase(), releasedAt, if (count > 0) "$count cards" else null).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                )
+            }
+        }
+        if (total > 0) {
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "You own $have of $total",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (have >= total) Palette.Success else Palette.AccentText,
+                    modifier = Modifier.weight(1f),
+                )
+                if (missingCost != null && AppSettings.showPrices) {
+                    Text("Missing ${formatUsd(missingCost)}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = { (have.toFloat() / total).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                color = Palette.Accent,
+                trackColor = Palette.SurfaceHigh,
+                drawStopIndicator = {},
+            )
+        }
+    }
+}
+
+@Composable
+private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
+    Column(Modifier.padding(4.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick)) {
+        Box {
+            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.45f), corner = 8.dp)
+            if (qty > 0) OwnedBadge(qty, Modifier.align(Alignment.TopStart).padding(5.dp))
+            val price = c.anyPrice()
+            if (AppSettings.showPrices && price != null) Text(
+                formatUsd(price),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
+                    .clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = 5.dp, vertical = 1.dp),
+            )
+        }
+        Text(
+            "#${c.collectorNumber} ${c.name}",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (qty > 0) Palette.Text else Palette.Muted,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 3.dp),
+        )
+    }
+}
+
+@Composable
+private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), corner = 4.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (qty > 0) Palette.Text else Palette.Muted,
+            )
+            Text(
+                "#${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (qty > 0) {
+            Spacer(Modifier.width(8.dp))
+            OwnedBadge(qty)
+        }
+        if (AppSettings.showPrices) {
+            Spacer(Modifier.width(8.dp))
+            Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+        }
+    }
 }
 
 /** Cards you have more of than a deck can use, ready to move to a trade binder. */
