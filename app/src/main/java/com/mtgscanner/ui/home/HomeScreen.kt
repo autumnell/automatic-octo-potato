@@ -168,7 +168,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             val today = java.time.LocalDate.now()
             val key = listOf(today.toString(), snaps.size, snaps.maxByOrNull { it.day }, all.mapTo(HashSet()) { it.scryfallId })
             val points = pointsCache?.takeIf { it.first == key }?.second
-                ?: runCatching { repo.dao.allPricePoints() }.getOrNull()?.also { pointsCache = key to it }
+                ?: runCatching { repo.dao.pricePointsSince(today.minusDays(120).toString()) }.getOrNull()?.also { pointsCache = key to it }
                 ?: emptyList()
             val weekAgo = today.minusDays(7).toString()
             PriceData(HomeMath.movers(all, points, weekAgo), HomeMath.boxValues(all, points))
