@@ -546,9 +546,9 @@ fun nextDayNight(v: String?): String? = when (v) {
 }
 
 fun dayNightIcon(v: String?): ImageVector = when (v) {
-    "day" -> Icons.Filled.LightMode
-    "night" -> Icons.Filled.DarkMode
-    else -> Icons.Filled.Brightness4
+    "day" -> com.mtgscanner.ui.components.ManaIcons.Day
+    "night" -> com.mtgscanner.ui.components.ManaIcons.Night
+    else -> com.mtgscanner.ui.components.ManaIcons.DayNight
 }
 
 fun dayNightLabel(v: String?): String = when (v) {

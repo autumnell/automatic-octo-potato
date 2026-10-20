@@ -80,6 +80,8 @@ fun ManaCost(cost: String, size: Dp = 16.dp) {
         symbols.forEach { sym ->
             if (sym == "//") {
                 Text("//", fontSize = slashText, color = Palette.Muted)
+            } else if (Mana.has(sym)) {
+                Mana.Symbol(sym, size)
             } else {
                 val letters = sym.filter { it in "WUBRG" }
                 val bg = when {
@@ -245,6 +247,8 @@ fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (
 
 @Composable
 fun ColorPip(letter: Char, size: Dp = 12.dp) {
+    // The real mana symbol, a little larger so it reads at chip size.
+    if (letter.uppercaseChar() in "WUBRGC") { Mana.Symbol(letter.uppercase(), size + 4.dp); return }
     Box(Modifier.size(size).clip(CircleShape).background(MtgColors.forLetter(letter)).border(1.dp, Color.Black.copy(alpha = 0.3f), CircleShape))
 }
 
