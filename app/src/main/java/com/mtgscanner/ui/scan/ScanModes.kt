@@ -213,7 +213,11 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
             modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 12.dp, vertical = 6.dp),
         )
         Spacer(Modifier.height(10.dp))
-        if (state.wantPage || state.pageLoading) CircularProgressIndicator(color = Palette.Accent)
+        if (state.wantPage || state.pageLoading) Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(color = Palette.Accent)
+            Spacer(Modifier.width(12.dp))
+            TextButton(onClick = vm::cancelCapture) { Text("Cancel", color = Color.White) }
+        }
         else GradientButton("Capture page", vm::capturePage, Modifier.fillMaxWidth(), icon = Icons.Filled.GridOn)
     }
 }

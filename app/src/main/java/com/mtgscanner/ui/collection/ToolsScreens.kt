@@ -188,7 +188,7 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         if (moves.isEmpty()) return
         viewModelScope.launch {
             val before = repo.snapshot(moves.map { it.first })
-            moves.forEach { (id, n) -> repo.moveCopies(id, n, boxId) }
+            repo.moveCopiesMany(moves, boxId)
             val name = boxes.value.firstOrNull { it.id == boxId }?.name ?: "trade binder"
             Undo.offer("Moved ${moves.sumOf { it.second }} extra copies to $name") { repo.restore(before) }
         }

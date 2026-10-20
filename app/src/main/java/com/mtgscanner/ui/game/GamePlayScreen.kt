@@ -61,7 +61,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.layout
@@ -102,6 +106,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
     val vm = gameViewModel()
     val game by vm.game.collectAsStateWithLifecycle()
     val g = game
+    val style by vm.style.collectAsStateWithLifecycle()
     var menu by remember { mutableStateOf(false) }
     var playerSheet by remember { mutableStateOf<Int?>(null) }
 
@@ -119,7 +124,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
         val panel: @Composable (Int, Int, Modifier) -> Unit = { i, rot, mod ->
-            PlayerPanel(g, i, rot, mod, onLife = { d -> vm.life(i, d) }, onMore = { playerSheet = i })
+            PlayerPanel(g, i, rot, style, mod, onLife = { d -> vm.life(i, d) }, onMore = { playerSheet = i })
         }
         val gap = 4.dp
         when (g.players.size) {
@@ -135,7 +140,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
                 }
                 panel(2, 0, Modifier.weight(1f).fillMaxWidth().padding(gap))
             }
-            else -> Row(Modifier.fillMaxSize()) {
+            4 -> Row(Modifier.fillMaxSize()) {
                 // Clockwise from the top left: 1 and 4 on the left side, 2 and 3 on the right.
                 Column(Modifier.weight(1f)) {
                     panel(0, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
@@ -144,6 +149,33 @@ fun GamePlayScreen(onExit: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     panel(1, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
                     panel(2, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                }
+            }
+            5 -> Column(Modifier.fillMaxSize()) {
+                // Clockwise: 1 top left, 2 and 3 down the right, 4 across the bottom, 5 bottom left.
+                Row(Modifier.weight(2.4f)) {
+                    Column(Modifier.weight(1f)) {
+                        panel(0, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                        panel(4, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        panel(1, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                        panel(2, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                    }
+                }
+                panel(3, 0, Modifier.weight(1f).fillMaxWidth().padding(gap))
+            }
+            else -> Row(Modifier.fillMaxSize()) {
+                // Clockwise: 1, 2, 3 is the top left, top right, middle right... 6 is middle left.
+                Column(Modifier.weight(1f)) {
+                    panel(0, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                    panel(5, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                    panel(4, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                }
+                Column(Modifier.weight(1f)) {
+                    panel(1, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                    panel(2, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
+                    panel(3, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
                 }
             }
         }
@@ -164,7 +196,8 @@ fun GamePlayScreen(onExit: () -> Unit) {
         }
 
         g.winner?.let { w ->
-            WinnerBanner(g.players[w].name, Modifier.align(Alignment.Center).padding(top = 140.dp), onRestart = vm::restart)
+            WinnerBanner(g.players[w].name, Modifier.align(Alignment.Center).padding(top = 140.dp), onRestart = vm::restart,
+                onDone = { vm.end(); onExit() })
         }
     }
 
@@ -174,7 +207,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PlayerPanel(g: GameState, i: Int, rotation: Int, modifier: Modifier, onLife: (Int) -> Unit, onMore: () -> Unit) {
+private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, modifier: Modifier, onLife: (Int) -> Unit, onMore: () -> Unit) {
     val p = g.players[i]
     val out = g.outReason(i)
     val haptics = LocalHapticFeedback.current
@@ -190,8 +223,20 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, modifier: Modifier,
         }
     }
 
-    Box(modifier.clip(RoundedCornerShape(22.dp)).background(if (out != null) color.copy(alpha = 0.35f) else color)) {
-        Box(Modifier.fillMaxSize().rotateLayout(rotation)) {
+    val shape = RoundedCornerShape(22.dp)
+    val back = when (style) {
+        TableStyle.BOLD -> Modifier.background(color)
+        TableStyle.GRADIENT -> Modifier.background(Brush.linearGradient(listOf(color, lerp(color, Color.Black, 0.65f))))
+        TableStyle.DARK -> Modifier.background(Color(0xFF15161A)).border(3.dp, color, shape)
+    }
+    Box(modifier.clip(shape).then(back)) {
+        if (p.art != null) AsyncImage(
+            p.art, null, Modifier.fillMaxSize().rotateLayout(rotation), contentScale = ContentScale.Crop, alpha = 0.55f,
+        )
+        if (out != null) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
+        BoxWithConstraints(Modifier.fillMaxSize().rotateLayout(rotation)) {
+            // Smaller panels (5 or 6 players) get a smaller number.
+            val lifeSize = (minOf(maxHeight.value * 0.36f, maxWidth.value * 0.3f)).coerceIn(34f, 72f).sp
             val active = g.active == i
             if (active) Box(Modifier.fillMaxSize().border(4.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(22.dp)))
             // Left half loses, right half gains. Hold for ten.
@@ -204,7 +249,7 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, modifier: Modifier,
                         ),
                         contentAlignment = if (sign < 0) Alignment.CenterStart else Alignment.CenterEnd,
                     ) {
-                        Text(if (sign < 0) "−" else "+", color = Color.White.copy(alpha = 0.45f), fontSize = 34.sp,
+                        Text(if (sign < 0) "−" else "+", color = Color.White.copy(alpha = 0.45f), fontSize = (lifeSize.value * 0.45f).sp,
                             modifier = Modifier.padding(horizontal = 20.dp))
                     }
                 }
@@ -214,7 +259,7 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, modifier: Modifier,
                     val d = last?.delta ?: 0
                     Text(if (d > 0) "+$d" else "$d", color = Color.White.copy(alpha = 0.85f), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Text("${p.life}", color = Color.White, fontSize = 72.sp, fontWeight = FontWeight.Bold)
+                Text("${p.life}", color = Color.White, fontSize = lifeSize, fontWeight = FontWeight.Bold)
                 Text(p.name, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.titleSmall)
                 if (out != null) Text(out, color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
@@ -256,11 +301,15 @@ private fun Badge(text: String, icon: androidx.compose.ui.graphics.vector.ImageV
 }
 
 @Composable
-private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit) {
+private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit, onDone: () -> Unit) {
     Surface(modifier, shape = RoundedCornerShape(18.dp), color = Color.Black.copy(alpha = 0.85f)) {
         Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
-            TextButton(onClick = onRestart) { Text("Play again") }
+            Text("Saved to your game stats", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
+            Row {
+                TextButton(onClick = onRestart) { Text("Play again") }
+                TextButton(onClick = onDone) { Text("Done") }
+            }
         }
     }
 }
@@ -295,6 +344,7 @@ private fun PlayerSheet(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -
                     )
                 }
             }
+            ArtPicker(p.art, vm, onPick = { art -> vm.update { Game.setArt(it, i, art) } })
 
             Section("Life")
             StepRow("Life", p.life, steps = listOf(5, 1), onChange = { vm.life(i, it) })
@@ -372,11 +422,17 @@ private fun StepButton(label: String, onClick: () -> Unit) {
 }
 
 /** Turns, dice, day and night, history, undo, restart. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun GameMenu(g: GameState, vm: GameViewModel, onDismiss: () -> Unit, onExit: () -> Unit) {
     var roll by remember { mutableStateOf<String?>(null) }
     var confirmRestart by remember { mutableStateOf(false) }
+    var ending by remember { mutableStateOf(false) }
+    if (ending) EndGameDialog(g, onDismiss = { ending = false }) { save, winner ->
+        ending = false
+        vm.end(save, winner)
+        onExit()
+    }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
 
@@ -437,8 +493,9 @@ private fun GameMenu(g: GameState, vm: GameViewModel, onDismiss: () -> Unit, onE
 
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Palette.Outline)
-            Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { confirmRestart = true }, shape = RoundedCornerShape(14.dp)) { Text("Restart") }
+                OutlinedButton(onClick = { ending = true }, shape = RoundedCornerShape(14.dp)) { Text("End game") }
                 OutlinedButton(onClick = onExit, shape = RoundedCornerShape(14.dp)) {
                     Icon(Icons.Filled.Close, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
@@ -464,4 +521,73 @@ private fun GameMenu(g: GameState, vm: GameViewModel, onDismiss: () -> Unit, onE
 private fun elapsed(ms: Long): String {
     val m = (ms / 60_000).coerceAtLeast(0)
     return if (m < 60) "Playing for $m min" else "Playing for ${m / 60} h ${m % 60} min"
+}
+
+/** Background art for a player's panel, picked from cards in your collection. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ArtPicker(current: String?, vm: GameViewModel, onPick: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val choices by vm.art.collectAsStateWithLifecycle()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Background", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (current != null) TextButton(onClick = { onPick(null) }) { Text("Remove") }
+        TextButton(onClick = { open = !open; if (open) vm.searchArt(query) }) { Text(if (open) "Close" else "Pick card art") }
+    }
+    if (open) {
+        OutlinedTextField(
+            query, { query = it; vm.searchArt(it) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search your collection, like your commander") },
+        )
+        Spacer(Modifier.height(8.dp))
+        if (choices.isEmpty()) Text("No cards with art found. Scan some cards first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            choices.take(24).forEach { c ->
+                Column(Modifier.width(96.dp).clip(RoundedCornerShape(8.dp)).clickable { onPick(c.art); open = false }) {
+                    AsyncImage(c.art, c.name, Modifier.fillMaxWidth().height(70.dp)
+                        .border(if (c.art == current) 2.dp else 0.dp, Palette.Accent, RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+                    Text(c.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = Palette.Muted)
+                }
+            }
+        }
+    }
+}
+
+/** Ends a game and asks who won, for the stats. */
+@Composable
+fun EndGameDialog(g: GameState, onDismiss: () -> Unit, onEnd: (save: Boolean, winner: Int?) -> Unit) {
+    var winner by remember { mutableStateOf(g.winner ?: g.players.indices.filter { g.outReason(it) == null }.singleOrNull()) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text(if (g.recorded) "End this game?" else "Who won?") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (g.recorded) Text("It's already in your game stats.")
+                else {
+                    Text("Pick the winner to save the game to your stats.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    g.players.forEachIndexed { i, p ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { winner = i }, verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.RadioButton(winner == i, { winner = i })
+                            Text(p.name)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { winner = null }, verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(winner == null, { winner = null })
+                        Text("No winner (draw)")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onEnd(!g.recorded, winner) }) { Text(if (g.recorded) "End game" else "Save and end") }
+        },
+        dismissButton = {
+            Row {
+                if (!g.recorded) TextButton(onClick = { onEnd(false, null) }) { Text("Don't save") }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        },
+    )
 }

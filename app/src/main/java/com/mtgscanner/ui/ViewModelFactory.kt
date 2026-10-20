@@ -26,7 +26,7 @@ object AppViewModels {
         initializer { DecksViewModel((this[AppKey] as MtgApp).repository) }
         initializer { TradeViewModel((this[AppKey] as MtgApp).repository) }
         initializer { SettingsViewModel((this[AppKey] as MtgApp).repository) }
-        initializer { com.mtgscanner.ui.game.GameViewModel(this[AppKey] as MtgApp) }
+        initializer { com.mtgscanner.ui.game.GameViewModel(this[AppKey] as MtgApp, (this[AppKey] as MtgApp).repository) }
         initializer { com.mtgscanner.ui.collection.ToolsViewModel((this[AppKey] as MtgApp).repository) }
     }
 

@@ -95,18 +95,19 @@ class CardTextAnalyzer(
     /** Reads a whole binder page, picking the way up that gives the most readable text. */
     private suspend fun readPage(bitmap: Bitmap, cameraRotation: Int): List<CardTextGuess> {
         val order = listOf(preferredTurn) + listOf(0, 90, 180, 270).filter { it != preferredTurn }
-        var best: Pair<Int, List<OcrLine>>? = null
+        var best: Pair<Int, Pair<Pair<Int, Int>, List<OcrLine>>>? = null
         var bestScore = -1
         for (turn in order) {
-            val lines = readLines(bitmap, (cameraRotation + turn) % 360).second
-            val score = lines.sumOf { CardTextParser.readableScore(it.text) }
-            if (score > bestScore) { bestScore = score; best = turn to lines }
+            val read = readLines(bitmap, (cameraRotation + turn) % 360)
+            val score = read.second.sumOf { CardTextParser.readableScore(it.text) }
+            if (score > bestScore) { bestScore = score; best = turn to read }
             // Plenty of readable text: this is the right way up.
             if (score >= 120) break
         }
-        val (turn, lines) = best!!
+        val (turn, read) = best!!
         if (bestScore > 0) preferredTurn = turn
-        return CardTextParser.parseGrid(lines)
+        val (size, lines) = read
+        return CardTextParser.parseGrid(lines, frame = CardTextParser.pageFrame(size.first, size.second))
     }
 
     private fun hashArt(bitmap: Bitmap, rotation: Int, box: OcrBox): Long? {
