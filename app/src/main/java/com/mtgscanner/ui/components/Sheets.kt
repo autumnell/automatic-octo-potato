@@ -2,10 +2,11 @@ package com.mtgscanner.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.OutlinedButton
@@ -102,7 +104,7 @@ fun PrintingsSheet(
                             }
                         }
                         if (AppSettings.showPrices) Column(horizontalAlignment = Alignment.End) {
-                            Text(formatUsd(p.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
+                            Text(formatUsd(p.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
                             if (p.prices.usdFoil != null) {
                                 Text("Foil ${formatUsd(p.prices.usdFoil)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                             }
@@ -119,7 +121,7 @@ fun PrintingsSheet(
  * Sheet for adding a card found by search: shows the card, then lets you choose
  * foil, how many, and which box before adding.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddCardSheet(
     card: ScryfallCard,
@@ -130,6 +132,8 @@ fun AddCardSheet(
     onDismiss: () -> Unit,
     onCreateBox: () -> Unit = {},
     onWishlist: (() -> Unit)? = null,
+    /** A short line such as "You own 3 · Rares", or null when the card isn't in the collection. */
+    owned: String? = null,
 ) {
     var foil by remember(card.id) { mutableStateOf(!card.hasNonFoil) }
     var qty by remember(card.id) { mutableIntStateOf(1) }
@@ -161,13 +165,24 @@ fun AddCardSheet(
                     if (AppSettings.showPrices) Text(
                         formatUsd(card.price(foil)),
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Palette.Accent,
+                        color = Palette.AccentText,
                     )
                     TextButton(onClick = onChangePrinting, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                         Icon(Icons.Filled.SwapHoriz, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Other printings")
                     }
+                }
+            }
+            if (owned != null) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Accent.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Check, null, tint = Palette.AccentText, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -197,13 +212,13 @@ fun AddCardSheet(
                 Spacer(Modifier.height(8.dp))
                 Text("Add to", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
-                        Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.Accent else Palette.Muted)
+                        Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Muted)
                     })
                     boxes.forEach { b ->
                         SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {
-                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.Accent else Palette.Muted)
+                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.AccentText else Palette.Muted)
                         })
                     }
                 }

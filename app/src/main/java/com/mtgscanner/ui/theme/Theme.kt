@@ -40,6 +40,11 @@ object Palette {
 
     val Accent: Color get() = ThemeSettings.accent
     val AccentDeep: Color get() = lerp(Accent, Color(0xFF6E1630), 0.38f)
+    /**
+     * The accent for text (prices, selected labels). In light mode it is darkened until it reaches
+     * about 4.5:1 contrast on the light background; in dark mode it is the accent itself.
+     */
+    val AccentText: Color get() = if (dark) Accent else readableOn(Accent, Background)
     /** Text/icon color that reads well on top of the accent. */
     val OnAccent: Color get() = if (Accent.luminance() > 0.45f) Color(0xFF141414) else Color.White
 
@@ -61,6 +66,24 @@ object Palette {
     val HeroGradient: Brush get() = Brush.linearGradient(listOf(lerp(BoxCard, Accent, if (dark) 0.22f else 0.18f), BoxCard))
 }
 
+/** WCAG contrast ratio between two colors (1..21). */
+fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance() + 0.05f
+    val lb = b.luminance() + 0.05f
+    return if (la > lb) la / lb else lb / la
+}
+
+/** [color] darkened toward black just enough to reach [ratio] contrast on a light [background]. */
+fun readableOn(color: Color, background: Color, ratio: Float = 4.6f): Color {
+    var t = 0f
+    var c = color
+    while (t < 1f && contrastRatio(c, background) < ratio) {
+        t += 0.04f
+        c = lerp(color, Color.Black, t.coerceAtMost(1f))
+    }
+    return c
+}
+
 val Lexend = FontFamily(
     Font(R.font.lexend_light, FontWeight.Light),
     Font(R.font.lexend_regular, FontWeight.Normal),
@@ -76,11 +99,11 @@ private fun scheme(): ColorScheme {
         primary = p.Accent,
         onPrimary = p.OnAccent,
         primaryContainer = lerp(p.Surface, p.Accent, 0.25f),
-        onPrimaryContainer = p.Accent,
+        onPrimaryContainer = p.AccentText,
         secondary = p.Info,
         onSecondary = Color.White,
         secondaryContainer = lerp(p.Surface, p.Accent, 0.18f),
-        onSecondaryContainer = p.Accent,
+        onSecondaryContainer = p.AccentText,
         tertiary = p.Gold,
         background = p.Background,
         onBackground = p.Text,

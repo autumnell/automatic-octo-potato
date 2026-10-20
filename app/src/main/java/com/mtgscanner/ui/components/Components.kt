@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,6 +47,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,10 +72,14 @@ fun formatUsd(v: String?): String = formatUsd(v?.toDoubleOrNull())
 fun ManaCost(cost: String, size: Dp = 16.dp) {
     if (cost.isBlank()) return
     val symbols = Regex("""\{([^}]+)\}|(//)""").findAll(cost).map { it.groupValues[1].ifEmpty { "//" } }.toList()
+    // Symbol text is sized in dp so it always fits its circle, even with a large system font.
+    val density = LocalDensity.current
+    val symbolText = with(density) { (size * 0.55f).toSp() }
+    val slashText = with(density) { 11.dp.toSp() }
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
         symbols.forEach { sym ->
             if (sym == "//") {
-                Text("//", fontSize = 11.sp, color = Palette.Muted)
+                Text("//", fontSize = slashText, color = Palette.Muted)
             } else {
                 val letters = sym.filter { it in "WUBRG" }
                 val bg = when {
@@ -84,7 +92,7 @@ fun ManaCost(cost: String, size: Dp = 16.dp) {
                     Text(
                         sym.replace("/", ""),
                         color = fg,
-                        fontSize = (size.value * 0.55f).sp,
+                        fontSize = symbolText,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
@@ -182,7 +190,7 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: S
                 Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
             }
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.headlineSmall, color = Palette.Accent, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.headlineSmall, color = Palette.AccentText, maxLines = 1)
             if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
     }
@@ -207,9 +215,9 @@ fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
         border = if (active) BorderStroke(1.dp, Palette.Accent.copy(alpha = 0.6f)) else null,
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (active) Palette.Accent else Palette.Text, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = if (active) Palette.AccentText else Palette.Text, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) Palette.Accent else Palette.Text)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) Palette.AccentText else Palette.Text)
         }
     }
 }
@@ -219,18 +227,19 @@ fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
 fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
     Row(
         Modifier
+            .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(50))
             .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
             .border(1.dp, if (selected) Palette.Accent else Color.Transparent, RoundedCornerShape(50))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .selectable(selected = selected, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
             leading()
             Spacer(Modifier.width(6.dp))
         }
-        Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) Palette.Accent else Palette.Text)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) Palette.AccentText else Palette.Text)
     }
 }
 
@@ -266,6 +275,8 @@ fun CardTile(
     onLongClick: (() -> Unit)? = null,
     /** Shown with a check mark and an outline while picking cards. */
     selected: Boolean = false,
+    /** Copies already in the collection; shows a small badge when above zero. */
+    owned: Int = 0,
     onClick: () -> Unit,
 ) {
     Column(
@@ -294,10 +305,28 @@ fun CardTile(
                 ) { Text("×$quantity", color = Color.White, style = MaterialTheme.typography.labelMedium) }
             }
             if (foil) FoilTag(Modifier.align(Alignment.BottomStart).padding(6.dp))
+            if (owned > 0 && !selected) OwnedBadge(owned, Modifier.align(Alignment.TopStart).padding(6.dp))
         }
         Spacer(Modifier.height(4.dp))
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium, color = Palette.Accent)
+        if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
+    }
+}
+
+/** Small "✓ 3" badge marking a card you already own. */
+@Composable
+fun OwnedBadge(count: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Palette.Accent)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .semantics(mergeDescendants = true) { contentDescription = "You own $count" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Check, null, tint = Palette.OnAccent, modifier = Modifier.size(12.dp))
+        Spacer(Modifier.width(2.dp))
+        Text("$count", color = Palette.OnAccent, style = MaterialTheme.typography.labelSmall)
     }
 }
 

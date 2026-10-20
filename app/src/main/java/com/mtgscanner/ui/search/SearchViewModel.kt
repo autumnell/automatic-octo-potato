@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -32,13 +33,45 @@ data class SearchUi(
     val sets: List<ScryfallSet>? = null,
     val setFilter: String = "",
     val message: String? = null,
+    /** The last search couldn't reach Scryfall (offline or server error). */
+    val failed: Boolean = false,
+    /** The sets list couldn't be loaded. */
+    val setsFailed: Boolean = false,
 )
+
+/** How many copies of a card (any printing) are in the collection, and where most of them are. */
+data class Owned(val count: Int, val boxName: String?, val boxCount: Int) {
+    /** "You own 3 · Rares", or "You own 3 · 2 boxes". */
+    val label: String get() = "You own $count" + when {
+        boxCount > 1 -> " · $boxCount boxes"
+        boxName != null -> " · $boxName"
+        else -> ""
+    }
+}
+
+/** Owned copies keyed by "o:<oracleId>" and "n:<lowercase name>". */
+fun Map<String, Owned>.of(card: ScryfallCard): Owned? =
+    card.oracleId?.let { this["o:$it"] } ?: this["n:${card.name.lowercase()}"]
 
 /** Search Scryfall (full search syntax works) and browse sets; add any printing to the collection. */
 class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val _ui = MutableStateFlow(SearchUi())
     val ui: StateFlow<SearchUi> = _ui
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Cards already in the collection, for "You own 3" and the owned badge on results. */
+    val owned: StateFlow<Map<String, Owned>> = combine(repo.observeAll(), repo.observeBoxes()) { cards, boxList ->
+        val names = boxList.associate { it.id to it.name }
+        fun summarize(rows: List<com.mtgscanner.data.db.CollectionCard>): Owned {
+            val byBox = rows.groupBy { it.boxId }.mapValues { (_, r) -> r.sumOf { it.quantity } }
+            val top = byBox.maxByOrNull { it.value }?.key
+            return Owned(rows.sumOf { it.quantity }, top?.let { names[it] }, byBox.size)
+        }
+        val out = HashMap<String, Owned>()
+        cards.filter { it.oracleId != null }.groupBy { it.oracleId!! }.forEach { (k, rows) -> out["o:$k"] = summarize(rows) }
+        cards.groupBy { it.name.lowercase() }.forEach { (k, rows) -> out["n:$k"] = summarize(rows) }
+        out.toMap()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private var suggestJob: Job? = null
     private var searchJob: Job? = null
@@ -80,6 +113,13 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     private var unique = "cards"
+    private var lastRun: Triple<String, String, String>? = null
+
+    /** Runs the last search again, after it failed. */
+    fun retry() {
+        val (q, label, order) = lastRun ?: return
+        run(q, label, order, unique)
+    }
 
     private fun run(query: String, label: String, order: String, unique: String = "cards") {
         this.order = order
@@ -87,14 +127,15 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         page = 1
         suggestJob?.cancel()
         searchJob?.cancel()
-        _ui.update { it.copy(ranQuery = query, ranLabel = label, results = emptyList(), loading = true, hasMore = false) }
+        lastRun = Triple(query, label, order)
+        _ui.update { it.copy(ranQuery = query, ranLabel = label, results = emptyList(), loading = true, hasMore = false, failed = false) }
         searchJob = viewModelScope.launch {
             runCatching { repo.api.searchPage(query, order, 1, unique) }
                 .onSuccess { r -> _ui.update { it.copy(results = r.data, hasMore = r.hasMore, loading = false) } }
                 .onFailure { e ->
                     // A newer search cancelled this one; it owns the spinner now.
                     if (e is kotlinx.coroutines.CancellationException) throw e
-                    _ui.update { it.copy(loading = false, message = "Search failed: ${e.message}") }
+                    _ui.update { it.copy(loading = false, failed = true) }
                 }
         }
     }
@@ -114,15 +155,21 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    fun clearResults() = _ui.update { it.copy(ranQuery = null, ranLabel = null, results = emptyList(), hasMore = false, query = "") }
+    fun clearResults() = _ui.update { it.copy(ranQuery = null, ranLabel = null, results = emptyList(), hasMore = false, query = "", failed = false) }
 
     private fun loadSets() {
+        _ui.update { it.copy(sets = null, setsFailed = false) }
         viewModelScope.launch {
             runCatching { repo.api.sets() }
-                .onSuccess { list -> _ui.update { it.copy(sets = list) } }
-                .onFailure { e -> _ui.update { it.copy(sets = emptyList(), message = "Couldn't load sets: ${e.message}") } }
+                .onSuccess { list -> _ui.update { it.copy(sets = list, setsFailed = list.isEmpty()) } }
+                .onFailure { e ->
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    _ui.update { it.copy(sets = emptyList(), setsFailed = true) }
+                }
         }
     }
+
+    fun retrySets() = loadSets()
 
     fun setSetFilter(q: String) = _ui.update { it.copy(setFilter = q) }
     fun toggleGrid() = _ui.update { it.copy(grid = !it.grid) }

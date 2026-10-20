@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
@@ -68,6 +71,8 @@ import com.mtgscanner.ui.components.BoxEditorSheet
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.EmptyState
+import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityDot
@@ -79,6 +84,7 @@ import com.mtgscanner.ui.theme.Palette
 fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory)) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
+    val owned by vm.owned.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var newBox by remember { mutableStateOf(false) }
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
@@ -86,7 +92,7 @@ fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             TabBar(ui.tab, vm::setTab)
-            if (ui.tab == 0) CardsTab(ui, vm) else SetsTab(ui, vm)
+            if (ui.tab == 0) CardsTab(ui, vm, owned) else SetsTab(ui, vm)
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
@@ -102,6 +108,7 @@ fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory
                 onDismiss = { vm.select(null) },
                 onCreateBox = { newBox = true },
                 onWishlist = vm::wishlist,
+                owned = owned.of(card)?.label,
             )
         }
     }
@@ -137,12 +144,12 @@ private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifie
 }
 
 @Composable
-private fun CardsTab(ui: SearchUi, vm: SearchViewModel) {
+private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>) {
     val focus = LocalFocusManager.current
     Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(Palette.SurfaceHigh).padding(horizontal = 16.dp, vertical = 14.dp),
+                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp)).background(Palette.SurfaceHigh).padding(start = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f)) {
@@ -159,7 +166,9 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel) {
                     )
                 }
                 if (ui.query.isNotEmpty()) {
-                    Icon(Icons.Filled.Close, "Clear", tint = Palette.Muted, modifier = Modifier.size(20.dp).clickable { vm.setQuery("") })
+                    IconButton(onClick = { vm.setQuery("") }) { Icon(Icons.Filled.Close, "Clear search", tint = Palette.Muted, modifier = Modifier.size(20.dp)) }
+                } else {
+                    Spacer(Modifier.width(16.dp))
                 }
             }
             Spacer(Modifier.width(10.dp))
@@ -203,14 +212,15 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel) {
                 Modifier.align(Alignment.TopCenter).padding(top = 24.dp),
             )
             ui.results.isEmpty() && ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
+            ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             ui.results.isEmpty() -> EmptyState(Icons.Filled.SearchOff, "No cards found", "Check the spelling, or try fewer words.", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            else -> Results(ui, vm)
+            else -> Results(ui, vm, owned)
         }
     }
 }
 
 @Composable
-private fun Results(ui: SearchUi, vm: SearchViewModel) {
+private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>) {
     LazyVerticalGrid(
         columns = if (ui.grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
         contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
@@ -218,17 +228,18 @@ private fun Results(ui: SearchUi, vm: SearchViewModel) {
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.Accent, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${ui.results.size}${if (ui.hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
                 IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear results", tint = Palette.Muted) }
             }
         }
         itemsIndexed(ui.results, key = { _, c -> c.id }) { i, c ->
             if (i >= ui.results.size - 8) LaunchedEffect(ui.results.size) { vm.loadMore() }
+            val have = owned.of(c)?.count ?: 0
             if (ui.grid) {
-                CardTile(c.imageUrl, c.name, formatUsd(c.prices.usd ?: c.prices.usdFoil), onClick = { vm.select(c) })
+                CardTile(c.imageUrl, c.name, formatUsd(c.prices.usd ?: c.prices.usdFoil), owned = have, onClick = { vm.select(c) })
             } else {
-                ResultRow(c) { vm.select(c) }
+                ResultRow(c, have) { vm.select(c) }
             }
         }
         if (ui.loading) {
@@ -240,7 +251,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel) {
 }
 
 @Composable
-private fun ResultRow(c: ScryfallCard, onClick: () -> Unit) {
+private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -259,14 +270,34 @@ private fun ResultRow(c: ScryfallCard, onClick: () -> Unit) {
                 Text("${c.set.uppercase()} #${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (AppSettings.showPrices) Text(formatUsd(c.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
+        if (owned > 0) {
+            Spacer(Modifier.width(8.dp))
+            OwnedBadge(owned)
+        }
+        if (AppSettings.showPrices) {
+            Spacer(Modifier.width(8.dp))
+            Text(formatUsd(c.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+        }
     }
+}
+
+/** Shown when Scryfall can't be reached. */
+@Composable
+private fun OfflineState(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    EmptyState(
+        Icons.Filled.CloudOff, "Can't reach Scryfall", "Check your connection.", modifier,
+        action = { GradientButton("Retry", onRetry, icon = Icons.Filled.Refresh) },
+    )
 }
 
 @Composable
 private fun SetsTab(ui: SearchUi, vm: SearchViewModel) {
     SearchField(ui.setFilter, vm::setSetFilter, Modifier.padding(16.dp), placeholder = "Filter sets")
     val sets = ui.sets
+    if (ui.setsFailed) {
+        OfflineState(vm::retrySets, Modifier.padding(top = 24.dp))
+        return
+    }
     if (sets == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
         return
