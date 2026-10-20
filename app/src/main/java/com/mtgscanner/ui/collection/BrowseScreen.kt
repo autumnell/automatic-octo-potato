@@ -105,6 +105,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
     val f by vm.filters.collectAsStateWithLifecycle()
     val grid by vm.grid.collectAsStateWithLifecycle()
     val selected by vm.selected.collectAsStateWithLifecycle()
+    val selecting by vm.selecting.collectAsStateWithLifecycle()
+    val showTip by vm.showTip.collectAsStateWithLifecycle()
     val saved by vm.saved.collectAsStateWithLifecycle()
     val recent by vm.recent.collectAsStateWithLifecycle()
     var showFilters by remember { mutableStateOf(false) }
@@ -112,7 +114,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
     var tagging by remember { mutableStateOf(false) }
     /** A card swiped right, waiting for a box to move to. */
     var moving by remember { mutableStateOf<CollectionCard?>(null) }
-    val picking = selected.isNotEmpty()
+    val picking = selecting || selected.isNotEmpty()
     androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
@@ -128,12 +130,28 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                     color = Palette.Muted,
                 )
             }
+            if (ui.totalCards > 0) TextButton(onClick = vm::startSelecting) { Text("Select") }
             IconButton(onClick = vm::toggleGrid) {
                 Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, if (grid) "List view" else "Grid view")
             }
         }
 
         SearchField(f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+        if (showTip && ui.totalCards > 0 && !picking) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(Palette.Surface).padding(start = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Long-press to select · swipe rows in list view",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Muted,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = vm::dismissTip) { Icon(Icons.Filled.Close, "Hide tip", tint = Palette.Muted, modifier = Modifier.size(18.dp)) }
+            }
+        }
         if (f.query.isEmpty() && f.activeCount == 0 && (saved.isNotEmpty() || recent.isNotEmpty())) {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
@@ -197,9 +215,9 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                 action = { TextButton(onClick = { vm.clearFilters(); vm.update { it.copy(query = "") } }) { Text("Clear search and filters") } },
             )
             else -> CardGrid(
-                ui.groups, grid, selected,
+                ui.groups, grid, selected, picking,
                 onOpen = { c -> if (picking) vm.toggleSelect(c.id) else onOpenCard(c.id) },
-                onLongPress = { c -> vm.toggleSelect(c.id) },
+                onLongPress = { c -> vm.toggleSelect(c.id); if (showTip) vm.dismissTip() },
                 onSwipeMove = { c -> moving = c },
                 onSwipeDelete = { c -> vm.deleteOne(c.id, c.name) },
             )
@@ -336,6 +354,7 @@ private fun CardGrid(
     groups: List<Pair<String, List<CollectionCard>>>,
     grid: Boolean,
     selected: Set<Long>,
+    picking: Boolean,
     onOpen: (CollectionCard) -> Unit,
     onLongPress: (CollectionCard) -> Unit,
     onSwipeMove: (CollectionCard) -> Unit,
@@ -362,7 +381,7 @@ private fun CardGrid(
                         c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
                         onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
                     )
-                } else if (selected.isNotEmpty()) {
+                } else if (picking) {
                     CardRow(c, c.id in selected, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
                 } else {
                     SwipeRow(onMove = { onSwipeMove(c) }, onDelete = { onSwipeDelete(c) }) {

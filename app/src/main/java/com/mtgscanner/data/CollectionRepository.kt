@@ -668,6 +668,12 @@ class CollectionRepository(
 
     suspend fun removeWish(id: Long) = dao.deleteWish(id)
 
+    /** Sets how many copies of a wishlist card you want. */
+    suspend fun setWishWanted(item: WishlistItem, wanted: Int) = dao.updateWish(item.copy(wanted = wanted.coerceAtLeast(1)))
+
+    /** Puts a removed wishlist row back, for Undo. */
+    suspend fun restoreWish(item: WishlistItem) { dao.putWishlist(listOf(item)) }
+
     /** Counts one copy of a wishlist card as found. */
     suspend fun fulfilWish(oracleId: String?, qty: Int = 1) {
         val w = wishlistItem(oracleId) ?: return
