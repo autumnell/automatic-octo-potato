@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.OfflineRead
+import com.mtgscanner.data.ScanBarPrefs
+import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallException
 import com.mtgscanner.data.SortDecision
@@ -399,7 +401,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
         if (accepted && !alreadyHandled(card)) {
             markHandled(card)
-            addCard(card, 1, auto = true, lang = readLang)
+            addCard(card, ScanBarPrefs.quantity, auto = true, readLang = readLang)
         }
     }
 
@@ -528,13 +530,13 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         val card = _state.value.current ?: return
         // In auto-add mode, don't add this card again while it's still in view.
         if (_state.value.autoAdd) markHandled(card)
-        addCard(card, qty, lang = _state.value.currentLang)
+        addCard(card, qty, readLang = _state.value.currentLang)
     }
 
     /** Adds a card that was set aside. */
     fun addFromReview(card: ScryfallCard) {
         _state.update { it.copy(review = it.review.filterNot { c -> c.id == card.id }, showReview = it.review.size > 1) }
-        addCard(card, 1, fromReview = true)
+        addCard(card, ScanBarPrefs.quantity, fromReview = true)
     }
 
     fun dropFromReview(card: ScryfallCard) =
@@ -604,8 +606,10 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     private fun addCard(
-        card: ScryfallCard, qty: Int, fromReview: Boolean = false, auto: Boolean = false, fromPage: Boolean = false, lang: String? = null,
+        card: ScryfallCard, qty: Int, fromReview: Boolean = false, auto: Boolean = false, fromPage: Boolean = false, readLang: String? = null,
     ) {
+        // Language read off the card wins; otherwise the scan bar's choice.
+        val lang = readLang ?: ScanBarPrefs.langOrNull
         val s = _state.value
         val foil = s.isFoil(card)
         viewModelScope.launch {
@@ -674,7 +678,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Keeps an offline read to look up and add once Scryfall can be reached. */
-    fun saveOffline(qty: Int = 1) {
+    fun saveOffline(qty: Int = ScanBarPrefs.quantity) {
         val s = _state.value
         val read = s.offline ?: return
         viewModelScope.launch {
@@ -836,7 +840,22 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     // Set lock
 
-    fun showSetLock(show: Boolean) = _state.update { it.copy(showSetLock = show) }
+    fun showSetLock(show: Boolean) {
+        _state.update { it.copy(showSetLock = show) }
+        if (show) loadSets()
+    }
+
+    /** Paper sets for the set picker, newest first. Empty until loaded or when offline. */
+    private val _sets = MutableStateFlow<List<ScryfallSet>>(emptyList())
+    val sets: StateFlow<List<ScryfallSet>> = _sets
+
+    fun loadSets() {
+        if (_sets.value.isNotEmpty()) return
+        viewModelScope.launch {
+            val list = runCatching { repo.sets() }.getOrDefault(emptyList())
+            _sets.value = list.filterNot { it.digital }.sortedByDescending { it.releasedAt.orEmpty() }
+        }
+    }
 
     fun setLock(code: String?) {
         SortPrefs.updateSetLock(code?.trim())
