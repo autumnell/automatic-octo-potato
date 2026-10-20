@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.BOX_PRESETS
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.db.Box as CardBox
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
 /**
@@ -162,8 +163,8 @@ fun BoxEditorSheet(
                 }
             }
 
-            Label("Price per card (USD)")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (AppSettings.showPrices || minText.isNotEmpty() || maxText.isNotEmpty()) Label("Price per card (USD)")
+            if (AppSettings.showPrices || minText.isNotEmpty() || maxText.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = minText, onValueChange = { minText = it }, label = { Text("At least") },
                     singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp), colors = fieldColors(),

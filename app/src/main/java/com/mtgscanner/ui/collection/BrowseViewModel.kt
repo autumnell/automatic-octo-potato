@@ -17,6 +17,9 @@ import kotlinx.coroutines.flow.update
 
 enum class SortBy(val label: String) {
     RECENT("Recently added"), NAME("Name"), PRICE("Price"), MANA("Mana value"), SET("Set & number"), COLOR("Color"), GAIN("Price change"),
+    ;
+
+    val isPrice: Boolean get() = this == PRICE || this == GAIN
 }
 
 enum class GroupBy(val label: String) { NONE("No grouping"), SET("Set"), COLOR("Color"), TYPE("Card type"), RARITY("Rarity") }

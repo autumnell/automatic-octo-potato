@@ -82,6 +82,9 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
+    // Daily price alerts in the background
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
     // Storage
     val room = "2.6.1"
     implementation("androidx.room:room-runtime:$room")

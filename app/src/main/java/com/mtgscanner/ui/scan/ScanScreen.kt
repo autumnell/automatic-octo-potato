@@ -114,8 +114,11 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityDot
+import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.priceSuffix
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import java.util.concurrent.Executors
 
@@ -136,8 +139,13 @@ fun ScanScreen(
     val boxes = loadedBoxes.orEmpty()
     val needsBox = loadedBoxes != null && boxes.isEmpty()
     val haptics = LocalHapticFeedback.current
+    val beeper = remember { runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 70) }.getOrNull() }
+    DisposableEffect(Unit) { onDispose { beeper?.release() } }
     LaunchedEffect(state.addedPulse) {
-        if (state.addedPulse > 0) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (state.addedPulse > 0) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            if (AppSettings.scanSound) runCatching { beeper?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 90) }
+        }
     }
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
@@ -166,6 +174,18 @@ fun ScanScreen(
 
             if (hasPermission && !needsBox) {
                 FrameGuide(found = state.current != null, flash = state.addedPulse, paused = state.paused, modifier = Modifier.align(Alignment.Center))
+                BoxCallout(state.lastBoxName, state.addedPulse, Modifier.align(Alignment.Center))
+                if (state.review.isNotEmpty()) {
+                    Surface(
+                        onClick = { vm.showReview(true) },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Palette.Gold,
+                    ) {
+                        Text("Check ${state.review.size}", color = Color.Black, style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                    }
+                }
             }
 
             // Pause + settings float over the top of the camera, like a viewfinder.
@@ -223,6 +243,7 @@ fun ScanScreen(
     }
     if (state.showSettings) SettingsSheet(state, vm)
     if (state.showList) ScanListSheet(state, vm, onOpenCard)
+    if (state.showReview) ReviewSheet(state, vm)
     if (state.showNewBox) {
         BoxEditorSheet(
             title = if (boxes.isEmpty()) "Your first box" else "New box",
@@ -317,7 +338,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                 Spacer(Modifier.width(6.dp))
                 Icon(Icons.Filled.Style, null, tint = Palette.Text, modifier = Modifier.size(22.dp))
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (AppSettings.showPrices) Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (state.session.isEmpty()) "--" else formatUsd(state.sessionValue),
                     style = MaterialTheme.typography.titleSmall,
@@ -423,7 +444,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                         }
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text(formatUsd(card.price(foil)), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
+                    if (AppSettings.showPrices) Text(formatUsd(card.price(foil)), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
                     if (!state.confident) {
                         Text("Not sure about this one. Check the printing.", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
                     }
@@ -490,6 +511,10 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
             Spacer(Modifier.height(12.dp))
             SettingRow("Auto-add", "Add confident matches straight away so you can feed cards one after another.", state.autoAdd, vm::setAutoAdd)
             HorizontalDivider(color = Palette.Outline)
+            SettingRow("Bulk mode", "Never stop: confident cards are added, unsure ones are set aside to check at the end.", state.bulk, vm::setBulk)
+            HorizontalDivider(color = Palette.Outline)
+            SettingRow("Sound", "Beep each time a card is added.", AppSettings.scanSound, AppSettings::updateScanSound)
+            HorizontalDivider(color = Palette.Outline)
             SettingRow("Foil", "Mark the next cards as foil.", state.foil, vm::setFoil)
             HorizontalDivider(color = Palette.Outline)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
@@ -526,9 +551,13 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
-                Text("${state.sessionCount} cards · ${formatUsd(state.sessionValue)}", style = MaterialTheme.typography.bodySmall, color = Palette.Gold)
+                Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall, color = Palette.Gold)
             }
             TextButton(onClick = vm::clearList) { Text("Clear list") }
+        }
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectPill("Newest first", !state.listByBox, { vm.setListByBox(false) })
+            SelectPill("By box", state.listByBox, { vm.setListByBox(true) })
         }
         Text(
             "Clearing the list keeps the cards in your collection. Use the bin to take one back out.",
@@ -537,7 +566,18 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
         LazyColumn(Modifier.fillMaxWidth().height(460.dp)) {
-            items(state.session, key = { it.key }) { e ->
+          val groups = if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
+            else listOf("" to state.session)
+          groups.forEach { (boxName, entries) ->
+            if (boxName.isNotEmpty()) item(key = "h$boxName") {
+                Text(
+                    "$boxName · ${entries.sumOf { it.count }} cards",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Palette.Accent,
+                    modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
+                )
+            }
+            items(entries, key = { it.key }) { e ->
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -563,10 +603,11 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
+                    if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
                     IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
                 }
             }
+          }
         }
         Spacer(Modifier.navigationBarsPadding().height(12.dp))
     }
@@ -614,4 +655,59 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
     }
 
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+}
+
+/** Big label showing which box the last card went into, so a pile can be filed as it's scanned. */
+@Composable
+private fun BoxCallout(boxName: String?, pulse: Int, modifier: Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(pulse) {
+        if (pulse > 0 && boxName != null) {
+            visible = true
+            kotlinx.coroutines.delay(1400)
+            visible = false
+        }
+    }
+    AnimatedVisibility(visible = visible && boxName != null, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Column(
+            Modifier
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.Black.copy(alpha = 0.78f))
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Put it in", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
+            Text(boxName.orEmpty(), color = Palette.Accent, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+/** Cards bulk mode wasn't sure about, to confirm or drop. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
+    ModalBottomSheet(onDismissRequest = { vm.showReview(false) }, containerColor = Palette.Surface) {
+        Text("Check these", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
+        Text(
+            "Bulk mode wasn't sure about these. Add the right ones; drop the rest and scan them again.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Palette.Muted,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
+            items(state.review, key = { it.id }) { c ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CardImage(c.smallImageUrl, Modifier.width(52.dp), corner = 4.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${c.set.uppercase()} · #${c.collectorNumber}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                    TextButton(onClick = { vm.dropFromReview(c) }) { Text("Drop", color = Palette.Muted) }
+                    TextButton(onClick = { vm.addFromReview(c) }) { Text("Add") }
+                }
+            }
+        }
+        Spacer(Modifier.navigationBarsPadding().height(12.dp))
+    }
 }

@@ -9,6 +9,7 @@ import com.mtgscanner.ui.collection.CollectionViewModel
 import com.mtgscanner.ui.decks.DeckViewModel
 import com.mtgscanner.ui.decks.DecksViewModel
 import com.mtgscanner.ui.settings.SettingsViewModel
+import com.mtgscanner.ui.trade.TradeViewModel
 import com.mtgscanner.ui.detail.CardDetailViewModel
 import com.mtgscanner.ui.home.HomeViewModel
 import com.mtgscanner.ui.scan.ScanViewModel
@@ -23,6 +24,7 @@ object AppViewModels {
         initializer { CollectionViewModel((this[AppKey] as MtgApp).repository) }
         initializer { SearchViewModel((this[AppKey] as MtgApp).repository) }
         initializer { DecksViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { TradeViewModel((this[AppKey] as MtgApp).repository) }
         initializer { SettingsViewModel((this[AppKey] as MtgApp).repository) }
     }
 

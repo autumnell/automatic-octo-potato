@@ -78,7 +78,9 @@ import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
+import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -136,7 +138,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     }
 
                     Spacer(Modifier.height(18.dp))
-                    Panel {
+                    if (AppSettings.showPrices) Panel {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
@@ -208,6 +210,28 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                     }
 
+                    Spacer(Modifier.height(12.dp))
+                    Text("Formats", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                    Spacer(Modifier.height(8.dp))
+                    val tagSet = c.tagList().toSet()
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("standard", "pioneer", "modern", "commander", "pauper").forEach { f ->
+                            val legal = "legal:$f" in tagSet
+                            InfoChip {
+                                Text(
+                                    (if (legal) "✓ " else "✕ ") + f.replaceFirstChar(Char::uppercase),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (legal) Palette.Success else Palette.Muted,
+                                )
+                            }
+                        }
+                        InfoChip {
+                            Text("Identity ", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                            if (c.colorIdentity.isEmpty()) Text("Colorless", style = MaterialTheme.typography.labelMedium)
+                            c.colorIdentity.forEach { ColorPip(it); Spacer(Modifier.width(3.dp)) }
+                        }
+                    }
+
                     val roles = c.roleList()
                     if (roles.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
@@ -219,12 +243,12 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     }
 
                     val tags = c.tagList()
-                    if (tags.isNotEmpty()) {
+                    if (tags.any { !it.startsWith("legal:") }) {
                         Spacer(Modifier.height(12.dp))
                         Text("Tags from Scryfall", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                         Spacer(Modifier.height(8.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            tags.forEach { InfoChip { Text(it, style = MaterialTheme.typography.labelMedium) } }
+                            tags.filterNot { it.startsWith("legal:") }.forEach { InfoChip { Text(it, style = MaterialTheme.typography.labelMedium) } }
                         }
                     }
 

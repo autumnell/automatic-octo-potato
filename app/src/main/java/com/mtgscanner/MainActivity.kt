@@ -50,6 +50,8 @@ import com.mtgscanner.ui.detail.CardDetailScreen
 import com.mtgscanner.ui.home.HomeScreen
 import com.mtgscanner.ui.scan.ScanScreen
 import com.mtgscanner.ui.search.SearchScreen
+import com.mtgscanner.ui.settings.ScanLogScreen
+import com.mtgscanner.ui.trade.TradeScreen
 import com.mtgscanner.ui.settings.SettingsScreen
 import com.mtgscanner.ui.theme.MtgTheme
 import com.mtgscanner.ui.theme.Palette
@@ -141,6 +143,8 @@ private fun AppRoot() {
                     onBrowse = { boxId -> nav.navigate("browse/$boxId") },
                     onSettings = { nav.navigate("settings") },
                     onOpenDeck = { id -> nav.navigate("deck/$id") },
+                    onOpenCard = { id -> nav.navigate("card/$id") },
+                    onTrade = { nav.navigate("trade") },
                 )
             }
             composable(
@@ -167,7 +171,17 @@ private fun AppRoot() {
                 "settings",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { SettingsScreen(onBack = { nav.popBackStack() }) }
+            ) { SettingsScreen(onBack = { nav.popBackStack() }, onScanLog = { nav.navigate("scanlog") }) }
+            composable(
+                "trade",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { TradeScreen(onBack = { nav.popBackStack() }) }
+            composable(
+                "scanlog",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { ScanLogScreen(onBack = { nav.popBackStack() }) }
             composable(
                 "card/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),

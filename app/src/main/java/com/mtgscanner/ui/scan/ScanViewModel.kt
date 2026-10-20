@@ -55,6 +55,15 @@ data class ScanUiState(
     val showSettings: Boolean = false,
     val showList: Boolean = false,
     val error: String? = null,
+    /** Bulk mode: add confident cards straight away and set unsure ones aside for review. */
+    val bulk: Boolean = false,
+    /** Unsure cards set aside in bulk mode. */
+    val review: List<ScryfallCard> = emptyList(),
+    val showReview: Boolean = false,
+    /** The box the last card went into, shown big so you know where to file it. */
+    val lastBoxName: String? = null,
+    /** Group the scan list by box, to file a pile of cards. */
+    val listByBox: Boolean = false,
 ) {
     val sessionCount: Int get() = session.sumOf { it.count }
     val sessionValue: Double get() = session.sumOf { it.value }
@@ -89,7 +98,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     val isPaused: Boolean
         get() = _state.value.let {
             it.paused || (!it.autoAdd && (it.current != null || it.offline != null)) || it.lookingUp ||
-                it.showPrintings || it.showSettings || it.showList || it.showNewBox || boxes.value.isNullOrEmpty()
+                it.showPrintings || it.showSettings || it.showList || it.showNewBox || it.showReview || boxes.value.isNullOrEmpty()
         }
 
     fun onGuess(guess: CardTextGuess) {
@@ -121,7 +130,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     private fun lookup(guess: CardTextGuess) {
         _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null, offline = null) }
         viewModelScope.launch {
+            val started = System.currentTimeMillis()
             val result = runCatching { repo.identify(guess) }
+            logLookup(guess, result, System.currentTimeMillis() - started)
             result.onFailure { e ->
                 lookedUpKey = null
                 val offline = if (e is java.io.IOException && e !is ScryfallException) repo.offlineRead(guess) else null
@@ -138,6 +149,15 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             val id = result.getOrNull()
             if (result.isSuccess && id == null) {
                 _state.update { it.copy(lookingUp = false, status = "No match yet · hold the card flat and well lit") }
+            }
+            if (id != null && _state.value.bulk && !id.confident) {
+                // Bulk mode doesn't stop: set it aside and keep going.
+                if (_state.value.review.none { it.id == id.card.id }) {
+                    _state.update { it.copy(review = it.review + id.card) }
+                }
+                _state.update { it.copy(lookingUp = false, status = "Set aside ${id.card.name} to check later") }
+                resetTracking()
+                return@launch
             }
             if (id != null) {
                 val wish = runCatching { repo.wishlistItem(id.card.oracleId) }.getOrNull()
@@ -158,18 +178,61 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
+    private fun logLookup(guess: CardTextGuess, result: Result<com.mtgscanner.data.Identification?>, ms: Long) {
+        val id = result.getOrNull()
+        val err = result.exceptionOrNull()
+        val outcome = when {
+            err is java.io.IOException && err !is ScryfallException -> "offline"
+            err != null -> "error"
+            id == null -> "no match"
+            id.confident -> "matched"
+            else -> "unsure"
+        }
+        viewModelScope.launch {
+            runCatching {
+                repo.scanLog.add(
+                    com.mtgscanner.scan.ScanLogEntry(
+                        read = guess.nameCandidates.take(4), setCode = guess.setCode, collectorNumber = guess.collectorNumber,
+                        art = guess.artHash != null, outcome = outcome, matchName = id?.card?.name, matchSet = id?.card?.set,
+                        matchNumber = id?.card?.collectorNumber, ms = ms, note = err?.message,
+                    ),
+                )
+            }
+        }
+    }
+
     fun add(qty: Int = 1) {
+        val card = _state.value.current ?: return
+        addCard(card, qty)
+    }
+
+    /** Adds a card set aside in bulk mode. */
+    fun addFromReview(card: ScryfallCard) {
+        _state.update { it.copy(review = it.review.filterNot { c -> c.id == card.id }, showReview = it.review.size > 1) }
+        addCard(card, 1, fromReview = true)
+    }
+
+    fun dropFromReview(card: ScryfallCard) =
+        _state.update { it.copy(review = it.review.filterNot { c -> c.id == card.id }, showReview = it.review.size > 1) }
+
+    fun showReview(show: Boolean) = _state.update { it.copy(showReview = show) }
+
+    fun setBulk(on: Boolean) = _state.update { it.copy(bulk = on, autoAdd = on || it.autoAdd) }
+
+    fun setListByBox(on: Boolean) = _state.update { it.copy(listByBox = on) }
+
+    private fun addCard(card: ScryfallCard, qty: Int, fromReview: Boolean = false) {
         val s = _state.value
-        val card = s.current ?: return
         val foil = s.foil && card.hasFoil || !card.hasNonFoil
         viewModelScope.launch {
+            val wish = if (fromReview) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
             val boxId = if (s.boxId == Box.AUTO_SORT) repo.pickBox(card, foil) else s.boxId
             if (boxId == null) {
                 _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card.") }
                 return@launch
             }
             val rowId = repo.add(card, foil, qty, boxId)
-            if (s.wish != null) repo.fulfilWish(card.oracleId, qty)
+            if (wish != null) repo.fulfilWish(card.oracleId, qty)
             val boxName = boxes.value?.firstOrNull { it.id == boxId }?.name.orEmpty()
             val entry = ScanEntry(++entryKeys, rowId, card, foil, qty, boxName)
             _state.update {
@@ -179,10 +242,11 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                     status = if (boxName.isNotEmpty()) "Added ${card.name} → $boxName" else "Added ${card.name}",
                     error = null,
                     wish = null,
-                    current = if (it.autoAdd) it.current else null,
+                    lastBoxName = boxName.ifEmpty { null },
+                    current = if (fromReview) it.current else if (it.autoAdd) it.current else null,
                 )
             }
-            if (!_state.value.autoAdd) resetTracking()
+            if (!_state.value.autoAdd && !fromReview) resetTracking()
         }
     }
 
@@ -235,7 +299,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null)
     }
 
-    fun setAutoAdd(on: Boolean) = _state.update { it.copy(autoAdd = on) }
+    fun setAutoAdd(on: Boolean) = _state.update { it.copy(autoAdd = on, bulk = it.bulk && on) }
     fun setFoil(on: Boolean) = _state.update { it.copy(foil = on) }
     fun setTorch(on: Boolean) = _state.update { it.copy(torch = on) }
     fun setBox(id: Long) {
@@ -254,7 +318,24 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    fun pickPrinting(card: ScryfallCard) =
+    fun pickPrinting(card: ScryfallCard) {
+        val before = _state.value.current
+        if (before != null && before.id != card.id) {
+            viewModelScope.launch {
+                runCatching {
+                    repo.scanLog.add(
+                        com.mtgscanner.scan.ScanLogEntry(
+                            outcome = "corrected", matchName = card.name, matchSet = card.set, matchNumber = card.collectorNumber,
+                            note = "was ${before.name} (${before.set.uppercase()} #${before.collectorNumber})",
+                        ),
+                    )
+                }
+            }
+        }
+        pickPrintingInternal(card)
+    }
+
+    private fun pickPrintingInternal(card: ScryfallCard) =
         _state.update { it.copy(current = card, confident = true, showPrintings = false, printings = null) }
 
     fun closePrintings() = _state.update { it.copy(showPrintings = false, printings = null) }

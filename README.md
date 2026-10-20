@@ -48,9 +48,21 @@ Each new build replaces the "latest" release, and installs cleanly over the prev
   - **Lists:** your wishlist and trade binders (boxes of kind "Trade binder").
 - Tap a card to change quantity, foil, condition, box and notes, see its price change since you
   added it, and what it does (Scryfall's community tags).
-- **Settings:** theme and accent color (Gold by default), plus **Your data**: import a CSV from
+- **Scanning extras:** **Bulk mode** never stops: confident cards are added, unsure ones are set
+  aside under a "Check" button to confirm at the end. Each add can beep, and a big "Put it in …"
+  label shows which box the card belongs in. The scan list can be grouped by box for filing a pile.
+- **Decks tab** also suggests **Commander ideas**: legendary creatures you own, ranked by how many of
+  your cards fit their colors. Card pages show format legality and color identity.
+- **Lists tab** has a **trade calculator** (what you give vs. get, then apply it to your collection)
+  and share buttons for trade binders and the wishlist.
+- **Settings:** theme and accent color (Gold by default); **Prices**: hide every price in the app,
+  or get daily **price alerts** when a card you own or want moves by a percentage and dollar amount
+  you choose; scan sound; plus **Your data**: import a CSV from
   ManaBox, Moxfield, Archidekt, Deckbox or Dragon Shield; back up everything to a file and
   restore it; refresh card roles.
+- **Scan log (hidden):** tap the version number in Settings seven times. Settings then has a
+  Scan log page listing what the scanner read and matched for the last 500 lookups, with a share
+  button, so scanning problems can be sent and fixed.
 
 ## What gets recorded
 

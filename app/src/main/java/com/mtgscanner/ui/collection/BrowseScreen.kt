@@ -76,6 +76,8 @@ import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.ToolChip
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.priceSuffix
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
 @Composable
@@ -92,8 +94,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
                 Text(
-                    if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards · ${formatUsd(ui.shownValue)}"
-                    else "${ui.totalCards} cards · ${formatUsd(ui.shownValue)}",
+                    if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards${priceSuffix(ui.shownValue)}"
+                    else "${ui.totalCards} cards${priceSuffix(ui.shownValue)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                 )
@@ -114,7 +116,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
             Box {
                 ToolChip(f.sort.label, Icons.AutoMirrored.Filled.Sort, { sortMenu = true })
                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                    SortBy.entries.forEach { s ->
+                    SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
                         DropdownMenuItem(
                             text = { Text(s.label, color = if (f.sort == s) Palette.Accent else Palette.Text) },
                             onClick = { vm.update { it.copy(sort = s) }; sortMenu = false },
@@ -232,7 +234,7 @@ private fun CardRow(c: CollectionCard, onClick: () -> Unit) {
                 if (c.foil) { FoilTag(); Spacer(Modifier.width(4.dp)) }
                 Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall)
             }
-            Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
+            if (AppSettings.showPrices) Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
         }
     }
 }
