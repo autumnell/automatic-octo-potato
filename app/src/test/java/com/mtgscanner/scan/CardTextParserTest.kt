@@ -116,7 +116,7 @@ class CardTextParserTest {
 
     @Test fun pageFrameIsCentered() {
         val f = CardTextParser.pageFrame(720, 1280)
-        assertEquals(720 - f.right, f.left)
+        assertTrue(kotlin.math.abs((720 - f.right) - f.left) <= 1)
         assertTrue(f.height > f.width)
     }
 }

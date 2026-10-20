@@ -124,7 +124,7 @@ object CardTextParser {
         val ph = pw * 88.0 / 63.0
         val l = ((width - pw) / 2).toInt()
         val t = ((height - ph) / 2).toInt()
-        return OcrBox(l, t, l + pw.toInt(), t + ph.toInt())
+        return OcrBox(l, t, width - l, height - t)
     }
 
     /** Counts letters in real-looking words. Upside-down or sideways text scores near zero. */

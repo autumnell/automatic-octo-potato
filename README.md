@@ -65,12 +65,16 @@ Each new build replaces the "latest" release, and installs cleanly over the prev
 - **Scanner modes** (grid button over the camera): **Open a pack** tracks a pack's value as you
   scan it and saves the result to Pack history; **Binder page** reads a 9-pocket page at once and
   lets you tick which cards to add.
-- **Game tab:** a life counter for 1 to 4 players. Pick a format (Commander, Standard, Brawl,
-  Oathbreaker, Two-Headed Giant, Limited, custom), starting life and names. Each player tracks
-  life, poison, commander damage from each opponent (and partners), commander tax, energy,
-  experience and rad. Tap the sides of a panel for -1/+1, hold for ±10. The menu has turns, a
-  timer, first-player picker, dice and coin, monarch, initiative, day/night, history and undo.
-  A player is marked out at 0 life, 10 poison or 21 commander damage. The game is saved if you leave.
+- **Game tab:** a life counter for 1 to 6 players. Pick a format (Commander, Standard, Brawl,
+  Oathbreaker, Two-Headed Giant, Limited, custom), starting life, names and a table style (bold,
+  gradient or dark). Tap the sides of a panel for -1/+1, hold for ±10. Each player's menu opens
+  full screen facing them, in big tiles with no scrolling: counters (life, poison, commander tax,
+  energy, experience, rad), commander damage from each opponent (and partners), and player
+  settings (name, color, card art from your collection behind the life total, monarch,
+  initiative, turn, concede). Round buttons by the middle button set the monarch, initiative and
+  day/night, and undo. The middle button opens turns, first player, dice, history, restart and
+  end game. A player is out at 0 life, 10 poison or 21 commander damage. Finished games are saved
+  to **Game stats** with wins per player.
 - **Home screen widget** shows your collection value with a Scan button. A short tour shows on
   first run (Settings › Show the tour again).
 - **Scan settings** (scanner gear, or Settings › Scanning):

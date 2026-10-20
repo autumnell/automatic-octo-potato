@@ -3,6 +3,8 @@ package com.mtgscanner.game
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class GameModelTest {
@@ -68,5 +70,54 @@ class GameModelTest {
         val back = json.decodeFromString(GameState.serializer(), json.encodeToString(GameState.serializer(), s))
         assertEquals(s.players, back.players)
         assertEquals(emptyList<GameState>(), back.undoStack)
+    }
+
+    @Test fun sixPlayersTrackCommanderDamageFromEveryone() {
+        var g = GameState.new(GameFormat.COMMANDER, 6, partners = true)
+        assertEquals(6, g.players.size)
+        g = Game.commanderDamage(g, 0, 5, 7, partner = true)
+        assertEquals(7, g.players[0].damageFrom(5, true))
+        assertEquals(33, g.players[0].life)
+    }
+
+    @Test fun oldSavesWithShortListsStillWork() {
+        val old = GameState.new(GameFormat.COMMANDER, 4).let { g ->
+            g.copy(players = g.players.map { it.copy(commanderDamage = List(8) { 0 }) })
+        }
+        // Damage from a seat the old list had no room for doesn't crash.
+        val hit = Game.commanderDamage(old, 0, 3, 4, partner = true)
+        assertEquals(4, hit.players[0].damageFrom(3, true))
+        assertEquals(12, old.normalized().players[0].commanderDamage.size)
+    }
+
+    @Test fun undoKeepsAGameCountedOnce() {
+        val g = GameState.new(GameFormat.STANDARD, 2)
+        val won = Game.life(g, 1, -20).copy(recorded = true)
+        assertTrue(Game.undo(won).recorded)
+    }
+
+    @Test fun dayAndNightCanBeUndone() {
+        val g = GameState.new(GameFormat.STANDARD, 2)
+        val day = Game.dayNight(g, "day")
+        assertEquals("day", day.dayNight)
+        assertNull(Game.undo(day).dayNight)
+    }
+
+    @Test fun statsCountWinsPerPlayer() {
+        fun rec(winner: String?, vararg names: String) = GameRecord(GameFormat.COMMANDER, names.toList(), winner, 0, 0, 60_000)
+        val stats = GameStats.byPlayer(listOf(rec("Rae", "Rae", "Kenji"), rec("kenji", "rae", "Kenji"), rec("Rae", "Rae", "Sam"), rec(null, "Sam")))
+        assertEquals("Rae", stats[0].name)
+        assertEquals(2, stats[0].wins)
+        assertEquals(3, stats[0].games)
+        assertEquals(1, stats.first { it.name == "Kenji" }.wins)
+        assertEquals(0, stats.first { it.name == "Sam" }.wins)
+        assertEquals(1L, GameStats.averageMinutes(listOf(rec(null, "a"))))
+    }
+
+    @Test fun recordNamesTheWinner() {
+        val g = Game.life(GameState.new(GameFormat.STANDARD, 2, names = listOf("Rae", "Kenji")), 1, -20)
+        val r = g.toRecord()
+        assertEquals("Rae", r.winner)
+        assertFalse(r.players.isEmpty())
     }
 }

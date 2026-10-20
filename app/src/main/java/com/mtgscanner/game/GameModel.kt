@@ -210,7 +210,9 @@ object Game {
     fun initiative(s: GameState, i: Int?, now: Long = System.currentTimeMillis()): GameState =
         s.record(i ?: -1, "Initiative", 0, now, s.copy(initiative = i))
 
-    fun dayNight(s: GameState, value: String?): GameState = s.copy(dayNight = value)
+    fun dayNight(s: GameState, value: String?, now: Long = System.currentTimeMillis()): GameState =
+        if (value == s.dayNight) s
+        else s.record(-1, when (value) { "day" -> "It became day"; "night" -> "It became night"; else -> "Day and night off" }, 0, now, s.copy(dayNight = value))
 
     fun undo(s: GameState): GameState {
         val prev = s.undoStack.lastOrNull() ?: return s
