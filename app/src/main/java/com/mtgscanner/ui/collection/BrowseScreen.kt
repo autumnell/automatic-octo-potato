@@ -450,7 +450,7 @@ private fun CardGrid(
             items(cards, key = { it.id }) { c ->
                 if (grid) {
                     CardTile(
-                        c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
+                        c.smallImageUrl ?: c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
                         onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
                     )
                 } else if (picking) {
@@ -471,11 +471,17 @@ private fun CardGrid(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeRow(onMove: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+    // One swipe can confirm more than once; act on the first only.
+    val last = remember { longArrayOf(0L) }
     val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
-        when (v) {
-            SwipeToDismissBoxValue.StartToEnd -> onMove()
-            SwipeToDismissBoxValue.EndToStart -> onDelete()
-            else -> Unit
+        val now = android.os.SystemClock.uptimeMillis()
+        if (v != SwipeToDismissBoxValue.Settled && now - last[0] > 600) {
+            last[0] = now
+            when (v) {
+                SwipeToDismissBoxValue.StartToEnd -> onMove()
+                SwipeToDismissBoxValue.EndToStart -> onDelete()
+                else -> Unit
+            }
         }
         // Always spring back: the list updates itself, and a move asks for the box first.
         false

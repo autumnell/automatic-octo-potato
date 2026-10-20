@@ -76,14 +76,19 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
         .map { all -> all.filter { it.forSale }.sortedBy { it.name.lowercase() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    // Each change re-reads the row, so a stale copy from the list never overwrites newer edits.
     fun setAsk(c: CollectionCard, price: Double?) = viewModelScope.launch {
-        repo.update(c.copy(askPrice = price))
+        val now = repo.cardOnce(c.id) ?: return@launch
+        repo.update(now.copy(askPrice = price))
         Haptics.tick()
     }
 
     fun unlist(c: CollectionCard) = viewModelScope.launch {
-        repo.update(c.copy(forSale = false))
-        Undo.offer("Removed ${c.name} from sale") { repo.update(c) }
+        val now = repo.cardOnce(c.id) ?: return@launch
+        repo.update(now.copy(forSale = false))
+        Undo.offer("Removed ${c.name} from sale") {
+            repo.cardOnce(c.id)?.let { repo.update(it.copy(forSale = true)) }
+        }
     }
 
     companion object {

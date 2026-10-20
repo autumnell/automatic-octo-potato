@@ -9,6 +9,9 @@ import com.mtgscanner.data.db.userTagList
 import com.mtgscanner.ui.components.Undo
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
+import com.mtgscanner.data.MoveLine
 import kotlinx.coroutines.flow.drop
 import kotlinx.serialization.json.Json
 import com.mtgscanner.data.Binder
@@ -158,32 +161,76 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         setPref("tipDone", true)
     }
 
-    val ui: StateFlow<BrowseUi> = combine(repo.observeAll(), repo.observeBoxes(), _filters) { all, boxes, f ->
+    private val _selected = MutableStateFlow<Set<Long>>(emptySet())
+    val selected: StateFlow<Set<Long>> = _selected
+
+    /** What doesn't depend on the filters: the cards in view with their search text, and the filter choices. */
+    private class Scope(
+        val all: List<CollectionCard>,
+        val boxes: List<Box>,
+        val box: Box?,
+        val inScope: List<CollectionCard>,
+        /** Lower-case search text per card, same order as [inScope]. */
+        val hay: List<String>,
+        val totalCards: Int,
+        val sets: List<Pair<String, String>>,
+        val roles: List<String>,
+        val treatments: List<String>,
+        val userTags: List<String>,
+    )
+
+    private val scope = combine(repo.observeAll(), repo.observeBoxes()) { all, boxes ->
         val inScope = if (boxId < 0) all else all.filter { it.boxId == boxId }
-        val shown = inScope.filter { matches(it, f) }.sortedWith(comparator(f.sort))
-        val box = if (boxId < 0) null else boxes.firstOrNull { it.id == boxId }
-        // A box with dividers lists its cards by divider, matching the physical box.
-        val divider = Divider.of(box?.divider.orEmpty())
-        val binder = box != null && Binder.isBinder(box.kind)
-        BrowseUi(
-            title = if (boxId < 0) listTitle ?: "All cards" else box?.name ?: "Box",
-            groups = if (f.group == GroupBy.NONE && divider != Divider.NONE) bySpot(shown, divider) else group(shown, f.group),
-            shownCards = shown.sumOf { it.quantity },
-            shownValue = shown.sumOf { it.totalPrice() },
+        Scope(
+            all = all,
+            boxes = boxes,
+            box = if (boxId < 0) null else boxes.firstOrNull { it.id == boxId },
+            inScope = inScope,
+            hay = inScope.map(::searchText),
             totalCards = inScope.sumOf { it.quantity },
             sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
             roles = inScope.flatMap { it.roleList() }.distinct().sortedBy { r -> CollectionRepository.ROLES.indexOfFirst { it.label == r } },
             treatments = inScope.flatMap { it.treatments.split(',') }.filter { it.isNotBlank() }.distinct(),
             userTags = inScope.flatMap { it.userTagList() }.distinct().sortedBy { it.lowercase() },
-            boxes = boxes,
-            shownIds = shown.map { it.id },
-            loaded = true,
-            all = all,
-            binder = binder,
-            binderCards = if (binder) inScope.sortedBy { it.binderSlot } else emptyList(),
-            unslotted = if (binder) inScope.count { it.binderSlot <= 0 } else 0,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
+    }.flowOn(Dispatchers.Default)
+
+    /** The filters, with typing in the search box settling for a moment before the list redoes itself. */
+    private var lastQuery = _filters.value.query
+    private val applied = _filters.debounce { f ->
+        if (f.query != lastQuery) { lastQuery = f.query; 150L } else 0L
+    }
+
+    val ui: StateFlow<BrowseUi> = combine(scope, applied) { sc, f ->
+        val shown = sc.inScope.indices.filter { matches(sc.inScope[it], f, sc.hay[it]) }.map { sc.inScope[it] }
+            .sortedWith(comparator(f.sort))
+        val box = sc.box
+        // A box with dividers lists its cards by divider, matching the physical box.
+        val divider = Divider.of(box?.divider.orEmpty())
+        val binder = box != null && Binder.isBinder(box.kind)
+        val shownIds = shown.map { it.id }
+        // Picked cards the filters now hide are dropped from the selection.
+        val shownSet = shownIds.toHashSet()
+        _selected.update { sel -> if (sel.all { it in shownSet }) sel else sel.filterTo(HashSet()) { it in shownSet } }
+        BrowseUi(
+            title = if (boxId < 0) listTitle ?: "All cards" else box?.name ?: "Box",
+            groups = if (f.group == GroupBy.NONE && divider != Divider.NONE) bySpot(shown, divider) else group(shown, f.group),
+            shownCards = shown.sumOf { it.quantity },
+            shownValue = shown.sumOf { it.totalPrice() },
+            totalCards = sc.totalCards,
+            sets = sc.sets,
+            roles = sc.roles,
+            treatments = sc.treatments,
+            userTags = sc.userTags,
+            boxes = sc.boxes,
+            shownIds = shownIds,
+            loaded = true,
+            all = sc.all,
+            binder = binder,
+            binderCards = if (binder) sc.inScope.sortedBy { it.binderSlot } else emptyList(),
+            unslotted = if (binder) sc.inScope.count { it.binderSlot <= 0 } else 0,
+        )
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
 
     fun update(f: (Filters) -> Filters) = _filters.update(f)
     fun clearFilters() = _filters.update { Filters(query = it.query, sort = it.sort, group = it.group) }
@@ -220,12 +267,13 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         withUndo(ids, if (n == 1) "Numbered 1 card" else "Numbered $n cards") { repo.numberBinderSlots(boxId) }
     }
 
-    /** Adds the cards about to move to the physical move list. */
-    private fun recordMoves(ids: List<Long>, to: Long) {
+    /** Adds the cards about to move to the physical move list; returns the lines added. */
+    private fun recordMoves(ids: List<Long>, to: Long): List<MoveLine> {
         val u = ui.value
         val byId = u.boxes.associateBy { it.id }
-        val cards = u.all.filter { it.id in ids }
-        MoveList.add(MoveList.linesFor(cards.map { it to to }) { id -> byId[id]?.let { Triple(it.name, it.kind, it.divider) } })
+        val wanted = ids.toHashSet()
+        val cards = u.all.filter { it.id in wanted }
+        return MoveList.add(MoveList.linesFor(cards.map { it to to }) { id -> byId[id]?.let { Triple(it.name, it.kind, it.divider) } })
     }
 
     fun saveSearch(name: String) = searches.save(name, _filters.value)
@@ -235,8 +283,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
 
     // Picking several cards
 
-    private val _selected = MutableStateFlow<Set<Long>>(emptySet())
-    val selected: StateFlow<Set<Long>> = _selected
 
     /** True after tapping Select, so picking mode shows even with nothing picked yet. */
     private val _selecting = MutableStateFlow(false)
@@ -256,12 +302,12 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     private fun boxName(id: Long) = ui.value.boxes.firstOrNull { it.id == id }?.name ?: "box"
 
     /** Runs a change on some cards and offers to undo it. */
-    private fun withUndo(ids: List<Long>, message: String, change: suspend () -> Unit) {
+    private fun withUndo(ids: List<Long>, message: String, onUndo: () -> Unit = {}, change: suspend () -> Unit) {
         if (ids.isEmpty()) return
         viewModelScope.launch {
             val before = repo.snapshot(ids)
             change()
-            Undo.offer(message) { repo.restore(before) }
+            Undo.offer(message) { repo.restore(before); onUndo() }
         }
     }
 
@@ -271,8 +317,9 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     fun moveSelected(boxId: Long) {
         val ids = _selected.value.toList()
         clearSelection()
-        recordMoves(ids, boxId)
-        withUndo(ids, "Moved ${count(ids)} to ${boxName(boxId)}") { repo.moveMany(ids, boxId) }
+        if (ids.isEmpty()) return
+        val lines = recordMoves(ids, boxId)
+        withUndo(ids, "Moved ${count(ids)} to ${boxName(boxId)}", { MoveList.remove(lines) }) { repo.moveMany(ids, boxId) }
     }
 
     fun deleteSelected() {
@@ -288,17 +335,24 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     }
 
     fun moveOne(id: Long, boxId: Long) {
-        recordMoves(listOf(id), boxId)
-        withUndo(listOf(id), "Moved to ${boxName(boxId)}") { repo.moveToBox(id, boxId) }
+        val lines = recordMoves(listOf(id), boxId)
+        withUndo(listOf(id), "Moved to ${boxName(boxId)}", { MoveList.remove(lines) }) { repo.moveToBox(id, boxId) }
     }
     fun deleteOne(id: Long, name: String) = withUndo(listOf(id), "Removed $name") { repo.deleteMany(listOf(id)) }
 
     companion object {
-        fun matches(c: CollectionCard, f: Filters): Boolean {
+        /** Everything the search box looks in, lower-case, one field per line so a match can't span two. */
+        fun searchText(c: CollectionCard): String =
+            listOf(c.name, c.typeLine, c.oracleText, c.setName, c.setCode, c.tags, c.artist.orEmpty(), c.userTags)
+                .joinToString("\n") { it.lowercase() }
+
+        fun matches(c: CollectionCard, f: Filters): Boolean = matches(c, f, null)
+
+        /** [hay] is the card's [searchText], when already worked out. */
+        fun matches(c: CollectionCard, f: Filters, hay: String?): Boolean {
             if (f.query.isNotBlank()) {
                 val q = f.query.trim().lowercase()
-                val hay = listOf(c.name, c.typeLine, c.oracleText, c.setName, c.setCode, c.tags, c.artist.orEmpty(), c.userTags)
-                if (hay.none { it.lowercase().contains(q) }) return false
+                if (!(hay ?: searchText(c)).contains(q)) return false
             }
             if (f.colors.isNotEmpty()) {
                 val ok = f.colors.any { sel ->
