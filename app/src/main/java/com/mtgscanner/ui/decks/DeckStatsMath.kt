@@ -46,6 +46,7 @@ object DeckStatsMath {
     /** Sections that count for stats. */
     private val PLAYED = setOf("Main", "Commander", "Companion")
     private val SYMBOL = Regex("""\{([^}]+)\}""")
+    private val REMINDER = Regex("""\([^)]*\)""")
     private val BASICS = mapOf("Plains" to 'W', "Island" to 'U', "Swamp" to 'B', "Mountain" to 'R', "Forest" to 'G', "Wastes" to 'C')
 
     fun key(name: String): String =
@@ -84,7 +85,8 @@ object DeckStatsMath {
     fun produces(typeLine: String, oracle: String): Set<Char> {
         val out = mutableSetOf<Char>()
         BASICS.forEach { (type, c) -> if (Regex("\\b$type\\b").containsMatchIn(typeLine)) out += c }
-        for (sentence in oracle.split('.', '\n')) {
+        // Reminder text, like a Treasure's "(… Add one mana of any color.)", isn't the card making mana.
+        for (sentence in oracle.replace(REMINDER, "").split('.', '\n')) {
             val i = sentence.indexOf("Add ", ignoreCase = true)
             if (i < 0) continue
             val part = sentence.substring(i)

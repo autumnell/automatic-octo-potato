@@ -157,4 +157,34 @@ class GameModelTest {
         assertEquals(0, s.players[0].energy)
         assertEquals(-2, s.history.last().delta)
     }
+
+    @Test fun undoKeepsNamesColorsAndArt() {
+        var s = Game.life(GameState.new(GameFormat.STANDARD, 2), 0, -3, now = 0)
+        s = Game.rename(s, 0, "Rae")
+        s = Game.recolor(s, 0, 4)
+        s = Game.setArt(s, 0, "art")
+        val u = Game.undo(s)
+        assertEquals(20, u.players[0].life)
+        assertEquals("Rae", u.players[0].name)
+        assertEquals(4, u.players[0].color)
+        assertEquals("art", u.players[0].art)
+    }
+
+    @Test fun pickingFirstAndActiveAreUndoSteps() {
+        val g = Game.life(GameState.new(GameFormat.STANDARD, 3), 0, -3, now = 0)
+        val first = Game.setFirst(g, 2)
+        val back = Game.undo(first)
+        assertNull(back.active)
+        assertEquals(17, back.players[0].life)
+        val active = Game.setActive(first, 1)
+        assertEquals(2, Game.undo(active).active)
+        assertEquals(17, Game.undo(active).players[0].life)
+    }
+
+    @Test fun tableWideHistoryLinesHaveNoPlayer() {
+        val g = GameState.new(GameFormat.COMMANDER, 4)
+        val m = Game.monarch(Game.monarch(g, 1, now = 0), null, now = 10_000)
+        assertEquals("No monarch", m.history.last().what)
+        assertEquals(-1, m.history.last().player)
+    }
 }
