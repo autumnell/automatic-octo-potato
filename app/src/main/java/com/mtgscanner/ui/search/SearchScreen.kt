@@ -42,6 +42,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +64,7 @@ import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.components.AddCardSheet
+import com.mtgscanner.ui.components.BoxEditorSheet
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.EmptyState
@@ -76,6 +79,7 @@ fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory
     val ui by vm.ui.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    var newBox by remember { mutableStateOf(false) }
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -91,14 +95,23 @@ fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory
             AddCardSheet(
                 card = card,
                 boxes = boxes,
-                defaultBoxId = CardBox.BULK_ID,
+                defaultBoxId = vm.lastBoxId,
                 onAdd = vm::add,
                 onChangePrinting = vm::openPrintings,
                 onDismiss = { vm.select(null) },
+                onCreateBox = { newBox = true },
+                onWishlist = vm::wishlist,
             )
         }
     }
     if (ui.showPrintings) PrintingsSheet(ui.printings, ui.selected?.id, vm::pickPrinting, vm::closePrintings)
+    if (newBox) {
+        BoxEditorSheet(
+            title = "New box",
+            onSave = { n, k, r -> vm.createBox(n, k, r); newBox = false },
+            onDismiss = { newBox = false },
+        )
+    }
 }
 
 @Composable

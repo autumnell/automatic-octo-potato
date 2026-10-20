@@ -6,6 +6,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -101,20 +102,63 @@ class ScryfallApi(
     }
 
     /** Fetches up to 75 cards per request by Scryfall id. Used to refresh prices. */
-    suspend fun collection(ids: List<String>): List<ScryfallCard> {
-        val out = mutableListOf<ScryfallCard>()
-        for (chunk in ids.distinct().chunked(75)) {
+    suspend fun collection(ids: List<String>): List<ScryfallCard> =
+        identify(ids.distinct().map { buildJsonObject { put("id", it) } }).filterNotNull()
+
+    /**
+     * Looks up many cards at once. Each identifier is a JSON object such as {"id": …},
+     * {"set": …, "collector_number": …} or {"name": …}. Returns one entry per identifier, null
+     * when Scryfall couldn't find it.
+     */
+    suspend fun identify(identifiers: List<JsonObject>): List<ScryfallCard?> {
+        val out = ArrayList<ScryfallCard?>(identifiers.size)
+        for (chunk in identifiers.chunked(75)) {
             val payload = buildJsonObject {
-                put("identifiers", buildJsonArray {
-                    chunk.forEach { add(buildJsonObject { put("id", it) }) }
-                })
+                put("identifiers", buildJsonArray { chunk.forEach { add(it) } })
             }.toString()
             val req = Request.Builder()
                 .url(base.newBuilder().addPathSegments("cards/collection").build())
                 .post(payload.toRequestBody("application/json".toMediaType()))
                 .build()
-            val body = request(req) ?: continue
-            out += json.decodeFromString(CardList.serializer(), body).data
+            val body = request(req)
+            if (body == null) { repeat(chunk.size) { out += null }; continue }
+            val pool = json.decodeFromString(CardList.serializer(), body).data.toMutableList()
+            for (ident in chunk) {
+                val i = pool.indexOfFirst { matchesIdentifier(ident, it) }
+                out += if (i >= 0) pool.removeAt(i) else null
+            }
+        }
+        return out
+    }
+
+    private fun matchesIdentifier(ident: JsonObject, card: ScryfallCard): Boolean {
+        fun field(k: String) = (ident[k] as? kotlinx.serialization.json.JsonPrimitive)?.content
+        field("id")?.let { return it == card.id }
+        val set = field("set")
+        val num = field("collector_number")
+        if (set != null && num != null) return set.equals(card.set, true) && num.equals(card.collectorNumber, true)
+        val name = field("name") ?: return false
+        val names = listOf(card.name) + card.name.split(" // ") + card.cardFaces.orEmpty().map { it.name }
+        val nameOk = names.any { it.equals(name, ignoreCase = true) }
+        return nameOk && (set == null || set.equals(card.set, true))
+    }
+
+    /** Every English card name, about 30k. Used to correct what the camera reads, offline. */
+    suspend fun cardNames(): List<String> {
+        val body = request(Request.Builder().url(base.newBuilder().addPathSegments("catalog/card-names").build()).build())
+            ?: return emptyList()
+        return json.decodeFromString(Catalog.serializer(), body).data
+    }
+
+    /** Every card matching [query] (all pages, up to [maxPages]). */
+    suspend fun searchAll(query: String, unique: String = "cards", maxPages: Int = 6): List<ScryfallCard> {
+        val out = mutableListOf<ScryfallCard>()
+        var page = 1
+        while (page <= maxPages) {
+            val list = searchPage(query, page = page, unique = unique)
+            out += list.data
+            if (!list.hasMore) break
+            page++
         }
         return out
     }

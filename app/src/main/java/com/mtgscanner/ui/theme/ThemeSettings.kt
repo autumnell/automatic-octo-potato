@@ -34,7 +34,10 @@ object ThemeSettings {
 
     var mode by mutableStateOf(ThemeMode.DARK)
         private set
-    var accent by mutableStateOf(presets.first().color)
+    /** Gold is the default accent. */
+    val defaultAccent: Color = presets.first { it.name == "Gold" }.color
+
+    var accent by mutableStateOf(defaultAccent)
         private set
     /** The last color made with the picker, kept so it stays one tap away. */
     var customAccent by mutableStateOf<Color?>(null)
@@ -44,7 +47,7 @@ object ThemeSettings {
         val p = context.getSharedPreferences("appearance", Context.MODE_PRIVATE)
         prefs = p
         mode = runCatching { ThemeMode.valueOf(p.getString("mode", null) ?: "DARK") }.getOrDefault(ThemeMode.DARK)
-        accent = Color(p.getInt("accent", presets.first().color.toArgb()))
+        accent = Color(p.getInt("accent", defaultAccent.toArgb()))
         if (p.contains("custom")) customAccent = Color(p.getInt("custom", 0))
     }
 

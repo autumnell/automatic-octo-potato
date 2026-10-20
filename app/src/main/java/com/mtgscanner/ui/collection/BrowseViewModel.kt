@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.changeSinceAdded
+import com.mtgscanner.data.db.roleList
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
 enum class SortBy(val label: String) {
-    RECENT("Recently added"), NAME("Name"), PRICE("Price"), MANA("Mana value"), SET("Set & number"), COLOR("Color"),
+    RECENT("Recently added"), NAME("Name"), PRICE("Price"), MANA("Mana value"), SET("Set & number"), COLOR("Color"), GAIN("Price change"),
 }
 
 enum class GroupBy(val label: String) { NONE("No grouping"), SET("Set"), COLOR("Color"), TYPE("Card type"), RARITY("Rarity") }
@@ -30,10 +32,13 @@ data class Filters(
     val types: Set<String> = emptySet(),
     val set: String? = null,
     val foilOnly: Boolean = false,
+    /** Scryfall community tags such as Removal or Ramp. */
+    val roles: Set<String> = emptySet(),
+    val treatments: Set<String> = emptySet(),
     val sort: SortBy = SortBy.RECENT,
     val group: GroupBy = GroupBy.NONE,
 ) {
-    val activeCount: Int get() = colors.size + rarities.size + types.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0)
+    val activeCount: Int get() = colors.size + rarities.size + types.size + roles.size + treatments.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0)
 }
 
 data class BrowseUi(
@@ -43,6 +48,9 @@ data class BrowseUi(
     val shownValue: Double = 0.0,
     val totalCards: Int = 0,
     val sets: List<Pair<String, String>> = emptyList(),
+    /** Roles found on cards in view, for the filter sheet. */
+    val roles: List<String> = emptyList(),
+    val treatments: List<String> = emptyList(),
     val loaded: Boolean = false,
 )
 
@@ -65,6 +73,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             shownValue = shown.sumOf { it.totalPrice() },
             totalCards = inScope.sumOf { it.quantity },
             sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
+            roles = inScope.flatMap { it.roleList() }.distinct().sortedBy { r -> CollectionRepository.ROLES.indexOfFirst { it.label == r } },
+            treatments = inScope.flatMap { it.treatments.split(',') }.filter { it.isNotBlank() }.distinct(),
             loaded = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
@@ -96,6 +106,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             if (f.types.isNotEmpty() && f.types.none { c.typeLine.contains(it, ignoreCase = true) }) return false
             if (f.set != null && c.setCode != f.set) return false
             if (f.foilOnly && !c.foil) return false
+            if (f.roles.isNotEmpty() && f.roles.none { it in c.roleList() }) return false
+            if (f.treatments.isNotEmpty() && f.treatments.none { it in c.treatments.split(',') }) return false
             return true
         }
 
@@ -115,6 +127,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
                 .thenBy { it.collectorNumber.takeWhile { ch -> ch.isDigit() }.toIntOrNull() ?: Int.MAX_VALUE }
                 .thenBy { it.collectorNumber }
             SortBy.COLOR -> compareBy<CollectionCard> { colorRank(it) }.thenBy { it.cmc }.thenBy { it.name }
+            SortBy.GAIN -> compareByDescending<CollectionCard> { it.changeSinceAdded() ?: Double.NEGATIVE_INFINITY }.thenBy { it.name }
         }
 
         fun primaryType(c: CollectionCard): String =
