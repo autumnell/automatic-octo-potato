@@ -27,6 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Inventory2
@@ -76,6 +78,7 @@ import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.BoxDraft
 import com.mtgscanner.ui.components.BoxEditorSheet
+import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
@@ -130,10 +133,39 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun reorder(ids: List<Long>) = viewModelScope.launch { repo.reorderBoxes(ids) }
     fun setFallback(id: Long?) = viewModelScope.launch { repo.setFallbackBox(id) }
 
-    /** [moveTo] null deletes the cards too; [CardBox.AUTO_SORT] sorts them into the other boxes. */
+    /**
+     * [moveTo] null deletes the cards too; [CardBox.AUTO_SORT] sorts them into the other boxes;
+     * [TO_ANYTHING] moves them to a box that takes any card, making one if needed.
+     */
     fun deleteBox(id: Long, moveTo: Long?) = viewModelScope.launch {
-        repo.deleteBox(id, moveTo)
-        _message.value = "Box deleted"
+        val target = if (moveTo == TO_ANYTHING) repo.anythingBox(except = id) else moveTo
+        repo.deleteBox(id, target)
+        _message.value = when (moveTo) {
+            null -> "Box and its cards deleted"
+            TO_ANYTHING -> "Box deleted. Its cards are in your Anything box"
+            else -> "Box deleted"
+        }
+    }
+
+    /** Sorts a catch-all box: cards that fit another box's rules move there. */
+    fun sortBox(id: Long, name: String) = viewModelScope.launch {
+        val before = repo.snapshot(repo.cardsInBox(id).map { it.id })
+        val moved = repo.sortBox(id)
+        if (moved == 0) _message.value = "None of the cards in $name fit another box's rules. Make a box with rules first."
+        else Undo.offer("Sorted $moved cards out of $name") { repo.restore(before) }
+    }
+
+    /** Makes a new box from [d] and moves the cards in [sourceId] that fit its rules into it. */
+    fun sortIntoNew(sourceId: Long, name: String, d: BoxDraft) = viewModelScope.launch {
+        val before = repo.snapshot(repo.cardsInBox(sourceId).map { it.id })
+        val newId = repo.createBox(d.name, d.kind, d.rules, d.color)
+        val moved = repo.sortInto(sourceId, newId, d.rules)
+        if (moved == 0) _message.value = "Made ${d.name}, but no cards in $name fit its rules"
+        else Undo.offer("Moved $moved cards from $name to ${d.name}") { repo.restore(before) }
+    }
+
+    companion object {
+        const val TO_ANYTHING = -3L
     }
 
     fun removeWish(id: Long) = viewModelScope.launch { repo.removeWish(id) }
@@ -175,6 +207,9 @@ fun CollectionScreen(
     onOpenDeck: (deckId: Long) -> Unit,
     onOpenCard: (Long) -> Unit = {},
     onTrade: () -> Unit = {},
+    onSets: () -> Unit = {},
+    onExtras: () -> Unit = {},
+    onPacks: () -> Unit = {},
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -221,7 +256,7 @@ fun CollectionScreen(
             when (tab) {
                 0 -> BoxesTab(ui, vm, onBrowse)
                 1 -> DecksTab(onOpenDeck, onOpenCard)
-                else -> ListsTab(ui, vm, onBrowse, onTrade)
+                else -> ListsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onPacks)
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
@@ -234,6 +269,8 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<BoxSummary?>(null) }
     var ordering by remember { mutableStateOf(false) }
+    var sorting by remember { mutableStateOf<BoxSummary?>(null) }
+    var sortingNew by remember { mutableStateOf<BoxSummary?>(null) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -275,8 +312,24 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                 action = { GradientButton("Create a box", { creating = true }, icon = Icons.Filled.Add) },
             )
         }
+        val lone = ui.boxes.singleOrNull()?.takeIf { it.cards > 0 && BoxRules.fromJson(it.rules).isCatchAll }
+        if (lone != null) Surface(
+            onClick = { sorting = lone },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Palette.Surface,
+        ) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.AutoFixHigh, null, tint = Palette.Accent)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Everything is in ${lone.name}. Tap to sort it into boxes by color, rarity, price and more.",
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f),
+                )
+            }
+        }
         ui.boxes.forEach { b ->
-            BoxCard(b, onClick = { onBrowse(b.id) }, onEdit = { editing = b }, onDelete = { deleting = b })
+            BoxCard(b, onClick = { onBrowse(b.id) }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b })
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -293,6 +346,21 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             onDismiss = { editing = null },
         )
     }
+    sorting?.let { b ->
+        SortBoxDialog(
+            b, hasOtherRules = ui.boxes.any { it.id != b.id && !BoxRules.fromJson(it.rules).isCatchAll },
+            onOthers = { vm.sortBox(b.id, b.name); sorting = null },
+            onNew = { sortingNew = b; sorting = null },
+            onDismiss = { sorting = null },
+        )
+    }
+    sortingNew?.let { b ->
+        BoxEditorSheet(
+            title = "Sort out of ${b.name}",
+            onSave = { vm.sortIntoNew(b.id, b.name, it); sortingNew = null },
+            onDismiss = { sortingNew = null },
+        )
+    }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
     deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
@@ -301,8 +369,21 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
 
 @Composable
 private fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismiss: () -> Unit, onDelete: (Long?) -> Unit) {
-    // Choices: another box, auto-sort, or delete the cards. -1 means "delete the cards".
-    var choice by remember { mutableStateOf(if (others.isEmpty()) -1L else CardBox.AUTO_SORT) }
+    // -1 means "delete the cards".
+    var choice by remember { mutableStateOf(CollectionViewModel.TO_ANYTHING) }
+    var confirmForever by remember { mutableStateOf(false) }
+    val anything = others.firstOrNull { it.kind != "trade" && BoxRules.fromJson(it.rules).isCatchAll }
+    if (confirmForever) {
+        AlertDialog(
+            onDismissRequest = { confirmForever = false },
+            containerColor = Palette.Surface,
+            title = { Text("Permanently delete ${box.cards} cards?") },
+            text = { Text("${box.name} and every card in it will be removed from your collection. This can't be undone.") },
+            confirmButton = { TextButton(onClick = { onDelete(null) }) { Text("Delete forever", color = Palette.Danger) } },
+            dismissButton = { TextButton(onClick = { confirmForever = false }) { Text("Keep them") } },
+        )
+        return
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
@@ -314,17 +395,63 @@ private fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismiss
                 } else {
                     Text("What should happen to its ${box.cards} cards?")
                     Spacer(Modifier.height(8.dp))
+                    Choice(
+                        if (anything != null) "Move them to ${anything.name} (takes any card)" else "Move them to a new Anything box",
+                        choice == CollectionViewModel.TO_ANYTHING,
+                    ) { choice = CollectionViewModel.TO_ANYTHING }
                     if (others.isNotEmpty()) {
-                        Choice("Sort them into my other boxes", choice == CardBox.AUTO_SORT) { choice = CardBox.AUTO_SORT }
-                        others.forEach { o -> Choice("Move them to ${o.name}", choice == o.id) { choice = o.id } }
+                        Choice("Sort them into my other boxes by their rules", choice == CardBox.AUTO_SORT) { choice = CardBox.AUTO_SORT }
+                        others.filter { it.id != anything?.id }.forEach { o -> Choice("Move them to ${o.name}", choice == o.id) { choice = o.id } }
                     }
-                    Choice("Remove them from my collection", choice == -1L) { choice = -1L }
+                    Choice("Delete them permanently", choice == -1L) { choice = -1L }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onDelete(if (choice == -1L) null else choice) }) { Text("Delete", color = Palette.Danger) }
+            TextButton(onClick = {
+                when {
+                    box.cards == 0 -> onDelete(CardBox.AUTO_SORT)
+                    choice == -1L -> confirmForever = true
+                    else -> onDelete(choice)
+                }
+            }) { Text("Delete box", color = Palette.Danger) }
         },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Sort a box after the fact, like an Anything box everything was scanned into. */
+@Composable
+private fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: () -> Unit, onNew: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Sort ${box.name}") },
+        text = {
+            Column {
+                Text(
+                    "Move cards out of this box using the same options as box rules: colors, rarity, type, treatments, foil, price and set. Cards that fit nothing stay here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+                Surface(onClick = onNew, shape = RoundedCornerShape(14.dp), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("Into a new box", style = MaterialTheme.typography.titleSmall)
+                        Text("Set up a box with rules, and the cards that fit move into it", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                }
+                if (hasOtherRules) {
+                    Spacer(Modifier.height(8.dp))
+                    Surface(onClick = onOthers, shape = RoundedCornerShape(14.dp), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Into my other boxes", style = MaterialTheme.typography.titleSmall)
+                            Text("Each card goes to the first box whose rules fit, in Auto-sort order", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
@@ -338,7 +465,7 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -374,6 +501,7 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Edit name and rules") }, onClick = { menu = false; onEdit() })
+                if (b.cards > 0) DropdownMenuItem(text = { Text("Sort cards out of this box") }, onClick = { menu = false; onSort() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
         }
@@ -382,7 +510,10 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
 
 /** The wishlist, plus shortcuts to trade binders. */
 @Composable
-private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: () -> Unit) {
+private fun ListsTab(
+    ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: () -> Unit,
+    onSets: () -> Unit, onExtras: () -> Unit, onPacks: () -> Unit,
+) {
     val wishlist by vm.wishlist.collectAsStateWithLifecycle()
     val trade = ui.boxes.filter { it.kind == "trade" }
     val ctx = LocalContext.current
@@ -393,22 +524,10 @@ private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            Surface(
-                onClick = onTrade,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = Palette.BoxCard,
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Accent)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Trade calculator", style = MaterialTheme.typography.titleMedium)
-                        Text("Compare what you give and get, then save it", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    }
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
-                }
-            }
+            ToolCard(Icons.Filled.SwapHoriz, "Trade calculator", "Compare what you give and get, then save it", onTrade)
+            ToolCard(Icons.Filled.GridView, "Set tracker", "See how much of each set you own and what's missing", onSets)
+            ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Find copies you don't need and move them to trade", onExtras)
+            ToolCard(Icons.Filled.Inventory2, "Pack history", "Every pack you opened and what it was worth", onPacks)
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(
@@ -475,5 +594,25 @@ private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun ToolCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = Palette.BoxCard,
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Palette.Accent)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
+        }
     }
 }

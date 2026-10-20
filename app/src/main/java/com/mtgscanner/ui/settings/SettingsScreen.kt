@@ -76,7 +76,7 @@ import com.mtgscanner.ui.theme.ThemeSettings
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}) {
+fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () -> Unit = {}) {
     var picking by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -168,6 +168,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}) {
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                 )
+                TextButton(onClick = onTour, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Show the tour again") }
             }
         }
         if (AppSettings.scanLogUnlocked) {

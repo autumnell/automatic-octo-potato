@@ -1,0 +1,200 @@
+package com.mtgscanner.game
+
+import kotlinx.serialization.Serializable
+
+/** Ways to play, with their starting life and which trackers matter. */
+@Serializable
+enum class GameFormat(
+    val label: String,
+    val life: Int,
+    val commanderDamage: Boolean,
+    val defaultPlayers: Int,
+    val detail: String,
+) {
+    COMMANDER("Commander", 40, true, 4, "40 life · 21 commander damage"),
+    STANDARD("Standard / 60-card", 20, false, 2, "20 life · Standard, Modern, Pioneer…"),
+    BRAWL("Brawl", 25, true, 2, "25 life · 21 commander damage"),
+    OATHBREAKER("Oathbreaker", 20, false, 4, "20 life"),
+    TWO_HEADED("Two-Headed Giant", 30, false, 2, "30 life per team"),
+    LIMITED("Draft / Sealed", 20, false, 2, "20 life"),
+    CUSTOM("Custom", 20, false, 2, "Pick your own starting life"),
+}
+
+@Serializable
+data class Player(
+    val name: String,
+    /** Index into the player colors. */
+    val color: Int,
+    val life: Int,
+    val poison: Int = 0,
+    /** Commander damage taken, by [cmdIndex] of the dealer and their commander. */
+    val commanderDamage: List<Int> = List(MAX_PLAYERS * 2) { 0 },
+    val energy: Int = 0,
+    val experience: Int = 0,
+    val rad: Int = 0,
+    /** Times your commander has been cast from the command zone. Tax is 2 per cast. */
+    val commanderCasts: Int = 0,
+    val partnerCasts: Int = 0,
+    /** Conceded or otherwise out, by hand. */
+    val conceded: Boolean = false,
+) {
+    val commanderTax: Int get() = commanderCasts * 2
+    val partnerTax: Int get() = partnerCasts * 2
+
+    fun damageFrom(from: Int, partner: Boolean = false): Int = commanderDamage.getOrElse(cmdIndex(from, partner)) { 0 }
+
+    companion object {
+        const val MAX_PLAYERS = 4
+        fun cmdIndex(from: Int, partner: Boolean) = from * 2 + if (partner) 1 else 0
+    }
+}
+
+/** What happened, for the history list and undo. */
+@Serializable
+data class GameEvent(val player: Int, val what: String, val delta: Int, val at: Long)
+
+@Serializable
+data class GameState(
+    val format: GameFormat,
+    val players: List<Player>,
+    val startingLife: Int = 20,
+    /** Track a partner (second commander) for each player. */
+    val partners: Boolean = false,
+    val turn: Int = 1,
+    /** Whose turn it is, or null when turns aren't being tracked. */
+    val active: Int? = null,
+    val monarch: Int? = null,
+    val initiative: Int? = null,
+    /** "day", "night", or null before it matters. */
+    val dayNight: String? = null,
+    val startedAt: Long = System.currentTimeMillis(),
+    val history: List<GameEvent> = emptyList(),
+    /** Earlier states, newest last, for undo. Not saved between runs. */
+    @kotlinx.serialization.Transient val undoStack: List<GameState> = emptyList(),
+) {
+    /** Why a player is out, or null while they're still in. */
+    fun outReason(i: Int): String? {
+        val p = players[i]
+        return when {
+            p.conceded -> "Conceded"
+            p.life <= 0 -> "Out of life"
+            p.poison >= POISON_LIMIT -> "10 poison counters"
+            format.commanderDamage && p.commanderDamage.any { it >= COMMANDER_LIMIT } -> "21 commander damage"
+            else -> null
+        }
+    }
+
+    val playersLeft: Int get() = players.indices.count { outReason(it) == null }
+
+    /** The last player standing in a game of two or more. */
+    val winner: Int? get() = if (players.size > 1 && playersLeft == 1) players.indices.first { outReason(it) == null } else null
+
+    companion object {
+        const val POISON_LIMIT = 10
+        const val COMMANDER_LIMIT = 21
+        const val MAX_UNDO = 60
+        /** Changes to the same thing within this time are merged into one history line. */
+        const val MERGE_MS = 2500L
+
+        val NAMES = listOf("Player 1", "Player 2", "Player 3", "Player 4")
+
+        fun new(format: GameFormat, count: Int, life: Int = format.life, names: List<String> = NAMES, partners: Boolean = false) = GameState(
+            format = format,
+            players = List(count.coerceIn(1, Player.MAX_PLAYERS)) { i -> Player(names.getOrElse(i) { NAMES[i] }, i, life) },
+            startingLife = life,
+            partners = partners,
+        )
+    }
+}
+
+/** Every change to a game goes through here, so it can be undone and shows in the history. */
+object Game {
+    private fun GameState.record(player: Int, what: String, delta: Int, now: Long, next: GameState): GameState {
+        val last = history.lastOrNull()
+        val merged = if (last != null && last.player == player && last.what == what && now - last.at < GameState.MERGE_MS) {
+            // Keep one line and one undo step for a run of quick taps.
+            history.dropLast(1) + last.copy(delta = last.delta + delta, at = now)
+        } else history + GameEvent(player, what, delta, now)
+        val stack = if (last != null && last.player == player && last.what == what && now - last.at < GameState.MERGE_MS) undoStack
+        else (undoStack + this.copy(undoStack = emptyList())).takeLast(GameState.MAX_UNDO)
+        return next.copy(history = merged.takeLast(300), undoStack = stack)
+    }
+
+    private fun GameState.updatePlayer(i: Int, f: (Player) -> Player): GameState =
+        copy(players = players.mapIndexed { j, p -> if (j == i) f(p) else p })
+
+    fun life(s: GameState, i: Int, delta: Int, now: Long = System.currentTimeMillis()): GameState =
+        s.record(i, "Life", delta, now, s.updatePlayer(i) { it.copy(life = it.life + delta) })
+
+    fun poison(s: GameState, i: Int, delta: Int, now: Long = System.currentTimeMillis()): GameState {
+        val p = s.players[i]
+        val d = (p.poison + delta).coerceAtLeast(0) - p.poison
+        if (d == 0) return s
+        return s.record(i, "Poison", d, now, s.updatePlayer(i) { it.copy(poison = it.poison + d) })
+    }
+
+    /** Commander damage is also life loss, so life goes down with it. */
+    fun commanderDamage(s: GameState, target: Int, from: Int, delta: Int, partner: Boolean = false, now: Long = System.currentTimeMillis()): GameState {
+        val idx = Player.cmdIndex(from, partner)
+        val p = s.players[target]
+        val d = (p.commanderDamage[idx] + delta).coerceAtLeast(0) - p.commanderDamage[idx]
+        if (d == 0) return s
+        val label = "Commander damage from ${s.players[from].name}" + if (partner) " (partner)" else ""
+        return s.record(target, label, d, now, s.updatePlayer(target) {
+            it.copy(life = it.life - d, commanderDamage = it.commanderDamage.mapIndexed { k, v -> if (k == idx) v + d else v })
+        })
+    }
+
+    fun counter(s: GameState, i: Int, kind: String, delta: Int, now: Long = System.currentTimeMillis()): GameState {
+        val p = s.players[i]
+        val next = when (kind) {
+            "Energy" -> p.copy(energy = (p.energy + delta).coerceAtLeast(0))
+            "Experience" -> p.copy(experience = (p.experience + delta).coerceAtLeast(0))
+            "Rad" -> p.copy(rad = (p.rad + delta).coerceAtLeast(0))
+            "Commander cast" -> p.copy(commanderCasts = (p.commanderCasts + delta).coerceAtLeast(0))
+            "Partner cast" -> p.copy(partnerCasts = (p.partnerCasts + delta).coerceAtLeast(0))
+            else -> p
+        }
+        if (next == p) return s
+        return s.record(i, kind, delta, now, s.updatePlayer(i) { next })
+    }
+
+    fun concede(s: GameState, i: Int, out: Boolean, now: Long = System.currentTimeMillis()): GameState =
+        s.record(i, if (out) "Conceded" else "Back in", 0, now, s.updatePlayer(i) { it.copy(conceded = out) })
+
+    fun rename(s: GameState, i: Int, name: String): GameState = s.updatePlayer(i) { it.copy(name = name.trim().ifEmpty { it.name }) }
+    fun recolor(s: GameState, i: Int, color: Int): GameState = s.updatePlayer(i) { it.copy(color = color) }
+
+    /** Passes the turn to the next player still in. A full round adds one to the turn count. */
+    fun nextTurn(s: GameState, now: Long = System.currentTimeMillis()): GameState {
+        val n = s.players.size
+        val from = s.active ?: return s.record(0, "Turn", 0, now, s.copy(active = 0))
+        var next = from
+        for (step in 1..n) {
+            val cand = (from + step) % n
+            if (s.outReason(cand) == null) { next = cand; break }
+        }
+        val wrapped = next <= from
+        return s.record(next, "Turn", 0, now, s.copy(active = next, turn = s.turn + if (wrapped) 1 else 0))
+    }
+
+    fun setActive(s: GameState, i: Int?): GameState = s.copy(active = i)
+
+    fun monarch(s: GameState, i: Int?, now: Long = System.currentTimeMillis()): GameState =
+        s.record(i ?: -1, "Monarch", 0, now, s.copy(monarch = i))
+
+    fun initiative(s: GameState, i: Int?, now: Long = System.currentTimeMillis()): GameState =
+        s.record(i ?: -1, "Initiative", 0, now, s.copy(initiative = i))
+
+    fun dayNight(s: GameState, value: String?): GameState = s.copy(dayNight = value)
+
+    fun undo(s: GameState): GameState {
+        val prev = s.undoStack.lastOrNull() ?: return s
+        return prev.copy(undoStack = s.undoStack.dropLast(1))
+    }
+
+    /** Same players and format, fresh life totals. */
+    fun restart(s: GameState): GameState =
+        GameState.new(s.format, s.players.size, s.startingLife, s.players.map { it.name }, s.partners)
+            .let { g -> g.copy(players = g.players.mapIndexed { i, p -> p.copy(color = s.players[i].color) }) }
+}

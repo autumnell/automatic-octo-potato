@@ -8,12 +8,16 @@ import com.mtgscanner.data.OfflineRead
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallException
 import com.mtgscanner.data.db.Box
+import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.scan.CardTextGuess
 import com.mtgscanner.scan.ScanPrefs
 import com.mtgscanner.scan.ScanSettings
 import com.mtgscanner.scan.UnsureAction
+import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.theme.AppSettings
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +36,12 @@ data class ScanEntry(
 ) {
     val value: Double get() = (card.price(foil)?.toDoubleOrNull() ?: 0.0) * count
 }
+
+/** A pack being opened: cards added after [startKey] belong to it. */
+data class PackDraft(val name: String, val cost: Double?, val startKey: Long)
+
+/** One pocket of a binder page. [card] is null when it couldn't be read or found. */
+data class PageSlot(val index: Int, val read: String?, val card: ScryfallCard?, val selected: Boolean)
 
 data class ScanUiState(
     val status: String = "Point your camera at a card",
@@ -73,11 +83,23 @@ data class ScanUiState(
     val skipped: Int = 0,
     /** Bumps when a card is set aside, for its own sound. */
     val asidePulse: Int = 0,
+    /** Pack mode: the pack being opened, if any. */
+    val pack: PackDraft? = null,
+    val showPackStart: Boolean = false,
+    /** The pack just finished, shown as a summary. */
+    val packSummary: PackOpening? = null,
+    /** Binder page mode: read a 3x3 page of sleeves at once. */
+    val pageMode: Boolean = false,
+    val wantPage: Boolean = false,
+    val pageLoading: Boolean = false,
+    val page: List<PageSlot>? = null,
 ) {
     val autoAdd: Boolean get() = settings.autoAdd
     val foil: Boolean get() = settings.foil
     val sessionCount: Int get() = session.sumOf { it.count }
     val sessionValue: Double get() = session.sumOf { it.value }
+    val packEntries: List<ScanEntry> get() = pack?.let { p -> session.filter { it.key > p.startKey } }.orEmpty()
+    val packValue: Double get() = packEntries.sumOf { it.value }
 }
 
 class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -117,7 +139,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The analyzer skips frames while this is true. */
     val isPaused: Boolean
         get() = _state.value.let {
-            it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp ||
+            if (it.pageMode) it.paused || !it.wantPage || it.pageLoading || it.page != null || it.showSettings || it.showList ||
+                it.showNewBox || boxes.value.isNullOrEmpty()
+            else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp ||
                 it.showPrintings || it.showSettings || it.showList || it.showNewBox || it.showReview || boxes.value.isNullOrEmpty()
         }
 
@@ -306,6 +330,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 )
             }
             if (!_state.value.autoAdd && !fromReview) resetTracking()
+            if (!auto) Undo.offer("Added ${card.name}") { removeEntry(entry) }
         }
     }
 
@@ -333,10 +358,102 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Takes a scan back out of the collection and the list. */
     fun remove(entry: ScanEntry) {
+        viewModelScope.launch { removeEntry(entry) }
+    }
+
+    private suspend fun removeEntry(entry: ScanEntry) {
+        repo.remove(entry.rowId, entry.count)
+        _state.update { it.copy(session = it.session.filterNot { e -> e.key == entry.key }, status = "Removed ${entry.card.name}") }
+    }
+
+    // Pack mode
+
+    fun showPackStart(show: Boolean) = _state.update { it.copy(showPackStart = show) }
+
+    fun startPack(name: String, cost: Double?) = _state.update {
+        it.copy(
+            pack = PackDraft(name.ifBlank { "Pack" }, cost, entryKeys), showPackStart = false, pageMode = false, page = null,
+            status = "Opening ${name.ifBlank { "a pack" }} · scan each card",
+        )
+    }
+
+    fun cancelPack() = _state.update { it.copy(pack = null, status = "Point your camera at a card") }
+
+    /** Saves the pack to history and shows what it was worth. */
+    fun finishPack() {
+        val s = _state.value
+        val p = s.pack ?: return
+        val entries = s.packEntries
+        if (entries.isEmpty()) { cancelPack(); return }
+        val best = entries.maxByOrNull { it.value / it.count.coerceAtLeast(1) }
+        val opening = PackOpening(
+            name = p.name,
+            cost = p.cost,
+            value = entries.sumOf { it.value },
+            cards = entries.sumOf { it.count },
+            best = best?.let { "${it.card.name} (${formatPrice(it.value / it.count.coerceAtLeast(1))})" }.orEmpty(),
+            pulls = entries.reversed().joinToString("\n") { e ->
+                "${e.card.name}|${e.card.set}|${e.card.collectorNumber}|${e.card.price(e.foil) ?: ""}"
+            },
+            openedAt = System.currentTimeMillis(),
+        )
         viewModelScope.launch {
-            repo.remove(entry.rowId, entry.count)
-            _state.update { it.copy(session = it.session.filterNot { e -> e.key == entry.key }, status = "Removed ${entry.card.name}") }
+            val id = repo.savePack(opening)
+            _state.update { it.copy(pack = null, packSummary = opening.copy(id = id), status = "Point your camera at a card") }
         }
+    }
+
+    fun closePackSummary() = _state.update { it.copy(packSummary = null) }
+
+    private fun formatPrice(v: Double) = "$" + "%.2f".format(java.util.Locale.US, v)
+
+    // Binder page mode
+
+    fun setPageMode(on: Boolean) {
+        _state.update {
+            it.copy(pageMode = on, wantPage = false, pageLoading = false, page = null, current = null, awaiting = false,
+                status = if (on) "Fill the frame with a binder page, then tap Capture page" else "Point your camera at a card")
+        }
+        resetTracking()
+    }
+
+    /** Reads the next camera frame as a whole page. */
+    fun capturePage() = _state.update { it.copy(wantPage = true, status = "Hold still…") }
+
+    /** Called by the analyzer with one guess per pocket, left to right, top to bottom. */
+    fun onPage(guesses: List<CardTextGuess>) {
+        _state.update { it.copy(wantPage = false, pageLoading = true, status = "Looking up the page…") }
+        viewModelScope.launch {
+            val slots = guesses.mapIndexed { i, g ->
+                async {
+                    val read = g.nameCandidates.firstOrNull() ?: g.setCode?.let { "$it #${g.collectorNumber}" }
+                    val card = if (g.key == null) null else runCatching { repo.identify(g)?.card }.getOrNull()
+                    PageSlot(i, read, card, card != null)
+                }
+            }.awaitAll()
+            val found = slots.count { it.card != null }
+            _state.update {
+                it.copy(
+                    pageLoading = false,
+                    page = slots,
+                    status = if (found == 0) "Couldn't read that page · try more light, or get closer" else "Found $found of ${slots.size}",
+                )
+            }
+        }
+    }
+
+    fun togglePageSlot(index: Int) = _state.update {
+        it.copy(page = it.page?.map { s -> if (s.index == index && s.card != null) s.copy(selected = !s.selected) else s })
+    }
+
+    fun closePage() = _state.update { it.copy(page = null, status = "Fill the frame with a binder page, then tap Capture page") }
+
+    /** Adds the ticked pockets, one copy each. */
+    fun addPage() {
+        val cards = _state.value.page.orEmpty().filter { it.selected }.mapNotNull { it.card }
+        _state.update { it.copy(page = null) }
+        cards.forEach { addCard(it, 1, auto = true) }
+        _state.update { it.copy(status = "Added ${cards.size} cards · turn the page and capture again") }
     }
 
     /** Clears the list on screen. Cards stay in the collection. */

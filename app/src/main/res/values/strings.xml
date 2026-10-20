@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">MTG Scanner</string>
+    <string name="widget_label">MTG collection</string>
+    <string name="widget_scan">Scan</string>
+    <string name="widget_description">Your collection\'s value, and a button to start scanning.</string>
 </resources>

@@ -80,4 +80,11 @@ class BoxRulesTest {
         assertEquals("Any card", BoxRules().describe())
         assertEquals("Red · Rare · $5+", BoxRules(colors = setOf("R"), rarities = setOf("rare"), minPrice = 5.0).describe())
     }
+
+    @Test fun ruleMatchSkipsCatchAllBoxes() {
+        val boxes = listOf(1L to BoxRules(), 2L to BoxRules(colors = setOf("R")), 3L to BoxRules(minPrice = 10.0))
+        assertEquals(2L, BoxRules.ruleMatch(boxes, card(colors = "R")))
+        assertEquals(3L, BoxRules.ruleMatch(boxes, card(colors = "U", price = 12.0)))
+        assertEquals(null, BoxRules.ruleMatch(boxes, card(colors = "U", price = 1.0)))
+    }
 }

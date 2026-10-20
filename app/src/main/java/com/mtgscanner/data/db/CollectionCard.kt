@@ -51,6 +51,8 @@ data class CollectionCard(
     val rolesCheckedAt: Long = 0,
     /** Special printing treatments (borderless, showcase…), comma separated. */
     val treatments: String = "",
+    /** Your own labels, comma separated, like "for Kenji's deck" or "lent out". */
+    val userTags: String = "",
     val addedAt: Long,
     val updatedAt: Long,
 )
@@ -75,5 +77,7 @@ fun CollectionCard.facts() = com.mtgscanner.data.CardFacts(
 )
 
 fun CollectionCard.roleList(): List<String> = roles.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
+fun CollectionCard.userTagList(): List<String> = userTags.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
 fun CollectionCard.tagList(): List<String> = tags.split(',').map { it.trim() }.filter { it.isNotEmpty() }

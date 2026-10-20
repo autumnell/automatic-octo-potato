@@ -100,6 +100,10 @@ data class BoxRules(
          * Picks the box a card belongs in: the first box with rules that fit, in Auto-sort order.
          * If none fits, the [fallback] box, else the first box that takes any card.
          */
+        /** The first box whose rules fit [card], ignoring boxes that take any card. Used to sort a catch-all box later. */
+        fun <T> ruleMatch(boxes: List<Pair<T, BoxRules>>, card: CardFacts): T? =
+            boxes.firstOrNull { !it.second.isCatchAll && it.second.matches(card) }?.first
+
         fun <T> pick(boxes: List<Pair<T, BoxRules>>, card: CardFacts, fallback: T? = null): T? =
             boxes.firstOrNull { !it.second.isCatchAll && it.second.matches(card) }?.first
                 ?: fallback

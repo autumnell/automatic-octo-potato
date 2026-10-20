@@ -180,7 +180,9 @@ fun ScanScreen(
             }
 
             if (hasPermission && !needsBox) {
-                FrameGuide(found = state.current != null, flash = if (state.settings.flash) state.addedPulse else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
+                if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
+                else FrameGuide(found = state.current != null, flash = if (state.settings.flash) state.addedPulse else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
+                PackChip(state, vm, Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp))
                 BoxCallout(state.lastBoxName, state.lastBoxColor, state.addedPulse, Modifier.align(Alignment.Center))
                 Column(
                     Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
@@ -235,6 +237,7 @@ fun ScanScreen(
                     }
                 }
                 RoundIconButton(Icons.Filled.Settings, "Scan settings", { vm.showSettings(true) })
+                ModesButton(state, vm)
             }
 
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp)) {
@@ -246,7 +249,8 @@ fun ScanScreen(
                     state.current?.let { ResultCard(it, state, vm) }
                 }
                 state.offline?.let { if (state.current == null) OfflineCard(it.name, vm) }
-                if (state.current == null && state.offline == null && !needsBox) {
+                if (state.pageMode && hasPermission && !needsBox) PageControls(state, vm)
+                else if (state.current == null && state.offline == null && !needsBox) {
                     StatusPill(state, Modifier.align(Alignment.CenterHorizontally))
                 }
             }
@@ -261,6 +265,9 @@ fun ScanScreen(
     if (state.showSettings) SettingsSheet(state, vm)
     if (state.showList) ScanListSheet(state, vm, onOpenCard)
     if (state.showReview) ReviewSheet(state, vm)
+    if (state.showPackStart) PackStartDialog(vm)
+    if (state.packSummary != null) PackSummaryDialog(state, vm)
+    if (state.page != null) PageSheet(state, vm)
     if (state.showNewBox) {
         BoxEditorSheet(
             title = if (boxes.isEmpty()) "Your first box" else "New box",
@@ -662,7 +669,12 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
 
     DisposableEffect(lifecycleOwner) {
         val executor = Executors.newSingleThreadExecutor()
-        val analyzer = CardTextAnalyzer(onGuess = vm::onGuess, isPaused = { vm.isPaused })
+        val analyzer = CardTextAnalyzer(
+            onGuess = vm::onGuess,
+            isPaused = { vm.isPaused },
+            wantsPage = { vm.state.value.let { it.pageMode && it.wantPage } },
+            onPage = vm::onPage,
+        )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
         providerFuture.addListener({
             val provider = providerFuture.get()

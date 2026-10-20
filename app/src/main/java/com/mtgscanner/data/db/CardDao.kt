@@ -50,6 +50,15 @@ interface CardDao {
     @Delete
     suspend fun delete(card: CollectionCard)
 
+    @Query("SELECT * FROM cards WHERE scryfallId IN (:ids)")
+    suspend fun byScryfallIds(ids: List<String>): List<CollectionCard>
+
+    @Query("DELETE FROM cards WHERE scryfallId IN (:ids)")
+    suspend fun deleteByScryfallIds(ids: List<String>)
+
+    @Query("SELECT * FROM cards WHERE id IN (:ids)")
+    suspend fun byIds(ids: List<Long>): List<CollectionCard>
+
     @Query("DELETE FROM cards")
     suspend fun deleteAllCards()
 
@@ -159,6 +168,40 @@ interface CardDao {
 
     @Upsert
     suspend fun putWishlist(items: List<WishlistItem>)
+
+    // Price history
+
+    @Upsert
+    suspend fun putPricePoints(points: List<PricePoint>)
+
+    @Query("SELECT * FROM price_history WHERE scryfallId = :scryfallId ORDER BY day")
+    fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>>
+
+    @Query("SELECT * FROM price_history")
+    suspend fun allPricePoints(): List<PricePoint>
+
+    @Query("DELETE FROM price_history")
+    suspend fun deletePriceHistory()
+
+    // Packs
+
+    @Insert
+    suspend fun addPack(p: PackOpening): Long
+
+    @Query("SELECT * FROM packs ORDER BY openedAt DESC")
+    fun observePacks(): Flow<List<PackOpening>>
+
+    @Query("SELECT * FROM packs")
+    suspend fun allPacks(): List<PackOpening>
+
+    @Query("DELETE FROM packs WHERE id = :id")
+    suspend fun deletePack(id: Long)
+
+    @Query("DELETE FROM packs")
+    suspend fun deletePacks()
+
+    @Upsert
+    suspend fun putPacks(items: List<PackOpening>)
 
     // Offline scans
 

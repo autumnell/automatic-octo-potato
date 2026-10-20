@@ -55,3 +55,30 @@ data class PendingScan(
     val boxId: Long,
     val addedAt: Long = System.currentTimeMillis(),
 )
+
+/** One day's price for a printing, recorded when prices refresh. Builds each card's price chart. */
+@Entity(tableName = "price_history", primaryKeys = ["scryfallId", "day"])
+@Serializable
+data class PricePoint(
+    val scryfallId: String,
+    /** yyyy-MM-dd */
+    val day: String,
+    val usd: Double?,
+    val usdFoil: Double?,
+)
+
+/** A pack opened in pack mode: what it cost and what came out. */
+@Entity(tableName = "packs")
+@Serializable
+data class PackOpening(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val cost: Double?,
+    val value: Double,
+    val cards: Int,
+    /** The best pull, like "Ragavan (MH2) $52.10". */
+    val best: String = "",
+    /** One line per card: "name|set|number|price". */
+    val pulls: String = "",
+    val openedAt: Long = System.currentTimeMillis(),
+)

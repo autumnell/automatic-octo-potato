@@ -44,16 +44,35 @@ Each new build replaces the "latest" release, and installs cleanly over the prev
   sets. Tap a card to pick foil, quantity and box (or Auto-sort), or add it to your wishlist.
 - **Collection tab** has three parts:
   - **Collection:** totals and your boxes, each showing its rules. Edit a box's name and rules
-    from its menu. Deleting a box asks whether to sort its cards into your other boxes, move them
-    to one box, or remove them. Tap a box, or "Browse entire collection", to search, filter (color,
+    from its menu. Deleting a box asks where its cards go: an "Anything" box (made if you don't have
+    one), your other boxes by their rules, one box, or deleted permanently (which asks again first).
+    **Sort cards out of this box** (box menu) sorts a catch-all box later: into a new box set up
+    with the usual rules, or into your other boxes in Auto-sort order. Tap a box, or "Browse entire collection", to search, filter (color,
     rarity, type, set, foil, printing, and role like Removal, Ramp or Card draw), sort (including
     price change) and group.
   - **Decks:** paste a decklist from Moxfield, Archidekt, Arena or MTGO. You see what you own,
     which box each card is in, what's missing and what the missing cards cost, and can add the
     missing cards to your wishlist.
-  - **Lists:** your wishlist and trade binders (boxes of kind "Trade binder").
-- Tap a card to change quantity, foil, condition, box and notes, see its price change since you
-  added it, and what it does (Scryfall's community tags).
+  - **Lists:** your wishlist and trade binders (boxes of kind "Trade binder"), plus tools:
+    **Set tracker** (how much of each set you own, the missing cards and their cost, add missing
+    to wishlist), **Extras finder** (copies beyond 4, or 1 for Commander, moved to a trade binder)
+    and **Pack history**.
+  - Browsing: long-press cards to select several, then move, tag or delete them together. In list
+    view, swipe right to move a card or left to delete it. Searches can be saved, and recent ones
+    show as chips. Adds, moves and deletes show an **Undo** bar.
+- Tap a card to change quantity, foil, condition, box, notes and your own tags, see its price
+  change since you added it with a price history chart, and what it does (Scryfall's community tags).
+- **Scanner modes** (grid button over the camera): **Open a pack** tracks a pack's value as you
+  scan it and saves the result to Pack history; **Binder page** reads a 9-pocket page at once and
+  lets you tick which cards to add.
+- **Game tab:** a life counter for 1 to 4 players. Pick a format (Commander, Standard, Brawl,
+  Oathbreaker, Two-Headed Giant, Limited, custom), starting life and names. Each player tracks
+  life, poison, commander damage from each opponent (and partners), commander tax, energy,
+  experience and rad. Tap the sides of a panel for -1/+1, hold for ±10. The menu has turns, a
+  timer, first-player picker, dice and coin, monarch, initiative, day/night, history and undo.
+  A player is marked out at 0 life, 10 poison or 21 commander damage. The game is saved if you leave.
+- **Home screen widget** shows your collection value with a Scan button. A short tour shows on
+  first run (Settings › Show the tour again).
 - **Scan settings** (scanner gear, or Settings › Scanning):
   - **Auto-add** adds cards by itself when it's sure enough: exact printing only, a confident
     name, or any good match. Unsure cards can pause and ask, be set aside under a "Check"

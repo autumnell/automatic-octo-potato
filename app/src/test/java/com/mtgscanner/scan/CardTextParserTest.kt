@@ -80,4 +80,23 @@ class CardTextParserTest {
         assertTrue(g.isEmpty)
         assertNull(g.key)
     }
+
+    @Test fun binderPageSplitsIntoPockets() {
+        // Two cards side by side on the top row, one on the bottom left.
+        val lines = listOf(
+            OcrLine("Lightning Bolt", 0, 0, 200, 20), OcrLine("Instant", 0, 150, 120, 165), OcrLine("123/280 C", 0, 280, 100, 295),
+            OcrLine("Counterspell", 330, 0, 520, 20), OcrLine("Instant", 330, 150, 450, 165),
+            OcrLine("Llanowar Elves", 660, 0, 880, 20),
+            OcrLine("Giant Growth", 0, 320, 190, 340), OcrLine("Instant", 0, 470, 120, 485),
+            OcrLine("Shock", 0, 640, 100, 660), OcrLine("Shock", 660, 640, 760, 660), OcrLine("x", 900, 940, 910, 950),
+        )
+        val pockets = CardTextParser.parseGrid(lines)
+        assertEquals(9, pockets.size)
+        assertEquals("Lightning Bolt", pockets[0].nameCandidates.first())
+        assertEquals("123", pockets[0].collectorNumber)
+        assertEquals("Counterspell", pockets[1].nameCandidates.first())
+        assertEquals("Llanowar Elves", pockets[2].nameCandidates.first())
+        assertEquals("Giant Growth", pockets[3].nameCandidates.first())
+        assertTrue(pockets[4].isEmpty)
+    }
 }

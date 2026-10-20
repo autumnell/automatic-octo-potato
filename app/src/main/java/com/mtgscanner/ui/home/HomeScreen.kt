@@ -313,27 +313,8 @@ fun ChangeText(change: Double, base: Double, style: androidx.compose.ui.text.Tex
 
 /** Simple line chart of collection value over time. */
 @Composable
-private fun ValueChart(points: List<ValueSnapshot>, modifier: Modifier) {
-    val line = Palette.Accent
-    Canvas(modifier) {
-        val values = points.map { it.value }
-        val min = values.min()
-        val max = values.max()
-        val span = (max - min).takeIf { it > 0.0001 } ?: 1.0
-        val stepX = size.width / (points.size - 1)
-        val path = Path()
-        val fill = Path()
-        values.forEachIndexed { i, v ->
-            val x = i * stepX
-            val y = (size.height - ((v - min) / span * size.height * 0.85f) - size.height * 0.075f).toFloat()
-            if (i == 0) { path.moveTo(x, y); fill.moveTo(x, size.height); fill.lineTo(x, y) } else { path.lineTo(x, y); fill.lineTo(x, y) }
-        }
-        fill.lineTo(size.width, size.height)
-        fill.close()
-        drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = 0.35f), Color.Transparent)))
-        drawPath(path, line, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-    }
-}
+private fun ValueChart(points: List<ValueSnapshot>, modifier: Modifier) =
+    com.mtgscanner.ui.components.LineChart(points.map { it.value }, modifier)
 
 private fun shortDay(day: String): String = runCatching {
     java.time.LocalDate.parse(day).format(java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US))
