@@ -1,11 +1,14 @@
 package com.mtgscanner.ui.decks
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,17 +18,28 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -41,26 +55,38 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
+import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.components.Mana
 import com.mtgscanner.ui.components.SectionHeader
+import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -68,20 +94,46 @@ import com.mtgscanner.util.DecklistParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** A saved deck with how much of it you own. */
-data class DeckRow(val deck: Deck, val cards: Int, val owned: Int)
+/** A saved deck with how much of it you own, plus what its tile shows. */
+data class DeckRow(
+    val deck: Deck,
+    val cards: Int,
+    val owned: Int,
+    val subtitle: String = "",
+    val folderId: Long? = null,
+    /** Color identity letters in WUBRG order. */
+    val identity: String = "",
+    val art: String? = null,
+    val cover: String? = null,
+    /** Distinct card names, for picking a cover. */
+    val names: List<String> = emptyList(),
+)
 
-class DecksViewModel(repo: CollectionRepository) : ViewModel() {
-    val decks: StateFlow<List<DeckRow>?> = combine(repo.observeDecks(), repo.observeAll()) { decks, cards ->
+private val PLAYED = setOf("Main", "Commander", "Companion")
+
+class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
+    init { DeckShelfStore.init(repo.appContext) }
+
+    val shelf: StateFlow<DeckShelf> = DeckShelfStore.state
+
+    /** Tile data worked out this session that isn't saved yet (some cards weren't found). */
+    private val liveMeta = MutableStateFlow<Map<Long, DeckMeta>>(emptyMap())
+    private val tried = mutableSetOf<String>()
+
+    val decks: StateFlow<List<DeckRow>?> = combine(repo.observeDecks(), repo.observeAll(), DeckShelfStore.state, liveMeta) { decks, cards, shelf, live ->
         // Same name matching as the deck check, and each owned copy counts toward one line only.
         fun key(n: String) = com.mtgscanner.scan.CardTextParser.normalize(n.substringBefore(" // "))
         val owned = cards.groupBy { key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+        val folderIds = shelf.folders.map { it.id }.toSet()
         decks.map { d ->
             val lines = DecklistParser.parse(d.text)
             val left = owned.toMutableMap()
@@ -89,27 +141,132 @@ class DecksViewModel(repo: CollectionRepository) : ViewModel() {
                 val k = key(l.name)
                 minOf(l.quantity, left[k] ?: 0).also { left[k] = (left[k] ?: 0) - it }
             }
-            DeckRow(d, lines.sumOf { it.quantity }, have)
+            val total = lines.sumOf { it.quantity }
+            val cover = shelf.cover[d.id]
+            val st = stamp(d, cover)
+            val meta = shelf.meta[d.id]?.takeIf { it.stamp == st } ?: live[d.id] ?: shelf.meta[d.id]
+            DeckRow(
+                deck = d,
+                cards = total,
+                owned = have,
+                subtitle = if (lines.any { it.section == "Commander" }) "Commander · $total" else "$total cards",
+                folderId = shelf.folderOf[d.id]?.takeIf { it in folderIds },
+                identity = meta?.identity.orEmpty(),
+                art = meta?.art,
+                cover = cover,
+                names = lines.map { it.name }.distinct(),
+            )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    init {
+        viewModelScope.launch {
+            combine(repo.observeDecks(), DeckShelfStore.state.map { it.cover }.distinctUntilChanged()) { d, c -> d to c }
+                .collectLatest { (decks, cover) -> refreshMeta(decks, cover) }
+        }
+    }
+
+    private fun stamp(d: Deck, cover: String?) = "${d.updatedAt}|${cover.orEmpty()}"
+
+    /** Works out color identity and cover art for decks whose tile data is out of date. */
+    private suspend fun refreshMeta(decks: List<Deck>, cover: Map<Long, String>) {
+        DeckShelfStore.prune(decks.map { it.id }.toSet())
+        val saved = DeckShelfStore.state.value.meta
+        val stale = decks.filter { d -> val st = stamp(d, cover[d.id]); saved[d.id]?.stamp != st && st !in tried }
+        if (stale.isEmpty()) return
+        val parsed = stale.associateWith { DecklistParser.parse(it.text) }
+        val info = runCatching { repo.deckCardInfo(parsed.values.flatten().map { it.name }.toSet()) }.getOrDefault(emptyMap())
+        val done = HashMap<Long, DeckMeta>()
+        val partial = HashMap<Long, DeckMeta>()
+        for ((d, lines) in parsed) {
+            val st = stamp(d, cover[d.id])
+            tried += st
+            val played = lines.filter { it.section in PLAYED }
+            val found = played.mapNotNull { info[DeckStatsMath.key(it.name)] }
+            val identity = "WUBRG".filter { c -> found.any { c in it.colorIdentity.uppercase() } }
+            val coverName = cover[d.id]
+                ?: (played.firstOrNull { it.section == "Commander" } ?: played.firstOrNull() ?: lines.firstOrNull())?.name
+            val art = coverName?.let { info[DeckStatsMath.key(it)]?.imageUrl }?.let { artCropUrl(it) }
+            val meta = DeckMeta(st, identity, art)
+            if (found.size == played.size && (art != null || coverName == null)) done[d.id] = meta else partial[d.id] = meta
+        }
+        DeckShelfStore.putMeta(done)
+        if (partial.isNotEmpty()) liveMeta.update { it + partial }
+    }
+
+    fun createFolder(name: String): Long = DeckShelfStore.createFolder(name)
+    fun renameFolder(id: Long, name: String) = DeckShelfStore.renameFolder(id, name)
+    fun moveDeck(deckId: Long, folderId: Long?) = DeckShelfStore.moveDeck(deckId, folderId)
+    fun setCover(deckId: Long, name: String?) = DeckShelfStore.setCover(deckId, name)
+
+    fun deleteFolder(folder: DeckFolder) {
+        val ids = DeckShelfStore.state.value.folderOf.filterValues { it == folder.id }.keys.toList()
+        DeckShelfStore.deleteFolder(folder.id)
+        Undo.offer("Folder deleted") { DeckShelfStore.restoreFolder(folder, ids) }
+    }
 }
 
-/** The Decks tab on the Collection screen. */
+/** The Decks tab on the Collection screen: folders and decks as art tiles. */
 @Composable
 fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory = AppViewModels.Factory)) {
     val decks by vm.decks.collectAsStateWithLifecycle()
-    LazyColumn(Modifier.fillMaxSize()) {
-        item {
-            SectionHeader("Decks") {
-                TextButton(onClick = { onOpenDeck(0L) }) {
-                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("New")
+    val shelf by vm.shelf.collectAsStateWithLifecycle()
+    var folderId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var naming by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf<DeckRow?>(null) }
+    var newFolderFor by remember { mutableStateOf<DeckRow?>(null) }
+    var covering by remember { mutableStateOf<DeckRow?>(null) }
+
+    val folder = shelf.folders.firstOrNull { it.id == folderId }
+    BackHandler(enabled = folder != null) { folderId = null }
+    val all = decks.orEmpty()
+    val q = query.trim()
+    val searching = q.isNotEmpty()
+    val shown = when {
+        searching -> all.filter { it.deck.name.contains(q, ignoreCase = true) }
+        folder != null -> all.filter { it.folderId == folder.id }
+        else -> all.filter { it.folderId == null }
+    }
+    val folderTiles = when {
+        searching -> shelf.folders.filter { it.name.contains(q, ignoreCase = true) }
+        folder != null -> emptyList()
+        else -> shelf.folders
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (folder != null) {
+                    IconButton(onClick = { folderId = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "All decks") }
+                    Text(
+                        folder.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, "Rename folder", tint = Palette.Muted) }
+                    IconButton(onClick = { vm.deleteFolder(folder); folderId = null }) {
+                        Icon(Icons.Filled.DeleteOutline, "Delete folder", tint = Palette.Muted)
+                    }
+                } else {
+                    Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { naming = true }) { Icon(Icons.Filled.CreateNewFolder, "New folder", tint = Palette.AccentText) }
+                    TextButton(onClick = { onOpenDeck(0L) }) {
+                        Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("New")
+                    }
                 }
             }
         }
-        if (decks?.isEmpty() == true) {
-            item {
+        if (decks?.isEmpty() == true && shelf.folders.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
                 EmptyState(
                     icon = Icons.Filled.Style,
                     title = "Check a deck against your cards",
@@ -117,34 +274,182 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     action = { GradientButton("Paste a decklist", { onOpenDeck(0L) }, icon = Icons.Filled.Add) },
                 )
             }
-        }
-        items(decks.orEmpty(), key = { it.deck.id }) { row ->
-            Surface(
-                onClick = { onOpenDeck(row.deck.id) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(22.dp),
-                color = Palette.BoxCard,
-            ) {
-                Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Style, null, tint = Palette.Accent)
-                        Spacer(Modifier.width(10.dp))
-                        Text(row.deck.name, style = MaterialTheme.typography.titleLarge, color = Palette.Accent, modifier = Modifier.weight(1f))
-                        if (row.cards > 0 && row.owned >= row.cards) Icon(Icons.Filled.CheckCircle, "Complete", tint = Palette.Success)
+        } else {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Search decks") },
+                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Muted) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear") }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            items(folderTiles, key = { "f" + it.id }) { f ->
+                val inside = all.filter { it.folderId == f.id }
+                FolderTile(f, inside) { query = ""; folderId = f.id }
+            }
+            items(shown, key = { "d" + it.deck.id }) { row ->
+                DeckTile(
+                    row = row,
+                    onOpen = { onOpenDeck(row.deck.id) },
+                    onMove = { moving = row },
+                    onCover = { covering = row },
+                )
+            }
+            if (decks != null && shown.isEmpty() && folderTiles.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "none") {
+                    if (searching) {
+                        Text("No decks found", color = Palette.Muted, modifier = Modifier.padding(vertical = 24.dp))
+                    } else if (folder != null) {
+                        EmptyState(icon = Icons.Filled.Folder, title = "Empty folder", body = "Move decks here from their ⋮ menu.")
+                    } else {
+                        EmptyState(
+                            icon = Icons.Filled.Style,
+                            title = "No decks here",
+                            body = "Your decks are in folders.",
+                            action = { GradientButton("New deck", { onOpenDeck(0L) }, icon = Icons.Filled.Add) },
+                        )
                     }
-                    Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { if (row.cards == 0) 0f else row.owned.toFloat() / row.cards },
-                        modifier = Modifier.fillMaxWidth().height(6.dp),
-                        color = Palette.Accent,
-                        trackColor = Palette.SurfaceHigh,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text("You own ${row.owned} of ${row.cards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                 }
             }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+    }
+
+    if (naming) {
+        FolderNameDialog("New folder", "", onSave = { vm.createFolder(it); naming = false }, onDismiss = { naming = false })
+    }
+    if (renaming && folder != null) {
+        FolderNameDialog("Rename folder", folder.name, onSave = { vm.renameFolder(folder.id, it); renaming = false }, onDismiss = { renaming = false })
+    }
+    moving?.let { row ->
+        MoveToFolderDialog(
+            folders = shelf.folders,
+            current = row.folderId,
+            onPick = { vm.moveDeck(row.deck.id, it); moving = null },
+            onNewFolder = { newFolderFor = row; moving = null },
+            onDismiss = { moving = null },
+        )
+    }
+    newFolderFor?.let { row ->
+        FolderNameDialog(
+            "New folder", "",
+            onSave = { vm.moveDeck(row.deck.id, vm.createFolder(it)); newFolderFor = null },
+            onDismiss = { newFolderFor = null },
+        )
+    }
+    covering?.let { row ->
+        CoverPickerDialog(
+            names = row.names,
+            current = row.cover,
+            onPick = { vm.setCover(row.deck.id, it); covering = null },
+            onDismiss = { covering = null },
+        )
+    }
+}
+
+private val TileShape = RoundedCornerShape(18.dp)
+
+/** Art, or a soft gradient when there's no art yet. */
+@Composable
+private fun TileArt(url: String?, modifier: Modifier = Modifier) {
+    Box(modifier.background(Palette.HeroGradient)) {
+        if (url != null) {
+            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        } else {
+            Icon(Icons.Filled.Style, null, tint = Palette.Accent.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.Center).size(36.dp))
+        }
+    }
+}
+
+@Composable
+private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCover: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Surface(onClick = onOpen, shape = TileShape, color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Box(Modifier.fillMaxWidth().aspectRatio(1.35f)) {
+                TileArt(row.art, Modifier.matchParentSize())
+                if (row.identity.isNotEmpty()) {
+                    Row(
+                        Modifier.align(Alignment.TopEnd).padding(6.dp)
+                            .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
+                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        row.identity.forEach { c -> Mana.Symbol(c.toString(), 15.dp) }
+                    }
+                }
+                if (row.cards > 0 && row.owned >= row.cards) {
+                    Icon(
+                        Icons.Filled.CheckCircle, "Complete", tint = Palette.Success,
+                        modifier = Modifier.align(Alignment.TopStart).padding(6.dp).size(20.dp)
+                            .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f)),
+                    )
+                }
+            }
+            Row(Modifier.padding(start = 12.dp, top = 8.dp), verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        row.deck.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
+                }
+                Box {
+                    IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Filled.MoreVert, "Deck options", tint = Palette.Muted, modifier = Modifier.size(20.dp))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
+                        DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
+                    }
+                }
+            }
+            Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp)) {
+                LinearProgressIndicator(
+                    progress = { if (row.cards == 0) 0f else row.owned.toFloat() / row.cards },
+                    modifier = Modifier.fillMaxWidth().height(4.dp),
+                    color = Palette.Accent,
+                    trackColor = Palette.SurfaceHigh,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("You own ${row.owned} of ${row.cards}", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, onOpen: () -> Unit) {
+    Surface(onClick = onOpen, shape = TileShape, color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Box(Modifier.fillMaxWidth().aspectRatio(1.35f)) {
+                val arts = decks.mapNotNull { it.art }.take(2)
+                if (arts.size == 2) {
+                    Row(Modifier.matchParentSize()) {
+                        arts.forEach { TileArt(it, Modifier.weight(1f).fillMaxSize()) }
+                    }
+                } else {
+                    TileArt(arts.firstOrNull(), Modifier.matchParentSize())
+                }
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
+                Icon(Icons.Filled.Folder, null, tint = Palette.Gold, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
+            }
+            Column(Modifier.padding(12.dp)) {
+                Text(
+                    folder.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(if (decks.size == 1) "1 deck" else "${decks.size} decks", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            }
+        }
     }
 }
 
@@ -157,6 +462,9 @@ data class DeckUi(
     val checking: Boolean = false,
     val check: DeckCheck? = null,
     val message: String? = null,
+    val stats: DeckStats? = null,
+    /** Stats couldn't be worked out (offline and no card data). */
+    val statsFailed: Boolean = false,
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -210,6 +518,24 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }
+
+    private var statsFor: String? = null
+
+    /** Works out mana stats for the saved list; cards come from the collection, then Scryfall. */
+    fun loadStats() {
+        val text = _ui.value.text
+        if (statsFor == text) return
+        statsFor = text
+        _ui.update { it.copy(statsFailed = false, stats = null) }
+        viewModelScope.launch {
+            val lines = DecklistParser.parse(text)
+            val info = runCatching { repo.deckCardInfo(lines.map { it.name }) }.getOrDefault(emptyMap())
+            val stats = if (info.isEmpty()) null else DeckStatsMath.compute(lines, info)
+            if (statsFor != text) return@launch
+            if (stats == null) statsFor = null // retry next time
+            _ui.update { it.copy(stats = stats, statsFailed = stats == null) }
+        }
+    }
 }
 
 /** One deck: paste or edit the list, then see what you own, where it is, and what's missing. */
@@ -218,6 +544,8 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    var view by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(view, ui.editing, ui.text) { if (view == 1 && !ui.editing) vm.loadStats() }
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -237,7 +565,14 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                 }
             }
             if (!ui.loaded) return@Column
-            if (ui.editing) Editor(ui, vm) else Results(ui, vm)
+            if (ui.editing) Editor(ui, vm)
+            else {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectPill("Cards", view == 0, { view = 0 })
+                    SelectPill("Stats", view == 1, { view = 1 })
+                }
+                if (view == 1) DeckStatsView(ui.stats, ui.statsFailed) else Results(ui, vm)
+            }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
