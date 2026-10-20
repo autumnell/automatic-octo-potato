@@ -18,16 +18,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -44,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +54,6 @@ import com.mtgscanner.game.Player
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.QuantityStepper
-import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
 
 /** Player colors for the life counter panels. */
@@ -92,17 +91,18 @@ fun GameSetupScreen(onPlay: () -> Unit) {
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         ) {
-            Text("Game", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
-            Text("A life counter for up to ${Player.MAX_PLAYERS} players.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Text("Game", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 10.dp))
 
             current?.let { g ->
-                Spacer(Modifier.height(14.dp))
-                Surface(shape = RoundedCornerShape(20.dp), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Game in progress", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                        Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleMedium)
-                        Text(g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                        Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
+                Surface(shape = RoundedCornerShape(16.dp), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall,
+                            color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             GradientButton("Resume", onPlay, Modifier.weight(1f), icon = Icons.Filled.PlayArrow)
                             Spacer(Modifier.width(8.dp))
@@ -112,68 +112,50 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                 }
             }
 
-            Label("Game mode")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Label("Mode")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 GameFormat.entries.forEach { f ->
-                    SelectPill(f.label, format == f, {
+                    Chip(f.label, format == f) {
                         format = f; life = f.life; players = f.defaultPlayers
                         if (!f.commanderDamage) partners = false
-                    })
+                    }
                 }
             }
-            Text(
-                format.detail, style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp),
-            )
 
             Label("Players")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                (1..Player.MAX_PLAYERS).forEach { n -> SelectPill("$n", players == n, { players = n }) }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                (1..Player.MAX_PLAYERS).forEach { n -> Chip("$n", players == n, Modifier.weight(1f)) { players = n } }
             }
 
-            Label("Starting life")
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(20, 25, 30, 40).forEach { v -> SelectPill("$v", life == v, { life = v }) }
-                }
+            Label("Life")
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(20, 25, 30, 40).forEach { v -> Chip("$v", life == v, Modifier.weight(1f)) { life = v } }
                 QuantityStepper(life, onChange = { life = it.coerceIn(1, 999) })
             }
 
             if (format.commanderDamage) {
-                Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Partner commanders", style = MaterialTheme.typography.titleSmall)
-                        Text("Track damage and tax for two commanders each.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    }
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Partners", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                     Switch(partners, { partners = it }, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
                 }
             }
 
-            Label("Table style")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TableStyle.entries.forEach { t -> SelectPill(t.label, style == t, { vm.setStyle(t) }) }
+            Label("Style")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TableStyle.entries.forEach { t -> Chip(t.label, style == t, Modifier.weight(1f)) { vm.setStyle(t) } }
             }
 
             Label("Names")
-            (0 until players).forEach { i ->
-                Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(22.dp).clip(CircleShape).background(PLAYER_COLORS[i]).border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape))
-                    Spacer(Modifier.width(10.dp))
-                    OutlinedTextField(
-                        value = names[i],
-                        onValueChange = { names[i] = it },
-                        placeholder = { Text("Player ${i + 1}") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline),
-                    )
+            (0 until players).chunked(2).forEach { pair ->
+                Row(Modifier.padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    pair.forEach { i -> NameField(i, names[i], { names[i] = it }, Modifier.weight(1f)) }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(8.dp))
             StatsCard(records, onOpen = { showStats = true })
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(8.dp))
         }
         // Pinned under the scroll so it's always in reach.
         GradientButton(
@@ -182,7 +164,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                 if (current != null) startingNew = true
                 else { vm.start(format, players, life, names.take(players), partners); onPlay() }
             },
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             icon = Icons.Filled.Favorite,
         )
     }
@@ -201,5 +183,50 @@ fun GameSetupScreen(onPlay: () -> Unit) {
 
 @Composable
 private fun Label(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Accent, modifier = Modifier.padding(top = 18.dp, bottom = 6.dp))
+    Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+}
+
+/** A small selectable chip for the setup rows. */
+@Composable
+private fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier
+            .height(36.dp)
+            .clip(shape)
+            .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
+            .border(1.dp, if (selected) Palette.Accent else Color.Transparent, shape)
+            .selectable(selected = selected, onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text, style = MaterialTheme.typography.labelLarge, color = if (selected) Palette.AccentText else Palette.Text,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** A short one-line name box with the player's color dot. */
+@Composable
+private fun NameField(i: Int, value: String, onChange: (String) -> Unit, modifier: Modifier) {
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        modifier.height(40.dp).clip(shape).background(Palette.SurfaceHigh).border(1.dp, Palette.Outline, shape).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(14.dp).clip(CircleShape).background(PLAYER_COLORS[i]))
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (value.isEmpty()) Text("Player ${i + 1}", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+            BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Palette.Text),
+                cursorBrush = SolidColor(Palette.Accent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
