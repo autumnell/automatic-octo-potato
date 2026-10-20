@@ -269,7 +269,12 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 arguments = listOf(navArgument("boxId") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popBackStack() }) }
+            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popBackStack() }, onSellList = { nav.navigate("sell") }) }
+            composable(
+                "sell",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popBackStack() }, onBrowse = { nav.navigate("browse/-1") }) }
             composable(
                 "scanlog",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },

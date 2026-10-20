@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Style
@@ -61,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.mtgscanner.data.CardKingdom
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Box as CardBox
@@ -88,6 +91,7 @@ fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory
     val snackbar = remember { SnackbarHostState() }
     var newBox by remember { mutableStateOf(false) }
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
+    com.mtgscanner.util.Haptics.Attach()
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -166,7 +170,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     )
                 }
                 if (ui.query.isNotEmpty()) {
-                    IconButton(onClick = { vm.setQuery("") }) { Icon(Icons.Filled.Close, "Clear search", tint = Palette.Muted, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear search", tint = Palette.Muted, modifier = Modifier.size(20.dp)) }
                 } else {
                     Spacer(Modifier.width(16.dp))
                 }
@@ -205,6 +209,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     }
                 }
             }
+            ui.ranQuery == null && ui.query.isEmpty() && (ui.recent.isNotEmpty() || ui.viewed.isNotEmpty()) -> History(ui, vm)
             ui.ranQuery == null -> EmptyState(
                 Icons.Filled.Search,
                 "Find any card",
@@ -276,7 +281,57 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
         }
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
-            Text(formatUsd(c.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(formatUsd(c.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                CardKingdom.buyPrice(c.id, foil = c.prices.usd == null && c.prices.usdFoil != null)?.let {
+                    Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                }
+            }
+        }
+    }
+}
+
+/** Recent searches and recently viewed cards, shown while the search box is empty. */
+@Composable
+private fun History(ui: SearchUi, vm: SearchViewModel) {
+    val focus = LocalFocusManager.current
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        if (ui.viewed.isNotEmpty()) {
+            item {
+                Text("Recently viewed", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp))
+            }
+            item {
+                LazyRow(contentPadding = PaddingValues(horizontal = 14.dp)) {
+                    items(ui.viewed, key = { it.id }) { v ->
+                        Column(Modifier.width(84.dp).clip(RoundedCornerShape(10.dp)).clickable { vm.openViewed(v) }.padding(4.dp)) {
+                            CardImage(v.image, Modifier.fillMaxWidth(), corner = 6.dp)
+                            Text(v.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
+                }
+            }
+        }
+        if (ui.recent.isNotEmpty()) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Recent searches", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                }
+            }
+            items(ui.recent) { q ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.History, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text(q, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        item {
+            androidx.compose.material3.TextButton(onClick = vm::clearHistory, modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
+                Text("Clear history", color = Palette.Muted)
+            }
         }
     }
 }

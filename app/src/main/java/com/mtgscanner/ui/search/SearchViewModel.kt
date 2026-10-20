@@ -37,7 +37,15 @@ data class SearchUi(
     val failed: Boolean = false,
     /** The sets list couldn't be loaded. */
     val setsFailed: Boolean = false,
+    /** Recent searches, newest first. */
+    val recent: List<String> = emptyList(),
+    /** Cards recently opened from Search, newest first. */
+    val viewed: List<Viewed> = emptyList(),
 )
+
+/** A card opened from Search, kept for "Recently viewed". */
+@kotlinx.serialization.Serializable
+data class Viewed(val id: String, val name: String, val image: String? = null)
 
 /** How many copies of a card (any printing) are in the collection, and where most of them are. */
 data class Owned(val count: Int, val boxName: String?, val boxCount: Int) {
@@ -57,6 +65,12 @@ fun Map<String, Owned>.of(card: ScryfallCard): Owned? =
 class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val _ui = MutableStateFlow(SearchUi())
     val ui: StateFlow<SearchUi> = _ui
+    private val history = SearchHistory(repo.appContext)
+
+    init {
+        com.mtgscanner.data.CardKingdom.init(repo.appContext)
+        _ui.update { it.copy(recent = history.recent(), viewed = history.viewed()) }
+    }
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Cards already in the collection, for "You own 3" and the owned badge on results. */
@@ -98,12 +112,12 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun submit(q: String = _ui.value.query) {
         val text = q.trim()
         if (text.isEmpty()) return
-        _ui.update { it.copy(query = text, suggestions = emptyList()) }
+        _ui.update { it.copy(query = text, suggestions = emptyList(), recent = history.addRecent(text)) }
         run(text, label = text, order = "name")
     }
 
     fun pickSuggestion(name: String) {
-        _ui.update { it.copy(query = name, suggestions = emptyList()) }
+        _ui.update { it.copy(query = name, suggestions = emptyList(), recent = history.addRecent(name)) }
         run("!\"$name\"", label = name, order = "released", unique = "prints")
     }
 
@@ -155,7 +169,11 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    fun clearResults() = _ui.update { it.copy(ranQuery = null, ranLabel = null, results = emptyList(), hasMore = false, query = "", failed = false) }
+    fun clearResults() {
+        suggestJob?.cancel()
+        searchJob?.cancel()
+        _ui.update { it.copy(ranQuery = null, ranLabel = null, results = emptyList(), hasMore = false, query = "", failed = false, suggestions = emptyList(), loading = false) }
+    }
 
     private fun loadSets() {
         _ui.update { it.copy(sets = null, setsFailed = false) }
@@ -174,7 +192,28 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun setSetFilter(q: String) = _ui.update { it.copy(setFilter = q) }
     fun toggleGrid() = _ui.update { it.copy(grid = !it.grid) }
 
-    fun select(card: ScryfallCard?) = _ui.update { it.copy(selected = card) }
+    fun select(card: ScryfallCard?) = _ui.update {
+        if (card == null) it.copy(selected = null)
+        else it.copy(selected = card, viewed = history.addViewed(Viewed(card.id, card.name, card.smallImageUrl)))
+    }
+
+    /** Runs a recent search again: names open their printings, anything else searches as typed. */
+    fun rerun(q: String) {
+        if (q.contains(':')) submit(q) else pickSuggestion(q)
+    }
+
+    /** Opens a recently viewed card again. */
+    fun openViewed(v: Viewed) {
+        viewModelScope.launch {
+            val card = runCatching { repo.api.byId(v.id) }.getOrNull()
+            if (card != null) select(card) else _ui.update { it.copy(message = "Can't reach Scryfall") }
+        }
+    }
+
+    fun clearHistory() {
+        history.clear()
+        _ui.update { it.copy(recent = emptyList(), viewed = emptyList()) }
+    }
 
     fun openPrintings() {
         val card = _ui.value.selected ?: return
@@ -201,6 +240,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
             }
             repo.lastBoxId = boxId
             repo.add(card, foil, qty, target)
+            com.mtgscanner.util.Haptics.tick()
             repo.fulfilWish(card.oracleId, qty)
             val boxName = boxes.value.firstOrNull { it.id == target }?.name
             _ui.update { it.copy(message = "Added ${qty}× ${card.name}${if (foil) " (foil)" else ""}${boxName?.let { " to $it" } ?: ""}") }
@@ -212,6 +252,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         _ui.update { it.copy(selected = null) }
         viewModelScope.launch {
             repo.addToWishlist(card)
+            com.mtgscanner.util.Haptics.tick()
             _ui.update { it.copy(message = "Added ${card.name} to your wishlist") }
         }
     }
