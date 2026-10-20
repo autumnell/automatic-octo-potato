@@ -57,6 +57,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.MtgApp
 import com.mtgscanner.data.BOX_PRESETS
+import com.mtgscanner.data.BOX_TEMPLATES
+import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.Divider
 import com.mtgscanner.data.db.Box as CardBox
@@ -97,6 +99,8 @@ fun BoxEditorSheet(
     onDismiss: () -> Unit,
     /** Shows the dividers and capacity fields; the caller must save [BoxDraft.capacity] and [BoxDraft.divider]. */
     layout: Boolean = false,
+    /** When set, step 1 also offers whole systems of boxes made in one tap. */
+    onTemplate: ((BoxTemplate) -> Unit)? = null,
 ) {
     val isNew = initial == null
     var draft by remember { mutableStateOf(initial ?: BoxDraft()) }
@@ -105,17 +109,25 @@ fun BoxEditorSheet(
     var maxText by remember { mutableStateOf(draft.rules.maxPrice?.let(::plain) ?: "") }
     var setsText by remember { mutableStateOf(draft.rules.sets.joinToString(", ")) }
     var capText by remember { mutableStateOf(draft.capacity.takeIf { it > 0 }?.toString() ?: "") }
+    var nums by remember { mutableStateOf(numTexts(draft.rules)) }
 
     fun rules() = draft.rules.copy(
         minPrice = minText.replace(',', '.').toDoubleOrNull(),
         maxPrice = maxText.replace(',', '.').toDoubleOrNull(),
         sets = setsText.split(',', ' ').map { it.trim().uppercase() }.filter { it.isNotEmpty() }.toSet(),
+        minCmc = nums["minCmc"]?.toIntOrNull(),
+        maxCmc = nums["maxCmc"]?.toIntOrNull(),
+        minPower = nums["minPower"]?.toIntOrNull(),
+        maxPower = nums["maxPower"]?.toIntOrNull(),
+        minToughness = nums["minToughness"]?.toIntOrNull(),
+        maxToughness = nums["maxToughness"]?.toIntOrNull(),
     )
     fun startFrom(d: BoxDraft) {
         draft = d
         minText = d.rules.minPrice?.let(::plain) ?: ""
         maxText = d.rules.maxPrice?.let(::plain) ?: ""
         setsText = d.rules.sets.joinToString(", ")
+        nums = numTexts(d.rules)
         step = 2
     }
 
@@ -140,13 +152,14 @@ fun BoxEditorSheet(
             Spacer(Modifier.height(8.dp))
 
             when (step) {
-                1 -> StartStep(onPick = ::startFrom)
+                1 -> StartStep(onPick = ::startFrom, onTemplate = onTemplate)
                 2 -> DetailsStep(draft, onChange = { draft = it })
                 else -> RulesStep(
                     rules = rules(),
                     onRules = { draft = draft.copy(rules = it) },
                     minText = minText, maxText = maxText, setsText = setsText,
                     onMin = { minText = it }, onMax = { maxText = it }, onSets = { setsText = it },
+                    nums = nums, onNum = { k, v -> nums = nums + (k to v) },
                 )
             }
 
@@ -215,9 +228,27 @@ private fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (In
 /** Step 1: a ready-made box, or a blank one. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StartStep(onPick: (BoxDraft) -> Unit) {
-    Text("Pick a starting point.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-    Spacer(Modifier.height(12.dp))
+private fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> Unit)? = null) {
+    if (onTemplate != null) {
+        Text("Whole system", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            BOX_TEMPLATES.forEach { t ->
+                Surface(onClick = { onTemplate(t) }, shape = RoundedCornerShape(14.dp), color = Palette.SurfaceHigh) {
+                    Column(Modifier.width(150.dp).padding(12.dp)) {
+                        Text(t.name, style = MaterialTheme.typography.titleSmall, color = Palette.AccentText, maxLines = 1)
+                        Text(t.blurb, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("One box", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+        Spacer(Modifier.height(8.dp))
+    } else {
+        Text("Pick a starting point.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        Spacer(Modifier.height(12.dp))
+    }
     Surface(
         onClick = { onPick(BoxDraft()) },
         modifier = Modifier.fillMaxWidth(),
@@ -237,7 +268,7 @@ private fun StartStep(onPick: (BoxDraft) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         BOX_PRESETS.forEach { p ->
             Surface(
-                onClick = { onPick(BoxDraft(p.name, p.kind, 0, p.rules)) },
+                onClick = { onPick(BoxDraft(p.name, p.kind, 0, p.rules, divider = p.divider)) },
                 shape = RoundedCornerShape(14.dp),
                 color = Palette.SurfaceHigh,
             ) {
@@ -316,6 +347,8 @@ private fun RulesStep(
     onMin: (String) -> Unit,
     onMax: (String) -> Unit,
     onSets: (String) -> Unit,
+    nums: Map<String, String>,
+    onNum: (String, String) -> Unit,
 ) {
     var open by remember { mutableStateOf<String?>(null) }
     fun toggle(key: String) { open = if (open == key) null else key }
@@ -387,7 +420,71 @@ private fun RulesStep(
             singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = fieldColors(),
         )
     }
+    val idSummary = BoxRules(identity = rules.identity, identityMode = rules.identityMode).takeIf { rules.identity.isNotEmpty() }?.describe()
+    RuleCard("Color identity", idSummary, open == "identity", { toggle("identity") }) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("W", "U", "B", "R", "G", "C").forEach { c ->
+                SelectPill(BoxRules.COLOR_NAMES.getValue(c), c in rules.identity, { onRules(rules.copy(identity = rules.identity.toggle(c))) },
+                    leading = if (c != "C") ({ ColorPip(c[0]) }) else null)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("exact" to "Exactly", "within" to "Fits in deck").forEach { (k, label) ->
+                SelectPill(label, rules.identityMode == k, { onRules(rules.copy(identityMode = k)) })
+            }
+        }
+    }
+    StatRule("Mana value", "Cmc", rules.minCmc, rules.maxCmc, nums, onNum, open == "cmc", { toggle("cmc") })
+    StatRule("Power", "Power", rules.minPower, rules.maxPower, nums, onNum, open == "power", { toggle("power") })
+    StatRule("Toughness", "Toughness", rules.minToughness, rules.maxToughness, nums, onNum, open == "tough", { toggle("tough") })
+    RuleCard("Format", rules.formats.takeIf { it.isNotEmpty() }?.joinToString(", ") { BoxRules.FORMAT_NAMES[it] ?: it }, open == "format", { toggle("format") }) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            BoxRules.FORMAT_NAMES.forEach { (k, label) ->
+                SelectPill(label, k in rules.formats, { onRules(rules.copy(formats = rules.formats.toggle(k))) })
+            }
+        }
+    }
+    RuleCard("Reserved List", if (rules.reserved) "Only" else null, open == "reserved", { toggle("reserved") }) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectPill("Any", !rules.reserved, { onRules(rules.copy(reserved = false)) })
+            SelectPill("Reserved only", rules.reserved, { onRules(rules.copy(reserved = true)) })
+        }
+    }
 }
+
+/** A from–to number rule, like mana value 0 to 2. [key] names the text fields ("minCmc", "maxCmc"). */
+@Composable
+private fun StatRule(
+    title: String, key: String, min: Int?, max: Int?,
+    nums: Map<String, String>, onNum: (String, String) -> Unit,
+    expanded: Boolean, onToggle: () -> Unit,
+) {
+    val summary = when {
+        min != null && max != null -> if (min == max) "$min" else "$min–$max"
+        min != null -> "$min+"
+        max != null -> "≤$max"
+        else -> null
+    }
+    RuleCard(title, summary, expanded, onToggle) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            listOf("min$key" to "From", "max$key" to "To").forEach { (k, label) ->
+                OutlinedTextField(
+                    value = nums[k].orEmpty(), onValueChange = { v -> onNum(k, v.filter { it.isDigit() }.take(2)) },
+                    label = { Text(label) }, singleLine = true, modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            }
+        }
+    }
+}
+
+private fun numTexts(r: BoxRules): Map<String, String> = mapOf(
+    "minCmc" to r.minCmc, "maxCmc" to r.maxCmc,
+    "minPower" to r.minPower, "maxPower" to r.maxPower,
+    "minToughness" to r.minToughness, "maxToughness" to r.maxToughness,
+).mapValues { it.value?.toString().orEmpty() }
 
 /** How the box is laid out inside: dividers and how many cards fit. */
 @OptIn(ExperimentalLayoutApi::class)
