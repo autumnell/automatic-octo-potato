@@ -46,7 +46,7 @@ object ScanBarPrefs {
         prefs?.edit()?.putString("lang", lang)?.apply()
     }
 
-    fun setHintsSeen(seen: Boolean) {
+    fun updateHintsSeen(seen: Boolean) {
         hintsSeen = seen
         prefs?.edit()?.putBoolean("hintsSeen", seen)?.apply()
     }

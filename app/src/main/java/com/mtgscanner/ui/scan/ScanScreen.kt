@@ -304,7 +304,7 @@ fun ScanScreen(
         val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
             state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.showNewBox
         if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
-            ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.setHintsSeen(true) })
+            ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.updateHintsSeen(true) })
         }
     }
 
@@ -702,7 +702,7 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
                 "Show hints",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.fillMaxWidth()
-                    .clickable { vm.showSettings(false); ScanBarPrefs.setHintsSeen(false) }
+                    .clickable { vm.showSettings(false); ScanBarPrefs.updateHintsSeen(false) }
                     .padding(vertical = 14.dp),
             )
             if (state.pendingCount > 0) {
