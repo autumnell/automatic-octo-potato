@@ -2,7 +2,10 @@ package com.mtgscanner.data
 
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Goal
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -21,11 +24,37 @@ data class GoalProgress(
     val done: Boolean get() = loaded && total > 0 && have >= total
 }
 
-/** Goal targets from Scryfall, kept for the app run so Home doesn't fetch them again. */
+/**
+ * Goal targets from Scryfall, kept for the app run so Home doesn't fetch them again. Screens asking for the
+ * same goal at once share one download, and a failed download isn't retried for [FAILURE_MS].
+ */
 object GoalCache {
+    private const val FAILURE_MS = 30_000L
     private val cards = HashMap<String, List<ScryfallCard>>()
+    private val inFlight = HashMap<String, Deferred<List<ScryfallCard>>>()
+    private val failed = HashMap<String, Pair<Long, Throwable>>()
+
     fun get(key: String): List<ScryfallCard>? = synchronized(cards) { cards[key] }
     fun put(key: String, list: List<ScryfallCard>) = synchronized(cards) { cards[key] = list }
+
+    /** The cached list, or the running download, or a new one in [scope]. Throws the last failure for a while. */
+    suspend fun fetch(key: String, scope: CoroutineScope, load: suspend () -> List<ScryfallCard>): List<ScryfallCard> {
+        get(key)?.let { return it }
+        val job = synchronized(cards) {
+            failed[key]?.let { (at, e) -> if (System.currentTimeMillis() - at < FAILURE_MS) throw e else failed.remove(key) }
+            inFlight[key] ?: scope.async {
+                try {
+                    load().also { put(key, it) }
+                } catch (e: Throwable) {
+                    synchronized(cards) { failed[key] = System.currentTimeMillis() to e }
+                    throw e
+                } finally {
+                    synchronized(cards) { inFlight.remove(key) }
+                }
+            }.also { inFlight[key] = it }
+        }
+        return job.await()
+    }
 }
 
 object Goals {
@@ -62,15 +91,13 @@ private fun cacheKey(goal: Goal) = "${goal.kind}:${goal.target.lowercase()}"
 fun cachedGoalCards(goal: Goal): List<ScryfallCard>? = GoalCache.get(cacheKey(goal))
 
 /** Fetches (once per app run) the cards a goal counts. Throws when Scryfall can't be reached. */
-suspend fun CollectionRepository.goalCards(goal: Goal): List<ScryfallCard> {
-    cachedGoalCards(goal)?.let { return it }
-    val list = when (goal.kind) {
-        Goals.SET -> setCards(goal.target)
-        else -> api.searchAll("oracleid:${goal.target} game:paper", unique = "prints", maxPages = 4)
+suspend fun CollectionRepository.goalCards(goal: Goal): List<ScryfallCard> =
+    GoalCache.fetch(cacheKey(goal), appScope) {
+        when (goal.kind) {
+            Goals.SET -> setCards(goal.target)
+            else -> api.searchAll("oracleid:${goal.target} game:paper", unique = "prints", maxPages = 4)
+        }
     }
-    GoalCache.put(cacheKey(goal), list)
-    return list
-}
 
 /** Progress of one goal; on network failure, a progress marked [GoalProgress.error]. */
 suspend fun CollectionRepository.goalProgress(goal: Goal, owned: List<CollectionCard>): GoalProgress {

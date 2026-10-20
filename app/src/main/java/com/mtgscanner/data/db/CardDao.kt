@@ -20,8 +20,15 @@ interface CardDao {
     @Query("SELECT * FROM cards WHERE id = :id")
     suspend fun get(id: Long): CollectionCard?
 
-    @Query("SELECT * FROM cards WHERE scryfallId = :scryfallId AND foil = :foil AND boxId = :boxId LIMIT 1")
-    suspend fun find(scryfallId: String, foil: Boolean, boxId: Long): CollectionCard?
+    /** The row copies like these merge into: every column of [COPY_KEY_SQL] matches. */
+    @Query(
+        "SELECT * FROM cards WHERE scryfallId = :scryfallId AND foil = :foil AND boxId = :boxId AND lang = :lang " +
+            "AND `condition` = :condition AND signed = :signed AND altered = :altered AND graded = :graded AND proxy = :proxy LIMIT 1"
+    )
+    suspend fun find(
+        scryfallId: String, foil: Boolean, boxId: Long, lang: String, condition: String,
+        signed: Boolean, altered: Boolean, graded: String, proxy: Boolean,
+    ): CollectionCard?
 
     @Query("SELECT * FROM cards")
     suspend fun all(): List<CollectionCard>
@@ -100,6 +107,10 @@ interface CardDao {
             "WHERE scryfallId = :scryfallId"
     )
     suspend fun setPrices(scryfallId: String, usd: Double?, foil: Double?, treatments: String): Int
+
+    /** Keeps rarity and tags (keywords, types, legal formats) up to date, so bans reach box rules. */
+    @Query("UPDATE cards SET rarity = :rarity, tags = :tags WHERE scryfallId = :scryfallId")
+    suspend fun setPrintingInfo(scryfallId: String, rarity: String, tags: String)
 
     /** Fills in stats added in DB v8 for cards saved before it. */
     @Query("UPDATE cards SET power = :power, toughness = :toughness, reserved = :reserved WHERE scryfallId = :scryfallId")
@@ -189,6 +200,9 @@ interface CardDao {
     @Query("SELECT * FROM decks WHERE id = :id")
     fun observeDeck(id: Long): Flow<Deck?>
 
+    @Query("SELECT * FROM decks WHERE id = :id")
+    suspend fun deck(id: Long): Deck?
+
     @Upsert
     suspend fun putDeck(deck: Deck): Long
 
@@ -237,6 +251,14 @@ interface CardDao {
 
     @Query("SELECT * FROM price_history")
     suspend fun allPricePoints(): List<PricePoint>
+
+    /** Price points from [day] (yyyy-MM-dd) on. */
+    @Query("SELECT * FROM price_history WHERE day >= :day")
+    suspend fun pricePointsSince(day: String): List<PricePoint>
+
+    /** Keeps one point a week (Mondays) from before [before] (yyyy-MM-dd), so history doesn't grow forever. */
+    @Query("DELETE FROM price_history WHERE day < :before AND strftime('%w', day) != '1'")
+    suspend fun thinPriceHistory(before: String): Int
 
     @Query("DELETE FROM price_history")
     suspend fun deletePriceHistory()

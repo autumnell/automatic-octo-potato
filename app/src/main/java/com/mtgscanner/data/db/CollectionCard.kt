@@ -5,10 +5,13 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
-/** One line of the collection: a specific printing, foil or not, with a quantity. */
+/**
+ * One line of the collection: copies of a specific printing that are alike (finish, box, language,
+ * condition, signed, altered, graded, proxy), with a quantity. Copies that differ get their own rows.
+ */
 @Entity(
     tableName = "cards",
-    indices = [Index(value = ["scryfallId", "foil", "boxId"], unique = true), Index("name"), Index("setCode"), Index("boxId")],
+    indices = [Index(value = ["scryfallId", "foil", "boxId", "lang", "condition", "signed", "altered", "graded", "proxy"], unique = true), Index("name"), Index("setCode"), Index("boxId")],
 )
 @Serializable
 data class CollectionCard(
@@ -84,6 +87,49 @@ data class CollectionCard(
     val addedAt: Long,
     val updatedAt: Long,
 )
+
+/** Columns that must all match for copies to share a row: the unique index on cards (DB v9) and [sameCopyAs]. */
+const val COPY_KEY_SQL = "`scryfallId`, `foil`, `boxId`, `lang`, `condition`, `signed`, `altered`, `graded`, `proxy`"
+
+/** Whether two rows hold copies that belong together: same printing, finish, box, language, condition and flags. */
+fun CollectionCard.sameCopyAs(o: CollectionCard): Boolean =
+    scryfallId == o.scryfallId && foil == o.foil && boxId == o.boxId && lang == o.lang && condition == o.condition &&
+        signed == o.signed && altered == o.altered && graded == o.graded && proxy == o.proxy
+
+/** Average of two per-copy prices weighted by copies; an unknown price is left out. */
+fun blendPrice(a: Double?, aCopies: Int, b: Double?, bCopies: Int): Double? = when {
+    a == null -> b
+    b == null -> a
+    aCopies + bCopies <= 0 -> a
+    else -> (a * aCopies + b * bCopies) / (aCopies + bCopies)
+}
+
+/**
+ * This row with [copies] copies of [from] added. Prices paid and at add are averaged by copies.
+ * With [details], empty notes, source and photo are taken from [from] and tags are combined.
+ */
+fun CollectionCard.mergedWith(
+    from: CollectionCard,
+    copies: Int = from.quantity,
+    now: Long = System.currentTimeMillis(),
+    details: Boolean = true,
+): CollectionCard {
+    val paid = if (purchasePrice == null && from.purchasePrice == null) null
+    else blendPrice(purchasePrice ?: priceAtAdd, quantity, from.purchasePrice ?: from.priceAtAdd, copies)
+    val merged = copy(
+        quantity = quantity + copies,
+        priceAtAdd = blendPrice(priceAtAdd, quantity, from.priceAtAdd, copies),
+        purchasePrice = paid,
+        updatedAt = now,
+    )
+    if (!details) return merged
+    return merged.copy(
+        notes = notes.ifBlank { from.notes },
+        acquiredFrom = acquiredFrom.ifBlank { from.acquiredFrom },
+        photo = photo.ifBlank { from.photo },
+        userTags = (userTagList() + from.userTagList()).distinctBy { it.lowercase() }.joinToString(","),
+    )
+}
 
 /** Scryfall's price for this printing, which is the near-mint market price. */
 fun CollectionCard.nearMintPrice(): Double? = if (foil) priceUsdFoil ?: priceUsd else priceUsd

@@ -73,13 +73,27 @@ data class DupGroup(val name: String, val cards: List<CollectionCard>) {
 }
 
 object Placement {
-    /** Where a card in [box] sits: its binder slot, or its divider and neighbors by name. */
-    fun whereIs(card: CollectionCard, box: Box?, boxCards: List<CollectionCard>): String {
+    /** Facts stand-in for a box without dividers: placing by name alone needs none. */
+    private val NO_FACTS = CardFacts("", "", "", emptySet(), false, null, "")
+
+    /** A box's cards as (name, facts) for [Sorting.position]; facts are only worked out when the box has dividers. */
+    fun contents(divider: Divider, boxCards: List<CollectionCard>): List<Pair<String, CardFacts>> =
+        boxCards.map { it.name to if (divider == Divider.NONE) NO_FACTS else it.facts() }
+
+    /**
+     * Where a card in [box] sits: its binder slot, or its divider and neighbors by name.
+     * [boxContents] is [contents] of the box, when already worked out.
+     */
+    fun whereIs(
+        card: CollectionCard, box: Box?, boxCards: List<CollectionCard>,
+        boxContents: List<Pair<String, CardFacts>>? = null,
+    ): String {
         val boxName = box?.name ?: "No box"
         if (box != null && Binder.isBinder(box.kind) && card.binderSlot > 0) return "$boxName → ${Binder.label(card.binderSlot)}"
+        val divider = Divider.of(box?.divider.orEmpty())
         val key = Sorting.nameKey(card.name)
-        val others = boxCards.filter { Sorting.nameKey(it.name) != key }.map { it.name to it.facts() }
-        val pos = Sorting.position(Divider.of(box?.divider.orEmpty()), card.name, card.facts(), others)
+        val others = (boxContents ?: contents(divider, boxCards)).filter { Sorting.nameKey(it.first) != key }
+        val pos = Sorting.position(divider, card.name, if (divider == Divider.NONE) NO_FACTS else card.facts(), others)
         return Sorting.where(boxName, pos)
     }
 
@@ -89,12 +103,16 @@ object Placement {
         if (q.length < 2) return emptyList()
         val byId = boxes.associateBy { it.id }
         val byBox = cards.groupBy { it.boxId }
+        // Each box's contents are worked out once per search, not once per card found.
+        val boxContents = HashMap<Long, List<Pair<String, CardFacts>>>()
         return cards.filter { it.name.lowercase().contains(q) }
             .sortedWith(compareBy<CollectionCard>({ it.name.lowercase() != q }, { !it.name.lowercase().startsWith(q) }, { it.name }, { it.setCode }))
             .take(limit)
             .map { c ->
                 val box = byId[c.boxId]
-                Found(c, box?.name ?: "No box", whereIs(c, box, byBox[c.boxId].orEmpty()))
+                val inBox = byBox[c.boxId].orEmpty()
+                val list = boxContents.getOrPut(c.boxId) { contents(Divider.of(box?.divider.orEmpty()), inBox) }
+                Found(c, box?.name ?: "No box", whereIs(c, box, inBox, list))
             }
     }
 
@@ -113,8 +131,9 @@ object Placement {
  */
 suspend fun CollectionRepository.positionFor(boxId: Long, name: String, facts: CardFacts): String? {
     val b = dao.box(boxId) ?: return null
-    val contents = dao.inBox(boxId).map { it.name to it.facts() }
-    return Sorting.where(b.name, Sorting.position(Divider.of(b.divider), name, facts, contents))
+    val divider = Divider.of(b.divider)
+    val contents = Placement.contents(divider, dao.inBox(boxId))
+    return Sorting.where(b.name, Sorting.position(divider, name, facts, contents))
 }
 
 /** Lost card finder: every box a card is in, with its spot. */
