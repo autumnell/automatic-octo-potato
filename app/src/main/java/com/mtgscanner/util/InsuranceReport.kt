@@ -151,7 +151,11 @@ object InsuranceReport {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(path, bounds)
         var sample = 1
-        while (bounds.outHeight / sample > 300) sample *= 2
-        BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 300) sample *= 2
+        val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+        // Phone photos are often stored sideways with an EXIF note to turn them; BitmapFactory ignores it.
+        val degrees = f.inputStream().use { com.mtgscanner.data.CardPhotos.exifRotation(it) }
+        if (degrees == 0) bmp
+        else Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, android.graphics.Matrix().apply { postRotate(degrees.toFloat()) }, true)
     }.getOrNull()
 }

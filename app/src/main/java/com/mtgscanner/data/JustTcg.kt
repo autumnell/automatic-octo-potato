@@ -18,7 +18,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.YearMonth
@@ -68,19 +67,30 @@ object JustTcg {
         p?.edit()?.putString("month", month)?.putInt("used", used)?.apply()
     }
 
-    class KeyException(message: String) : Exception(message)
+    open class KeyException(message: String) : Exception(message)
+
+    /**
+     * JustTCG said "too many requests" partway through. [partial] holds the prices fetched before that,
+     * which are still good to save. The weekly refresh waits a week before trying again.
+     */
+    class LimitException(val partial: Map<String, List<Variant>>) : KeyException("JustTCG limit reached for now")
 
     /** One sellable version of a card: condition (NM, LP…), foil or not, and its price in dollars. */
     data class Variant(val condition: String, val foil: Boolean, val price: Double)
 
-    private val client = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()
+    private val client = sharedHttpClient.newBuilder().callTimeout(30, TimeUnit.SECONDS).build()
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     /**
      * Prices for each Scryfall id, every condition and finish JustTCG lists. Cards it doesn't know are left out.
-     * Uses one request per [BATCH] cards.
+     * Uses one request per [BATCH] cards; [onBatch] gets each batch's prices as they arrive, so they can be
+     * saved even if a later batch fails. Throws [LimitException] (with what was fetched) when the limit is hit.
      */
-    suspend fun prices(scryfallIds: List<String>, key: String = apiKey): Map<String, List<Variant>> = withContext(Dispatchers.IO) {
+    suspend fun prices(
+        scryfallIds: List<String>,
+        key: String = apiKey,
+        onBatch: (suspend (Map<String, List<Variant>>) -> Unit)? = null,
+    ): Map<String, List<Variant>> = withContext(Dispatchers.IO) {
         if (key.isBlank()) throw KeyException("No JustTCG key")
         val out = HashMap<String, List<Variant>>()
         for (chunk in scryfallIds.distinct().chunked(BATCH)) {
@@ -95,12 +105,18 @@ object JustTcg {
                 countRequest()
                 when (resp.code) {
                     401, 403 -> throw KeyException("JustTCG didn't accept that key")
-                    429 -> throw KeyException("JustTCG limit reached for now")
+                    429 -> {
+                        // Out of lookups: the weekly refresh waits until next week instead of retrying every launch.
+                        lastFullRefresh = System.currentTimeMillis()
+                        throw LimitException(HashMap(out))
+                    }
                 }
                 if (!resp.isSuccessful) throw java.io.IOException("JustTCG error ${resp.code}")
                 resp.body?.string().orEmpty()
             }
-            out += parse(json.parseToJsonElement(text), chunk)
+            val batch = parse(json.parseToJsonElement(text), chunk)
+            out += batch
+            onBatch?.invoke(batch)
         }
         out
     }

@@ -56,8 +56,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -91,10 +94,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) openRequest = intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
         Palette.systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        // The window shows behind the first frame and during transitions: match the app's theme, not the XML's dark one.
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Palette.Background.toArgb()))
         setContent {
             // Status and navigation bar icons follow the app's own light/dark choice.
             val dark = Palette.dark
             LaunchedEffect(dark) {
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Palette.Background.toArgb()))
                 val bars = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
                 else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
@@ -113,6 +119,18 @@ private val tabs = listOf(
     Tab("search", "Search", Icons.Outlined.Search, Icons.Filled.Search),
     Tab("collection", "Collection", Icons.Outlined.CollectionsBookmark, Icons.Filled.CollectionsBookmark),
 )
+
+/** Whether [this] screen is the one showing, not one already on its way out. */
+private val NavBackStackEntry.isResumed: Boolean
+    get() = lifecycle.currentState == Lifecycle.State.RESUMED
+
+/**
+ * Goes back from [entry]'s screen. A second tap on Back while the screen is still animating out
+ * would otherwise pop the screen under it too (often Home), leaving a blank page.
+ */
+fun NavHostController.popFrom(entry: NavBackStackEntry) {
+    if (entry.isResumed) popBackStack()
+}
 
 /** Switches bottom tabs the standard way: one copy of each tab, state kept. */
 fun NavHostController.goToTab(route: String) = navigate(route) {
@@ -202,7 +220,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 "goals",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popBackStack() }) }
+            ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popFrom(it) }) }
             composable("scan") { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) }
             composable("search") { SearchScreen(onOpenSet = { nav.navigate("set/$it") }) }
             composable("collection") {
@@ -217,12 +235,12 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 )
             }
             composable("game") { GameSetupScreen(onPlay = { nav.navigate("game/play") }) }
-            composable("game/play") { GamePlayScreen(onExit = { nav.popBackStack("game", inclusive = false) }) }
+            composable("game/play") { GamePlayScreen(onExit = { if (it.isResumed) nav.popBackStack("game", inclusive = false) }) }
             composable(
                 "sets",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.collection.SetsScreen(onBack = { nav.popBackStack() }, onOpenSet = { nav.navigate("set/$it") }) }
+            ) { com.mtgscanner.ui.collection.SetsScreen(onBack = { nav.popFrom(it) }, onOpenSet = { nav.navigate("set/$it") }) }
             composable(
                 "set/{code}",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
@@ -230,7 +248,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             ) {
                 com.mtgscanner.ui.collection.SetDetailScreen(
                     code = it.arguments?.getString("code").orEmpty(),
-                    onBack = { nav.popBackStack() },
+                    onBack = { nav.popFrom(it) },
                     onOpenCard = { id -> nav.navigate("card/$id") },
                 )
             }
@@ -238,14 +256,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 "extras",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.collection.ExtrasScreen(onBack = { nav.popBackStack() }) }
+            ) { com.mtgscanner.ui.collection.ExtrasScreen(onBack = { nav.popFrom(it) }) }
             composable(
                 "deck/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) {
-                DeckScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popBackStack() })
+                DeckScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) })
             }
             composable(
                 "browse/{boxId}",
@@ -255,7 +273,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             ) {
                 BrowseScreen(
                     boxId = it.arguments?.getLong("boxId") ?: -1L,
-                    onBack = { nav.popBackStack() },
+                    onBack = { nav.popFrom(it) },
                     onOpenCard = { id -> nav.navigate("card/$id") },
                     onTrade = { binderId -> nav.navigate("trade/$binderId") },
                 )
@@ -266,7 +284,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) {
                 SettingsScreen(
-                    onBack = { nav.popBackStack() },
+                    onBack = { nav.popFrom(it) },
                     onScanLog = { nav.navigate("scanlog") },
                     onTour = { showTour = true },
                 )
@@ -276,24 +294,24 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 arguments = listOf(navArgument("boxId") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popBackStack() }, onSellList = { nav.navigate("sell") }) }
+            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popFrom(it) }, onSellList = { nav.navigate("sell") }) }
             composable(
                 "sell",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popBackStack() }, onBrowse = { nav.navigate("browse/-1") }) }
+            ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popFrom(it) }, onBrowse = { nav.navigate("browse/-1") }) }
             composable(
                 "scanlog",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { ScanLogScreen(onBack = { nav.popBackStack() }) }
+            ) { ScanLogScreen(onBack = { nav.popFrom(it) }) }
             composable(
                 "card/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) {
-                CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popBackStack() })
+                CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) })
             }
         }
     }

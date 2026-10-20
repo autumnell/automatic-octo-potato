@@ -10,22 +10,27 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
  * Card Kingdom's buylist: what the store pays for a card. Their public price list is downloaded
- * at most once a day in the background and kept as a small "scryfallId, foil, price" file.
- * Everything fails quietly: with no list, [buyPrice] just returns null.
+ * at most once a day, only when a screen that shows buy prices opens ([init]), and kept as a small
+ * "scryfallId, foil, price" file. Everything fails quietly: with no list, [buyPrice] just returns null.
  */
 object CardKingdom {
     private const val URL = "https://api.cardkingdom.com/api/v2/pricelist"
@@ -34,7 +39,7 @@ object CardKingdom {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
-    private val client = OkHttpClient.Builder()
+    private val client = sharedHttpClient.newBuilder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .callTimeout(4, TimeUnit.MINUTES)
@@ -49,15 +54,22 @@ object CardKingdom {
     var version by mutableIntStateOf(0)
         private set
 
-    /** Loads the saved list and refreshes it when it's a day old. Safe to call often. */
+    @Volatile private var loadStarted = false
+
+    /** Loads the saved list and refreshes it when it's a day old. For screens that show buy prices. Safe to call often. */
     fun init(context: Context) {
         if (started) return
         started = true
+        loadSaved(context)
+        scope.launch { runCatching { refreshIfStale() } }
+    }
+
+    /** Loads the saved list without downloading anything, for screens where buy prices are only an extra. */
+    fun loadSaved(context: Context) {
         app = context.applicationContext
-        scope.launch {
-            runCatching { load() }
-            runCatching { refreshIfStale() }
-        }
+        if (loadStarted) return
+        loadStarted = true
+        scope.launch { runCatching { load() } }
     }
 
     /**
@@ -105,19 +117,23 @@ object CardKingdom {
                 .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
                 .header("Accept", "application/json")
                 .build()
-            // Read straight from the stream: the list is large, and only four fields per row are kept.
-            val list = client.newCall(req).execute().use { resp ->
-                val body = resp.body
-                if (!resp.isSuccessful || body == null) null
-                else body.byteStream().buffered().use { json.decodeFromStream(PriceList.serializer(), it) }
-            } ?: return
-            val entries = rows(list.data)
-            if (entries.isEmpty()) return
             val out = file() ?: return
             val part = File(out.parentFile, "$FILE.part")
-            part.bufferedWriter().use { w ->
-                entries.forEach { (id, foil, price) -> w.write("$id\t${if (foil) "f" else "n"}\t$price\n") }
+            // Read straight from the stream, one row at a time: the list is large, and only three fields per row are kept.
+            val written = client.newCall(req).execute().use { resp ->
+                val body = resp.body
+                if (!resp.isSuccessful || body == null) 0
+                else part.bufferedWriter().use { w ->
+                    var n = 0
+                    body.byteStream().buffered().use { input ->
+                        json.decodeFromStream(PriceListReader { r ->
+                            row(r)?.let { (id, foil, price) -> w.write("$id\t${if (foil) "f" else "n"}\t$price\n"); n++ }
+                        }, input)
+                    }
+                    n
+                }
             }
+            if (written == 0) { part.delete(); return }
             if (!part.renameTo(out)) { out.delete(); part.renameTo(out) }
             load()
         } catch (_: Throwable) {
@@ -138,14 +154,52 @@ object CardKingdom {
     internal class PriceList(val data: List<Row> = emptyList())
 
     /** (scryfallId, foil, buy price) for every card Card Kingdom is buying. */
-    internal fun rows(data: List<Row>): List<Triple<String, Boolean, Double>> = data.mapNotNull { r ->
+    internal fun rows(data: List<Row>): List<Triple<String, Boolean, Double>> = data.mapNotNull(::row)
+
+    /** (scryfallId, foil, buy price), or null when Card Kingdom isn't buying it. */
+    internal fun row(r: Row): Triple<String, Boolean, Double>? {
         val id = r.scryfallId?.takeIf { it.isString }?.content?.trim()
-        if (id.isNullOrEmpty()) return@mapNotNull null
-        val price = r.priceBuy.num() ?: return@mapNotNull null
-        if (price <= 0.0) return@mapNotNull null
+        if (id.isNullOrEmpty()) return null
+        val price = r.priceBuy.num() ?: return null
+        if (price <= 0.0) return null
         val qty = r.qtyBuying.num()
-        if (qty != null && qty <= 0.0) return@mapNotNull null
-        Triple(id, r.isFoil.bool() ?: false, price)
+        if (qty != null && qty <= 0.0) return null
+        return Triple(id, r.isFoil.bool() ?: false, price)
+    }
+
+    /**
+     * Reads `{"data": [row, row, …]}` handing each row to [onRow] as it's read, so the whole list is
+     * never in memory at once. Other keys are skipped.
+     */
+    internal class PriceListReader(private val onRow: (Row) -> Unit) : DeserializationStrategy<Unit> {
+        private val rowList = ListSerializer(Row.serializer()).descriptor
+        override val descriptor: SerialDescriptor = buildClassSerialDescriptor("CardKingdomPriceList") {
+            element("data", rowList)
+        }
+
+        override fun deserialize(decoder: Decoder) {
+            val obj = decoder.beginStructure(descriptor)
+            while (true) {
+                when (val i = obj.decodeElementIndex(descriptor)) {
+                    CompositeDecoder.DECODE_DONE -> break
+                    0 -> obj.decodeSerializableElement(descriptor, i, RowStream(rowList, onRow))
+                    else -> error("Unexpected element $i")
+                }
+            }
+            obj.endStructure(descriptor)
+        }
+    }
+
+    private class RowStream(override val descriptor: SerialDescriptor, private val onRow: (Row) -> Unit) : DeserializationStrategy<Unit> {
+        override fun deserialize(decoder: Decoder) {
+            val list = decoder.beginStructure(descriptor)
+            while (true) {
+                val i = list.decodeElementIndex(descriptor)
+                if (i == CompositeDecoder.DECODE_DONE) break
+                onRow(list.decodeSerializableElement(descriptor, i, Row.serializer()))
+            }
+            list.endStructure(descriptor)
+        }
     }
 
     private fun JsonPrimitive?.num(): Double? = this?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() }

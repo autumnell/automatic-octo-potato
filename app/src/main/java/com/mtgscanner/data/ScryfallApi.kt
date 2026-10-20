@@ -19,14 +19,23 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-class ScryfallException(message: String) : IOException(message)
+open class ScryfallException(message: String) : IOException(message)
+
+/** Scryfall couldn't understand a search (HTTP 400). [message] is Scryfall's own explanation, fit to show. */
+class ScryfallQueryException(message: String) : ScryfallException(message)
+
+/** [name] as an exact-name search term, with quotes escaped (Henzie "Toolbox" Torre). */
+fun exactNameQuery(name: String): String = "!\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+/** One connection pool for the app's HTTP clients; each derives its own timeouts with newBuilder(). */
+internal val sharedHttpClient: OkHttpClient by lazy { OkHttpClient() }
 
 /**
  * Small client for https://scryfall.com/docs/api.
  * Scryfall asks for a User-Agent, an Accept header, and no more than ~10 requests a second.
  */
 class ScryfallApi(
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = sharedHttpClient.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build(),
@@ -59,22 +68,19 @@ class ScryfallApi(
         getOrNull(base.newBuilder().addPathSegment("cards").addPathSegment(id).build())
 
     /** All printings of a card, newest first. */
-    suspend fun printings(card: ScryfallCard): List<ScryfallCard> {
-        val q = card.oracleId?.let { "oracleid:$it" } ?: "!\"${card.name}\""
-        return search("$q include:extras", unique = "prints", order = "released")
-    }
+    suspend fun printings(card: ScryfallCard): List<ScryfallCard> = printingsOf(card.oracleId, card.name)
 
-    /** All printings of the card with this oracle id (or exact [name] when there's none), newest first. */
+    /** All printings of the card with this oracle id (or exact [name] when there's none), newest first. Every page. */
     suspend fun printingsOf(oracleId: String?, name: String): List<ScryfallCard> {
-        val q = oracleId?.let { "oracleid:$it" } ?: "!\"$name\""
-        return search("$q include:extras", unique = "prints", order = "released")
+        val q = oracleId?.let { "oracleid:$it" } ?: exactNameQuery(name)
+        return searchAll("$q include:extras", unique = "prints", maxPages = 12, order = "released")
     }
 
     /** Official rulings for a card, oldest first. Empty when there are none. */
     suspend fun rulings(id: String): List<ScryfallRuling> {
         val url = base.newBuilder().addPathSegment("cards").addPathSegment(id).addPathSegment("rulings").build()
         val body = request(Request.Builder().url(url).build()) ?: return emptyList()
-        return json.decodeFromString(RulingList.serializer(), body).data
+        return decode(RulingList.serializer(), body).data
     }
 
     suspend fun search(query: String, unique: String = "cards", order: String = "name"): List<ScryfallCard> {
@@ -84,7 +90,7 @@ class ScryfallApi(
             .addQueryParameter("order", order)
             .build()
         val body = request(Request.Builder().url(url).build()) ?: return emptyList()
-        return json.decodeFromString(CardList.serializer(), body).data
+        return decode(CardList.serializer(), body).data
     }
 
     /** One page (up to 175 cards) of a full Scryfall search. Empty when nothing matches. */
@@ -96,14 +102,14 @@ class ScryfallApi(
             .addQueryParameter("page", page.toString())
             .build()
         val body = request(Request.Builder().url(url).build()) ?: return CardList()
-        return json.decodeFromString(CardList.serializer(), body)
+        return decode(CardList.serializer(), body)
     }
 
     /** Paper sets, newest first. */
     suspend fun sets(): List<ScryfallSet> {
         val body = request(Request.Builder().url(base.newBuilder().addPathSegment("sets").build()).build())
             ?: return emptyList()
-        return json.decodeFromString(SetList.serializer(), body).data.filter { !it.digital && it.cardCount > 0 }
+        return decode(SetList.serializer(), body).data.filter { !it.digital && it.cardCount > 0 }
     }
 
     suspend fun autocomplete(text: String): List<String> {
@@ -111,7 +117,7 @@ class ScryfallApi(
         val url = base.newBuilder().addPathSegments("cards/autocomplete")
             .addQueryParameter("q", text).build()
         val body = request(Request.Builder().url(url).build()) ?: return emptyList()
-        return json.decodeFromString(Catalog.serializer(), body).data
+        return decode(Catalog.serializer(), body).data
     }
 
     /** Fetches up to 75 cards per request by Scryfall id. Used to refresh prices. */
@@ -135,7 +141,7 @@ class ScryfallApi(
                 .build()
             val body = request(req)
             if (body == null) { repeat(chunk.size) { out += null }; continue }
-            val found = json.decodeFromString(CardList.serializer(), body).data
+            val found = decode(CardList.serializer(), body).data
             val pool = found.toMutableList()
             for (ident in chunk) {
                 val i = pool.indexOfFirst { matchesIdentifier(ident, it) }
@@ -162,15 +168,15 @@ class ScryfallApi(
     suspend fun cardNames(): List<String> {
         val body = request(Request.Builder().url(base.newBuilder().addPathSegments("catalog/card-names").build()).build())
             ?: return emptyList()
-        return json.decodeFromString(Catalog.serializer(), body).data
+        return decode(Catalog.serializer(), body).data
     }
 
     /** Every card matching [query] (all pages, up to [maxPages]). */
-    suspend fun searchAll(query: String, unique: String = "cards", maxPages: Int = 6): List<ScryfallCard> {
+    suspend fun searchAll(query: String, unique: String = "cards", maxPages: Int = 6, order: String = "name"): List<ScryfallCard> {
         val out = mutableListOf<ScryfallCard>()
         var page = 1
         while (page <= maxPages) {
-            val list = searchPage(query, page = page, unique = unique)
+            val list = searchPage(query, order = order, page = page, unique = unique)
             out += list.data
             if (!list.hasMore) break
             page++
@@ -180,8 +186,21 @@ class ScryfallApi(
 
     private suspend fun getOrNull(url: HttpUrl): ScryfallCard? {
         val body = request(Request.Builder().url(url).build()) ?: return null
-        return json.decodeFromString(ScryfallCard.serializer(), body)
+        return decode(ScryfallCard.serializer(), body)
     }
+
+    /** Big responses (175 full cards) take a while to parse, so it never happens on the main thread. */
+    private suspend fun <T> decode(serializer: kotlinx.serialization.DeserializationStrategy<T>, body: String): T =
+        withContext(Dispatchers.Default) { json.decodeFromString(serializer, body) }
+
+    /** Scryfall's explanation in an error response, like "All of your terms were ignored." */
+    private fun errorDetails(body: String?): String? = runCatching {
+        val o = json.parseToJsonElement(body ?: return null) as? JsonObject ?: return null
+        val details = (o["details"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+        val warnings = (o["warnings"] as? kotlinx.serialization.json.JsonArray)
+            ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.orEmpty()
+        listOfNotNull(details?.takeIf { it.isNotBlank() }).plus(warnings).firstOrNull()
+    }.getOrNull()
 
     /** Returns the body, or null on 404. Throws on network errors and other failures. */
     private suspend fun request(base: Request): String? = withContext(Dispatchers.IO) {
@@ -199,6 +218,7 @@ class ScryfallApi(
                 resp.isSuccessful -> resp.body?.string()
                 resp.code == 404 -> null
                 resp.code == 429 -> throw ScryfallException("Scryfall is rate limiting; slow down a moment")
+                resp.code == 400 -> throw ScryfallQueryException(errorDetails(resp.body?.string()) ?: "Scryfall couldn't read that search")
                 else -> throw ScryfallException("Scryfall error ${resp.code}")
             }
         }
