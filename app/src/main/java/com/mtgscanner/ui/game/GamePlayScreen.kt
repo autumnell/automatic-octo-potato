@@ -1,10 +1,15 @@
 package com.mtgscanner.ui.game
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -108,7 +113,7 @@ fun Modifier.rotateLayout(degrees: Int): Modifier = when ((degrees % 360 + 360) 
 
 /**
  * The table: one panel per player, turned to face them. Tap the left half to lose life and the
- * right half to gain it; hold for ten. The middle button opens the game menu.
+ * right half to gain it; hold for ten, or swipe up and down. The middle button opens the game menu.
  */
 @Composable
 fun GamePlayScreen(onExit: () -> Unit) {
@@ -152,7 +157,12 @@ fun GamePlayScreen(onExit: () -> Unit) {
     // Taps near the screen edges are life changes, not the system back swipe.
     Box(Modifier.fillMaxSize().background(tableColor).systemBarsPadding().systemGestureExclusion()) {
         val panel: @Composable (Int, Int, Modifier) -> Unit = { i, rot, mod ->
-            PlayerPanel(g, i, rot, style, mod, onLife = { d -> vm.life(i, d) }, onMore = { playerSheet = i })
+            PlayerPanel(
+                g, i, rot, style, mod,
+                onLife = { d -> vm.life(i, d) },
+                onCommander = { from, d -> vm.commanderDamage(i, from, d, partner = false) },
+                onMore = { playerSheet = i },
+            )
         }
         val gap = 4.dp
         when (g.players.size) {
@@ -262,21 +272,43 @@ fun GamePlayScreen(onExit: () -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, modifier: Modifier, onLife: (Int) -> Unit, onMore: () -> Unit) {
+private fun PlayerPanel(
+    g: GameState, i: Int, rotation: Int, style: TableStyle, modifier: Modifier,
+    onLife: (Int) -> Unit, onCommander: (from: Int, delta: Int) -> Unit, onMore: () -> Unit,
+) {
     val p = g.players[i]
     val out = g.outReason(i)
     val haptics = LocalHapticFeedback.current
     val color = PLAYER_COLORS[p.color % PLAYER_COLORS.size]
-    // The running change shown above the life total, like "-3", fades after a pause.
-    val last = g.history.lastOrNull()?.takeIf { it.player == i && it.what == "Life" }
-    var showDelta by remember { mutableStateOf(false) }
-    LaunchedEffect(last?.at, last?.delta) {
-        if (last != null && last.delta != 0) {
-            showDelta = true
-            delay(GameState.MERGE_MS)
-            showDelta = false
+    val lifeNow by rememberUpdatedState(onLife)
+
+    // The running change, like "−7": it adds up while life keeps changing and fades after a pause.
+    var runBase by remember { mutableStateOf<Int?>(null) }
+    var prevLife by remember { mutableIntStateOf(p.life) }
+    var shownRun by remember { mutableIntStateOf(0) }
+    LaunchedEffect(p.life) {
+        if (p.life == prevLife) return@LaunchedEffect
+        val ev = g.history.lastOrNull()
+        // Only this player's own life changes count, not an undo or a restart.
+        val mine = ev != null && ev.player == i && (ev.what == "Life" || ev.what.startsWith("Commander damage")) &&
+            System.currentTimeMillis() - ev.at < 1500
+        if (mine) {
+            val base = runBase ?: prevLife
+            runBase = base
+            shownRun = p.life - base
+        } else {
+            runBase = null
+        }
+        prevLife = p.life
+        if (mine) {
+            delay(RUN_PAUSE_MS)
+            runBase = null
         }
     }
+    val runVisible = runBase != null && shownRun != 0
+    val runAlpha by animateFloatAsState(
+        if (runVisible) 1f else 0f, animationSpec = tween(if (runVisible) 120 else 600), label = "run",
+    )
 
     val shape = RoundedCornerShape(22.dp)
     val back = when (style) {
@@ -284,6 +316,8 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
         TableStyle.GRADIENT -> Modifier.background(Brush.linearGradient(listOf(color, lerp(color, Color.Black, 0.65f))))
         TableStyle.DARK -> Modifier.background(Color(0xFF15161A)).border(3.dp, color, shape)
     }
+    // One life point per step of drag.
+    val stepPx = with(LocalDensity.current) { SWIPE_STEP.toPx() }
     Box(modifier.clip(shape).then(back)) {
         if (p.art != null) AsyncImage(
             p.art, null, Modifier.fillMaxSize().rotateLayout(rotation), contentScale = ContentScale.Crop, alpha = 0.55f,
@@ -294,8 +328,27 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
             val lifeSize = (minOf(maxHeight.value * 0.36f, maxWidth.value * 0.3f)).coerceIn(34f, 72f).sp
             val active = g.active == i
             if (active) Box(Modifier.fillMaxSize().border(4.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(22.dp)))
-            // Left half loses, right half gains. Hold for ten.
-            Row(Modifier.fillMaxSize()) {
+            // Left half loses, right half gains. Hold for ten. Swipe up or down to count one by one;
+            // the panel is turned to face its player, so "up" is up for them.
+            Row(
+                Modifier.fillMaxSize().pointerInput(stepPx) {
+                    var acc = 0f
+                    detectVerticalDragGestures(onDragStart = { acc = 0f }) { change, dy ->
+                        change.consume()
+                        acc -= dy
+                        while (acc >= stepPx) {
+                            acc -= stepPx
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            lifeNow(1)
+                        }
+                        while (acc <= -stepPx) {
+                            acc += stepPx
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            lifeNow(-1)
+                        }
+                    }
+                },
+            ) {
                 listOf(-1, 1).forEach { sign ->
                     Box(
                         Modifier.weight(1f).fillMaxHeight().combinedClickable(
@@ -310,9 +363,24 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
                 }
             }
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                AnimatedVisibility(showDelta && last != null, enter = fadeIn(), exit = fadeOut()) {
-                    val d = last?.delta ?: 0
-                    Text(if (d > 0) "+$d" else "$d", color = Color.White.copy(alpha = 0.85f), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                // The running change sits above the life total without pushing it down.
+                Box(
+                    Modifier
+                        .layout { m, c ->
+                            val pl = m.measure(c.copy(minHeight = 0))
+                            layout(pl.width, 0) { pl.place(0, -pl.height) }
+                        }
+                        .graphicsLayer { alpha = runAlpha }
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(horizontal = 12.dp),
+                ) {
+                    Text(
+                        if (shownRun > 0) "+$shownRun" else "−${-shownRun}",
+                        color = if (shownRun > 0) Color(0xFFB9F6CA) else Color(0xFFFFCDD2),
+                        fontSize = (lifeSize.value * 0.55f).sp,
+                        fontWeight = FontWeight.Black,
+                    )
                 }
                 Text("${p.life}", color = Color.White, fontSize = lifeSize, fontWeight = FontWeight.Bold)
                 Text(p.name, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.titleSmall)
@@ -326,18 +394,72 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
                 if (g.monarch == i) Badge("Monarch", com.mtgscanner.ui.components.ManaIcons.Monarch, gold = true)
                 if (g.initiative == i) Badge("Initiative", com.mtgscanner.ui.components.ManaIcons.Initiative, gold = true)
                 if (p.poison > 0) Badge("${p.poison}", com.mtgscanner.ui.components.ManaIcons.Poison)
+                // Commanders show as dots at the bottom; with partners the highest still shows here.
                 val maxCmd = p.commanderDamage.maxOrNull() ?: 0
-                if (g.format.commanderDamage && maxCmd > 0) Badge("$maxCmd", com.mtgscanner.ui.components.ManaIcons.Commander)
+                if (g.format.commanderDamage && g.partners && maxCmd > 0) Badge("$maxCmd", com.mtgscanner.ui.components.ManaIcons.Commander)
                 if (p.commanderCasts > 0) Badge("Tax +${p.commanderTax}")
                 if (p.partnerCasts > 0) Badge("Partner +${p.partnerTax}")
                 if (p.energy > 0) Badge("${p.energy}", com.mtgscanner.ui.components.ManaIcons.Energy)
                 if (p.experience > 0) Badge("XP ${p.experience}")
                 if (p.rad > 0) Badge("${p.rad}", com.mtgscanner.ui.components.ManaIcons.Rad)
             }
-            IconButton(onClick = onMore, modifier = Modifier.align(Alignment.BottomCenter)) {
-                Icon(Icons.Filled.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
+            // Commander damage: one dot per opponent, in their color. Tap +1, hold −1.
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (g.format.commanderDamage && g.players.size > 1) {
+                    g.players.forEachIndexed { from, o ->
+                        if (from != i) CommanderDot(
+                            color = PLAYER_COLORS[o.color % PLAYER_COLORS.size],
+                            damage = p.damageFrom(from),
+                            name = o.name,
+                            onAdd = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onCommander(from, 1) },
+                            onRemove = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onCommander(from, -1) },
+                        )
+                    }
+                }
+                IconButton(onClick = onMore) {
+                    Icon(Icons.Filled.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
+                }
             }
         }
+    }
+}
+
+/** How long the running change stays after the last life change. */
+private const val RUN_PAUSE_MS = 2000L
+
+/** Drag distance for one life point. */
+private val SWIPE_STEP = 24.dp
+
+/** Commander damage from one opponent, in their color. A red ring at 21. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CommanderDot(color: Color, damage: Int, name: String, onAdd: () -> Unit, onRemove: () -> Unit) {
+    val lethal = damage >= GameState.COMMANDER_LIMIT
+    Box(
+        Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(if (lethal) Color.Black else color)
+            .border(if (lethal) 3.dp else 1.5.dp, if (lethal) Color(0xFFFF5252) else Color.White.copy(alpha = 0.8f), CircleShape)
+            .semantics { contentDescription = "Commander damage from $name: $damage" }
+            .combinedClickable(
+                onClickLabel = "+1 from $name",
+                onLongClickLabel = "−1 from $name",
+                onLongClick = onRemove,
+                onClick = onAdd,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (damage > 0) Text(
+            "$damage",
+            color = if (lethal) Color(0xFFFF5252) else Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
