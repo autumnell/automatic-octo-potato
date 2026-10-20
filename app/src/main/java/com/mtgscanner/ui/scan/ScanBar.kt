@@ -149,9 +149,12 @@ private fun BarDivider() {
     Box(Modifier.width(1.dp).height(22.dp).background(Color.White.copy(alpha = 0.18f)))
 }
 
-/** The last card scanned: image, set, name and price. Tap to open it. */
+/** The last card scanned: image, set, name and price. Tap to open it. [onSameAgain] shows "+1" for another copy. */
 @Composable
-fun LastCardBar(state: ScanUiState, onOpenCard: (Long) -> Unit, onOpenList: () -> Unit, modifier: Modifier = Modifier) {
+fun LastCardBar(
+    state: ScanUiState, onOpenCard: (Long) -> Unit, onOpenList: () -> Unit, modifier: Modifier = Modifier,
+    onSameAgain: (() -> Unit)? = null,
+) {
     val e = state.session.firstOrNull()
     Row(
         modifier
@@ -193,6 +196,18 @@ fun LastCardBar(state: ScanUiState, onOpenCard: (Long) -> Unit, onOpenList: () -
             Text(formatUsd(e.card.price(e.foil)), color = Palette.Gold, style = MaterialTheme.typography.titleSmall)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Open card", tint = Color.White.copy(alpha = 0.7f))
+        if (onSameAgain != null) {
+            Spacer(Modifier.width(4.dp))
+            Box(
+                Modifier
+                    .heightIn(min = 40.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Palette.Gold)
+                    .clickable(onClickLabel = "Add another copy", onClick = onSameAgain)
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("+1", color = Color.Black, style = MaterialTheme.typography.labelLarge) }
+        }
     }
 }
 

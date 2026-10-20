@@ -41,28 +41,45 @@ class ScanLog(private val dir: File) {
     /** Newest first. */
     val entries: StateFlow<List<ScanLogEntry>?> = _entries
 
+    /** Lines in the file, which can run past [MAX] until the next trim. */
+    private var fileLines = 0
+
     private suspend fun loaded(): List<ScanLogEntry> {
         _entries.value?.let { return it }
-        val list = withContext(Dispatchers.IO) {
-            if (!file.exists()) emptyList()
-            else file.readLines().mapNotNull { runCatching { json.decodeFromString(ScanLogEntry.serializer(), it) }.getOrNull() }.reversed()
+        val (lines, list) = withContext(Dispatchers.IO) {
+            if (!file.exists()) 0 to emptyList()
+            else {
+                val raw = file.readLines()
+                raw.size to raw.mapNotNull { runCatching { json.decodeFromString(ScanLogEntry.serializer(), it) }.getOrNull() }.reversed().take(MAX)
+            }
         }
+        fileLines = lines
         _entries.value = list
         return list
     }
 
     suspend fun load() = lock.withLock { loaded() }
 
+    /** Adds one lookup. Appends a line; the file is only rewritten when it has grown to twice [MAX]. */
     suspend fun add(e: ScanLogEntry) = lock.withLock {
         val list = (listOf(e) + loaded()).take(MAX)
         _entries.value = list
         withContext(Dispatchers.IO) {
-            runCatching { file.writeText(list.reversed().joinToString("\n") { json.encodeToString(ScanLogEntry.serializer(), it) } + "\n") }
+            runCatching {
+                if (fileLines + 1 > MAX * 2) {
+                    file.writeText(list.reversed().joinToString("\n") { json.encodeToString(ScanLogEntry.serializer(), it) } + "\n")
+                    fileLines = list.size
+                } else {
+                    file.appendText(json.encodeToString(ScanLogEntry.serializer(), e) + "\n")
+                    fileLines++
+                }
+            }
         }
     }
 
     suspend fun clear() = lock.withLock {
         _entries.value = emptyList()
+        fileLines = 0
         withContext(Dispatchers.IO) { file.delete() }
     }
 

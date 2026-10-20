@@ -26,7 +26,8 @@ class ScanSettingsTest {
         assertEquals("token", s.skipReason("Token Creature — Goblin", "token", 0.0, true))
         assertEquals("token", s.skipReason("Emblem — Ajani", "emblem", null, true))
         assertEquals("under $0.25", s.skipReason("Instant", "normal", 0.1, true))
-        assertEquals("under $0.25", s.skipReason("Instant", "normal", null, true))
+        // No USD price (foreign-only, promos): not known to be cheap, so kept.
+        assertNull(s.skipReason("Instant", "normal", null, true))
         assertNull(s.skipReason("Instant", "normal", 3.0, true))
         // With prices hidden, the price rule is off.
         assertNull(s.skipReason("Instant", "normal", 0.1, false))

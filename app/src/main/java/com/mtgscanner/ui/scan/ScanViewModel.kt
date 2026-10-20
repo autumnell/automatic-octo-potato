@@ -3,6 +3,7 @@ package com.mtgscanner.ui.scan
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.BoxRules
+import com.mtgscanner.data.CardFacts
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.OfflineRead
 import com.mtgscanner.data.ScanBarPrefs
@@ -16,13 +17,16 @@ import com.mtgscanner.data.addToDeckList
 import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
 import com.mtgscanner.data.ownedCopies
-import com.mtgscanner.data.setScanLang
 import com.mtgscanner.data.db.Box
+import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.scan.CardTextGuess
+import com.mtgscanner.scan.CardTextParser
+import com.mtgscanner.scan.ImageHash
 import com.mtgscanner.scan.FrameLight
 import com.mtgscanner.scan.LightCheck
+import com.mtgscanner.scan.PendingScanWork
 import com.mtgscanner.scan.ScanPrefs
 import com.mtgscanner.scan.ScanSettings
 import com.mtgscanner.scan.ScanSound
@@ -37,6 +41,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** One add during this scanning session, newest first in the scan list. */
@@ -82,7 +87,15 @@ fun sortNote(d: SortDecision?): String? = when (d?.reason) {
 enum class ScanTarget { COLLECTION, DECK, CHECK }
 
 /** One pocket of a binder page. [card] is null when it couldn't be read or found. */
-data class PageSlot(val index: Int, val read: String?, val card: ScryfallCard?, val selected: Boolean)
+data class PageSlot(
+    val index: Int, val read: String?, val card: ScryfallCard?, val selected: Boolean,
+    /** Language read off the pocket's card, when not English. */
+    val lang: String? = null,
+)
+
+/** What the camera read, for the status line: the name, else the footer ("MOM #123"). */
+fun readLabel(g: CardTextGuess): String? =
+    g.nameCandidates.firstOrNull() ?: listOfNotNull(g.setCode, g.collectorNumber?.let { "#$it" }).joinToString(" ").ifEmpty { null }
 
 data class ScanUiState(
     val status: String = "Point your camera at a card",
@@ -176,6 +189,11 @@ data class ScanUiState(
 
 class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
+    init {
+        // Copies and language for the scan bar; read once, before anything uses them.
+        ScanBarPrefs.init(repo.appContext)
+    }
+
     private val _state = MutableStateFlow(
         ScanPrefs.settings.value.let { ScanUiState(settings = it, boxId = it.boxId ?: repo.lastBoxId) },
     )
@@ -210,6 +228,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         _state.update { it.copy(settings = effective(it.settings, it)) }
         viewModelScope.launch {
             repo.observePending().collect { p ->
+                // Saved offline scans are looked up as soon as the phone is back online, even with the scanner closed.
+                if (p.any { !it.unknown }) runCatching { PendingScanWork.schedule(repo.appContext) }
                 _state.update {
                     it.copy(pendingCount = p.filterNot { x -> x.unknown }.sumOf { x -> x.quantity }, unknownCount = p.count { x -> x.unknown })
                 }
@@ -225,22 +245,38 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 }
             }
         }
-        // Try saved offline scans again whenever the scanner opens.
+        // Try saved offline scans again whenever the scanner opens, and when the network comes back.
         viewModelScope.launch { runCatching { repo.resolvePending() } }
     }
 
     // Frame-to-frame bookkeeping for the camera analyzer.
     private var lastKey: String? = null
+    /** Name and footer of the card in view. Frames agree when either matches, as the footer is only read on some. */
+    private var lastName: String? = null
+    private var lastFooter: String? = null
     private var sameKeyFrames = 0
     private var emptyFrames = 0
-    private var lookedUpKey: String? = null
+    /** Keys already looked up for the card in view. */
+    private val lookedUp = HashSet<String>()
+    /** Bumps when tracking resets (pause, skip, mode change), so a lookup that was under way is dropped. */
+    private var trackGen = 0
     private var lastAutoAddedId: String? = null
+    /** Art seen when the last card was auto-added, and frames in a row since with clearly different art. */
+    private var lastAddedArt: Long? = null
+    private var artChangeFrames = 0
+    /** The scan list line auto-added for the card on screen, so "Printing" and "Looks foil" can fix it. */
+    private var autoEntryKey: Long? = null
     // The same card can come back as a different printing when the footer is only read on some frames,
     // so "already added while in view" also matches by card name (oracle id).
     private var lastAutoAddedOracle: String? = null
     private fun alreadyHandled(card: ScryfallCard) =
         card.id == lastAutoAddedId || (card.oracleId != null && card.oracleId == lastAutoAddedOracle)
-    private fun markHandled(card: ScryfallCard) { lastAutoAddedId = card.id; lastAutoAddedOracle = card.oracleId }
+    private fun markHandled(card: ScryfallCard, art: Long? = null) {
+        lastAutoAddedId = card.id
+        lastAutoAddedOracle = card.oracleId
+        lastAddedArt = art
+        artChangeFrames = 0
+    }
     private val removedKeys = HashSet<Long>()
     private var entryKeys = 0L
     /** Every scan list line by key, as it is now (copies can be added or taken back). */
@@ -250,10 +286,21 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     private var noMatchSince = 0L
     private var noMatchGuess: CardTextGuess? = null
 
+    // Pulses already played, so sounds and flashes don't replay when the screen comes back.
+    private var seenAdded = 0
+    private var seenAside = 0
+
+    /** True once for each new add pulse. */
+    fun freshAdded(pulse: Int): Boolean = (pulse > seenAdded).also { if (it) seenAdded = pulse }
+
+    /** True once for each new set-aside pulse. */
+    fun freshAside(pulse: Int): Boolean = (pulse > seenAside).also { if (it) seenAside = pulse }
+
     /** The analyzer skips frames while this is true. */
     val isPaused: Boolean
         get() = _state.value.let {
-            if (it.showSort || it.showSetLock || it.showDeckPick) true
+            // The first-run hints cover the screen: don't add cards behind them.
+            if (it.showSort || it.showSetLock || it.showDeckPick || !ScanBarPrefs.hintsSeen) true
             else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading || it.page != null || it.showSettings || it.showList ||
                 it.showNewBox || boxes.value.isNullOrEmpty()
             else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp ||
@@ -273,8 +320,11 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             if (emptyFrames >= 3) {
                 lastAutoAddedId = null
                 lastAutoAddedOracle = null
+                lastAddedArt = null
                 lastKey = null
-                lookedUpKey = null
+                lastName = null
+                lastFooter = null
+                lookedUp.clear()
                 noMatchSince = 0L
                 lights.clear()
                 _state.update {
@@ -287,34 +337,69 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             return
         }
         emptyFrames = 0
-        sameKeyFrames = if (key == lastKey) sameKeyFrames + 1 else 1
+        val name = guess.nameCandidates.firstOrNull()?.let { CardTextParser.normalize(it) }
+        val footer = if (guess.setCode != null && guess.collectorNumber != null) key.takeIf { '#' in it } else null
+        val agrees = (name != null && name == lastName) || (footer != null && footer == lastFooter)
+        if (agrees) {
+            sameKeyFrames++
+            if (name != null) lastName = name
+            if (footer != null) lastFooter = footer
+        } else {
+            sameKeyFrames = 1
+            lastName = name
+            lastFooter = footer
+            lookedUp.clear()
+        }
         lastKey = key
-        _state.update { it.copy(reading = guess.nameCandidates.firstOrNull() ?: "${guess.setCode} #${guess.collectorNumber}") }
+        _state.update { it.copy(reading = readLabel(guess)) }
         // Text keeps coming but nothing matched for a few seconds: offer to keep it for later.
         if (noMatchSince > 0 && System.currentTimeMillis() - noMatchSince >= UNKNOWN_AFTER_MS) offerUnknown()
+        // A stack of the same name: clearly different artwork is a different printing, so a new card.
+        val art = guess.artHash
+        val added = lastAddedArt
+        if (_state.value.autoAdd && art != null && added != null && lastAutoAddedOracle != null) {
+            artChangeFrames = if (ImageHash.distance(art, added) > ART_CHANGED) artChangeFrames + 1 else 0
+            if (artChangeFrames >= 2) {
+                lastAutoAddedId = null
+                lastAutoAddedOracle = null
+                lastAddedArt = null
+                lookedUp.clear()
+            }
+        }
 
         // Wait for two frames that agree, so a blurry half-read doesn't trigger a lookup.
-        if (sameKeyFrames < 2 || key == lookedUpKey) return
-        lookedUpKey = key
+        if (sameKeyFrames < 2 || key in lookedUp) return
+        // Already looked up by the exact footer: a name-only read adds nothing.
+        if (footer == null && lookedUp.any { '#' in it }) return
+        lookedUp += key
         lookup(guess)
     }
 
     private fun lookup(guess: CardTextGuess) {
         _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null, offline = null) }
+        val gen = trackGen
         viewModelScope.launch {
             val started = System.currentTimeMillis()
             val result = runCatching { repo.identify(guess) }
             logLookup(guess, result, System.currentTimeMillis() - started)
+            // Paused, skipped or switched mode meanwhile: the answer is no longer wanted.
+            if (gen != trackGen || _state.value.paused) {
+                _state.update { it.copy(lookingUp = false) }
+                return@launch
+            }
+            val key = guess.key
             result.onFailure { e ->
-                if (e is ScryfallException) {
-                    // Scryfall is busy or rate limiting: wait a few seconds before trying this card again.
-                    val key = guess.key
-                    launch { delay(3_000); if (lookedUpKey == key) lookedUpKey = null }
-                } else lookedUpKey = null
-                val offline = if (e is java.io.IOException && e !is ScryfallException) repo.offlineRead(guess) else null
+                // Offline: keep the set lock with the saved read.
+                val offline = if (e is java.io.IOException && e !is ScryfallException) {
+                    repo.offlineRead(guess)?.let { r -> SortPrefs.setLock?.let { lock -> r.copy(setCode = lock) } ?: r }
+                } else null
+                val autoSaved = offline != null && _state.value.autoAdd
+                // Busy, rate limited or offline: wait a few seconds before trying this card again.
+                // Saved for later while auto-adding: it's handled until it leaves the frame.
+                if (!autoSaved) launch { delay(3_000); if (gen == trackGen && key != null) lookedUp.remove(key) }
                 if (offline != null) {
                     _state.update { it.copy(lookingUp = false, offline = offline, status = "Offline · ${offline.name}") }
-                    if (_state.value.autoAdd && offline.name != lastAutoAddedId) {
+                    if (autoSaved && offline.name != lastAutoAddedId) {
                         lastAutoAddedId = offline.name
                         saveOffline()
                     }
@@ -332,13 +417,13 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             if (id != null) {
                 noMatchSince = 0L
                 noMatchGuess = null
-                onIdentified(id, guess.lang)
+                onIdentified(id, guess.lang, guess.artHash)
             }
         }
     }
 
     /** Decides what happens to a match: add it, skip it, set it aside, or stop and ask. */
-    private suspend fun onIdentified(id: com.mtgscanner.data.Identification, lang: String? = null) {
+    private suspend fun onIdentified(id: com.mtgscanner.data.Identification, lang: String? = null, art: Long? = null) {
         val s = _state.value.settings
         val card = id.card
         // A real card was found: drop any "save for later" offer.
@@ -349,7 +434,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             val reason = s.skipReason(card.effectiveTypeLine, card.layout, price, AppSettings.showPrices)
             if (reason != null) {
                 val counted = !alreadyHandled(card)
-                markHandled(card)
+                markHandled(card, art)
                 _state.update {
                     it.copy(lookingUp = false, current = null, skipped = it.skipped + if (counted) 1 else 0, status = "Skipped ${card.name} ($reason)")
                 }
@@ -359,7 +444,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 when (s.unsure) {
                     UnsureAction.ASIDE -> {
                         val fresh = !alreadyHandled(card) && _state.value.review.none { it.id == card.id }
-                        markHandled(card)
+                        markHandled(card, art)
                         _state.update {
                             it.copy(
                                 lookingUp = false,
@@ -384,6 +469,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         val owned = if (_state.value.target != ScanTarget.COLLECTION) runCatching { repo.ownedCopies(card.oracleId) }.getOrNull() else null
         // Language only matters when Scryfall gave the English printing.
         val readLang = lang?.takeIf { card.lang == "en" }
+        if (_state.value.current?.id != card.id) autoEntryKey = null
         _state.update {
             val same = it.current?.id == card.id
             it.copy(
@@ -400,7 +486,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             )
         }
         if (accepted && !alreadyHandled(card)) {
-            markHandled(card)
+            markHandled(card, art)
             addCard(card, ScanBarPrefs.quantity, auto = true, readLang = readLang)
         }
     }
@@ -488,22 +574,58 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         _state.update { it.copy(foilHint = false, cardFoil = true) }
         val head = st.session.firstOrNull()
         if (!st.autoAdd || head == null || head.card.id != card.id || head.foil) return
-        viewModelScope.launch {
-            val cur = latest[head.key] ?: head
-            if (cur.key in removedKeys) return@launch
-            val updated = if (cur.deckId != 0L) cur.copy(foil = true) else {
-                repo.remove(cur.rowId, cur.count)
-                val row = repo.add(cur.card, true, cur.count, cur.boxId)
-                cur.copy(foil = true, rowId = row)
+        viewModelScope.launch { swapLine(head.key, card, foil = true) }
+    }
+
+    /**
+     * Swaps the copies on a scan list line for another printing or finish: takes them out and adds
+     * them again with the same language, letting auto-sort pick the box anew (a foil can go elsewhere).
+     */
+    private suspend fun swapLine(key: Long, card: ScryfallCard, foil: Boolean) {
+        val cur = latest[key] ?: _state.value.session.firstOrNull { it.key == key } ?: return
+        if (cur.key in removedKeys) return
+        val updated = if (cur.deckId != 0L) cur.copy(card = card, foil = foil) else {
+            repo.remove(cur.rowId, cur.count)
+            val facts = card.facts(foil)
+            val chosen = chooseBox(card, facts, _state.value.boxId)
+            val boxId = chosen?.first ?: cur.boxId
+            val row = repo.add(card, foil, cur.count, boxId, lang = rowLang(card, cur.lang))
+            val box = boxes.value?.firstOrNull { it.id == boxId }
+            val spot = runCatching { repo.spotFor(boxId, card.name, facts) }.getOrNull()
+            cur.copy(
+                card = card, foil = foil, rowId = row, boxId = boxId, boxName = box?.name ?: cur.boxName, spot = spot,
+                note = if (chosen != null) sortNote(chosen.second) else cur.note,
+            )
+        }
+        latest[cur.key] = updated
+        replaceEverywhere(updated)
+        if (updated.boxId != cur.boxId) {
+            val box = boxes.value?.firstOrNull { it.id == updated.boxId }
+            _state.update {
+                it.copy(
+                    addedPulse = it.addedPulse + 1, lastBoxName = updated.boxName.ifEmpty { null }, lastBoxColor = box?.color ?: 0,
+                    lastSpot = updated.spot, lastNote = updated.note, lastAlso = emptyList(),
+                )
             }
-            latest[cur.key] = updated
-            replaceEverywhere(updated)
         }
     }
+
+    /** The box for a card: the one picked in the header, or by the rules when auto-sorting (or the picked box is gone). */
+    private suspend fun chooseBox(card: ScryfallCard, facts: CardFacts, picked: Long): Pair<Long, SortDecision?>? {
+        val known = boxes.value?.any { it.id == picked } == true
+        if (picked != Box.AUTO_SORT && known) return picked to null
+        val d = runCatching { repo.pickDecision(facts, card.oracleId) }.getOrNull() ?: return null
+        return d.boxId to d
+    }
+
+    /** The language a new row records: the printing's own, else what was read or picked in the scan bar. */
+    private fun rowLang(card: ScryfallCard, lang: String?): String = if (card.lang != "en") card.lang else lang ?: "en"
 
     fun dismissFoilHint() = _state.update { it.copy(foilHint = false) }
 
     private fun logLookup(guess: CardTextGuess, result: Result<com.mtgscanner.data.Identification?>, ms: Long) {
+        // The log is hidden until unlocked in Settings; don't write it for nothing.
+        if (!AppSettings.scanLogUnlocked) return
         val id = result.getOrNull()
         val err = result.exceptionOrNull()
         val outcome = when {
@@ -526,11 +648,23 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
+    /** The Add button's add, still running: a second tap doesn't add the card twice. */
+    private var addJob: Job? = null
+
     fun add(qty: Int = 1) {
         val card = _state.value.current ?: return
+        if (addJob?.isActive == true) return
         // In auto-add mode, don't add this card again while it's still in view.
         if (_state.value.autoAdd) markHandled(card)
-        addCard(card, qty, readLang = _state.value.currentLang)
+        addJob = addCard(card, qty, readLang = _state.value.currentLang)
+    }
+
+    /** Stack mode: another copy of the last card, when copies come one after another and look the same. */
+    fun sameAgain() {
+        val head = _state.value.session.firstOrNull() ?: return
+        val cur = latest[head.key] ?: head
+        if (cur.key in removedKeys || addJob?.isActive == true) return
+        addJob = addCard(cur.card, 1, auto = true, readLang = cur.lang, foil = cur.foil)
     }
 
     /** Adds a card that was set aside. */
@@ -607,47 +741,49 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     private fun addCard(
         card: ScryfallCard, qty: Int, fromReview: Boolean = false, auto: Boolean = false, fromPage: Boolean = false, readLang: String? = null,
-    ) {
+        foil: Boolean? = null,
+    ): Job {
         // Language read off the card wins; otherwise the scan bar's choice.
         val lang = readLang ?: ScanBarPrefs.langOrNull
         val s = _state.value
-        val foil = s.isFoil(card)
-        viewModelScope.launch {
+        val isFoil = foil ?: s.isFoil(card)
+        return viewModelScope.launch {
             if (s.target == ScanTarget.CHECK) return@launch
             val deck = s.deck
             if (s.target == ScanTarget.DECK && deck != null) {
-                addToDeck(card, qty, foil, deck, fromReview, auto)
+                addToDeck(card, qty, isFoil, deck, fromReview, auto)
                 return@launch
             }
             val wish = if (fromReview || fromPage) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
+            val facts = card.facts(isFoil)
             // A box that was deleted (say, saved in a preset) falls back to auto-sort.
-            val known = boxes.value?.any { it.id == s.boxId } == true
-            val facts = card.facts(foil)
-            val decision = if (s.boxId == Box.AUTO_SORT || !known) runCatching { repo.pickDecision(facts, card.oracleId) }.getOrNull() else null
-            val boxId = if (s.boxId == Box.AUTO_SORT || !known) decision?.boxId else s.boxId
-            if (boxId == null) {
+            val chosen = chooseBox(card, facts, s.boxId)
+            if (chosen == null) {
                 _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card.") }
                 return@launch
             }
-            val rowId = repo.add(card, foil, qty, boxId)
-            // Language read off the card. Only on a row of its own: copies merged into an existing row keep its language.
-            val langSet = lang != null && card.lang == "en" && runCatching { repo.setScanLang(rowId, qty, lang) }.getOrDefault(false)
+            val (boxId, decision) = chosen
+            val rowId = repo.add(card, isFoil, qty, boxId, lang = rowLang(card, lang))
             if (wish != null) repo.fulfilWish(card.oracleId, qty)
             val box = boxes.value?.firstOrNull { it.id == boxId }
             val boxName = box?.name.orEmpty()
             val spot = runCatching { repo.spotFor(boxId, card.name, facts) }.getOrNull()
-            val full = decision?.boxFull ?: (box != null && box.capacity > 0 &&
-                (runCatching { repo.boxInfos() }.getOrNull()?.firstOrNull { b -> b.id == boxId }?.isFull == true))
+            // One look at the boxes for both "full" and the rule preview.
+            val needInfos = decision != null || (box != null && box.capacity > 0)
+            val infos = if (needInfos) runCatching { repo.boxInfos() }.getOrNull() else null
+            val full = decision?.boxFull ?: (infos?.firstOrNull { b -> b.id == boxId }?.isFull == true)
             // Rule preview: the next boxes it would also have fit.
             val also = if (decision != null) {
-                runCatching { repo.alsoFits(facts, boxId) }.getOrDefault(emptyList())
-                    .mapNotNull { id -> boxes.value?.firstOrNull { b -> b.id == id }?.name }
+                infos.orEmpty().filter { it.id != boxId && !it.rules.isCatchAll && it.rules.matches(facts) }.take(3)
+                    .mapNotNull { b -> boxes.value?.firstOrNull { it.id == b.id }?.name }
             } else emptyList()
+            val shownLang = lang.takeIf { card.lang == "en" }
             val now = _state.value
-            val merge = mergeTarget(now, card, foil, boxId, 0, rowId)
-            val entry = merge?.copy(count = merge.count + qty, at = System.currentTimeMillis(), lang = merge.lang ?: lang.takeIf { langSet })
-                ?: ScanEntry(++entryKeys, rowId, card, foil, qty, boxName, boxId, spot, sortNote(decision), full, lang = lang.takeIf { langSet })
+            val merge = mergeTarget(now, card, isFoil, boxId, 0, rowId)?.takeIf { it.lang == shownLang }
+            val entry = merge?.copy(count = merge.count + qty, at = System.currentTimeMillis())
+                ?: ScanEntry(++entryKeys, rowId, card, isFoil, qty, boxName, boxId, spot, sortNote(decision), full, lang = shownLang)
             latest[entry.key] = entry
+            if (auto && !fromPage && !fromReview && card.id == _state.value.current?.id) autoEntryKey = entry.key
             _state.update {
                 it.copy(
                     session = if (merge != null) replaceIn(it.session, entry) else listOf(entry) + it.session,
@@ -681,10 +817,13 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun saveOffline(qty: Int = ScanBarPrefs.quantity) {
         val s = _state.value
         val read = s.offline ?: return
+        // Cleared now, so a second tap can't save it twice.
+        _state.update { it.copy(offline = null) }
         viewModelScope.launch {
             repo.savePending(read, s.foil, qty, s.boxId)
-            _state.update { it.copy(offline = null, addedPulse = it.addedPulse + 1, status = "Saved ${read.name} for later") }
-            resetTracking()
+            _state.update { it.copy(addedPulse = it.addedPulse + 1, status = "Saved ${read.name} for later") }
+            // While auto-adding, the card is still in view: don't look it up again.
+            if (!s.autoAdd) resetTracking()
         }
     }
 
@@ -703,19 +842,40 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun remove(entry: ScanEntry) {
         viewModelScope.launch {
             val e = latest[entry.key] ?: entry
-            val before = if (e.deckId == 0L) repo.snapshot(listOf(e.rowId)) else emptyList()
-            val inSort = _state.value.sort?.entries?.any { it.key == e.key } == true
+            val before = if (e.deckId == 0L) rowsBefore(listOf(e.rowId)) else emptyMap()
+            val st = _state.value
+            val inSort = st.sort?.entries?.any { it.key == e.key } == true
+            val inPack = st.pack?.entries?.any { it.key == e.key } == true
             removeEntry(e)
             Undo.offer("Removed ${e.card.name}") {
-                if (e.deckId != 0L) repo.addToDeckList(e.deckId, e.card.name, e.count) else repo.restore(before)
+                if (e.deckId != 0L) repo.addToDeckList(e.deckId, e.card.name, e.count) else putBack(before, mapOf(e.rowId to e.count))
                 removedKeys.remove(e.key)
                 latest[e.key] = e
                 _state.update {
                     it.copy(
                         session = upsert(it.session, listOf(e)),
+                        pack = it.pack?.let { p -> if (inPack) p.copy(entries = upsert(p.entries, listOf(e))) else p },
                         sort = it.sort?.let { o -> if (inSort) o.copy(entries = upsert(o.entries, listOf(e))) else o },
                     )
                 }
+            }
+        }
+    }
+
+    /** The rows as they are now, to put back on undo. */
+    private suspend fun rowsBefore(rowIds: List<Long>): Map<Long, CollectionCard> =
+        rowIds.distinct().mapNotNull { id -> runCatching { repo.cardOnce(id) }.getOrNull()?.let { id to it } }.toMap()
+
+    /**
+     * Undoes taking [taken] copies off each row. A row still there gets its copies back; a row that was
+     * deleted comes back as it was. Other rows of the same printing (copies added since) are left alone.
+     */
+    private suspend fun putBack(before: Map<Long, CollectionCard>, taken: Map<Long, Int>) {
+        taken.forEach { (rowId, qty) ->
+            val now = repo.cardOnce(rowId)
+            when {
+                now != null -> repo.setQuantity(rowId, now.quantity + qty)
+                else -> before[rowId]?.let { repo.dao.putCards(listOf(it)) }
             }
         }
     }
@@ -759,14 +919,17 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 left -= q
             }
             if (picks.isEmpty()) return@launch
-            val before = repo.snapshot(picks.filter { it.first.deckId == 0L }.map { it.first.rowId })
+            val inCollection = picks.filter { it.first.deckId == 0L }
+            val before = rowsBefore(inCollection.map { it.first.rowId })
+            // Copies taken per row (two lines can share a row).
+            val taken = inCollection.groupBy { it.first.rowId }.mapValues { (_, l) -> l.sumOf { it.second } }
             val packKeys = st.pack?.entries?.map { it.key }?.toSet().orEmpty()
             val sortKeys = st.sort?.entries?.map { it.key }?.toSet().orEmpty()
             picks.forEach { (e, q) -> takeBack(e.key, q) }
             val total = picks.sumOf { it.second }
             _state.update { it.copy(status = "Removed last $total") }
             Undo.offer("Removed last $total") {
-                if (before.isNotEmpty()) repo.restore(before)
+                putBack(before, taken)
                 val olds = picks.map { it.first }
                 olds.filter { it.deckId != 0L }.forEach { e ->
                     runCatching { repo.addToDeckList(e.deckId, e.card.name, picks.first { p -> p.first.key == e.key }.second) }
@@ -892,9 +1055,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         pageJob = viewModelScope.launch {
             val slots = guesses.mapIndexed { i, g ->
                 async {
-                    val read = g.nameCandidates.firstOrNull() ?: g.setCode?.let { "$it #${g.collectorNumber}" }
                     val card = if (g.key == null) null else runCatching { repo.identify(g)?.card }.getOrNull()
-                    PageSlot(i, read, card, card != null)
+                    PageSlot(i, readLabel(g), card, card != null, lang = g.lang)
                 }
             }.awaitAll()
             val found = slots.count { it.card != null }
@@ -914,12 +1076,18 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun closePage() = _state.update { it.copy(page = null, status = "Fill the frame with a binder page, then tap Capture page") }
 
-    /** Adds the ticked pockets, one copy each. */
+    /** Adds the ticked pockets, with the scan bar's copies, one after another so box capacity stays right. */
     fun addPage() {
-        val cards = _state.value.page.orEmpty().filter { it.selected }.mapNotNull { it.card }
+        val slots = _state.value.page.orEmpty().filter { it.selected && it.card != null }
         _state.update { it.copy(page = null) }
-        cards.forEach { addCard(it, 1, auto = true, fromPage = true) }
-        _state.update { it.copy(status = "Added ${cards.size} cards · turn the page and capture again") }
+        val qty = ScanBarPrefs.quantity
+        viewModelScope.launch {
+            slots.forEach { slot ->
+                val card = slot.card ?: return@forEach
+                addCard(card, qty, auto = true, fromPage = true, readLang = slot.lang?.takeIf { card.lang == "en" }).join()
+            }
+            _state.update { it.copy(status = "Added ${slots.size * qty} cards · turn the page and capture again") }
+        }
     }
 
     /** Clears the list on screen. Cards stay in the collection. */
@@ -935,18 +1103,24 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             )
         }
         // While auto-adding, keep ignoring this card until it leaves the frame.
-        if (!auto) resetTracking()
+        if (!auto) resetTracking() else trackGen++
     }
 
     private fun resetTracking() {
         lastKey = null
-        lookedUpKey = null
+        lastName = null
+        lastFooter = null
+        lookedUp.clear()
         sameKeyFrames = 0
+        trackGen++
     }
 
-    fun togglePause() = _state.update {
-        val p = !it.paused
-        it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null)
+    fun togglePause() {
+        trackGen++
+        _state.update {
+            val p = !it.paused
+            it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null, lookingUp = false)
+        }
     }
 
     fun updateSettings(change: (ScanSettings) -> ScanSettings) = ScanPrefs.update(change)
@@ -985,8 +1159,16 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun pickPrinting(card: ScryfallCard) {
-        val before = _state.value.current
-        if (before != null && before.id != card.id) {
+        val st = _state.value
+        val before = st.current
+        // Auto-add already added the card on screen: swap that copy for the right printing.
+        val head = st.session.firstOrNull()
+        if (before != null && before.id != card.id && st.autoAdd && head != null && head.key == autoEntryKey && head.card.id == before.id) {
+            markHandled(card)
+            val foil = if (head.foil) card.hasFoil || !card.hasNonFoil else !card.hasNonFoil
+            viewModelScope.launch { swapLine(head.key, card, foil) }
+        }
+        if (before != null && before.id != card.id && AppSettings.scanLogUnlocked) {
             viewModelScope.launch {
                 runCatching {
                     repo.scanLog.add(
@@ -1052,5 +1234,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         const val QUICK_MS = 6_000L
         /** Text read but no match for this long: offer to save it for later. */
         const val UNKNOWN_AFTER_MS = 3_000L
+        /** Art hashes further apart than this (of 64 bits) are different artwork. */
+        const val ART_CHANGED = 22
     }
 }
