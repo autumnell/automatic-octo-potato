@@ -323,16 +323,16 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
                 Modifier.align(Alignment.TopCenter).padding(top = 10.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (g.monarch == i) Badge("Monarch", GameIcons.Crown, gold = true)
-                if (g.initiative == i) Badge("Initiative", GameIcons.Sword, gold = true)
-                if (p.poison > 0) Badge("☠ ${p.poison}")
+                if (g.monarch == i) Badge("Monarch", com.mtgscanner.ui.components.ManaIcons.Monarch, gold = true)
+                if (g.initiative == i) Badge("Initiative", com.mtgscanner.ui.components.ManaIcons.Initiative, gold = true)
+                if (p.poison > 0) Badge("${p.poison}", com.mtgscanner.ui.components.ManaIcons.Poison)
                 val maxCmd = p.commanderDamage.maxOrNull() ?: 0
-                if (g.format.commanderDamage && maxCmd > 0) Badge("⚔ $maxCmd")
+                if (g.format.commanderDamage && maxCmd > 0) Badge("$maxCmd", com.mtgscanner.ui.components.ManaIcons.Commander)
                 if (p.commanderCasts > 0) Badge("Tax +${p.commanderTax}")
                 if (p.partnerCasts > 0) Badge("Partner +${p.partnerTax}")
-                if (p.energy > 0) Badge("⚡ ${p.energy}")
+                if (p.energy > 0) Badge("${p.energy}", com.mtgscanner.ui.components.ManaIcons.Energy)
                 if (p.experience > 0) Badge("XP ${p.experience}")
-                if (p.rad > 0) Badge("☢ ${p.rad}")
+                if (p.rad > 0) Badge("${p.rad}", com.mtgscanner.ui.components.ManaIcons.Rad)
             }
             IconButton(onClick = onMore, modifier = Modifier.align(Alignment.BottomCenter)) {
                 Icon(Icons.Filled.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
