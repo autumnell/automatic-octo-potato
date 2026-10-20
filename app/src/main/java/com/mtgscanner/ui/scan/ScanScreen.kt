@@ -134,7 +134,6 @@ fun ScanScreen(
     vm: ScanViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ctx = LocalContext.current
-    ScanBarPrefs.init(ctx)
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -165,14 +164,17 @@ fun ScanScreen(
     val needsBox = loadedBoxes != null && boxes.isEmpty()
     val haptics = LocalHapticFeedback.current
     DisposableEffect(Unit) { onDispose { ScanFeedback.release() } }
+    // Bumps once per new add on this screen; drives the frame flash and box callout without replaying them on return.
+    var addTick by remember { mutableStateOf(0) }
     LaunchedEffect(state.addedPulse) {
-        if (state.addedPulse > 0) {
+        if (vm.freshAdded(state.addedPulse)) {
             if (state.settings.vibrate) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             ScanFeedback.play(ctx, state.settings.sound)
+            addTick++
         }
     }
     LaunchedEffect(state.asidePulse) {
-        if (state.asidePulse > 0) {
+        if (vm.freshAside(state.asidePulse)) {
             if (state.settings.vibrate) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             ScanFeedback.play(ctx, state.settings.asideSound)
         }
@@ -220,7 +222,7 @@ fun ScanScreen(
 
                     if (hasPermission && !needsBox) {
                         if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
-                        else FrameGuide(found = state.current != null, flash = if (state.settings.flash) state.addedPulse else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
+                        else FrameGuide(found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
                         Column(
                             Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -228,7 +230,7 @@ fun ScanScreen(
                             PackChip(state, vm)
                             SortChip(state, vm)
                         }
-                        BoxCallout(state, Modifier.align(Alignment.Center))
+                        BoxCallout(state, addTick, Modifier.align(Alignment.Center))
                         Column(
                             Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
                             horizontalAlignment = Alignment.End,
@@ -290,7 +292,9 @@ fun ScanScreen(
                             // The last card hides while a new one is on screen.
                             if (state.current == null && state.offline == null) {
                                 Spacer(Modifier.height(8.dp))
-                                LastCardBar(state, onOpenCard, onOpenList = { vm.showList(true) }, Modifier.hintTarget("last"))
+                                // Stack mode drops a copy that looks just like the last one; "+1" adds it.
+                                val sameAgain = if ((state.stack || state.autoAdd) && state.target != ScanTarget.CHECK && state.session.isNotEmpty()) vm::sameAgain else null
+                                LastCardBar(state, onOpenCard, onOpenList = { vm.showList(true) }, Modifier.hintTarget("last"), onSameAgain = sameAgain)
                             }
                             Spacer(Modifier.height(8.dp))
                             ScanToggleBar(state, vm, Modifier.hintTarget("bar"))
@@ -682,7 +686,10 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                 if (qty == 1) OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("+4", maxLines = 1)
                 }
-                GradientButton(if (qty > 1) "Add $qty" else "Add", { vm.add(qty) }, Modifier.weight(1f).heightIn(min = 48.dp))
+                // Auto-add already added it: the button adds one more copy, same finish and language.
+                val justAdded = state.autoAdd && state.session.firstOrNull()?.card?.id == card.id
+                if (justAdded) GradientButton("+1", vm::sameAgain, Modifier.weight(1f).heightIn(min = 48.dp))
+                else GradientButton(if (qty > 1) "Add $qty" else "Add", { vm.add(qty) }, Modifier.weight(1f).heightIn(min = 48.dp))
             }
         }
     }
@@ -858,15 +865,26 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
     LaunchedEffect(camera, torch) {
         camera?.let { if (it.cameraInfo.hasFlashUnit()) it.cameraControl.enableTorch(torch) }
     }
+    // The camera turns the flashlight off when it closes (app in the background): turn it back on when it reopens.
+    val torchNow by androidx.compose.runtime.rememberUpdatedState(torch)
+    DisposableEffect(camera, lifecycleOwner) {
+        val cam = camera
+        val obs = androidx.lifecycle.Observer<androidx.camera.core.CameraState> { cs ->
+            if (cs.type == androidx.camera.core.CameraState.Type.OPEN && torchNow && cam != null && cam.cameraInfo.hasFlashUnit()) {
+                cam.cameraControl.enableTorch(true)
+            }
+        }
+        cam?.cameraInfo?.cameraState?.observe(lifecycleOwner, obs)
+        onDispose { cam?.cameraInfo?.cameraState?.removeObserver(obs) }
+    }
 
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 }
 
 /** Big label showing which box (and divider) the last card went into, so a pile can be filed as it's scanned. */
 @Composable
-private fun BoxCallout(state: ScanUiState, modifier: Modifier) {
+private fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
     val boxName = state.lastBoxName
-    val pulse = state.addedPulse
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(pulse) {
         if (pulse > 0 && boxName != null) {
