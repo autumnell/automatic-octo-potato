@@ -64,7 +64,7 @@ data class SearchFilters(
         return copy(
             types = when {
                 cur == null -> rest + TypeTerm(word)
-                !cur.not -> rest + TypeTerm(word, not = true)
+                !cur.not -> rest + TypeTerm(cur.word, not = true)
                 else -> rest
             },
         )
