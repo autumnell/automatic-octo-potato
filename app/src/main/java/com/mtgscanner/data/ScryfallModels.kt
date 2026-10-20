@@ -136,3 +136,14 @@ data class ScryfallSet(
 
 @Serializable
 data class SetList(val data: List<ScryfallSet> = emptyList())
+
+/** One official ruling on a card, from /cards/{id}/rulings. */
+@Serializable
+data class ScryfallRuling(
+    val source: String = "",
+    @SerialName("published_at") val publishedAt: String = "",
+    val comment: String = "",
+)
+
+@Serializable
+data class RulingList(val data: List<ScryfallRuling> = emptyList())

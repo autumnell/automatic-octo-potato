@@ -83,6 +83,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.mtgscanner.data.CardPhotos
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.changePrinting
 import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
@@ -256,6 +257,63 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Neighbors())
 
     fun go(id: Long) { currentId.value = id }
+
+    /** Every printing of this card, fetched when the Versions tab opens. */
+    private val _printings = MutableStateFlow(Fetched<List<com.mtgscanner.data.ScryfallCard>>())
+    val printings: StateFlow<Fetched<List<com.mtgscanner.data.ScryfallCard>>> = _printings
+    /** Set code (lowercase) to its symbol, for the Versions list. */
+    private val _setIcons = MutableStateFlow<Map<String, String>>(emptyMap())
+    val setIcons: StateFlow<Map<String, String>> = _setIcons
+    /** Official rulings, fetched when the Rules tab opens. */
+    private val _rulings = MutableStateFlow(Fetched<List<com.mtgscanner.data.ScryfallRuling>>())
+    val rulings: StateFlow<Fetched<List<com.mtgscanner.data.ScryfallRuling>>> = _rulings
+
+    /** Copies owned of each printing of this card (by Scryfall id), across all boxes. */
+    val ownedPrintings: StateFlow<Map<String, Int>> = combine(card, repo.observeAll()) { c, all ->
+        if (c == null) emptyMap<String, Int>()
+        else all.filter { if (c.oracleId != null) it.oracleId == c.oracleId else it.name == c.name }
+            .groupBy { it.scryfallId }
+            .mapValues { (_, rows) -> rows.sumOf { it.quantity } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    fun loadPrintings(force: Boolean = false) {
+        val c = card.value ?: return
+        val key = c.oracleId ?: c.name
+        val now = _printings.value
+        if (!force && now.key == key && (now.loading || now.data != null)) return
+        _printings.value = Fetched(key, loading = true)
+        viewModelScope.launch {
+            val r = runCatching { repo.api.printingsOf(c.oracleId, c.name) }
+            if (_printings.value.key == key) _printings.value = Fetched(key, r.getOrNull(), failed = r.isFailure)
+            if (_setIcons.value.isEmpty()) {
+                runCatching { repo.sets() }.getOrNull()?.let { sets ->
+                    _setIcons.value = sets.mapNotNull { s -> s.iconSvgUri?.let { s.code.lowercase() to it } }.toMap()
+                }
+            }
+        }
+    }
+
+    fun loadRulings(force: Boolean = false) {
+        val key = card.value?.scryfallId ?: return
+        val now = _rulings.value
+        if (!force && now.key == key && (now.loading || now.data != null)) return
+        _rulings.value = Fetched(key, loading = true)
+        viewModelScope.launch {
+            val r = runCatching { repo.api.rulings(key) }
+            if (_rulings.value.key == key) _rulings.value = Fetched(key, r.getOrNull(), failed = r.isFailure)
+        }
+    }
+
+    /** Switches this copy to another printing of the same card, with undo. */
+    fun changePrinting(p: com.mtgscanner.data.ScryfallCard) = viewModelScope.launch {
+        val from = currentId.value
+        val change = runCatching { repo.changePrinting(from, p) }.getOrNull() ?: return@launch
+        currentId.value = change.newId
+        Undo.offer("Now ${p.set.uppercase()} #${p.collectorNumber}") {
+            repo.restore(change.before)
+            currentId.value = from
+        }
+    }
 }
 
 data class Neighbors(val prev: Long? = null, val next: Long? = null, val index: Int = 0, val total: Int = 0)
@@ -467,7 +525,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     }
 
                     Spacer(Modifier.height(10.dp))
-                    CardTextBlock(live?.textInfo() ?: c.textInfo())
+                    // Legality lives in the Rules tab below, with every format.
+                    CardTextBlock((live?.textInfo() ?: c.textInfo()).copy(legalities = emptyMap()))
 
                     Spacer(Modifier.height(12.dp))
                     if (AppSettings.showPrices) Panel {
@@ -525,6 +584,9 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 8.dp),
                         )
                     }
+
+                    Spacer(Modifier.height(14.dp))
+                    CardInfoTabs(c, live, vm)
 
                     Spacer(Modifier.height(12.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
