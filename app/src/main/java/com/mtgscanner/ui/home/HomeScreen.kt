@@ -2,6 +2,7 @@ package com.mtgscanner.ui.home
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,8 @@ import com.mtgscanner.data.db.priceWhenAdded
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.ui.AppViewModels
+import com.mtgscanner.ui.collection.BrowseLaunch
+import com.mtgscanner.ui.collection.SortBy
 import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
@@ -128,9 +131,20 @@ fun HomeScreen(
     onCollection: () -> Unit,
     onOpenCard: (Long) -> Unit,
     onSettings: () -> Unit,
+    /** Opens Browse of the whole collection. Without it, Home goes via the Collection tab. */
+    onBrowseAll: (() -> Unit)? = null,
     vm: HomeViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    fun browse(sort: SortBy? = null, color: String? = null) {
+        BrowseLaunch.sort = sort
+        BrowseLaunch.color = color
+        if (onBrowseAll != null) onBrowseAll()
+        else {
+            BrowseLaunch.openAll = true
+            onCollection()
+        }
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -165,20 +179,20 @@ fun HomeScreen(
         }
 
         if (ui.recent.isNotEmpty()) {
-            SectionHeader("Recently added") { TextButton(onClick = onCollection) { Text("See all") } }
+            SectionHeader("Recently added") { TextButton(onClick = { browse(SortBy.RECENT) }) { Text("See all") } }
             CardCarousel(ui.recent, onOpenCard)
         }
         val prices = AppSettings.showPrices
         if (prices && ui.valuable.isNotEmpty()) {
-            SectionHeader("Most valuable")
+            SectionHeader("Most valuable") { TextButton(onClick = { browse(SortBy.PRICE) }) { Text("See all") } }
             CardCarousel(ui.valuable, onOpenCard)
         }
         if (prices && ui.gainers.isNotEmpty()) {
-            SectionHeader("Biggest gains")
+            SectionHeader("Biggest gains") { TextButton(onClick = { browse(SortBy.GAIN) }) { Text("See all") } }
             CardCarousel(ui.gainers, onOpenCard, showGain = true)
         }
         SectionHeader("Colors")
-        ColorBreakdown(ui.colors)
+        ColorBreakdown(ui.colors, onColor = { browse(color = it) })
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -256,7 +270,7 @@ private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
 }
 
 @Composable
-private fun ColorBreakdown(colors: List<Pair<String, Int>>) {
+private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) -> Unit) {
     val total = colors.sumOf { it.second }.coerceAtLeast(1)
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
         Column(Modifier.padding(16.dp)) {
@@ -268,9 +282,14 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>) {
             }
             Spacer(Modifier.height(14.dp))
             colors.chunked(4).forEach { row ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                     row.forEach { (k, n) ->
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                                .clickable(enabled = n > 0) { onColor(k) }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             if (k in listOf("W", "U", "B", "R", "G")) ColorPip(k[0])
                             else Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(colorFor(k)))
                             Spacer(Modifier.width(6.dp))
