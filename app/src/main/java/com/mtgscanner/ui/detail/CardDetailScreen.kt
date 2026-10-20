@@ -785,6 +785,7 @@ private fun Hero(c: CollectionCard, onPhoto: () -> Unit) {
             c.imageUrl,
             Modifier.align(Alignment.Center).statusBarsPadding().padding(top = 8.dp, bottom = 20.dp).height(170.dp),
             corner = 10.dp,
+            zoom = true,
         )
         // Your own copy's photo, small in the corner; tap to view.
         if (c.photo.isNotBlank()) {

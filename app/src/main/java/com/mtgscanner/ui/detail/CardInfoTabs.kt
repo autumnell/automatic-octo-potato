@@ -329,7 +329,7 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
                 .padding(horizontal = 6.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CardImage(p.smallImageUrl, Modifier.width(34.dp), corner = 3.dp)
+            CardImage(p.smallImageUrl, Modifier.width(34.dp), corner = 3.dp, zoom = true)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

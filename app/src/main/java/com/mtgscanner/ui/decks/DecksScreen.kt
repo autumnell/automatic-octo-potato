@@ -729,7 +729,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 @Composable
 private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(l.imageUrl, Modifier.width(40.dp), corner = 4.dp)
+        CardImage(l.imageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(

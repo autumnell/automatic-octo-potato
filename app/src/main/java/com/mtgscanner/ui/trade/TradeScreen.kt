@@ -332,7 +332,7 @@ private fun SideHeader(title: String, onAdd: () -> Unit) {
 @Composable
 private fun TradeRow(item: TradeItem, vm: TradeViewModel) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(item.imageUrl, Modifier.width(40.dp), corner = 4.dp)
+        CardImage(item.imageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

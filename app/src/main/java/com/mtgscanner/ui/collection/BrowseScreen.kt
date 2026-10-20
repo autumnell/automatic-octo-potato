@@ -193,7 +193,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Long-press to select · swipe rows in list view",
+                    "Hold a picture to zoom, a row to select · swipe rows",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                     modifier = Modifier.weight(1f),
@@ -520,7 +520,8 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, onClick
             .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(46.dp), corner = 4.dp)
+        // Holding the picture shows it big; holding the rest of the row still starts picking.
+        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(46.dp), corner = 4.dp, zoom = true, onTap = onClick)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -601,7 +602,7 @@ private fun BinderPages(cards: List<CollectionCard>, unslotted: Int, onNumber: (
                             Box(Modifier.weight(1f)) {
                                 if (c != null) {
                                     Box(Modifier.clip(RoundedCornerShape(6.dp)).clickable { onOpen(c) }) {
-                                        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 6.dp)
+                                        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 6.dp, zoom = true)
                                     }
                                 } else {
                                     Box(

@@ -173,7 +173,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
 @Composable
 private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(c.smallImageUrl, Modifier.width(40.dp), corner = 4.dp)
+        CardImage(c.smallImageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

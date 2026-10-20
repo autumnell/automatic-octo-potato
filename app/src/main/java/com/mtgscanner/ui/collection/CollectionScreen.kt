@@ -824,7 +824,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
                 Modifier.fillMaxWidth().clickable { editing = w }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CardImage(w.imageUrl, Modifier.width(44.dp), corner = 4.dp)
+                CardImage(w.imageUrl, Modifier.width(44.dp), corner = 4.dp, zoom = true)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(w.name, style = MaterialTheme.typography.titleSmall)
