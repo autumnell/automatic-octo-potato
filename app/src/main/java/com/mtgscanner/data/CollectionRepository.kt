@@ -514,6 +514,8 @@ class CollectionRepository(
         }
     }
 
+    suspend fun cardOnce(id: Long): CollectionCard? = dao.get(id)
+
     /** Drops every condition price, back to near-mint prices (when the key is removed). */
     suspend fun clearConditionPrices() {
         dao.clearConditionPrices()

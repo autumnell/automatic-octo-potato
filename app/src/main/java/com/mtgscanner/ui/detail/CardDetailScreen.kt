@@ -154,6 +154,16 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         val name = boxes.value.firstOrNull { it.id == boxId }?.name ?: "box"
         Undo.offer("Moved $qty to $name") { repo.restore(before); currentId.value = from }
     }
+    init {
+        // With a JustTCG key, keep this card's condition price fresh (at most once a day per card).
+        viewModelScope.launch {
+            val c = repo.cardOnce(id) ?: return@launch
+            if (com.mtgscanner.data.JustTcg.enabled && System.currentTimeMillis() - c.conditionPriceAt > 24L * 60 * 60 * 1000) {
+                runCatching { repo.refreshConditionPrices(listOf(c.id)) }
+            }
+        }
+    }
+
     fun setCondition(c: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(condition = c)) } }
     fun setNotes(n: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(notes = n)) } }
     fun delete(done: () -> Unit) = viewModelScope.launch {
@@ -291,7 +301,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText)
-                                if (c.condition != "NM" && c.nearMintPrice() != null) {
+                                if (c.conditionPrice != null && c.condition != "NM" && c.nearMintPrice() != null) {
                                     Text("${c.condition} · near mint ${formatUsd(c.nearMintPrice())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 }
                                 val change = c.changeSinceAdded()
