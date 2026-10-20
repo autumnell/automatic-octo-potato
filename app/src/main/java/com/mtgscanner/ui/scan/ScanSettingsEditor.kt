@@ -49,6 +49,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
     val presets by ScanPrefs.presets.collectAsStateWithLifecycle()
     val active by ScanPrefs.activePreset.collectAsStateWithLifecycle()
     var saving by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<String?>(null) }
     val update = ScanPrefs::update
 
     Column(modifier) {
@@ -60,7 +61,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
             })
         }
         active?.let { name ->
-            TextButton(onClick = { ScanPrefs.delete(name) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+            TextButton(onClick = { deleting = name }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                 Text("Delete “$name”", color = Palette.Muted, style = MaterialTheme.typography.labelMedium)
             }
         }
@@ -121,6 +122,15 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
     }
 
     if (saving) SavePresetDialog(onSave = { ScanPrefs.saveAs(it); saving = false }, onDismiss = { saving = false })
+    deleting?.let { name ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            containerColor = Palette.Surface,
+            title = { Text("Delete “$name”?") },
+            confirmButton = { TextButton(onClick = { ScanPrefs.delete(name); deleting = null }) { Text("Delete", color = Palette.Danger) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+        )
+    }
 }
 
 @Composable
