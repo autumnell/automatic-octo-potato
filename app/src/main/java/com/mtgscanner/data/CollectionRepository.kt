@@ -337,8 +337,11 @@ class CollectionRepository(
      * then the card name (corrected against the offline name list), and uses the artwork to pick
      * the printing when the footer couldn't be read. Throws [IOException] when offline.
      */
-    suspend fun identify(guess: CardTextGuess): Identification? {
-        val key = guess.key ?: return null
+    suspend fun identify(raw: CardTextGuess): Identification? {
+        // With the set lock on, every read is looked up in that set first.
+        val lock = SortPrefs.setLock
+        val guess = lock?.let { raw.copy(setCode = it) } ?: raw
+        val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "")
         val cached = synchronized(lookupCache) { if (lookupCache.containsKey(key)) lookupCache[key] else null }
         val base = cached ?: doIdentify(guess).also { r -> if (r != null) synchronized(lookupCache) { lookupCache[key] = r } }
         base ?: return null
