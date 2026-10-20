@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.db.Box as CardBox
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
 /** Bottom sheet listing every printing of a card so the right set can be picked. */
@@ -100,7 +101,7 @@ fun PrintingsSheet(
                                 )
                             }
                         }
-                        Column(horizontalAlignment = Alignment.End) {
+                        if (AppSettings.showPrices) Column(horizontalAlignment = Alignment.End) {
                             Text(formatUsd(p.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
                             if (p.prices.usdFoil != null) {
                                 Text("Foil ${formatUsd(p.prices.usdFoil)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -155,7 +156,7 @@ fun AddCardSheet(
                         Text("${card.setName} · #${card.collectorNumber}", style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(
+                    if (AppSettings.showPrices) Text(
                         formatUsd(card.price(foil)),
                         style = MaterialTheme.typography.headlineSmall,
                         color = Palette.Accent,

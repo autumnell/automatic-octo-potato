@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -78,10 +79,14 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.decks.DecksTab
+import com.mtgscanner.ui.trade.shareText
+import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.priceSuffix
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.CsvExporter
 import kotlinx.coroutines.Dispatchers
@@ -126,6 +131,10 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun removeWish(id: Long) = viewModelScope.launch { repo.removeWish(id) }
 
+    private val allCards: StateFlow<List<com.mtgscanner.data.db.CollectionCard>> = repo.observeAll()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    fun cardsIn(boxId: Long) = allCards.value.filter { it.boxId == boxId }.sortedBy { it.name }
+
     fun refreshPrices() {
         if (_refreshing.value) return
         _refreshing.value = true
@@ -157,6 +166,8 @@ fun CollectionScreen(
     onBrowse: (boxId: Long) -> Unit,
     onSettings: () -> Unit,
     onOpenDeck: (deckId: Long) -> Unit,
+    onOpenCard: (Long) -> Unit = {},
+    onTrade: () -> Unit = {},
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -202,8 +213,8 @@ fun CollectionScreen(
             }
             when (tab) {
                 0 -> BoxesTab(ui, vm, onBrowse)
-                1 -> DecksTab(onOpenDeck)
-                else -> ListsTab(ui, vm, onBrowse)
+                1 -> DecksTab(onOpenDeck, onOpenCard)
+                else -> ListsTab(ui, vm, onBrowse, onTrade)
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
@@ -219,7 +230,8 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile("Number of cards", "${ui.totalCards}", Modifier.weight(1f))
-            StatTile("Total value", formatUsd(ui.totalValue), Modifier.weight(1f))
+            if (AppSettings.showPrices) StatTile("Total value", formatUsd(ui.totalValue), Modifier.weight(1f))
+            else StatTile("Boxes", "${ui.boxes.size}", Modifier.weight(1f))
         }
 
         Row(
@@ -337,7 +349,7 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f).padding(bottom = 4.dp),
                     )
-                    Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall)
+                    if (AppSettings.showPrices) Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall)
                 }
             }
         }
@@ -353,11 +365,33 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
 
 /** The wishlist, plus shortcuts to trade binders. */
 @Composable
-private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit) {
+private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: () -> Unit) {
     val wishlist by vm.wishlist.collectAsStateWithLifecycle()
     val trade = ui.boxes.filter { it.kind == "trade" }
+    val ctx = LocalContext.current
+    fun share(title: String, text: String) {
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(android.content.Intent.EXTRA_SUBJECT, title).putExtra(android.content.Intent.EXTRA_TEXT, text)
+        ctx.startActivity(android.content.Intent.createChooser(send, "Share $title"))
+    }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
+            Surface(
+                onClick = onTrade,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = Palette.BoxCard,
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Accent)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Trade calculator", style = MaterialTheme.typography.titleMedium)
+                        Text("Compare what you give and get, then save it", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
+                }
+            }
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(
@@ -379,13 +413,22 @@ private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                     Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Accent)
                     Spacer(Modifier.width(12.dp))
                     Text(b.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Text("${b.cards} · ${formatUsd(b.value)}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                    Text("${b.cards} cards${priceSuffix(b.value)}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                    IconButton(onClick = {
+                        val cards = vm.cardsIn(b.id)
+                        share(b.name, shareText("${b.name} (for trade)", cards.map { Triple(it.quantity, "${it.name} (${it.setCode} #${it.collectorNumber})", it.unitPrice()) }))
+                    }) { Icon(Icons.Filled.Share, "Share") }
                 }
             }
         }
         item {
             SectionHeader("Wishlist") {
                 if (wishlist.isNotEmpty()) {
+                    IconButton(onClick = {
+                        share("Wishlist", shareText("My wishlist", wishlist.map { Triple(it.wanted, it.name, it.priceUsd) }))
+                    }) { Icon(Icons.Filled.Share, "Share wishlist") }
+                }
+                if (wishlist.isNotEmpty() && AppSettings.showPrices) {
                     Text(
                         formatUsd(wishlist.sumOf { (it.priceUsd ?: 0.0) * it.wanted }),
                         style = MaterialTheme.typography.titleSmall,
@@ -410,7 +453,7 @@ private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                     Text(w.name, style = MaterialTheme.typography.titleSmall)
                     Text("Want ${w.wanted}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
-                Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
+                if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
                 IconButton(onClick = { vm.removeWish(w.id) }) { Icon(Icons.Filled.DeleteOutline, "Remove", tint = Palette.Muted) }
             }
         }

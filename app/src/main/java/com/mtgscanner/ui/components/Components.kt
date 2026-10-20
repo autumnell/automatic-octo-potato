@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.mtgscanner.ui.theme.MtgColors
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import java.text.NumberFormat
 import java.util.Locale
@@ -257,9 +258,12 @@ fun CardTile(
         }
         Spacer(Modifier.height(4.dp))
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(price, style = MaterialTheme.typography.labelMedium, color = Palette.Accent)
+        if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium, color = Palette.Accent)
     }
 }
+
+/** " · $12.34", or nothing when prices are hidden. */
+fun priceSuffix(v: Double?): String = if (AppSettings.showPrices) " · ${formatUsd(v)}" else ""
 
 fun boxIcon(kind: String): ImageVector = when (kind) {
     "binder" -> Icons.AutoMirrored.Filled.MenuBook

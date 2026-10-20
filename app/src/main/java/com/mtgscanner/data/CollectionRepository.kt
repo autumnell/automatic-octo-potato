@@ -31,6 +31,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -85,16 +87,21 @@ data class ValueChange(val value: Double, val paid: Double) {
     val percent: Double get() = if (paid > 0) change / paid * 100 else 0.0
 }
 
+/** A price change worth telling the user about. */
+data class PriceMove(val name: String, val then: Double, val now: Double, val wanted: Boolean)
+
 class CollectionRepository(
     context: Context,
     private val db: AppDatabase,
     val api: ScryfallApi,
 ) {
     private val dao = db.cardDao()
+    private val appContext: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("collection", Context.MODE_PRIVATE)
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val nameIndex = NameIndex(context.filesDir, api)
     private val art = ArtMatcher()
+    val scanLog = com.mtgscanner.scan.ScanLog(context.filesDir)
 
     fun observeAll(): Flow<List<CollectionCard>> = dao.observeAll()
     fun observe(id: Long): Flow<CollectionCard?> = dao.observe(id)
@@ -330,9 +337,50 @@ class CollectionRepository(
             )
         }
         dao.updateAll(updated)
+        // Wishlist prices too, so its total and alerts stay current.
+        val wishes = dao.allWishlist()
+        if (wishes.isNotEmpty()) {
+            val freshWish = runCatching { api.collection(wishes.map { it.scryfallId }) }.getOrDefault(emptyList()).associateBy { it.id }
+            wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.updateWish(w.copy(priceUsd = f.prices.usd?.toDoubleOrNull())) } }
+        }
         prefs.edit().putLong("pricesAt", System.currentTimeMillis()).apply()
         recordSnapshot()
         return updated.size
+    }
+
+    /**
+     * Refreshes prices and returns the cards (owned or wanted) whose price moved by at least
+     * [percent] and [dollars] since the last alert about them. New cards just start being watched.
+     */
+    private val alertSer = MapSerializer(String.serializer(), Double.serializer())
+
+    suspend fun priceMoves(percent: Double, dollars: Double): List<PriceMove> {
+        refreshPrices()
+        val baseFile = java.io.File(appContext.filesDir, "alert-baseline.json")
+        val base: MutableMap<String, Double> = runCatching {
+            Json.decodeFromString(alertSer, baseFile.readText())
+        }.getOrDefault(emptyMap()).toMutableMap()
+        val current = buildMap {
+            dao.all().forEach { c -> c.unitPrice()?.let { put("own:${c.scryfallId}:${c.foil}", Triple(c.name, it, false)) } }
+            dao.allWishlist().forEach { w -> w.priceUsd?.let { put("want:${w.oracleId}", Triple(w.name, it, true)) } }
+        }
+        val moves = mutableListOf<PriceMove>()
+        current.forEach { (key, v) ->
+            val (name, now, wanted) = v
+            val then = base[key]
+            if (then == null) { base[key] = now; return@forEach }
+            val diff = now - then
+            val pct = if (then > 0) kotlin.math.abs(diff) / then * 100 else 100.0
+            if (kotlin.math.abs(diff) >= dollars && pct >= percent) {
+                moves += PriceMove(name, then, now, wanted)
+                base[key] = now
+            }
+        }
+        base.keys.retainAll(current.keys)
+        runCatching {
+            baseFile.writeText(Json.encodeToString(alertSer, base))
+        }
+        return moves.sortedByDescending { kotlin.math.abs(it.now - it.then) }
     }
 
     /** Refreshes prices once a day, when the app opens. */

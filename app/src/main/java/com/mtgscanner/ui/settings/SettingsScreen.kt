@@ -48,6 +48,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -68,17 +69,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.ThemeMode
 import com.mtgscanner.ui.theme.ThemeSettings
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}) {
     var picking by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var versionTaps by remember { mutableIntStateOf(0) }
     val version = remember {
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
     }
@@ -135,19 +138,48 @@ fun SettingsScreen(onBack: () -> Unit) {
         SectionLabel("Preview")
         Preview()
 
+        SectionLabel("Prices")
+        PricesSection()
+
+        SectionLabel("Scanning")
+        ScanningSection()
+
         SectionLabel("Your data")
         DataSection(onMessage = { msg -> scope.launch { snackbar.showSnackbar(msg) } })
 
         SectionLabel("About")
         Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
             Column(Modifier.padding(16.dp)) {
-                Text("MTG Scanner $version", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "MTG Scanner $version",
+                    style = MaterialTheme.typography.titleSmall,
+                    // Tapping the version seven times reveals the scan log.
+                    modifier = Modifier.clickable {
+                        versionTaps++
+                        if (versionTaps >= 7 && !AppSettings.scanLogUnlocked) {
+                            AppSettings.unlockScanLog(true)
+                            scope.launch { snackbar.showSnackbar("Scan log turned on") }
+                        }
+                    },
+                )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Card data, images and prices come from Scryfall. Magic: The Gathering is © Wizards of the Coast; this app is unofficial.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                 )
+            }
+        }
+        if (AppSettings.scanLogUnlocked) {
+            SectionLabel("Troubleshooting")
+            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+                Row(Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Scan log", style = MaterialTheme.typography.titleSmall)
+                        Text("What the scanner read and matched, to share when it gets a card wrong", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                    TextButton(onClick = { AppSettings.unlockScanLog(false); versionTaps = 0 }) { Text("Hide") }
+                }
             }
         }
         Spacer(Modifier.height(32.dp))

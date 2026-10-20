@@ -72,6 +72,7 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
 @Composable
@@ -258,7 +259,7 @@ private fun ResultRow(c: ScryfallCard, onClick: () -> Unit) {
                 Text("${c.set.uppercase()} #${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Text(formatUsd(c.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
+        if (AppSettings.showPrices) Text(formatUsd(c.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
     }
 }
 

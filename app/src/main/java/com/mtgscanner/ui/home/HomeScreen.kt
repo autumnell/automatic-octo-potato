@@ -64,6 +64,7 @@ import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.MtgColors
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -166,11 +167,12 @@ fun HomeScreen(
             SectionHeader("Recently added") { TextButton(onClick = onCollection) { Text("See all") } }
             CardCarousel(ui.recent, onOpenCard)
         }
-        if (ui.valuable.isNotEmpty()) {
+        val prices = AppSettings.showPrices
+        if (prices && ui.valuable.isNotEmpty()) {
             SectionHeader("Most valuable")
             CardCarousel(ui.valuable, onOpenCard)
         }
-        if (ui.gainers.isNotEmpty()) {
+        if (prices && ui.gainers.isNotEmpty()) {
             SectionHeader("Biggest gains")
             CardCarousel(ui.gainers, onOpenCard, showGain = true)
         }
@@ -203,22 +205,24 @@ private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
             Modifier.background(Palette.HeroGradient),
         ) {
             Column(Modifier.padding(20.dp)) {
-                Text("Collection value", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+                val prices = AppSettings.showPrices
+                Text(if (prices) "Collection value" else "Your collection", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
                 Text(
-                    formatUsd(ui.totalValue),
+                    if (prices) formatUsd(ui.totalValue) else "${ui.totalCards} cards",
                     style = MaterialTheme.typography.displaySmall,
                     color = Palette.Accent,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
-                    if (ui.valueAtAdd > 0) {
+                    if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+                    else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+                    if (prices && ui.valueAtAdd > 0) {
                         Spacer(Modifier.width(10.dp))
                         ChangeText(ui.valueNowTracked - ui.valueAtAdd, ui.valueAtAdd)
                         Text(" since added", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
                 }
-                if (ui.history.size >= 2) {
+                if (prices && ui.history.size >= 2) {
                     Spacer(Modifier.height(12.dp))
                     ValueChart(ui.history, Modifier.fillMaxWidth().height(72.dp))
                     Row(Modifier.fillMaxWidth()) {
