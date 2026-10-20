@@ -141,6 +141,19 @@ private val typography = Typography(
     labelSmall = base(11, FontWeight.Medium, spacing = 0.5),
 )
 
+/** Every style made [factor] times larger, for big-text mode. */
+private fun Typography.scaled(factor: Float): Typography {
+    fun TextStyle.up() = copy(fontSize = fontSize * factor, lineHeight = lineHeight * factor)
+    return Typography(
+        displaySmall = displaySmall.up(), headlineLarge = headlineLarge.up(), headlineMedium = headlineMedium.up(),
+        headlineSmall = headlineSmall.up(), titleLarge = titleLarge.up(), titleMedium = titleMedium.up(),
+        titleSmall = titleSmall.up(), bodyLarge = bodyLarge.up(), bodyMedium = bodyMedium.up(), bodySmall = bodySmall.up(),
+        labelLarge = labelLarge.up(), labelMedium = labelMedium.up(), labelSmall = labelSmall.up(),
+    )
+}
+
+private val bigTypography = typography.scaled(1.2f)
+
 private val shapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
@@ -151,7 +164,7 @@ private val shapes = Shapes(
 
 @Composable
 fun MtgTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme(), typography = typography, shapes = shapes, content = content)
+    MaterialTheme(colorScheme = scheme(), typography = if (AppSettings.bigText) bigTypography else typography, shapes = shapes, content = content)
 }
 
 /** Colors for the five Magic colors plus colorless/multicolor, used for chips and mana symbols. */

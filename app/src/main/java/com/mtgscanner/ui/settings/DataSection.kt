@@ -54,6 +54,13 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.CsvExporter
 import com.mtgscanner.util.CsvFormat
 import com.mtgscanner.util.CsvImport
+import com.mtgscanner.util.InsuranceReport
+import com.mtgscanner.ui.components.SelectPill
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.runtime.mutableDoubleStateOf
 import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.util.ImportRow
 import kotlinx.coroutines.Dispatchers
@@ -110,6 +117,15 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Writes the weekly backup file now. */
     fun backupNow(ctx: android.content.Context) = run("Backing up…") {
         if (DriveBackup.backupNow(ctx.applicationContext)) "Backup saved" else "Backup failed"
+    }
+
+    /** Saves a PDF of every card worth at least [min] per copy. */
+    fun insuranceReport(ctx: android.content.Context, uri: Uri, min: Double) = run("Making report…") {
+        val cards = repo.allCards()
+        val n = withContext(Dispatchers.IO) {
+            ctx.contentResolver.openOutputStream(uri)?.use { InsuranceReport.write(cards, min, it, ctx.filesDir) }
+        } ?: return@run "Couldn't save to that file"
+        if (n == 1) "Report saved: 1 card" else "Report saved: $n cards"
     }
 
     fun restore(ctx: android.content.Context, uri: Uri) = run("Restoring…") {
@@ -169,6 +185,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     var confirmRestore by remember { mutableStateOf<Uri?>(null) }
     var choosingExport by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf(CsvFormat.FULL) }
+    var choosingReport by remember { mutableStateOf(false) }
+    var reportMin by remember { mutableDoubleStateOf(10.0) }
     remember { DriveBackup.load(ctx.applicationContext) }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -182,6 +200,9 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) vm.exportCsv(ctx, uri, exportFormat)
+    }
+    val reportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null) vm.insuranceReport(ctx, uri, reportMin)
     }
     // Picked once; Google Drive shows up in the picker. The weekly job then overwrites this file.
     val weeklyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -221,6 +242,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 }
             }
             HorizontalDivider(color = Palette.Outline)
+            Action(Icons.Filled.Shield, "Insurance report", "PDF of your valuable cards") { choosingReport = true }
+            HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/*"))
             }
@@ -241,6 +264,18 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             text = { Text("Everything currently in the app is replaced by the backup.") },
             confirmButton = { TextButton(onClick = { vm.restore(ctx, uri); confirmRestore = null }) { Text("Restore", color = Palette.Danger) } },
             dismissButton = { TextButton(onClick = { confirmRestore = null }) { Text("Cancel") } },
+        )
+    }
+
+    if (choosingReport) {
+        ReportDialog(
+            min = reportMin,
+            onMin = { reportMin = it },
+            onDismiss = { choosingReport = false },
+            onSave = {
+                choosingReport = false
+                reportLauncher.launch("mtg-insurance-${LocalDate.now()}.pdf")
+            },
         )
     }
 
@@ -265,6 +300,29 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             dismissButton = { TextButton(onClick = { choosingExport = false }) { Text("Cancel") } },
         )
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReportDialog(min: Double, onMin: (Double) -> Unit, onDismiss: () -> Unit, onSave: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Insurance report") },
+        text = {
+            Column {
+                Text("Cards worth at least", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                Spacer(Modifier.padding(top = 6.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1.0, 5.0, 10.0, 25.0, 100.0).forEach { v ->
+                        SelectPill("$${v.toInt()}", min == v, { onMin(v) })
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onSave) { Text("Save PDF") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 private fun backupDay(millis: Long): String =

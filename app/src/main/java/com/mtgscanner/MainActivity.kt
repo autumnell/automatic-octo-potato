@@ -194,8 +194,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onOpenCard = { nav.navigate("card/$it") },
                     onSettings = { nav.navigate("settings") },
                     onBrowseAll = { nav.navigate("browse/-1") },
+                    onGoals = { nav.navigate("goals") },
                 )
             }
+            composable(
+                "goals",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popBackStack() }) }
             composable("scan") { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) }
             composable("search") { SearchScreen() }
             composable("collection") {
