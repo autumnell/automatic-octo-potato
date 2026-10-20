@@ -193,6 +193,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onCollection = { nav.goToTab("collection") },
                     onOpenCard = { nav.navigate("card/$it") },
                     onSettings = { nav.navigate("settings") },
+                    onBrowseAll = { nav.navigate("browse/-1") },
                 )
             }
             composable("scan") { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) }
