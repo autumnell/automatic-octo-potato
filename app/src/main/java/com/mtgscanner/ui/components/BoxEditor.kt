@@ -364,7 +364,7 @@ private fun RulesStep(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("W", "U", "B", "R", "G", "M", "C").forEach { c ->
                 SelectPill(BoxRules.COLOR_NAMES.getValue(c), c in rules.colors, { onRules(rules.copy(colors = rules.colors.toggle(c))) },
-                    leading = if (c in "WUBRG") ({ ColorPip(c[0]) }) else null)
+                    leading = if (c in "WUBRGC") ({ ColorPip(c[0]) }) else null)
             }
         }
     }
@@ -393,7 +393,7 @@ private fun RulesStep(
     }
     RuleCard("Card type", rules.types.takeIf { it.isNotEmpty() }?.joinToString(", "), open == "type", { toggle("type") }) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BoxRules.TYPES.forEach { t -> SelectPill(t, t in rules.types, { onRules(rules.copy(types = rules.types.toggle(t))) }) }
+            BoxRules.TYPES.forEach { t -> SelectPill(t, t in rules.types, { onRules(rules.copy(types = rules.types.toggle(t))) }, leading = { Mana.Icon(t.lowercase(), Palette.Text, 16.dp) }) }
         }
     }
     if (AppSettings.showPrices || minText.isNotEmpty() || maxText.isNotEmpty()) {

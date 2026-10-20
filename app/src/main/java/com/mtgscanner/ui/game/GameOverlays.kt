@@ -100,8 +100,8 @@ fun seatRotation(players: Int, i: Int): Int = when (players) {
 
 /** Who holds the monarch or the initiative. */
 enum class TableMarker(val label: String, val icon: ImageVector) {
-    MONARCH("Monarch", GameIcons.Crown),
-    INITIATIVE("Initiative", GameIcons.Sword),
+    MONARCH("Monarch", com.mtgscanner.ui.components.ManaIcons.Monarch),
+    INITIATIVE("Initiative", com.mtgscanner.ui.components.ManaIcons.Initiative),
 }
 
 /**
@@ -216,13 +216,22 @@ private fun TileGrid(count: Int, minTile: Int = 170, modifier: Modifier = Modifi
 /** A counter with big minus and plus buttons. Hold a button to change it by 5. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CounterTile(label: String, value: Int, onChange: (Int) -> Unit, modifier: Modifier, note: String? = null, warn: Boolean = false) {
+private fun CounterTile(
+    label: String, value: Int, onChange: (Int) -> Unit, modifier: Modifier, note: String? = null, warn: Boolean = false,
+    icon: ImageVector? = null,
+) {
     Surface(
         modifier, shape = RoundedCornerShape(18.dp), color = Color(0xFF22242B),
         border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
     ) {
         Column(Modifier.padding(vertical = 10.dp, horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, color = Color.White, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(label, color = Color.White, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 listOf(-1, 1).forEach { sign ->
                     if (sign > 0) Text(
@@ -309,14 +318,14 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
             "Counters" -> {
                 val tiles = buildList<@Composable (Modifier) -> Unit> {
                     add { m -> CounterTile("Life", p.life, { vm.life(i, it) }, m, note = "Hold for 5", warn = p.life <= 5) }
-                    add { m -> CounterTile("Poison", p.poison, { vm.poison(i, it) }, m, note = "Out at ${g.format.poisonLimit}", warn = p.poison >= g.format.poisonLimit - 3) }
+                    add { m -> CounterTile("Poison", p.poison, { vm.poison(i, it) }, m, note = "Out at ${g.format.poisonLimit}", warn = p.poison >= g.format.poisonLimit - 3, icon = com.mtgscanner.ui.components.ManaIcons.Poison) }
                     if (g.format.usesCommander) {
-                        add { m -> CounterTile("Commander casts", p.commanderCasts, { vm.counter(i, "Commander cast", it) }, m, note = "Tax {${p.commanderTax}}") }
-                        if (g.partners) add { m -> CounterTile("Partner casts", p.partnerCasts, { vm.counter(i, "Partner cast", it) }, m, note = "Tax {${p.partnerTax}}") }
+                        add { m -> CounterTile("Commander casts", p.commanderCasts, { vm.counter(i, "Commander cast", it) }, m, note = "Tax {${p.commanderTax}}", icon = com.mtgscanner.ui.components.ManaIcons.Commander) }
+                        if (g.partners) add { m -> CounterTile("Partner casts", p.partnerCasts, { vm.counter(i, "Partner cast", it) }, m, note = "Tax {${p.partnerTax}}", icon = com.mtgscanner.ui.components.ManaIcons.Commander) }
                     }
-                    add { m -> CounterTile("Energy", p.energy, { vm.counter(i, "Energy", it) }, m) }
+                    add { m -> CounterTile("Energy", p.energy, { vm.counter(i, "Energy", it) }, m, icon = com.mtgscanner.ui.components.ManaIcons.Energy) }
                     add { m -> CounterTile("Experience", p.experience, { vm.counter(i, "Experience", it) }, m) }
-                    add { m -> CounterTile("Rad", p.rad, { vm.counter(i, "Rad", it) }, m) }
+                    add { m -> CounterTile("Rad", p.rad, { vm.counter(i, "Rad", it) }, m, icon = com.mtgscanner.ui.components.ManaIcons.Rad) }
                 }
                 val scroll = rememberScrollState()
                 ScrollPage(scroll) { Column(Modifier.verticalScroll(scroll)) { TileGrid(tiles.size) { k, m -> tiles[k](m) } } }
@@ -452,7 +461,7 @@ fun MenuOverlay(
                     Column(Modifier.verticalScroll(pageScroll)) {
                         TileGrid(dice.size, minTile = 150) { k, m ->
                             val (label, rollIt) = dice[k]
-                            ActionTile(Icons.Filled.Shuffle, label, m) { roll = "$label: ${rollIt()}" }
+                            ActionTile(com.mtgscanner.ui.components.ManaIcons.Dice, label, m) { roll = "$label: ${rollIt()}" }
                         }
                     }
                 }
@@ -480,7 +489,7 @@ fun MenuOverlay(
                             }
                             if (g.players.size > 1) {
                                 add { m ->
-                                    ActionTile(Icons.Filled.Shuffle, "Random first", m, roll?.takeIf { it.endsWith("goes first") }) {
+                                    ActionTile(com.mtgscanner.ui.components.ManaIcons.Dice, "Random first", m, roll?.takeIf { it.endsWith("goes first") }) {
                                         val first = Random.nextInt(g.players.size)
                                         vm.update { Game.setFirst(it, first) }
                                         roll = "${g.players[first].name} goes first"
@@ -546,9 +555,9 @@ fun nextDayNight(v: String?): String? = when (v) {
 }
 
 fun dayNightIcon(v: String?): ImageVector = when (v) {
-    "day" -> Icons.Filled.LightMode
-    "night" -> Icons.Filled.DarkMode
-    else -> Icons.Filled.Brightness4
+    "day" -> com.mtgscanner.ui.components.ManaIcons.Day
+    "night" -> com.mtgscanner.ui.components.ManaIcons.Night
+    else -> com.mtgscanner.ui.components.ManaIcons.DayNight
 }
 
 fun dayNightLabel(v: String?): String = when (v) {
