@@ -480,7 +480,7 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
             FilterGroup("Role") {
                 if (ui.roles.isEmpty()) {
                     Text(
-                        "Roles like Removal, Ramp and Card draw come from Scryfall's community tags. They show up here once your cards have been looked up.",
+                        "Roles appear once cards are looked up.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Palette.Muted,
                     )

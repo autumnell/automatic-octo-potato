@@ -181,7 +181,7 @@ fun ScanScreen(
                 EmptyState(
                     icon = Icons.Filled.Inventory2,
                     title = "Create a box first",
-                    body = "Scanned cards go into boxes. Make one for everything, or set rules like colors, rarity, borderless or foils so cards sort themselves.",
+                    body = "Scanned cards go into boxes.",
                     modifier = Modifier.align(Alignment.Center),
                     action = { GradientButton("Create a box", { vm.showNewBox(true) }, icon = Icons.Filled.Add) },
                 )
@@ -191,7 +191,7 @@ fun ScanScreen(
                 EmptyState(
                     icon = Icons.Filled.CameraAlt,
                     title = "Camera needed",
-                    body = "The scanner reads your cards with the camera. Nothing leaves your phone except the card name lookup.",
+                    body = "Needed to read your cards.",
                     modifier = Modifier.align(Alignment.Center),
                     action = {
                         if (blocked) {
@@ -319,7 +319,7 @@ private fun OfflineCard(name: String, vm: ScanViewModel) {
                 IconButton(onClick = vm::skip, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, "Skip", tint = Palette.Muted) }
             }
             Text(
-                "You're offline. Save it now and it's added with its price and printing once you're back online.",
+                "Offline. Save now, added when back online.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )
@@ -638,7 +638,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
             SelectPill("By box", state.listByBox, { vm.setListByBox(true) })
         }
         Text(
-            "Clearing the list keeps the cards in your collection. Use the bin to take one back out.",
+            "Clearing keeps cards in your collection.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -778,7 +778,7 @@ private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showReview(false) }, containerColor = Palette.Surface) {
         Text("Check these", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
         Text(
-            "Auto-add wasn't sure about these. Add the right ones; drop the rest and scan them again.",
+            "Auto-add wasn't sure about these.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),

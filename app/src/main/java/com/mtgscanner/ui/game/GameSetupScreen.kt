@@ -158,8 +158,6 @@ fun GameSetupScreen(onPlay: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TableStyle.entries.forEach { t -> SelectPill(t.label, style == t, { vm.setStyle(t) }) }
         }
-        Text("Each player can also put card art from your collection behind their life total, from their panel's menu.",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 6.dp))
 
         Label("Names")
         (0 until players).forEach { i ->

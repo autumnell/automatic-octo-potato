@@ -216,7 +216,7 @@ fun TradeScreen(onBack: () -> Unit) {
             onDismissRequest = { confirm = false },
             containerColor = Palette.Surface,
             title = { Text("Apply this trade?") },
-            text = { Text("Cards you give are taken out of your collection. Cards you get are added to the boxes whose rules fit them.") },
+            text = { Text("Updates your collection both ways.") },
             confirmButton = { TextButton(onClick = { vm.apply(); confirm = false }) { Text("Apply") } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
         )

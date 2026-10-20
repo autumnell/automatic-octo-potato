@@ -78,7 +78,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
             if (records.isEmpty()) {
-                Text("Nothing yet. A game is saved when one player is left standing, or when you end it and pick a winner.",
+                Text("No games yet.",
                     style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 16.dp))
             } else {
                 Header("Players")

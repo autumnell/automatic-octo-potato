@@ -228,7 +228,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         TopBar("Set tracker", "How much of each set you own", onBack)
         if (failed) Text(
-            "Couldn't reach Scryfall, so set sizes are missing. Your owned counts are still shown.",
+            "Offline: set sizes missing.",
             style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(horizontal = 20.dp),
         )
         val list = progress
@@ -367,7 +367,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
             SelectPill("Keep 1 (Commander)", keep == 1, { vm.setKeep(1) })
         }
         Text(
-            "Basic lands and cards already in a trade binder aren't counted. The newest copies are the ones suggested to move.",
+            "Basic lands and trade binders not counted.",
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp),
         )
         if (groups.isEmpty()) {
@@ -433,7 +433,7 @@ fun PacksScreen(onBack: () -> Unit) {
             onBack,
         )
         if (packs.isEmpty()) {
-            EmptyState(Icons.Filled.Inventory2, "No packs yet", "In the scanner, tap the modes button at the top and choose Open a pack. Scan what you pulled, then finish the pack to see if it was worth it.")
+            EmptyState(Icons.Filled.Inventory2, "No packs yet", "Open a pack from the scanner's modes button.")
             return@Column
         }
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {

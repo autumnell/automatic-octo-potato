@@ -29,7 +29,20 @@ class MtgApp : Application(), ImageLoaderFactory {
     }
 
     /** Card images fade in, and set symbols (SVG) can be drawn. */
+    // Scryfall's image servers expect an app name, like its API does.
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .okHttpClient {
+            okhttp3.OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    chain.proceed(
+                        chain.request().newBuilder()
+                            .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+                            .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+                            .build(),
+                    )
+                }
+                .build()
+        }
         .components { add(SvgDecoder.Factory()) }
         .crossfade(true)
         .build()

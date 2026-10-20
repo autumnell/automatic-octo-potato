@@ -133,7 +133,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, onOpenCard: (Long) -> Unit = {}, vm: De
                 EmptyState(
                     icon = Icons.Filled.Style,
                     title = "Check a deck against your cards",
-                    body = "Paste a decklist from Moxfield, Archidekt, MTG Arena or anywhere else. You'll see which cards you own, which box they're in, and what's missing.",
+                    body = "Paste a decklist to see what you own.",
                     action = { GradientButton("Paste a decklist", { onOpenDeck(0L) }, icon = Icons.Filled.Add) },
                 )
             }
@@ -168,7 +168,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, onOpenCard: (Long) -> Unit = {}, vm: De
             item {
                 SectionHeader("Commander ideas")
                 Text(
-                    "Legendary creatures you own, ranked by how many of your other cards fit their colors.",
+                    "Ranked by how many of your cards fit.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -311,7 +311,7 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
             shape = RoundedCornerShape(14.dp), colors = colors,
         )
         Spacer(Modifier.height(6.dp))
-        Text("One card per line. Exports from Moxfield, Archidekt, Arena and MTGO all work.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        Text("One card per line.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         Spacer(Modifier.height(14.dp))
         GradientButton("Check my collection", vm::save, Modifier.fillMaxWidth(), enabled = ui.text.isNotBlank())
     }

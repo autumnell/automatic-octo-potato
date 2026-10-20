@@ -66,7 +66,7 @@ fun AutoSortOrderSheet(
         Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Auto-sort order", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Each scanned card goes into the first box below whose rules fit. Boxes that take any card are only used when no other box fits.",
+                "Cards go to the first box that fits.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )
@@ -93,7 +93,7 @@ fun AutoSortOrderSheet(
             HorizontalDivider(color = Palette.Outline)
             Text("When nothing fits", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text(
-                "Pick a box for cards no rules fit. Without one, they go to the first box that takes any card, or you're asked to pick.",
+                "Box for cards that fit nothing.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )

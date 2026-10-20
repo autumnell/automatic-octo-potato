@@ -308,25 +308,9 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             EmptyState(
                 icon = Icons.Filled.Inventory2,
                 title = "No boxes yet",
-                body = "Create a box before scanning. Give it rules (colors, rarity, borderless, foils, price…) and scanned cards sort themselves into the right one.",
+                body = "Create a box to start scanning.",
                 action = { GradientButton("Create a box", { creating = true }, icon = Icons.Filled.Add) },
             )
-        }
-        val lone = ui.boxes.singleOrNull()?.takeIf { it.cards > 0 && BoxRules.fromJson(it.rules).isCatchAll }
-        if (lone != null) Surface(
-            onClick = { sorting = lone },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = Palette.Surface,
-        ) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.AutoFixHigh, null, tint = Palette.Accent)
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "Everything is in ${lone.name}. Tap to sort it into boxes by color, rarity, price and more.",
-                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f),
-                )
-            }
         }
         ui.boxes.forEach { b ->
             BoxCard(b, onClick = { onBrowse(b.id) }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b })
@@ -430,7 +414,7 @@ private fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: () 
         text = {
             Column {
                 Text(
-                    "Move cards out of this box using the same options as box rules: colors, rarity, type, treatments, foil, price and set. Cards that fit nothing stay here.",
+                    "Cards that fit nothing stay here.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -577,7 +561,7 @@ private fun ListsTab(
                 EmptyState(
                     icon = Icons.Filled.FavoriteBorder,
                     title = "Nothing on your wishlist",
-                    body = "Add cards from Search, or the missing cards of a deck. The scanner tells you when you find one.",
+                    body = "Add cards from Search or a deck.",
                 )
             }
         }

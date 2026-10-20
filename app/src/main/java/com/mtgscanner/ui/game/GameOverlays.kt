@@ -267,7 +267,7 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
                 TileGrid(tiles.size) { k, m -> tiles[k](m) }
             }
             "Commander damage" -> {
-                Text("Damage from each commander, which also comes off life. 21 from one commander and you're out.",
+                Text("21 from one commander and you're out.",
                     color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
                 Spacer(Modifier.height(8.dp))
                 val sources = g.players.indices.filter { it != i }.flatMap { from -> listOf(from to false) + if (g.partners) listOf(from to true) else emptyList() }

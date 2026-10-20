@@ -175,7 +175,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel) {
             }
         }
         Text(
-            "Tip: Scryfall search works too, like  t:dragon c:r  or  e:mh3 r:mythic",
+            "Try  t:dragon c:r  or  e:mh3 r:mythic",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(top = 8.dp),
@@ -199,7 +199,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel) {
             ui.ranQuery == null -> EmptyState(
                 Icons.Filled.Search,
                 "Find any card",
-                "Search by name, or open the Sets tab to browse a whole set. Tap a card to add it to your collection.",
+                "Search by name or browse a set.",
                 Modifier.align(Alignment.TopCenter).padding(top = 24.dp),
             )
             ui.results.isEmpty() && ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)

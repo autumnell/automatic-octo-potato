@@ -40,7 +40,7 @@ fun PricesSection() {
     Card {
         ToggleRow(
             "Show prices",
-            "Turn off to hide every price, value, gain and loss in the app. Price alerts stop too.",
+            "Hide all prices and alerts.",
             AppSettings.showPrices,
         ) {
             AppSettings.updateShowPrices(it)
@@ -51,7 +51,7 @@ fun PricesSection() {
             HorizontalDivider(color = Palette.Outline)
             ToggleRow(
                 "Price alerts",
-                "Once a day, get a notification when a card you own or want moves a lot in price.",
+                "Daily alert for big price moves.",
                 AppSettings.priceAlerts,
             ) { on ->
                 if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
