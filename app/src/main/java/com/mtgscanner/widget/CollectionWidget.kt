@@ -6,13 +6,14 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import android.widget.RemoteViews
 import com.mtgscanner.MainActivity
 import com.mtgscanner.R
 import java.text.NumberFormat
 import java.util.Locale
 
-/** Home screen widget: collection value (or card count when prices are hidden) and a Scan button. */
+/** Home screen widget: just the collection value (or card count when prices are hidden). */
 class CollectionWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { manager.updateAppWidget(it, views(context)) }
@@ -40,15 +41,11 @@ class CollectionWidget : AppWidgetProvider() {
             val value = p.getFloat("value", 0f).toDouble()
             val cards = p.getInt("cards", 0)
             val v = RemoteViews(context.packageName, R.layout.widget_collection)
-            if (showPrices) {
-                v.setTextViewText(R.id.widget_value, NumberFormat.getCurrencyInstance(Locale.US).format(value))
-                v.setTextViewText(R.id.widget_cards, "$cards cards")
-            } else {
-                v.setTextViewText(R.id.widget_value, "$cards cards")
-                v.setTextViewText(R.id.widget_cards, "")
-            }
+            // Just the total value (or the card count when prices are hidden). Tap opens the app.
+            v.setTextViewText(R.id.widget_value, if (showPrices) NumberFormat.getCurrencyInstance(Locale.US).format(value) else "$cards cards")
+            v.setViewVisibility(R.id.widget_cards, View.GONE)
+            v.setViewVisibility(R.id.widget_scan, View.GONE)
             v.setOnClickPendingIntent(R.id.widget_root, open(context, "home", 0))
-            v.setOnClickPendingIntent(R.id.widget_scan, open(context, "scan", 1))
             return v
         }
 

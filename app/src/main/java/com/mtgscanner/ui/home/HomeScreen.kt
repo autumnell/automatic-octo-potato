@@ -1,6 +1,5 @@
 package com.mtgscanner.ui.home
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Style
@@ -35,15 +35,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -51,12 +50,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.GoalProgress
+import com.mtgscanner.data.ScryfallCard
+import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.data.db.ValueSnapshot
 import com.mtgscanner.data.db.changeSinceAdded
 import com.mtgscanner.data.db.priceWhenAdded
-import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.data.db.totalPrice
+import com.mtgscanner.data.db.unitPrice
+import com.mtgscanner.data.observeGoalProgress
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.BrowseLaunch
 import com.mtgscanner.ui.collection.SortBy
@@ -66,14 +70,19 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.StatTile
+import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
-import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.AppSettings
+import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.Palette
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class HomeUi(
     val loaded: Boolean = false,
@@ -92,10 +101,19 @@ data class HomeUi(
     val valueNowTracked: Double = 0.0,
     val history: List<ValueSnapshot> = emptyList(),
     val gainers: List<CollectionCard> = emptyList(),
+    /** Commons and uncommons under 50¢, for the bulk estimate. */
+    val bulkCards: Int = 0,
+    val boxCount: Int = 0,
 )
 
-class HomeViewModel(repo: CollectionRepository) : ViewModel() {
-    val ui: StateFlow<HomeUi> = combine(repo.observeAll(), repo.observeSnapshots()) { all, history ->
+/** Worked out from price history: this week's movers and each box's value by day. */
+data class PriceData(
+    val movers: List<PriceMover> = emptyList(),
+    val boxValues: BoxValues = BoxValues(emptyList(), emptyMap()),
+)
+
+class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
+    val ui: StateFlow<HomeUi> = combine(repo.observeAll(), repo.observeSnapshots(), repo.observeBoxes()) { all, history, boxes ->
         val colorCounts = linkedMapOf("W" to 0, "U" to 0, "B" to 0, "R" to 0, "G" to 0, "M" to 0, "C" to 0)
         all.forEach { c ->
             val key = when {
@@ -113,15 +131,72 @@ class HomeViewModel(repo: CollectionRepository) : ViewModel() {
             sets = all.map { it.setCode }.distinct().size,
             foils = all.filter { it.foil }.sumOf { it.quantity },
             recent = all.sortedByDescending { it.addedAt }.take(12),
-            valuable = all.filter { (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12),
+            valuable = all.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12),
             colors = colorCounts.toList(),
-            valueAtAdd = all.filter { it.priceAtAdd != null }.sumOf { it.priceWhenAdded()!! * it.quantity },
+            valueAtAdd = all.filter { it.priceAtAdd != null }.sumOf { (it.priceWhenAdded() ?: 0.0) * it.quantity },
             valueNowTracked = all.filter { it.priceAtAdd != null }.sumOf { it.totalPrice() },
             history = history,
             gainers = all.filter { (it.changeSinceAdded() ?: 0.0) > 0.0 }
-                .sortedByDescending { it.changeSinceAdded()!! * it.quantity }.take(12),
+                .sortedByDescending { (it.changeSinceAdded() ?: 0.0) * it.quantity }.take(12),
+            bulkCards = HomeMath.bulk(all, 0.0).cards,
+            boxCount = boxes.size,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
+
+    val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Cards to move and unknown scans, for "To be sorted". */
+    val toSort: StateFlow<ToSortUi> = combine(repo.observeAll(), repo.observeBoxes(), repo.observePending()) { cards, boxes, pending ->
+        ToSortUi(
+            items = runCatching { repo.cardsToSort(cards, boxes) }.getOrDefault(emptyList()),
+            unknown = pending.filter { it.unknown },
+            boxNames = boxes.associate { it.id to it.name },
+        )
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ToSortUi())
+
+    /** Recomputed when cards change or prices refresh (a refresh writes a new snapshot). */
+    val prices: StateFlow<PriceData> = combine(repo.observeAll(), repo.observeSnapshots()) { all, _ -> all }
+        .map { all ->
+            val points = runCatching { repo.dao.allPricePoints() }.getOrDefault(emptyList())
+            val weekAgo = java.time.LocalDate.now().minusDays(7).toString()
+            PriceData(HomeMath.movers(all, points, weekAgo), HomeMath.boxValues(all, points))
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PriceData())
+
+    val goals: StateFlow<List<GoalProgress>> = repo.observeGoalProgress()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Moves every card in "To be sorted" to its box, with Undo. */
+    fun sortAll() = viewModelScope.launch {
+        val items = toSort.value.items
+        if (items.isEmpty()) return@launch
+        val undo = repo.applyMoves(items.map { it.card.id to it.to })
+        val n = undo.size
+        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.applyMoves(undo) }
+    }
+
+    suspend fun searchCards(text: String): List<ScryfallCard> {
+        val q = text.trim()
+        if (q.length < 2) return emptyList()
+        val found = runCatching { repo.api.search(q) }.getOrDefault(emptyList()).take(20)
+        if (found.isNotEmpty()) return found
+        return listOfNotNull(runCatching { repo.api.named(q) }.getOrNull())
+    }
+
+    /** Adds the card picked for an unknown scan and clears the scan. */
+    fun resolveUnknown(scan: PendingScan, card: ScryfallCard) = viewModelScope.launch {
+        val box = if (scan.boxId != CardBox.AUTO_SORT && repo.box(scan.boxId) != null) scan.boxId
+        else repo.pickBox(card, scan.foil) ?: repo.anythingBox()
+        repo.add(card, scan.foil, scan.quantity.coerceAtLeast(1), box)
+        repo.deletePending(scan.id)
+        Undo.offer("Added ${card.name}")
+    }
+
+    fun deleteUnknown(scan: PendingScan) = viewModelScope.launch {
+        repo.deletePending(scan.id)
+        Undo.offer("Scan deleted") { repo.addUnknown(scan.name, scan.boxId, scan.foil) }
+    }
 }
 
 @Composable
@@ -133,9 +208,20 @@ fun HomeScreen(
     onSettings: () -> Unit,
     /** Opens Browse of the whole collection. Without it, Home goes via the Collection tab. */
     onBrowseAll: (() -> Unit)? = null,
+    /** Opens the goals screen. */
+    onGoals: () -> Unit = {},
     vm: HomeViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
+    val ctx = LocalContext.current
+    remember { HomePrefs.load(ctx) }
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val toSort by vm.toSort.collectAsStateWithLifecycle()
+    val prices by vm.prices.collectAsStateWithLifecycle()
+    val goals by vm.goals.collectAsStateWithLifecycle()
+    val boxes by vm.boxes.collectAsStateWithLifecycle()
+    var editing by remember { mutableStateOf(false) }
+    var unknown by remember { mutableStateOf<PendingScan?>(null) }
+
     fun browse(sort: SortBy? = null, color: String? = null) {
         BrowseLaunch.sort = sort
         BrowseLaunch.color = color
@@ -152,59 +238,106 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .statusBarsPadding(),
     ) {
-        Header(onSettings)
+        Header(onSettings, onEdit = { editing = true })
         HeroCard(ui, onScan)
         Spacer(Modifier.height(12.dp))
 
         if (ui.loaded && ui.totalCards == 0) {
-            EmptyState(
-                icon = Icons.Filled.Style,
-                title = "Start your collection",
-                body = "Scan or search to add cards.",
-                action = {
-                    TextButton(onClick = onSearch) {
-                        Icon(Icons.Filled.Search, null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Search by name instead")
+            if (ui.boxCount == 0) {
+                EmptyState(
+                    icon = Icons.Filled.Inventory2,
+                    title = "Start with a box",
+                    body = "Then scan cards into it.",
+                    action = { GradientButton("Make a box", onCollection, icon = Icons.Filled.Inventory2) },
+                )
+            } else {
+                EmptyState(
+                    icon = Icons.Filled.Style,
+                    title = "No cards yet",
+                    body = "Scan or search to add cards.",
+                    action = {
+                        TextButton(onClick = onSearch) {
+                            Icon(Icons.Filled.Search, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Search by name")
+                        }
+                    },
+                )
+            }
+            // Unknown scans can exist before any card was added.
+            if (!toSort.isEmpty) {
+                SectionHeader("To be sorted")
+                ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it })
+            }
+        } else if (ui.loaded) {
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile("Unique", "${ui.uniqueCards}", Modifier.weight(1f))
+                StatTile("Sets", "${ui.sets}", Modifier.weight(1f))
+                StatTile("Foils", "${ui.foils}", Modifier.weight(1f))
+            }
+            val showPrices = AppSettings.showPrices
+            HomePrefs.sections.forEach { section ->
+                when (section) {
+                    HomeSection.TO_SORT -> if (!toSort.isEmpty) {
+                        SectionHeader("To be sorted")
+                        ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it })
                     }
-                },
-            )
-            return@Column
+                    HomeSection.GOALS -> {
+                        SectionHeader("Goals") { if (goals.isNotEmpty()) TextButton(onClick = onGoals) { Text("See all") } }
+                        GoalsPreview(goals, onGoals)
+                    }
+                    HomeSection.RECENT -> if (ui.recent.isNotEmpty()) {
+                        SectionHeader("Recently added") { TextButton(onClick = { browse(SortBy.RECENT) }) { Text("See all") } }
+                        CardCarousel(ui.recent, onOpenCard)
+                    }
+                    HomeSection.MOVERS -> if (showPrices && prices.movers.isNotEmpty()) {
+                        SectionHeader("Price moves this week")
+                        MoversCarousel(prices.movers, onOpenCard)
+                    }
+                    HomeSection.VALUABLE -> if (showPrices && ui.valuable.isNotEmpty()) {
+                        SectionHeader("Most valuable") { TextButton(onClick = { browse(SortBy.PRICE) }) { Text("See all") } }
+                        CardCarousel(ui.valuable, onOpenCard)
+                    }
+                    HomeSection.GAINERS -> if (showPrices && ui.gainers.isNotEmpty()) {
+                        SectionHeader("Biggest gains") { TextButton(onClick = { browse(SortBy.GAIN) }) { Text("See all") } }
+                        CardCarousel(ui.gainers, onOpenCard, showGain = true)
+                    }
+                    HomeSection.BOX_VALUES -> if (showPrices && prices.boxValues.days.size >= 2 && boxes.isNotEmpty()) {
+                        SectionHeader("Value by box")
+                        BoxValueChart(prices.boxValues, boxes)
+                    }
+                    HomeSection.BULK -> if (showPrices && ui.bulkCards > 0) {
+                        SectionHeader("Bulk estimate")
+                        BulkCard(ui.bulkCards)
+                    }
+                    HomeSection.COLORS -> {
+                        SectionHeader("Colors")
+                        ColorBreakdown(ui.colors, onColor = { browse(color = it) })
+                    }
+                }
+            }
         }
-
-        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Unique", "${ui.uniqueCards}", Modifier.weight(1f))
-            StatTile("Sets", "${ui.sets}", Modifier.weight(1f))
-            StatTile("Foils", "${ui.foils}", Modifier.weight(1f))
-        }
-
-        if (ui.recent.isNotEmpty()) {
-            SectionHeader("Recently added") { TextButton(onClick = { browse(SortBy.RECENT) }) { Text("See all") } }
-            CardCarousel(ui.recent, onOpenCard)
-        }
-        val prices = AppSettings.showPrices
-        if (prices && ui.valuable.isNotEmpty()) {
-            SectionHeader("Most valuable") { TextButton(onClick = { browse(SortBy.PRICE) }) { Text("See all") } }
-            CardCarousel(ui.valuable, onOpenCard)
-        }
-        if (prices && ui.gainers.isNotEmpty()) {
-            SectionHeader("Biggest gains") { TextButton(onClick = { browse(SortBy.GAIN) }) { Text("See all") } }
-            CardCarousel(ui.gainers, onOpenCard, showGain = true)
-        }
-        SectionHeader("Colors")
-        ColorBreakdown(ui.colors, onColor = { browse(color = it) })
         Spacer(Modifier.height(24.dp))
+    }
+
+    if (editing) EditHomeDialog(onDismiss = { editing = false })
+    unknown?.let { scan ->
+        UnknownScanDialog(
+            scan = scan,
+            search = { vm.searchCards(it) },
+            onPick = { card -> vm.resolveUnknown(scan, card); unknown = null },
+            onDelete = { vm.deleteUnknown(scan); unknown = null },
+            onDismiss = { unknown = null },
+        )
     }
 }
 
 @Composable
-private fun Header(onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column {
-            Text("MTG Scanner", style = MaterialTheme.typography.titleLarge)
-            Text("Your collection at a glance", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-        }
+private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("MTG Scanner", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.weight(1f))
+        TextButton(onClick = onEdit) { Text("Edit", color = Palette.Muted) }
         IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings") }
     }
 }
@@ -336,6 +469,6 @@ fun ChangeText(change: Double, base: Double, style: androidx.compose.ui.text.Tex
 private fun ValueChart(points: List<ValueSnapshot>, modifier: Modifier) =
     com.mtgscanner.ui.components.LineChart(points.map { it.value }, modifier)
 
-private fun shortDay(day: String): String = runCatching {
+internal fun shortDay(day: String): String = runCatching {
     java.time.LocalDate.parse(day).format(java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US))
 }.getOrDefault(day)

@@ -23,11 +23,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CollectionsBookmark
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -54,19 +52,12 @@ object Tour {
 private data class TourPage(val icon: ImageVector, val title: String, val body: String)
 
 private val PAGES = listOf(
-    TourPage(Icons.Filled.Inventory2, "Boxes come first",
-        "Make a box for your cards: a storage box, a binder, a deck or a trade binder. Give it rules like colors, rarity or price, or let it take anything."),
-    TourPage(Icons.Filled.CameraAlt, "Scan cards",
-        "Hold a card in front of the camera, any way up. Turn on auto-add to feed cards one after another, or scan a whole binder page at once."),
-    TourPage(Icons.Filled.AutoFixHigh, "Auto-sort",
-        "Pick Auto-sort in the scanner and each card goes into the first box whose rules fit. A big label tells you where to file it."),
-    TourPage(Icons.Filled.CollectionsBookmark, "Your collection",
-        "Browse, filter and tag your cards. Long-press to pick several, swipe a row to move or remove it, and undo any change."),
-    TourPage(Icons.Filled.Favorite, "And more",
-        "Track set completion, find extra copies to trade, log pack openings, check decks and keep score with the Game tab's life counter."),
+    TourPage(Icons.Filled.Inventory2, "Make a box", "One for each real box or binder. Add rules, or let it take anything."),
+    TourPage(Icons.Filled.CameraAlt, "Scan", "Hold a card up. The app says which box it goes in."),
+    TourPage(Icons.Filled.Search, "Find a card", "Search your collection to see which box it's in."),
 )
 
-/** A few swipeable pages shown on first launch. Can be shown again from Settings. */
+/** Three swipeable pages shown on first launch. Can be shown again from Settings. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FirstRunTour(onDone: () -> Unit) {

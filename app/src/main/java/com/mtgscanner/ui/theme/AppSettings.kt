@@ -23,6 +23,10 @@ object AppSettings {
     var alertDollars by mutableDoubleStateOf(1.0)
         private set
 
+    /** Larger text everywhere, mainly card names and prices. */
+    var bigText by mutableStateOf(false)
+        private set
+
     /** Developer-ish: the hidden scan log is switched on. */
     var scanLogUnlocked by mutableStateOf(false)
         private set
@@ -35,12 +39,14 @@ object AppSettings {
         alertPercent = p.getFloat("alertPercent", 20f).toDouble()
         alertDollars = p.getFloat("alertDollars", 1f).toDouble()
         scanLogUnlocked = p.getBoolean("scanLog", false)
+        bigText = p.getBoolean("bigText", false)
     }
 
     fun updateShowPrices(v: Boolean) { showPrices = v; prefs?.edit()?.putBoolean("showPrices", v)?.apply() }
     fun updatePriceAlerts(v: Boolean) { priceAlerts = v; prefs?.edit()?.putBoolean("priceAlerts", v)?.apply() }
     fun updateAlertPercent(v: Double) { alertPercent = v; prefs?.edit()?.putFloat("alertPercent", v.toFloat())?.apply() }
     fun updateAlertDollars(v: Double) { alertDollars = v; prefs?.edit()?.putFloat("alertDollars", v.toFloat())?.apply() }
+    fun updateBigText(v: Boolean) { bigText = v; prefs?.edit()?.putBoolean("bigText", v)?.apply() }
     fun unlockScanLog(v: Boolean) { scanLogUnlocked = v; prefs?.edit()?.putBoolean("scanLog", v)?.apply() }
 
     /** Read outside Compose (workers). */

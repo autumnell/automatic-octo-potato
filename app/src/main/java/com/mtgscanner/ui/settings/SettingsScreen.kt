@@ -186,6 +186,9 @@ private fun LookTab() {
         }
     }
 
+    SectionLabel("Text")
+    Card { ToggleRow("Big text", "Larger names and prices", AppSettings.bigText) { AppSettings.updateBigText(it) } }
+
     SectionLabel("Preview")
     Preview()
 
