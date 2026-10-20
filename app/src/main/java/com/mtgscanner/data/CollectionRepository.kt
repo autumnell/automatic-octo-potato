@@ -125,7 +125,6 @@ class CollectionRepository(
     fun observeWishlist(): Flow<List<WishlistItem>> = dao.observeWishlist()
     fun observePending(): Flow<List<PendingScan>> = dao.observePending()
     fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>> = dao.observePriceHistory(scryfallId)
-    fun observePacks(): Flow<List<PackOpening>> = dao.observePacks()
 
     /** Starts background work: the name list, daily prices, card roles and offline scans. */
     fun startBackgroundWork() {
@@ -599,11 +598,6 @@ class CollectionRepository(
         dao.clearConditionPrices()
         runCatching { recordSnapshot() }
     }
-
-    // Packs
-
-    suspend fun savePack(p: PackOpening): Long = dao.addPack(p)
-    suspend fun deletePack(id: Long) = dao.deletePack(id)
 
     suspend fun allCards(): List<CollectionCard> = dao.all()
 
