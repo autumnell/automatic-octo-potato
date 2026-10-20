@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
@@ -166,6 +167,10 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
 
     fun setCondition(c: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(condition = c)) } }
     fun setNotes(n: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(notes = n)) } }
+    fun setLang(l: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(lang = l)) } }
+    fun setSigned(on: Boolean) = viewModelScope.launch { card.value?.let { repo.update(it.copy(signed = on)) } }
+    fun setAltered(on: Boolean) = viewModelScope.launch { card.value?.let { repo.update(it.copy(altered = on)) } }
+    fun setGraded(g: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(graded = g.trim())) } }
     fun delete(done: () -> Unit) = viewModelScope.launch {
         val before = repo.snapshot(listOf(currentId.value))
         val name = card.value?.name ?: "card"
@@ -188,6 +193,11 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     fun removeTag(tag: String) = viewModelScope.launch { repo.removeTag(currentId.value, tag) }
 }
 
+private val LANGUAGES = listOf(
+    "en" to "English", "ja" to "Japanese", "de" to "German", "fr" to "French", "it" to "Italian", "es" to "Spanish",
+    "pt" to "Portuguese", "ru" to "Russian", "ko" to "Korean", "zhs" to "Chinese (S)", "zht" to "Chinese (T)",
+)
+
 private val CONDITIONS = listOf("NM" to "Near mint", "LP" to "Lightly played", "MP" to "Moderately played", "HP" to "Heavily played", "DMG" to "Damaged")
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -205,6 +215,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     val loaded by vm.loaded.collectAsStateWithLifecycle()
     var moveTarget by remember { mutableStateOf<CardBox?>(null) }
     var editingNotes by remember { mutableStateOf(false) }
+    var editingGraded by remember { mutableStateOf(false) }
     val c = card
     // A row briefly disappears while it merges into another box; only call it missing if it stays gone.
     var showMissing by remember { mutableStateOf(false) }
@@ -238,6 +249,11 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // Special-copy badges first, so they're seen next to the name.
+                        if (c.lang.isNotBlank() && !c.lang.equals("en", ignoreCase = true)) Badge(c.lang.uppercase())
+                        if (c.signed) Badge("Signed")
+                        if (c.altered) Badge("Altered")
+                        if (c.graded.isNotBlank()) Badge(c.graded)
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         InfoChip { Text("${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium) }
                         c.releasedAt?.let { InfoChip { Text(it.take(4), style = MaterialTheme.typography.labelMedium) } }
@@ -259,6 +275,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 if (boxes.size > 1) BoxPicker(boxes, c.boxId) { b ->
                                     if (c.quantity > 1) moveTarget = b else vm.moveTo(b.id)
                                 }
+                                LangPicker(c.lang) { vm.setLang(it) }
+                                SpecialPicker(
+                                    c,
+                                    onSigned = { vm.setSigned(it) },
+                                    onAltered = { vm.setAltered(it) },
+                                    onGraded = { editingGraded = true },
+                                )
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
                                     onClick = { editingNotes = true },
@@ -422,6 +445,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
 
     if (editingNotes && c != null) NotesDialog(c.notes, onSave = { vm.setNotes(it); editingNotes = false }, onDismiss = { editingNotes = false })
 
+    if (editingGraded && c != null) GradedDialog(c.graded, onSave = { vm.setGraded(it); editingGraded = false }, onDismiss = { editingGraded = false })
+
     if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
 
     if (confirmDelete) {
@@ -512,6 +537,75 @@ private fun DropChip(label: String, onClick: () -> Unit, leading: (@Composable (
         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
         if (trailing) Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Muted)
     }
+}
+
+@Composable
+private fun Badge(text: String) {
+    InfoChip { Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
+}
+
+@Composable
+private fun LangPicker(lang: String, onPick: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val current = lang.ifBlank { "en" }.lowercase()
+    Box {
+        DropChip(current.uppercase(), onClick = { open = true })
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            LANGUAGES.forEach { (code, label) ->
+                DropdownMenuItem(
+                    text = { Text("${code.uppercase()} · $label", color = if (code == current) Palette.AccentText else Palette.Text) },
+                    onClick = { open = false; if (code != current) onPick(code) },
+                )
+            }
+        }
+    }
+}
+
+/** Signed, altered and graded, in one small menu. */
+@Composable
+private fun SpecialPicker(c: CollectionCard, onSigned: (Boolean) -> Unit, onAltered: (Boolean) -> Unit, onGraded: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val set = listOfNotNull("Signed".takeIf { c.signed }, "Altered".takeIf { c.altered }, c.graded.takeIf { it.isNotBlank() })
+    Box {
+        DropChip(if (set.isEmpty()) "Special" else set.joinToString(" · ").take(18), onClick = { open = true })
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Signed", color = if (c.signed) Palette.AccentText else Palette.Text) },
+                trailingIcon = { if (c.signed) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                onClick = { open = false; onSigned(!c.signed) },
+            )
+            DropdownMenuItem(
+                text = { Text("Altered", color = if (c.altered) Palette.AccentText else Palette.Text) },
+                trailingIcon = { if (c.altered) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                onClick = { open = false; onAltered(!c.altered) },
+            )
+            DropdownMenuItem(
+                text = { Text(if (c.graded.isBlank()) "Graded…" else "Graded: ${c.graded}", color = if (c.graded.isNotBlank()) Palette.AccentText else Palette.Text) },
+                onClick = { open = false; onGraded() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun GradedDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Graded") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.take(20) },
+                placeholder = { Text("PSA 9 · blank = none") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
