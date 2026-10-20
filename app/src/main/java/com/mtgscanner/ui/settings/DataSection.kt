@@ -74,25 +74,26 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val _importRows = MutableStateFlow<List<ImportRow>?>(null)
     val importRows: StateFlow<List<ImportRow>?> = _importRows
 
-    private fun run(label: String, block: suspend () -> String) {
-        if (_busy.value != null) return
+    /** Runs one action at a time. Returns false (and says why) if another is still running. */
+    private fun run(label: String, block: suspend () -> String): Boolean {
+        _busy.value?.let { _message.value = "Wait for \"${it.removeSuffix("…")}\" to finish"; return false }
         _busy.value = label
         viewModelScope.launch {
             _message.value = runCatching { block() }.getOrElse { "Something went wrong: ${it.message}" }
             _busy.value = null
         }
+        return true
     }
 
     fun backup(ctx: android.content.Context, uri: Uri) = run("Saving backup…") {
-        val text = repo.exportBackup()
-        withContext(Dispatchers.IO) { ctx.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(text) } }
+        val out = withContext(Dispatchers.IO) { ctx.contentResolver.openOutputStream(uri) } ?: return@run "Couldn't save to that file"
+        repo.exportBackup(out)
         "Backup saved"
     }
 
     fun restore(ctx: android.content.Context, uri: Uri) = run("Restoring…") {
-        val text = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
-            ?: return@run "Couldn't open that file"
-        val n = repo.restoreBackup(text)
+        val input = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri) } ?: return@run "Couldn't open that file"
+        val n = repo.restoreBackup(input)
         "Restored $n cards"
     }
 
@@ -108,8 +109,8 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** [choice] is a box id, [Box.AUTO_SORT], or 0 for a new "Imported" box. */
     fun import(choice: Long) {
         val rows = _importRows.value ?: return
-        _importRows.value = null
-        run("Importing ${rows.size} cards…") {
+        // Keep the rows if something else is still running, so the import can be tried again.
+        val started = run("Importing ${rows.size} cards…") {
             val newBox: suspend () -> Long = { repo.createBox("Imported", "box") }
             val target = if (choice == 0L) newBox() else choice
             val r = repo.importRows(rows, target, newBox)
@@ -118,6 +119,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
                 if (r.notFound.isNotEmpty()) append(". Not found: ${r.notFound.take(5).joinToString()}${if (r.notFound.size > 5) " and ${r.notFound.size - 5} more" else ""}")
             }
         }
+        if (started) _importRows.value = null
     }
 
     fun cancelImport() { _importRows.value = null }

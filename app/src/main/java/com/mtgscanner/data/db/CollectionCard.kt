@@ -57,17 +57,37 @@ data class CollectionCard(
     val updatedAt: Long,
 )
 
-fun CollectionCard.unitPrice(): Double? = if (foil) priceUsdFoil ?: priceUsd else priceUsd
+/** Scryfall's price for this printing, which is the near-mint market price. */
+fun CollectionCard.nearMintPrice(): Double? = if (foil) priceUsdFoil ?: priceUsd else priceUsd
+
+/**
+ * What played copies usually sell for compared with near mint, using the usual TCGplayer
+ * steps. Scryfall only has near-mint prices, so other conditions are estimated from it.
+ */
+fun conditionFactor(condition: String): Double = when (condition) {
+    "LP" -> 0.87
+    "MP" -> 0.72
+    "HP" -> 0.55
+    "DMG" -> 0.40
+    else -> 1.0
+}
+
+/** Market price for one copy in its condition. */
+fun CollectionCard.unitPrice(): Double? = nearMintPrice()?.let { it * conditionFactor(condition) }
 fun CollectionCard.totalPrice(): Double = (unitPrice() ?: 0.0) * quantity
 /** Scryfall serves the same image path in several sizes; this swaps in the art-only crop. */
 fun artCropUrl(imageUrl: String?): String? = imageUrl
     ?.replace("/normal/", "/art_crop/")?.replace("/large/", "/art_crop/")?.replace("/small/", "/art_crop/")
 
+/** Price per copy when it was added, in its condition. */
+fun CollectionCard.priceWhenAdded(): Double? = priceAtAdd?.let { it * conditionFactor(condition) }
+
 /** Change in value per copy since it was added, or null when either price is unknown. */
 fun CollectionCard.changeSinceAdded(): Double? {
-    val now = unitPrice() ?: return null
+    // The price when added was a near-mint price, so compare like with like, then scale to the condition.
+    val now = nearMintPrice() ?: return null
     val then = priceAtAdd ?: return null
-    return now - then
+    return (now - then) * conditionFactor(condition)
 }
 
 fun CollectionCard.facts() = com.mtgscanner.data.CardFacts(

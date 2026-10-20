@@ -53,6 +53,7 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.ValueSnapshot
 import com.mtgscanner.data.db.changeSinceAdded
+import com.mtgscanner.data.db.priceWhenAdded
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.ui.AppViewModels
@@ -111,7 +112,7 @@ class HomeViewModel(repo: CollectionRepository) : ViewModel() {
             recent = all.sortedByDescending { it.addedAt }.take(12),
             valuable = all.filter { (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12),
             colors = colorCounts.toList(),
-            valueAtAdd = all.filter { it.priceAtAdd != null }.sumOf { it.priceAtAdd!! * it.quantity },
+            valueAtAdd = all.filter { it.priceAtAdd != null }.sumOf { it.priceWhenAdded()!! * it.quantity },
             valueNowTracked = all.filter { it.priceAtAdd != null }.sumOf { it.totalPrice() },
             history = history,
             gainers = all.filter { (it.changeSinceAdded() ?: 0.0) > 0.0 }
@@ -145,7 +146,7 @@ fun HomeScreen(
             EmptyState(
                 icon = Icons.Filled.Style,
                 title = "Start your collection",
-                body = "Scan cards with the camera, or search for them by name. Every card is looked up on Scryfall with its set, rarity and price.",
+                body = "Scan or search to add cards.",
                 action = {
                     TextButton(onClick = onSearch) {
                         Icon(Icons.Filled.Search, null)

@@ -86,6 +86,8 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     val style by vm.style.collectAsStateWithLifecycle()
     val records by vm.records.collectAsStateWithLifecycle()
     var ending by remember { mutableStateOf(false) }
+    // Starting over while a game is running asks about that game first, so a stray tap can't wipe it.
+    var startingNew by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
 
     Column(
@@ -156,8 +158,6 @@ fun GameSetupScreen(onPlay: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TableStyle.entries.forEach { t -> SelectPill(t.label, style == t, { vm.setStyle(t) }) }
         }
-        Text("Each player can also put card art from your collection behind their life total, from their panel's menu.",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 6.dp))
 
         Label("Names")
         (0 until players).forEach { i ->
@@ -179,7 +179,10 @@ fun GameSetupScreen(onPlay: () -> Unit) {
         Spacer(Modifier.height(18.dp))
         GradientButton(
             if (current != null) "Start a new game" else "Start game",
-            { vm.start(format, players, life, names.take(players), partners); onPlay() },
+            {
+                if (current != null) startingNew = true
+                else { vm.start(format, players, life, names.take(players), partners); onPlay() }
+            },
             Modifier.fillMaxWidth(),
             icon = Icons.Filled.Favorite,
         )
@@ -190,6 +193,14 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     }
 
     current?.let { g -> if (ending) EndGameDialog(g, onDismiss = { ending = false }) { save, winner -> ending = false; vm.end(save, winner) } }
+    current?.let { g ->
+        if (startingNew) EndGameDialog(g, onDismiss = { startingNew = false }) { save, winner ->
+            startingNew = false
+            vm.end(save, winner)
+            vm.start(format, players, life, names.take(players), partners)
+            onPlay()
+        }
+    }
     if (showStats) StatsSheet(records, vm, onDismiss = { showStats = false })
 }
 

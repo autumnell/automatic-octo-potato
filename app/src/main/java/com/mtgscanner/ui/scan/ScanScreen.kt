@@ -133,8 +133,26 @@ fun ScanScreen(
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPermission = it }
+    // After "Don't ask again", Android won't show the prompt; the button opens the app's settings instead.
+    var blocked by remember { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasPermission = granted
+        val activity = ctx as? android.app.Activity
+        blocked = !granted && activity != null &&
+            !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.CAMERA)
+    }
     LaunchedEffect(Unit) { if (!hasPermission) launcher.launch(Manifest.permission.CAMERA) }
+    // Coming back from settings: check again.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && !hasPermission) {
+                hasPermission = ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
 
     val state by vm.state.collectAsStateWithLifecycle()
     val loadedBoxes by vm.boxes.collectAsStateWithLifecycle()
@@ -163,7 +181,7 @@ fun ScanScreen(
                 EmptyState(
                     icon = Icons.Filled.Inventory2,
                     title = "Create a box first",
-                    body = "Scanned cards go into boxes. Make one for everything, or set rules like colors, rarity, borderless or foils so cards sort themselves.",
+                    body = "Scanned cards go into boxes.",
                     modifier = Modifier.align(Alignment.Center),
                     action = { GradientButton("Create a box", { vm.showNewBox(true) }, icon = Icons.Filled.Add) },
                 )
@@ -173,9 +191,22 @@ fun ScanScreen(
                 EmptyState(
                     icon = Icons.Filled.CameraAlt,
                     title = "Camera needed",
-                    body = "The scanner reads your cards with the camera. Nothing leaves your phone except the card name lookup.",
+                    body = "Needed to read your cards.",
                     modifier = Modifier.align(Alignment.Center),
-                    action = { GradientButton("Allow camera", { launcher.launch(Manifest.permission.CAMERA) }) },
+                    action = {
+                        if (blocked) {
+                            GradientButton("Open settings", {
+                                ctx.startActivity(
+                                    android.content.Intent(
+                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        android.net.Uri.fromParts("package", ctx.packageName, null),
+                                    ),
+                                )
+                            })
+                        } else {
+                            GradientButton("Allow camera", { launcher.launch(Manifest.permission.CAMERA) })
+                        }
+                    },
                 )
             }
 
@@ -288,7 +319,7 @@ private fun OfflineCard(name: String, vm: ScanViewModel) {
                 IconButton(onClick = vm::skip, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, "Skip", tint = Palette.Muted) }
             }
             Text(
-                "You're offline. Save it now and it's added with its price and printing once you're back online.",
+                "Offline. Save now, added when back online.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )
@@ -607,7 +638,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
             SelectPill("By box", state.listByBox, { vm.setListByBox(true) })
         }
         Text(
-            "Clearing the list keeps the cards in your collection. Use the bin to take one back out.",
+            "Clearing keeps cards in your collection.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -676,7 +707,10 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             onPage = vm::onPage,
         )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
+        // The camera can take a moment to start; if the screen closed meanwhile, don't bind it.
+        var disposed = false
         providerFuture.addListener({
+            if (disposed) return@addListener
             val provider = providerFuture.get()
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
             val analysis = ImageAnalysis.Builder()
@@ -692,11 +726,14 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
                 .build()
                 .also { it.setAnalyzer(executor, analyzer) }
             provider.unbindAll()
-            camera = provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            camera = runCatching {
+                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            }.getOrNull()
         }, ContextCompat.getMainExecutor(ctx))
 
         onDispose {
-            runCatching { providerFuture.get().unbindAll() }
+            disposed = true
+            if (providerFuture.isDone) runCatching { providerFuture.get().unbindAll() }
             analyzer.close()
             executor.shutdown()
         }
@@ -741,7 +778,7 @@ private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showReview(false) }, containerColor = Palette.Surface) {
         Text("Check these", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
         Text(
-            "Auto-add wasn't sure about these. Add the right ones; drop the rest and scan them again.",
+            "Auto-add wasn't sure about these.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),

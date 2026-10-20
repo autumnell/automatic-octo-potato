@@ -18,6 +18,7 @@ import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.theme.AppSettings
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -134,6 +135,13 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     private var emptyFrames = 0
     private var lookedUpKey: String? = null
     private var lastAutoAddedId: String? = null
+    // The same card can come back as a different printing when the footer is only read on some frames,
+    // so "already added while in view" also matches by card name (oracle id).
+    private var lastAutoAddedOracle: String? = null
+    private fun alreadyHandled(card: ScryfallCard) =
+        card.id == lastAutoAddedId || (card.oracleId != null && card.oracleId == lastAutoAddedOracle)
+    private fun markHandled(card: ScryfallCard) { lastAutoAddedId = card.id; lastAutoAddedOracle = card.oracleId }
+    private val removedKeys = HashSet<Long>()
     private var entryKeys = 0L
 
     /** The analyzer skips frames while this is true. */
@@ -145,13 +153,19 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 it.showPrintings || it.showSettings || it.showList || it.showNewBox || it.showReview || boxes.value.isNullOrEmpty()
         }
 
+    /** Called on the camera thread; the work happens on the main thread so it never races the buttons. */
     fun onGuess(guess: CardTextGuess) {
+        viewModelScope.launch { handleGuess(guess) }
+    }
+
+    private fun handleGuess(guess: CardTextGuess) {
         val key = guess.key
         if (key == null) {
             emptyFrames++
             // The card has left the frame: allow the same card to be auto-added again.
             if (emptyFrames >= 3) {
                 lastAutoAddedId = null
+                lastAutoAddedOracle = null
                 lastKey = null
                 lookedUpKey = null
                 _state.update {
@@ -178,7 +192,11 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             val result = runCatching { repo.identify(guess) }
             logLookup(guess, result, System.currentTimeMillis() - started)
             result.onFailure { e ->
-                lookedUpKey = null
+                if (e is ScryfallException) {
+                    // Scryfall is busy or rate limiting: wait a few seconds before trying this card again.
+                    val key = guess.key
+                    launch { delay(3_000); if (lookedUpKey == key) lookedUpKey = null }
+                } else lookedUpKey = null
                 val offline = if (e is java.io.IOException && e !is ScryfallException) repo.offlineRead(guess) else null
                 if (offline != null) {
                     _state.update { it.copy(lookingUp = false, offline = offline, status = "Offline · ${offline.name}") }
@@ -207,8 +225,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             val price = card.price(foil)?.toDoubleOrNull()
             val reason = s.skipReason(card.effectiveTypeLine, card.layout, price, AppSettings.showPrices)
             if (reason != null) {
-                val counted = card.id != lastAutoAddedId
-                lastAutoAddedId = card.id
+                val counted = !alreadyHandled(card)
+                markHandled(card)
                 _state.update {
                     it.copy(lookingUp = false, current = null, skipped = it.skipped + if (counted) 1 else 0, status = "Skipped ${card.name} ($reason)")
                 }
@@ -217,8 +235,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             if (!s.accepts(id.exact, id.confident)) {
                 when (s.unsure) {
                     UnsureAction.ASIDE -> {
-                        val fresh = card.id != lastAutoAddedId && _state.value.review.none { it.id == card.id }
-                        lastAutoAddedId = card.id
+                        val fresh = !alreadyHandled(card) && _state.value.review.none { it.id == card.id }
+                        markHandled(card)
                         _state.update {
                             it.copy(
                                 lookingUp = false,
@@ -250,8 +268,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 status = if (id.confident || accepted) card.name else "Is this right?",
             )
         }
-        if (accepted && card.id != lastAutoAddedId) {
-            lastAutoAddedId = card.id
+        if (accepted && !alreadyHandled(card)) {
+            markHandled(card)
             addCard(card, 1, auto = true)
         }
     }
@@ -282,7 +300,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun add(qty: Int = 1) {
         val card = _state.value.current ?: return
         // In auto-add mode, don't add this card again while it's still in view.
-        if (_state.value.autoAdd) lastAutoAddedId = card.id
+        if (_state.value.autoAdd) markHandled(card)
         addCard(card, qty)
     }
 
@@ -359,12 +377,21 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Takes a scan back out of the collection and the list. */
     fun remove(entry: ScanEntry) {
-        viewModelScope.launch { removeEntry(entry) }
+        viewModelScope.launch {
+            val before = repo.snapshot(listOf(entry.rowId))
+            removeEntry(entry)
+            Undo.offer("Removed ${entry.card.name}") {
+                repo.restore(before)
+                removedKeys.remove(entry.key)
+                _state.update { it.copy(session = (it.session + entry).sortedByDescending { e -> e.key }) }
+            }
+        }
     }
 
     private suspend fun removeEntry(entry: ScanEntry) {
         // Already taken back (say, from the list before tapping Undo): don't remove another copy.
-        if (_state.value.session.none { it.key == entry.key }) return
+        // Clearing the list doesn't count, so Undo still works after it.
+        if (!removedKeys.add(entry.key)) return
         repo.remove(entry.rowId, entry.count)
         _state.update {
             it.copy(
@@ -419,6 +446,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     // Binder page mode
 
     fun setPageMode(on: Boolean) {
+        pageJob?.cancel()
         _state.update {
             it.copy(pageMode = on, wantPage = false, pageLoading = false, page = null, current = null, awaiting = false, wish = null,
                 status = if (on) "Fill the frame with a binder page, then tap Capture page" else "Point your camera at a card")
@@ -431,13 +459,17 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Stops waiting for a page read, if it's taking too long. */
     fun cancelCapture() = _state.update {
+        pageJob?.cancel()
         it.copy(wantPage = false, pageLoading = false, status = "Fill the frame with a binder page, then tap Capture page")
     }
 
     /** Called by the analyzer with one guess per pocket, left to right, top to bottom. */
+    private var pageJob: kotlinx.coroutines.Job? = null
+
     fun onPage(guesses: List<CardTextGuess>) {
         _state.update { it.copy(wantPage = false, pageLoading = true, status = "Looking up the page…") }
-        viewModelScope.launch {
+        pageJob?.cancel()
+        pageJob = viewModelScope.launch {
             val slots = guesses.mapIndexed { i, g ->
                 async {
                     val read = g.nameCandidates.firstOrNull() ?: g.setCode?.let { "$it #${g.collectorNumber}" }
@@ -475,7 +507,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun skip() {
         val auto = _state.value.autoAdd
-        _state.value.current?.let { if (auto) lastAutoAddedId = it.id }
+        _state.value.current?.let { if (auto) markHandled(it) }
         _state.update { it.copy(current = null, offline = null, wish = null, error = null, awaiting = false, status = "Point your camera at a card") }
         // While auto-adding, keep ignoring this card until it leaves the frame.
         if (!auto) resetTracking()

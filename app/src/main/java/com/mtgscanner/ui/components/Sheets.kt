@@ -133,7 +133,9 @@ fun AddCardSheet(
 ) {
     var foil by remember(card.id) { mutableStateOf(!card.hasNonFoil) }
     var qty by remember(card.id) { mutableIntStateOf(1) }
+    // The last box used may have been deleted since; fall back to Auto-sort rather than a box that's gone.
     var boxId by remember { mutableLongStateOf(defaultBoxId) }
+    if (boxId != CardBox.AUTO_SORT && boxes.isNotEmpty() && boxes.none { it.id == boxId }) boxId = CardBox.AUTO_SORT
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,

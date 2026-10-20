@@ -199,7 +199,7 @@ private fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (In
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StartStep(onPick: (BoxDraft) -> Unit) {
-    Text("Start from a ready-made box, or a blank one. You can change everything next.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+    Text("Pick a starting point.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
     Spacer(Modifier.height(12.dp))
     Surface(
         onClick = { onPick(BoxDraft()) },
@@ -304,7 +304,7 @@ private fun RulesStep(
     fun toggle(key: String) { open = if (open == key) null else key }
 
     Text(
-        "Turn on only the rules you need. A card has to pass every rule that's on. With no rules, the box takes any card.",
+        "Cards must match every rule. No rules = any card.",
         style = MaterialTheme.typography.bodySmall,
         color = Palette.Muted,
     )

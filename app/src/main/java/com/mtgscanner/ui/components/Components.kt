@@ -118,8 +118,28 @@ fun CardImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
         contentScale = ContentScale.Crop,
         modifier = modifier.aspectRatio(63f / 88f).clip(shape),
         loading = { Shimmer(Modifier.fillMaxSize()) },
-        error = { Box(Modifier.fillMaxSize().background(Palette.SurfaceHigh)) },
+        error = {
+            // If the stored link fails, ask Scryfall for the card's current image instead.
+            val backup = scryfallImageFallback(url)
+            if (backup != null) {
+                coil.compose.AsyncImage(
+                    model = backup, contentDescription = null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().background(Palette.SurfaceHigh),
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(Palette.SurfaceHigh))
+            }
+        },
     )
+}
+
+private val SCRYFALL_IMAGE = Regex("""/(small|normal|large|png|art_crop|border_crop)/(front|back)/[0-9a-f]/[0-9a-f]/([0-9a-f-]{36})""")
+
+/** Scryfall's always-current image link for the card in a cards.scryfall.io image URL. */
+fun scryfallImageFallback(url: String?): String? {
+    val m = SCRYFALL_IMAGE.find(url ?: return null) ?: return null
+    val (size, face, id) = m.destructured
+    return "https://api.scryfall.com/cards/$id?format=image&version=$size" + if (face == "back") "&face=back" else ""
 }
 
 /** Big orange gradient button, the main action on a screen. */

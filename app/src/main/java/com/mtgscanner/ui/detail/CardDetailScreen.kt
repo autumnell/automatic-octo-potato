@@ -78,6 +78,10 @@ import com.mtgscanner.data.db.tagList
 import com.mtgscanner.ui.home.ChangeText
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
+import com.mtgscanner.ui.components.CardTextBlock
+import com.mtgscanner.ui.components.textInfo
+import com.mtgscanner.data.db.nearMintPrice
+import com.mtgscanner.data.db.priceWhenAdded
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.FoilTag
@@ -93,7 +97,9 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -107,6 +113,13 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val boxes: StateFlow<List<CardBox>> = repo.observeBoxes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The card's full text from Scryfall (flavor, faces, every format); null offline. */
+    val live: StateFlow<com.mtgscanner.data.ScryfallCard?> = card
+        .map { it?.scryfallId }
+        .distinctUntilChanged()
+        .mapLatest { id -> id?.let { runCatching { repo.api.byId(it) }.getOrNull() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setQuantity(q: Int) = viewModelScope.launch { repo.setQuantity(currentId.value, q) }
     fun setFoil(foil: Boolean) = viewModelScope.launch { currentId.value = repo.setFoil(currentId.value, foil) }
@@ -154,6 +167,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     var addingTag by remember { mutableStateOf(false) }
     val history by vm.priceHistory.collectAsStateWithLifecycle()
     val allTags by vm.allTags.collectAsStateWithLifecycle()
+    val live by vm.live.collectAsStateWithLifecycle()
     val c = card
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -165,8 +179,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         Text(c.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                         ManaCost(c.manaCost, size = 20.dp)
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(c.typeLine, style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
                     Spacer(Modifier.height(10.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
@@ -181,10 +193,14 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.headlineMedium, color = Palette.Accent)
+                                if (c.condition != "NM" && c.nearMintPrice() != null) {
+                                    Text("${c.condition} · near mint ${formatUsd(c.nearMintPrice())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                                }
                                 val change = c.changeSinceAdded()
-                                if (change != null && c.priceAtAdd != null) {
+                                val was = c.priceWhenAdded()
+                                if (change != null && was != null) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        ChangeText(change, c.priceAtAdd, MaterialTheme.typography.labelMedium)
+                                        ChangeText(change, was, MaterialTheme.typography.labelMedium)
                                         Text(" since added", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                     }
                                 }
@@ -220,7 +236,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                     } else if (AppSettings.showPrices) {
                         Text(
-                            "A price chart appears here once prices have been refreshed on a few different days.",
+                            "Price chart appears after a few days.",
                             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 8.dp),
                         )
                     }
@@ -283,34 +299,11 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                     }
 
-                    if (c.oracleText.isNotBlank()) {
-                        Spacer(Modifier.height(12.dp))
-                        Panel {
-                            Text("Rules text", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                            Spacer(Modifier.height(6.dp))
-                            Text(c.oracleText, style = MaterialTheme.typography.bodyMedium)
-                            c.artist?.let {
-                                Spacer(Modifier.height(10.dp))
-                                Text("Illustrated by $it", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                            }
-                        }
-                    }
+                    Spacer(Modifier.height(12.dp))
+                    CardTextBlock(live?.textInfo() ?: c.textInfo())
 
                     Spacer(Modifier.height(12.dp))
-                    Text("Formats", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                    Spacer(Modifier.height(8.dp))
-                    val tagSet = c.tagList().toSet()
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("standard", "pioneer", "modern", "commander", "pauper").forEach { f ->
-                            val legal = "legal:$f" in tagSet
-                            InfoChip {
-                                Text(
-                                    (if (legal) "✓ " else "✕ ") + f.replaceFirstChar(Char::uppercase),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (legal) Palette.Success else Palette.Muted,
-                                )
-                            }
-                        }
                         InfoChip {
                             Text("Identity ", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                             if (c.colorIdentity.isEmpty()) Text("Colorless", style = MaterialTheme.typography.labelMedium)
@@ -331,7 +324,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     val tags = c.tagList()
                     if (tags.any { !it.startsWith("legal:") }) {
                         Spacer(Modifier.height(12.dp))
-                        Text("Tags from Scryfall", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                        Text("Tags", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                         Spacer(Modifier.height(8.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             tags.filterNot { it.startsWith("legal:") }.forEach { InfoChip { Text(it, style = MaterialTheme.typography.labelMedium) } }

@@ -232,7 +232,7 @@ fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
             val picked = slots.filter { it.selected }
             Text("Binder page", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Found ${slots.count { it.card != null }} of ${slots.size}. Tap a card to leave it out.",
+                "Found ${slots.count { it.card != null }} of ${slots.size}",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
             Spacer(Modifier.height(10.dp))

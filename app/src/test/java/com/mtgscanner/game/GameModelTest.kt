@@ -120,4 +120,41 @@ class GameModelTest {
         assertEquals("Rae", r.winner)
         assertFalse(r.players.isEmpty())
     }
+
+    @Test fun roundsCountFromWhoeverWentFirst() {
+        var s = Game.setFirst(GameState.new(GameFormat.STANDARD, 3), 2)
+        assertEquals(1, s.turn)
+        s = Game.nextTurn(s, now = 0)   // 0
+        s = Game.nextTurn(s, now = 1)   // 1
+        assertEquals(1, s.turn)
+        s = Game.nextTurn(s, now = 2)   // back to 2: round 2
+        assertEquals(2, s.active)
+        assertEquals(2, s.turn)
+    }
+
+    @Test fun passingSkipsAConcededPlayer() {
+        var s = Game.setFirst(GameState.new(GameFormat.STANDARD, 3), 0)
+        s = Game.concede(s, 1, true, now = 0)
+        s = Game.nextTurn(s, now = 1)
+        assertEquals(2, s.active)
+    }
+
+    @Test fun twoHeadedGiantPoisonLimitIs15() {
+        assertEquals(15, GameFormat.TWO_HEADED.poisonLimit)
+        val s = Game.poison(GameState.new(GameFormat.TWO_HEADED, 4), 0, 10, now = 0)
+        assertNull(s.outReason(0))
+        assertTrue(Game.poison(s, 0, 5, now = 10_000).outReason(0) != null)
+    }
+
+    @Test fun brawlUsesCommanderTaxButNotCommanderDamage() {
+        assertTrue(GameFormat.BRAWL.usesCommander)
+        assertEquals(25, GameFormat.BRAWL.life)
+    }
+
+    @Test fun countersRecordWhatActuallyChanged() {
+        var s = Game.counter(GameState.new(GameFormat.STANDARD, 2), 0, "Energy", 2, now = 0)
+        s = Game.counter(s, 0, "Energy", -5, now = 10_000)
+        assertEquals(0, s.players[0].energy)
+        assertEquals(-2, s.history.last().delta)
+    }
 }

@@ -105,10 +105,10 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab("home", "Home", Icons.Outlined.Home, Icons.Filled.Home),
+    Tab("game", "Game", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
     Tab("scan", "Scan", Icons.Outlined.CameraAlt, Icons.Filled.CameraAlt),
     Tab("search", "Search", Icons.Outlined.Search, Icons.Filled.Search),
     Tab("collection", "Collection", Icons.Outlined.CollectionsBookmark, Icons.Filled.CollectionsBookmark),
-    Tab("game", "Game", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
 )
 
 /** Switches bottom tabs the standard way: one copy of each tab, state kept. */

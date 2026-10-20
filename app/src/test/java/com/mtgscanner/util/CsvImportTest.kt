@@ -36,4 +36,11 @@ class CsvImportTest {
         assertEquals(listOf("a", "b, c", "d \"e\""), rows[0])
         assertEquals("x\ny", rows[1][1])
     }
+
+    @Test fun prefersTheSetCodeColumnOverTheSetName() {
+        val rows = CsvImport.parse("Count,Name,Edition,Edition Code,Card Number\n1,Shock,Magic 2010,m10,155\n")
+        assertEquals("m10", rows[0].setCode)
+        val tcg = CsvImport.parse("Quantity,Name,Set,Set Code\n1,Shock,Core Set 2019,\n")
+        assertEquals(null, tcg[0].setCode)
+    }
 }

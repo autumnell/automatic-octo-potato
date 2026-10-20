@@ -24,6 +24,8 @@ import com.mtgscanner.util.DecklistParser
 import com.mtgscanner.util.ImportRow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +38,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -220,7 +224,8 @@ class CollectionRepository(
 
     /** The box a card belongs in by the boxes' rules, or null when no box fits. */
     suspend fun pickBox(facts: CardFacts): Long? {
-        val boxes = dao.allBoxes()
+        // A trade binder with no rules isn't a catch-all: unmatched cards shouldn't be listed for trade.
+        val boxes = dao.allBoxes().filter { it.kind != "trade" || !it.boxRules().isCatchAll || it.fallback }
         return BoxRules.pick(boxes.map { it.id to it.boxRules() }, facts, fallback = boxes.firstOrNull { it.fallback }?.id)
     }
 
@@ -480,17 +485,17 @@ class CollectionRepository(
     suspend fun refreshPrices(): Int {
         val all = dao.all()
         if (all.isEmpty()) return 0
-        val fresh = api.collection(all.map { it.scryfallId }).associateBy { it.id }
-        val updated = all.mapNotNull { c ->
-            val f = fresh[c.scryfallId] ?: return@mapNotNull null
-            c.copy(
-                priceUsd = f.prices.usd?.toDoubleOrNull(),
-                priceUsdFoil = (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(),
-                treatments = f.treatments.joinToString(","),
-                priceAtAdd = c.priceAtAdd ?: (if (c.foil) f.prices.usdFoil ?: f.prices.usd else f.prices.usd)?.toDoubleOrNull(),
-            )
+        val fresh = api.collection(all.map { it.scryfallId }.distinct()).associateBy { it.id }
+        // Only the price columns are written, so a quantity or box changed during the download is kept.
+        var updated = 0
+        db.withTransaction {
+            fresh.values.forEach { f ->
+                updated += dao.setPrices(
+                    f.id, f.prices.usd?.toDoubleOrNull(),
+                    (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
+                )
+            }
         }
-        dao.updateAll(updated)
         dao.putPricePoints(fresh.values.map { it.pricePoint() })
         // Wishlist prices too, so its total and alerts stay current.
         val wishes = dao.allWishlist()
@@ -500,7 +505,7 @@ class CollectionRepository(
         }
         prefs.edit().putLong("pricesAt", System.currentTimeMillis()).apply()
         recordSnapshot()
-        return updated.size
+        return updated
     }
 
     /**
@@ -573,7 +578,7 @@ class CollectionRepository(
             for (role in ROLES) {
                 val tags = role.tags.joinToString(" or ") { "otag:$it" }
                 val cards = runCatching { api.searchAll("($tags) ($ids)", maxPages = 1) }
-                    .onFailure { if (it is IOException && it !is ScryfallException) return@withLock }
+                    .onFailure { return@withLock } // try again later rather than marking these cards as having no roles
                     .getOrNull().orEmpty()
                 cards.forEach { c -> c.oracleId?.let { found.getOrPut(it) { linkedSetOf() } += role.label } }
             }
@@ -606,20 +611,28 @@ class CollectionRepository(
         val boxNames = boxes.associate { it.id to it.name }
         fun key(n: String) = CardTextParser.normalize(n.substringBefore(" // "))
         val byName = cards.groupBy { key(it.name) }
-        val missingNames = lines.filter { l -> (byName[key(l.name)]?.sumOf { it.quantity } ?: 0) < l.quantity }.map { it.name }.distinct()
+        // Hand owned copies out line by line, so a card in both the main deck and sideboard isn't counted twice.
+        val left = byName.mapValues { (_, cs) -> cs.sumOf { it.quantity } }.toMutableMap()
+        val ownedFor = lines.map { l ->
+            val k = key(l.name)
+            val have = minOf(left[k] ?: 0, l.quantity)
+            left[k] = (left[k] ?: 0) - have
+            have
+        }
+        val missingNames = lines.filterIndexed { i, l -> ownedFor[i] < l.quantity }.map { it.name }.distinct()
         // Prices and pictures for missing cards come from Scryfall; ignore failures (offline).
         val looked = runCatching {
             api.identify(missingNames.map { n -> buildJsonObject { put("name", n) } })
         }.getOrNull()
         val lookedUp = missingNames.zip(looked ?: List(missingNames.size) { null }).toMap()
-        return DeckCheck(lines.map { l ->
+        return DeckCheck(lines.mapIndexed { i, l ->
             val owned = byName[key(l.name)].orEmpty()
             val sc = lookedUp[l.name]
             DeckCheckLine(
                 name = owned.firstOrNull()?.name ?: sc?.name ?: l.name,
                 section = l.section,
                 needed = l.quantity,
-                owned = owned.sumOf { it.quantity },
+                owned = ownedFor[i],
                 boxes = owned.groupBy { it.boxId }.map { (b, cs) -> (boxNames[b] ?: "Unsorted") to cs.sumOf { it.quantity } },
                 price = owned.mapNotNull { it.priceUsd }.minOrNull() ?: sc?.prices?.usd?.toDoubleOrNull(),
                 imageUrl = owned.firstOrNull()?.imageUrl ?: sc?.imageUrl,
@@ -667,8 +680,12 @@ class CollectionRepository(
         dao.addPending(PendingScan(name = read.name, setCode = read.setCode, collectorNumber = read.collectorNumber, foil = foil, quantity = qty, boxId = boxId))
     }
 
+    private val pendingLock = Mutex()
+
     /** Looks up cards saved while offline and adds them. Returns how many were added. */
-    suspend fun resolvePending(): Int {
+    suspend fun resolvePending(): Int = pendingLock.withLock { resolvePendingLocked() }
+
+    private suspend fun resolvePendingLocked(): Int {
         val pending = dao.allPending()
         if (pending.isEmpty()) return 0
         val cards = api.identify(pending.map { identifierFor(it.name, it.setCode, it.collectorNumber, null) })
@@ -686,8 +703,8 @@ class CollectionRepository(
     private suspend fun addPendingCard(p: PendingScan, c: ScryfallCard) {
         val box = if (p.boxId == Box.AUTO_SORT || dao.box(p.boxId) == null) pickBox(c, p.foil) else p.boxId
         if (box == null) return
-        add(c, p.foil, p.quantity, box)
-        dao.deletePending(p.id)
+        // Claim the saved scan first (only one run can), then add it even if the screen closes meanwhile.
+        withContext(NonCancellable) { if (dao.deletePending(p.id) > 0) add(c, p.foil, p.quantity, box) }
     }
 
     suspend fun deletePending(id: Long) = dao.deletePending(id)
@@ -730,18 +747,21 @@ class CollectionRepository(
 
     private val backupJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-    suspend fun exportBackup(): String = backupJson.encodeToString(
-        Backup.serializer(),
-        Backup(
+    /** Writes a backup straight to [out], off the main thread, so a big price history fits in memory. */
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    suspend fun exportBackup(out: java.io.OutputStream) = withContext(Dispatchers.IO) {
+        val b = Backup(
             boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
             priceHistory = dao.allPricePoints(), packs = dao.allPacks(),
-        ),
-    )
+        )
+        out.buffered().use { backupJson.encodeToStream(Backup.serializer(), b, it) }
+    }
 
-    /** Replaces everything with a backup. Returns the number of cards restored. */
-    suspend fun restoreBackup(text: String): Int {
-        val b = backupJson.decodeFromString(Backup.serializer(), text)
+    /** Replaces everything with a backup read from [input]. Returns the number of cards restored. */
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    suspend fun restoreBackup(input: java.io.InputStream): Int = withContext(Dispatchers.IO) {
+        val b = input.buffered().use { backupJson.decodeFromStream(Backup.serializer(), it) }
         db.withTransaction {
             dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
             dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks()
@@ -749,7 +769,7 @@ class CollectionRepository(
             dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
             dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs)
         }
-        return b.cards.sumOf { it.quantity }
+        b.cards.sumOf { it.quantity }
     }
 
     companion object {

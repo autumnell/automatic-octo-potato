@@ -104,6 +104,9 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
+    /** Makes every added row's key unique, even after rows are removed. */
+    private var nextKey = 0L
+
     fun get(name: String) {
         _ui.update { it.copy(busy = true, suggestions = emptyList()) }
         viewModelScope.launch {
@@ -112,7 +115,7 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 if (card == null) u.copy(busy = false, message = "Couldn't find $name")
                 else u.copy(
                     busy = false,
-                    get = u.get + TradeItem("s${card.id}${u.get.size}", card.name, card.set.uppercase(), card.smallImageUrl, card.prices.usd?.toDoubleOrNull(), 1, card = card),
+                    get = u.get + TradeItem("s${card.id}-${nextKey++}", card.name, card.set.uppercase(), card.smallImageUrl, card.prices.usd?.toDoubleOrNull(), 1, card = card),
                 )
             }
         }
@@ -213,7 +216,7 @@ fun TradeScreen(onBack: () -> Unit) {
             onDismissRequest = { confirm = false },
             containerColor = Palette.Surface,
             title = { Text("Apply this trade?") },
-            text = { Text("Cards you give are taken out of your collection. Cards you get are added to the boxes whose rules fit them.") },
+            text = { Text("Updates your collection both ways.") },
             confirmButton = { TextButton(onClick = { vm.apply(); confirm = false }) { Text("Apply") } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
         )
