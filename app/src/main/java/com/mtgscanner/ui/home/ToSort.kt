@@ -184,11 +184,12 @@ internal fun UnknownScanDialog(
     var results by remember { mutableStateOf<List<ScryfallCard>?>(null) }
     var loading by remember { mutableStateOf(false) }
     LaunchedEffect(query) {
+        loading = false
         if (query.isBlank()) { results = emptyList(); return@LaunchedEffect }
         kotlinx.coroutines.delay(350)
         loading = true
-        results = search(query)
-        loading = false
+        // A newer query cancels this one; don't leave the spinner on.
+        try { results = search(query) } finally { loading = false }
     }
     AlertDialog(
         onDismissRequest = onDismiss,

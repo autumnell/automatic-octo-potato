@@ -162,7 +162,8 @@ private fun RulesTab(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewM
                 }
             }
         }
-        if (live == null) {
+        val offline by vm.liveFailed.collectAsStateWithLifecycle()
+        if (live == null && offline) {
             Spacer(Modifier.height(4.dp))
             Text("Offline: main formats only", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }

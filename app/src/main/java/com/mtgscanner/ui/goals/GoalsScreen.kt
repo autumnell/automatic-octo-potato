@@ -87,7 +87,8 @@ class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun messageShown() { _message.value = null }
 
     suspend fun suggest(text: String): List<String> = runCatching { repo.api.autocomplete(text) }.getOrDefault(emptyList())
-    suspend fun sets(): List<ScryfallSet> = runCatching { repo.sets() }.getOrDefault(emptyList())
+    /** Every set, or null when they couldn't be loaded. */
+    suspend fun sets(): List<ScryfallSet>? = runCatching { repo.sets() }.getOrNull()?.takeIf { it.isNotEmpty() }
 
     /** Every printing of the card named [name]. */
     fun addCardGoal(name: String) = viewModelScope.launch {
@@ -230,10 +231,20 @@ private fun AddGoalDialog(vm: GoalsViewModel, onDismiss: () -> Unit) {
     var sets by remember { mutableStateOf<List<ScryfallSet>?>(null) }
     var chosenSet by remember { mutableStateOf<ScryfallSet?>(null) }
     var rarities by remember { mutableStateOf(setOf("rare", "mythic")) }
+    /** The suggestion just picked, so picking it doesn't look it up again. */
+    var picked by remember { mutableStateOf<String?>(null) }
+    var setsFailed by remember { mutableStateOf(false) }
+    var setsTry by remember { mutableStateOf(0) }
 
-    LaunchedEffect(bySet) { if (bySet && sets == null) sets = vm.sets() }
+    LaunchedEffect(bySet, setsTry) {
+        if (bySet && sets == null) {
+            setsFailed = false
+            val got = vm.sets()
+            if (got == null) setsFailed = true else sets = got
+        }
+    }
     LaunchedEffect(text, bySet) {
-        if (bySet || text.length < 2) { suggestions = emptyList(); return@LaunchedEffect }
+        if (bySet || text.length < 2 || text == picked) { suggestions = emptyList(); return@LaunchedEffect }
         kotlinx.coroutines.delay(250)
         suggestions = vm.suggest(text).take(6)
     }
@@ -261,12 +272,17 @@ private fun AddGoalDialog(vm: GoalsViewModel, onDismiss: () -> Unit) {
                         suggestions.forEach { s ->
                             Text(
                                 s, style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.fillMaxWidth().clickable { text = s; suggestions = emptyList() }.padding(vertical = 8.dp),
+                                modifier = Modifier.fillMaxWidth().clickable { picked = s; text = s; suggestions = emptyList() }.padding(vertical = 8.dp),
                             )
                         }
                     } else {
                         val all = sets
-                        if (all == null) {
+                        if (all == null && setsFailed) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Can't load sets", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { setsTry++ }) { Text("Retry") }
+                            }
+                        } else if (all == null) {
                             CircularProgressIndicator(Modifier.padding(8.dp).size(20.dp), strokeWidth = 2.dp, color = Palette.Accent)
                         } else {
                             val q = text.trim()
