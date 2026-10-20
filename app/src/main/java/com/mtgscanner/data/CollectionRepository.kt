@@ -167,14 +167,15 @@ class CollectionRepository(
      * Deletes a box. Its cards move to [moveTo], or are deleted when [moveTo] is null.
      * With [moveTo] = [Box.AUTO_SORT] each card goes to the box whose rules fit it.
      */
-    suspend fun deleteBox(id: Long, moveTo: Long?) {
+    suspend fun deleteBox(id: Long, moveTo: Long?) = db.withTransaction {
         val cards = dao.inBox(id)
         if (moveTo == null) dao.deleteCardsInBox(id)
         else {
             dao.box(id)?.let { dao.deleteBox(it) }
             for (c in cards) {
-                val target = if (moveTo == Box.AUTO_SORT) pickBox(c.facts()) else moveTo
-                if (target == null) dao.delete(c) else moveToBox(c.id, target)
+                // Cards no box's rules fit go to an Anything box rather than being lost.
+                val target = (if (moveTo == Box.AUTO_SORT) pickBox(c.facts()) else moveTo) ?: anythingBox(except = id)
+                moveToBox(c.id, target)
             }
         }
         dao.box(id)?.let { dao.deleteBox(it) }
@@ -329,15 +330,20 @@ class CollectionRepository(
 
     // Adding and editing
 
+    private val addLock = Mutex()
+
     /** Adds [qty] copies to a box, merging with an existing entry for the same printing and finish. Returns the row id. */
     suspend fun add(card: ScryfallCard, foil: Boolean, qty: Int = 1, boxId: Long): Long {
         val now = System.currentTimeMillis()
-        val existing = dao.find(card.id, foil, boxId)
-        val id = if (existing != null) {
-            dao.update(existing.copy(quantity = existing.quantity + qty, updatedAt = now))
-            existing.id
-        } else {
-            dao.insert(card.toEntity(foil, qty, now).copy(boxId = boxId))
+        // One add at a time, so two copies added together (like a binder page) merge instead of clashing.
+        val id = addLock.withLock {
+            val existing = dao.find(card.id, foil, boxId)
+            if (existing != null) {
+                dao.update(existing.copy(quantity = existing.quantity + qty, updatedAt = now))
+                existing.id
+            } else {
+                dao.insert(card.toEntity(foil, qty, now).copy(boxId = boxId))
+            }
         }
         appScope.launch {
             runCatching { dao.putPricePoints(listOf(card.pricePoint())) }
@@ -352,11 +358,13 @@ class CollectionRepository(
         val c = dao.get(id) ?: return
         if (c.quantity <= qty) dao.delete(c)
         else dao.update(c.copy(quantity = c.quantity - qty, updatedAt = System.currentTimeMillis()))
+        appScope.launch { runCatching { recordSnapshot() } }
     }
 
     suspend fun setQuantity(id: Long, qty: Int) {
         val c = dao.get(id) ?: return
         if (qty <= 0) dao.delete(c) else dao.update(c.copy(quantity = qty, updatedAt = System.currentTimeMillis()))
+        appScope.launch { runCatching { recordSnapshot() } }
     }
 
     suspend fun update(card: CollectionCard) = dao.update(card.copy(updatedAt = System.currentTimeMillis()))
@@ -376,21 +384,28 @@ class CollectionRepository(
         }
     }
 
-    suspend fun delete(id: Long) { dao.get(id)?.let { dao.delete(it) } }
+    suspend fun delete(id: Long) {
+        dao.get(id)?.let { dao.delete(it) }
+        appScope.launch { runCatching { recordSnapshot() } }
+    }
+
+    // Older Androids allow at most 999 values in one query, so long id lists go in chunks.
+    private suspend fun rowsByIds(ids: List<Long>) = ids.distinct().chunked(500).flatMap { dao.byIds(it) }
+    private suspend fun rowsByScryfallIds(ids: List<String>) = ids.distinct().chunked(500).flatMap { dao.byScryfallIds(it) }
 
     // Undo, bulk edits and tags
 
     /** Everything needed to undo a change to these rows: every row of the same printings. */
     suspend fun snapshot(rowIds: List<Long>): List<CollectionCard> {
-        val ids = dao.byIds(rowIds).map { it.scryfallId }.distinct()
-        return if (ids.isEmpty()) emptyList() else dao.byScryfallIds(ids)
+        val ids = rowsByIds(rowIds).map { it.scryfallId }.distinct()
+        return if (ids.isEmpty()) emptyList() else rowsByScryfallIds(ids)
     }
 
     /** Puts rows back exactly as [snapshot] saw them, undoing merges, moves and deletes. */
     suspend fun restore(before: List<CollectionCard>) {
         if (before.isEmpty()) return
         db.withTransaction {
-            dao.deleteByScryfallIds(before.map { it.scryfallId }.distinct())
+            before.map { it.scryfallId }.distinct().chunked(500).forEach { dao.deleteByScryfallIds(it) }
             dao.putCards(before)
         }
         appScope.launch { runCatching { recordSnapshot() } }
@@ -399,7 +414,7 @@ class CollectionRepository(
     suspend fun moveMany(rowIds: List<Long>, boxId: Long) = db.withTransaction { rowIds.forEach { moveToBox(it, boxId) } }
 
     suspend fun deleteMany(rowIds: List<Long>) {
-        db.withTransaction { dao.byIds(rowIds).forEach { dao.delete(it) } }
+        db.withTransaction { rowsByIds(rowIds).forEach { dao.delete(it) } }
         appScope.launch { runCatching { recordSnapshot() } }
     }
 
@@ -415,10 +430,14 @@ class CollectionRepository(
         else dao.insert(c.copy(id = 0, quantity = qty, boxId = boxId, updatedAt = now))
     }
 
+    /** Several [moveCopies] at once, all or nothing. Moves are (row id, copies). */
+    suspend fun moveCopiesMany(moves: List<Pair<Long, Int>>, boxId: Long) =
+        db.withTransaction { moves.forEach { (id, n) -> moveCopies(id, n, boxId) } }
+
     suspend fun addTag(rowIds: List<Long>, tag: String) {
         val t = tag.trim().replace(",", " ").ifEmpty { return }
         db.withTransaction {
-            dao.byIds(rowIds).forEach { c ->
+            rowsByIds(rowIds).forEach { c ->
                 val tags = c.userTags.split(',').map { it.trim() }.filter { it.isNotEmpty() }
                 if (tags.none { it.equals(t, ignoreCase = true) }) dao.update(c.copy(userTags = (tags + t).joinToString(",")))
             }
@@ -531,7 +550,10 @@ class CollectionRepository(
     /** Saves today's collection value for the value chart. */
     suspend fun recordSnapshot() = snapshotLock.withLock {
         val all = dao.all()
-        if (all.isEmpty()) return@withLock
+        if (all.isEmpty()) {
+            com.mtgscanner.widget.CollectionWidget.publish(appContext, 0.0, 0)
+            return@withLock
+        }
         val value = all.sumOf { it.totalPrice() }
         val count = all.sumOf { it.quantity }
         dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), value, count))

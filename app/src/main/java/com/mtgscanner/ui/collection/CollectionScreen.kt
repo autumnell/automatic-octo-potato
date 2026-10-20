@@ -161,7 +161,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         val newId = repo.createBox(d.name, d.kind, d.rules, d.color)
         val moved = repo.sortInto(sourceId, newId, d.rules)
         if (moved == 0) _message.value = "Made ${d.name}, but no cards in $name fit its rules"
-        else Undo.offer("Moved $moved cards from $name to ${d.name}") { repo.restore(before) }
+        else Undo.offer("Moved $moved cards from $name to ${d.name}") { repo.restore(before); repo.deleteBox(newId, CardBox.AUTO_SORT) }
     }
 
     companion object {

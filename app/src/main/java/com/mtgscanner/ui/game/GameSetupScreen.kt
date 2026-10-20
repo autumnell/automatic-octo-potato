@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.game.GameFormat
+import com.mtgscanner.game.Player
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.QuantityStepper
@@ -79,13 +80,19 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     var players by remember { mutableIntStateOf(format.defaultPlayers) }
     var life by remember { mutableIntStateOf(format.life) }
     var partners by remember { mutableStateOf(false) }
-    val names = remember { mutableStateListOf<String>().apply { addAll(vm.lastNames + List(4) { "" }); while (size > 4) removeAt(size - 1) } }
+    val names = remember {
+        mutableStateListOf<String>().apply { addAll(vm.lastNames + List(Player.MAX_PLAYERS) { "" }); while (size > Player.MAX_PLAYERS) removeAt(size - 1) }
+    }
+    val style by vm.style.collectAsStateWithLifecycle()
+    val records by vm.records.collectAsStateWithLifecycle()
+    var ending by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
     ) {
         Text("Game", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
-        Text("A life counter for up to 4 players.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        Text("A life counter for up to ${Player.MAX_PLAYERS} players.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
 
         current?.let { g ->
             Spacer(Modifier.height(14.dp))
@@ -98,7 +105,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         GradientButton("Resume", onPlay, Modifier.weight(1f), icon = Icons.Filled.PlayArrow)
                         Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = vm::end) { Text("End game", color = Palette.Muted) }
+                        TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
                     }
                 }
             }
@@ -124,7 +131,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
 
         Label("Players")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            (1..4).forEach { n -> SelectPill("$n", players == n, { players = n }) }
+            (1..Player.MAX_PLAYERS).forEach { n -> SelectPill("$n", players == n, { players = n }) }
         }
 
         Label("Starting life")
@@ -144,6 +151,13 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                 Switch(partners, { partners = it }, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
             }
         }
+
+        Label("Table style")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TableStyle.entries.forEach { t -> SelectPill(t.label, style == t, { vm.setStyle(t) }) }
+        }
+        Text("Each player can also put card art from your collection behind their life total, from their panel's menu.",
+            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 6.dp))
 
         Label("Names")
         (0 until players).forEach { i ->
@@ -169,8 +183,14 @@ fun GameSetupScreen(onPlay: () -> Unit) {
             Modifier.fillMaxWidth(),
             icon = Icons.Filled.Favorite,
         )
+
+        Spacer(Modifier.height(18.dp))
+        StatsCard(records, onOpen = { showStats = true })
         Spacer(Modifier.height(32.dp))
     }
+
+    current?.let { g -> if (ending) EndGameDialog(g, onDismiss = { ending = false }) { save, winner -> ending = false; vm.end(save, winner) } }
+    if (showStats) StatsSheet(records, vm, onDismiss = { showStats = false })
 }
 
 @Composable

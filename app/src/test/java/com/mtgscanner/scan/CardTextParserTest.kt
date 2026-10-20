@@ -99,4 +99,24 @@ class CardTextParserTest {
         assertEquals("Giant Growth", pockets[3].nameCandidates.first())
         assertTrue(pockets[4].isEmpty)
     }
+
+    @Test fun partlyFilledPageUsesTheFrame() {
+        // Only the top row of a 900 x 1260 page is filled. The grid must still be a third of the page tall.
+        val frame = OcrBox(0, 0, 900, 1260)
+        val lines = listOf(
+            OcrLine("Lightning Bolt", 10, 10, 200, 30), OcrLine("Instant", 10, 230, 120, 250), OcrLine("123/280 C", 10, 380, 110, 400),
+            OcrLine("Counterspell", 310, 10, 500, 30), OcrLine("Instant", 310, 230, 430, 250),
+        )
+        val pockets = CardTextParser.parseGrid(lines, frame = frame)
+        assertEquals("Lightning Bolt", pockets[0].nameCandidates.first())
+        assertEquals("123", pockets[0].collectorNumber)
+        assertEquals("Counterspell", pockets[1].nameCandidates.first())
+        assertTrue(pockets[3].isEmpty)
+    }
+
+    @Test fun pageFrameIsCentered() {
+        val f = CardTextParser.pageFrame(720, 1280)
+        assertTrue(kotlin.math.abs((720 - f.right) - f.left) <= 1)
+        assertTrue(f.height > f.width)
+    }
 }

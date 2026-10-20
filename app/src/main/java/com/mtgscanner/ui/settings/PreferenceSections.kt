@@ -45,6 +45,7 @@ fun PricesSection() {
         ) {
             AppSettings.updateShowPrices(it)
             PriceAlerts.schedule(ctx)
+            com.mtgscanner.widget.CollectionWidget.refresh(ctx)
         }
         if (AppSettings.showPrices) {
             HorizontalDivider(color = Palette.Outline)

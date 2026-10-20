@@ -37,6 +37,8 @@ data class Player(
     val partnerCasts: Int = 0,
     /** Conceded or otherwise out, by hand. */
     val conceded: Boolean = false,
+    /** Card art shown behind the life total, or null for a plain panel. */
+    val art: String? = null,
 ) {
     val commanderTax: Int get() = commanderCasts * 2
     val partnerTax: Int get() = partnerCasts * 2
@@ -44,7 +46,7 @@ data class Player(
     fun damageFrom(from: Int, partner: Boolean = false): Int = commanderDamage.getOrElse(cmdIndex(from, partner)) { 0 }
 
     companion object {
-        const val MAX_PLAYERS = 4
+        const val MAX_PLAYERS = 6
         fun cmdIndex(from: Int, partner: Boolean) = from * 2 + if (partner) 1 else 0
     }
 }
@@ -67,6 +69,8 @@ data class GameState(
     val initiative: Int? = null,
     /** "day", "night", or null before it matters. */
     val dayNight: String? = null,
+    /** True once this game has been saved to the stats. */
+    val recorded: Boolean = false,
     val startedAt: Long = System.currentTimeMillis(),
     val history: List<GameEvent> = emptyList(),
     /** Earlier states, newest last, for undo. Not saved between runs. */
@@ -84,6 +88,23 @@ data class GameState(
         }
     }
 
+    /** Pads lists saved by older versions, which had room for fewer players. */
+    fun normalized(): GameState = copy(players = players.map { p ->
+        if (p.commanderDamage.size >= Player.MAX_PLAYERS * 2) p
+        else p.copy(commanderDamage = p.commanderDamage + List(Player.MAX_PLAYERS * 2 - p.commanderDamage.size) { 0 })
+    })
+
+    /** A summary for the stats, with [winner] chosen by the table (or the last player standing). */
+    fun toRecord(winner: Int? = this.winner, now: Long = System.currentTimeMillis()) = GameRecord(
+        format = format,
+        players = players.map { it.name },
+        winner = winner?.let { players.getOrNull(it)?.name },
+        turns = if (active != null) turn else 0,
+        startedAt = startedAt,
+        endedAt = now,
+        finalLife = players.map { it.life },
+    )
+
     val playersLeft: Int get() = players.indices.count { outReason(it) == null }
 
     /** The last player standing in a game of two or more. */
@@ -96,11 +117,11 @@ data class GameState(
         /** Changes to the same thing within this time are merged into one history line. */
         const val MERGE_MS = 2500L
 
-        val NAMES = listOf("Player 1", "Player 2", "Player 3", "Player 4")
+        val NAMES = List(Player.MAX_PLAYERS) { "Player ${it + 1}" }
 
         fun new(format: GameFormat, count: Int, life: Int = format.life, names: List<String> = NAMES, partners: Boolean = false) = GameState(
             format = format,
-            players = List(count.coerceIn(1, Player.MAX_PLAYERS)) { i -> Player(names.getOrElse(i) { NAMES[i] }, i, life) },
+            players = List(count.coerceIn(1, Player.MAX_PLAYERS)) { i -> Player(names.getOrElse(i) { NAMES[i] }.ifBlank { NAMES[i] }, i, life) },
             startingLife = life,
             partners = partners,
         )
@@ -137,11 +158,13 @@ object Game {
     fun commanderDamage(s: GameState, target: Int, from: Int, delta: Int, partner: Boolean = false, now: Long = System.currentTimeMillis()): GameState {
         val idx = Player.cmdIndex(from, partner)
         val p = s.players[target]
-        val d = (p.commanderDamage[idx] + delta).coerceAtLeast(0) - p.commanderDamage[idx]
+        val had = p.commanderDamage.getOrElse(idx) { 0 }
+        val d = (had + delta).coerceAtLeast(0) - had
         if (d == 0) return s
         val label = "Commander damage from ${s.players[from].name}" + if (partner) " (partner)" else ""
         return s.record(target, label, d, now, s.updatePlayer(target) {
-            it.copy(life = it.life - d, commanderDamage = it.commanderDamage.mapIndexed { k, v -> if (k == idx) v + d else v })
+            val list = if (it.commanderDamage.size > idx) it.commanderDamage else it.commanderDamage + List(idx + 1 - it.commanderDamage.size) { 0 }
+            it.copy(life = it.life - d, commanderDamage = list.mapIndexed { k, v -> if (k == idx) v + d else v })
         })
     }
 
@@ -164,6 +187,7 @@ object Game {
 
     fun rename(s: GameState, i: Int, name: String): GameState = s.updatePlayer(i) { it.copy(name = name.trim().ifEmpty { it.name }) }
     fun recolor(s: GameState, i: Int, color: Int): GameState = s.updatePlayer(i) { it.copy(color = color) }
+    fun setArt(s: GameState, i: Int, art: String?): GameState = s.updatePlayer(i) { it.copy(art = art) }
 
     /** Passes the turn to the next player still in. A full round adds one to the turn count. */
     fun nextTurn(s: GameState, now: Long = System.currentTimeMillis()): GameState {
@@ -186,15 +210,60 @@ object Game {
     fun initiative(s: GameState, i: Int?, now: Long = System.currentTimeMillis()): GameState =
         s.record(i ?: -1, "Initiative", 0, now, s.copy(initiative = i))
 
-    fun dayNight(s: GameState, value: String?): GameState = s.copy(dayNight = value)
+    fun dayNight(s: GameState, value: String?, now: Long = System.currentTimeMillis()): GameState =
+        if (value == s.dayNight) s
+        else s.record(-1, when (value) { "day" -> "It became day"; "night" -> "It became night"; else -> "Day and night off" }, 0, now, s.copy(dayNight = value))
 
     fun undo(s: GameState): GameState {
         val prev = s.undoStack.lastOrNull() ?: return s
-        return prev.copy(undoStack = s.undoStack.dropLast(1))
+        // A game already saved to the stats stays saved, so undoing and replaying the last hit doesn't count it twice.
+        return prev.copy(undoStack = s.undoStack.dropLast(1), recorded = s.recorded)
     }
 
     /** Same players and format, fresh life totals. */
     fun restart(s: GameState): GameState =
         GameState.new(s.format, s.players.size, s.startingLife, s.players.map { it.name }, s.partners)
-            .let { g -> g.copy(players = g.players.mapIndexed { i, p -> p.copy(color = s.players[i].color) }) }
+            .let { g -> g.copy(players = g.players.mapIndexed { i, p -> p.copy(color = s.players[i].color, art = s.players[i].art) }) }
+}
+
+/** One finished game, kept for the stats. */
+@Serializable
+data class GameRecord(
+    val format: GameFormat,
+    val players: List<String>,
+    /** Null when nobody was picked as the winner. */
+    val winner: String?,
+    /** Rounds played, or 0 when turns weren't tracked. */
+    val turns: Int,
+    val startedAt: Long,
+    val endedAt: Long,
+    val finalLife: List<Int> = emptyList(),
+) {
+    val minutes: Long get() = ((endedAt - startedAt) / 60_000).coerceAtLeast(0)
+}
+
+/** Wins and games per player name, across saved games. */
+data class PlayerStats(val name: String, val games: Int, val wins: Int) {
+    val winRate: Int get() = if (games == 0) 0 else wins * 100 / games
+}
+
+object GameStats {
+    /** Most wins first, then most games. Names match case-insensitively. */
+    fun byPlayer(records: List<GameRecord>): List<PlayerStats> {
+        val games = LinkedHashMap<String, Pair<String, Int>>()
+        val wins = HashMap<String, Int>()
+        for (r in records) {
+            r.players.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }.forEach { n ->
+                val k = n.lowercase()
+                games[k] = (games[k]?.first ?: n) to ((games[k]?.second ?: 0) + 1)
+            }
+            r.winner?.trim()?.lowercase()?.let { wins[it] = (wins[it] ?: 0) + 1 }
+        }
+        return games.map { (k, v) -> PlayerStats(v.first, v.second, wins[k] ?: 0) }
+            .sortedWith(compareByDescending<PlayerStats> { it.wins }.thenByDescending { it.games }.thenBy { it.name.lowercase() })
+    }
+
+    /** Average length in minutes of games that lasted at least a minute, or null. */
+    fun averageMinutes(records: List<GameRecord>): Long? =
+        records.map { it.minutes }.filter { it > 0 }.takeIf { it.isNotEmpty() }?.average()?.toLong()
 }

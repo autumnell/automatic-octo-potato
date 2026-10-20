@@ -92,16 +92,19 @@ object CardTextParser {
 
     /**
      * Reads a binder page: splits the text into a [rows] x [cols] grid by where each line sits,
-     * and reads each pocket as its own card. The grid spans the text found, so the page doesn't
-     * have to fill the camera exactly. Returns one guess per pocket, row by row.
+     * and reads each pocket as its own card. Returns one guess per pocket, row by row.
+     *
+     * The grid covers [frame] (where the page guide sits in the image), grown to take in any text
+     * outside it. So a page with only some pockets filled still lines up with the right cells.
+     * Without a frame, the grid spans the text found.
      */
-    fun parseGrid(lines: List<OcrLine>, rows: Int = 3, cols: Int = 3): List<CardTextGuess> {
+    fun parseGrid(lines: List<OcrLine>, rows: Int = 3, cols: Int = 3, frame: OcrBox? = null): List<CardTextGuess> {
         val clean = lines.filter { it.text.isNotBlank() }
         if (clean.isEmpty()) return List(rows * cols) { CardTextGuess(emptyList(), null, null, 0) }
-        val left = clean.minOf { it.left }
-        val right = clean.maxOf { it.right }
-        val top = clean.minOf { it.top }
-        val bottom = clean.maxOf { it.bottom }
+        val left = minOf(clean.minOf { it.left }, frame?.left ?: Int.MAX_VALUE)
+        val right = maxOf(clean.maxOf { it.right }, frame?.right ?: Int.MIN_VALUE)
+        val top = minOf(clean.minOf { it.top }, frame?.top ?: Int.MAX_VALUE)
+        val bottom = maxOf(clean.maxOf { it.bottom }, frame?.bottom ?: Int.MIN_VALUE)
         val cellW = (right - left).coerceAtLeast(1) / cols.toDouble()
         val cellH = (bottom - top).coerceAtLeast(1) / rows.toDouble()
         val cells = List(rows * cols) { mutableListOf<OcrLine>() }
@@ -113,6 +116,15 @@ object CardTextParser {
             cells[r * cols + c] += l
         }
         return cells.map { parse(it) }
+    }
+
+    /** Where the on-screen page guide falls in an upright image of [width] x [height]: centered, card-shaped, 92% wide. */
+    fun pageFrame(width: Int, height: Int): OcrBox {
+        val pw = minOf(width * 0.92, height * 0.92 * 63.0 / 88.0)
+        val ph = pw * 88.0 / 63.0
+        val l = ((width - pw) / 2).toInt()
+        val t = ((height - ph) / 2).toInt()
+        return OcrBox(l, t, width - l, height - t)
     }
 
     /** Counts letters in real-looking words. Upside-down or sideways text scores near zero. */

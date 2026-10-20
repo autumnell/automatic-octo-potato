@@ -37,8 +37,8 @@ data class ScanEntry(
     val value: Double get() = (card.price(foil)?.toDoubleOrNull() ?: 0.0) * count
 }
 
-/** A pack being opened: cards added after [startKey] belong to it. */
-data class PackDraft(val name: String, val cost: Double?, val startKey: Long)
+/** A pack being opened, with the cards scanned from it. Kept apart from the scan list so clearing the list keeps them. */
+data class PackDraft(val name: String, val cost: Double?, val entries: List<ScanEntry> = emptyList())
 
 /** One pocket of a binder page. [card] is null when it couldn't be read or found. */
 data class PageSlot(val index: Int, val read: String?, val card: ScryfallCard?, val selected: Boolean)
@@ -98,7 +98,7 @@ data class ScanUiState(
     val foil: Boolean get() = settings.foil
     val sessionCount: Int get() = session.sumOf { it.count }
     val sessionValue: Double get() = session.sumOf { it.value }
-    val packEntries: List<ScanEntry> get() = pack?.let { p -> session.filter { it.key > p.startKey } }.orEmpty()
+    val packEntries: List<ScanEntry> get() = pack?.entries.orEmpty()
     val packValue: Double get() = packEntries.sumOf { it.value }
 }
 
@@ -299,11 +299,11 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun setListByBox(on: Boolean) = _state.update { it.copy(listByBox = on) }
 
-    private fun addCard(card: ScryfallCard, qty: Int, fromReview: Boolean = false, auto: Boolean = false) {
+    private fun addCard(card: ScryfallCard, qty: Int, fromReview: Boolean = false, auto: Boolean = false, fromPage: Boolean = false) {
         val s = _state.value
         val foil = s.foil && card.hasFoil || !card.hasNonFoil
         viewModelScope.launch {
-            val wish = if (fromReview) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
+            val wish = if (fromReview || fromPage) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
             // A box that was deleted (say, saved in a preset) falls back to auto-sort.
             val known = boxes.value?.any { it.id == s.boxId } == true
             val boxId = if (s.boxId == Box.AUTO_SORT || !known) repo.pickBox(card, foil) else s.boxId
@@ -319,6 +319,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             _state.update {
                 it.copy(
                     session = listOf(entry) + it.session,
+                    pack = it.pack?.let { p -> p.copy(entries = listOf(entry) + p.entries) },
                     addedPulse = it.addedPulse + 1,
                     status = if (boxName.isNotEmpty()) "Added ${card.name} → $boxName" else "Added ${card.name}",
                     error = null,
@@ -362,8 +363,16 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     private suspend fun removeEntry(entry: ScanEntry) {
+        // Already taken back (say, from the list before tapping Undo): don't remove another copy.
+        if (_state.value.session.none { it.key == entry.key }) return
         repo.remove(entry.rowId, entry.count)
-        _state.update { it.copy(session = it.session.filterNot { e -> e.key == entry.key }, status = "Removed ${entry.card.name}") }
+        _state.update {
+            it.copy(
+                session = it.session.filterNot { e -> e.key == entry.key },
+                pack = it.pack?.let { p -> p.copy(entries = p.entries.filterNot { e -> e.key == entry.key }) },
+                status = "Removed ${entry.card.name}",
+            )
+        }
     }
 
     // Pack mode
@@ -372,7 +381,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun startPack(name: String, cost: Double?) = _state.update {
         it.copy(
-            pack = PackDraft(name.ifBlank { "Pack" }, cost, entryKeys), showPackStart = false, pageMode = false, page = null,
+            pack = PackDraft(name.ifBlank { "Pack" }, cost), showPackStart = false, pageMode = false, page = null,
             status = "Opening ${name.ifBlank { "a pack" }} · scan each card",
         )
     }
@@ -411,14 +420,19 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun setPageMode(on: Boolean) {
         _state.update {
-            it.copy(pageMode = on, wantPage = false, pageLoading = false, page = null, current = null, awaiting = false,
+            it.copy(pageMode = on, wantPage = false, pageLoading = false, page = null, current = null, awaiting = false, wish = null,
                 status = if (on) "Fill the frame with a binder page, then tap Capture page" else "Point your camera at a card")
         }
         resetTracking()
     }
 
     /** Reads the next camera frame as a whole page. */
-    fun capturePage() = _state.update { it.copy(wantPage = true, status = "Hold still…") }
+    fun capturePage() = _state.update { it.copy(wantPage = true, paused = false, status = "Hold still…") }
+
+    /** Stops waiting for a page read, if it's taking too long. */
+    fun cancelCapture() = _state.update {
+        it.copy(wantPage = false, pageLoading = false, status = "Fill the frame with a binder page, then tap Capture page")
+    }
 
     /** Called by the analyzer with one guess per pocket, left to right, top to bottom. */
     fun onPage(guesses: List<CardTextGuess>) {
@@ -452,7 +466,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun addPage() {
         val cards = _state.value.page.orEmpty().filter { it.selected }.mapNotNull { it.card }
         _state.update { it.copy(page = null) }
-        cards.forEach { addCard(it, 1, auto = true) }
+        cards.forEach { addCard(it, 1, auto = true, fromPage = true) }
         _state.update { it.copy(status = "Added ${cards.size} cards · turn the page and capture again") }
     }
 

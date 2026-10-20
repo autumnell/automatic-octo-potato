@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.home
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -71,13 +72,13 @@ private val PAGES = listOf(
 fun FirstRunTour(onDone: () -> Unit) {
     val pager = rememberPagerState { PAGES.size }
     val scope = rememberCoroutineScope()
+    BackHandler(onBack = onDone)
     Box(
         Modifier.fillMaxSize().background(Palette.Background)
             // Catch taps so nothing underneath reacts.
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
             .systemBarsPadding(),
     ) {
-        TextButton(onClick = onDone, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) { Text("Skip", color = Palette.Muted) }
         HorizontalPager(pager, Modifier.fillMaxSize()) { i ->
             val page = PAGES[i]
             Column(
@@ -110,5 +111,7 @@ fun FirstRunTour(onDone: () -> Unit) {
             )
             Spacer(Modifier.width(1.dp))
         }
+        // Drawn last so it sits above the pager and gets the tap.
+        TextButton(onClick = onDone, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) { Text("Skip", color = Palette.Muted) }
     }
 }
