@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class],
-    version = 7,
+    entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class, CardEvent::class, Goal::class],
+    version = 8,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -109,6 +109,32 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `cards` ADD COLUMN `signed` INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE `cards` ADD COLUMN `altered` INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE `cards` ADD COLUMN `graded` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /** Version 8 adds purchase price, source, photo, proxy, for-sale and binder slot; card history; goals; unknown scans. */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `purchasePrice` REAL")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `acquiredFrom` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `photo` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `proxy` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `forSale` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `askPrice` REAL")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `binderSlot` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `power` TEXT")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `toughness` TEXT")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `reserved` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `pending_scans` ADD COLUMN `unknown` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `card_events` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `scryfallId` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `kind` TEXT NOT NULL, `detail` TEXT NOT NULL, `at` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_card_events_scryfallId` ON `card_events` (`scryfallId`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `goals` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`kind` TEXT NOT NULL, `target` TEXT NOT NULL, `rarities` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)",
+                )
             }
         }
 

@@ -13,6 +13,13 @@ data class CardFacts(
     val price: Double?,
     val setCode: String,
     val name: String = "",
+    val colorIdentity: String = "",
+    val cmc: Double = 0.0,
+    val power: String? = null,
+    val toughness: String? = null,
+    val reserved: Boolean = false,
+    /** Formats it's legal in (Scryfall keys like "commander"). */
+    val formats: Set<String> = emptySet(),
 )
 
 /**

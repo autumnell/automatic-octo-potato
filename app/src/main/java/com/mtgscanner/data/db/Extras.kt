@@ -54,6 +54,8 @@ data class PendingScan(
     val quantity: Int,
     val boxId: Long,
     val addedAt: Long = System.currentTimeMillis(),
+    /** The scanner couldn't identify it; [name] is the raw text read. Waits for you to search it by hand. */
+    val unknown: Boolean = false,
 )
 
 /** One day's price for a printing, recorded when prices refresh. Builds each card's price chart. */
@@ -81,4 +83,32 @@ data class PackOpening(
     /** One line per card: "name|set|number|price". */
     val pulls: String = "",
     val openedAt: Long = System.currentTimeMillis(),
+)
+
+/** One thing that happened to a card: added, moved, condition changed, traded, deleted. */
+@Entity(tableName = "card_events", indices = [Index("scryfallId")])
+@Serializable
+data class CardEvent(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val scryfallId: String,
+    val name: String,
+    /** "added", "moved", "edited", "traded", "removed". */
+    val kind: String,
+    /** Short detail, like "Rares → Blue binder" or "NM → LP". */
+    val detail: String = "",
+    val at: Long = System.currentTimeMillis(),
+)
+
+/** A collecting goal: every printing of a card, or a set's cards of some rarities. */
+@Entity(tableName = "goals")
+@Serializable
+data class Goal(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    /** "printings" (target = oracle id) or "set" (target = set code). */
+    val kind: String,
+    val target: String,
+    /** For "set": comma-separated rarities to count; empty = all. */
+    val rarities: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
 )

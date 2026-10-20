@@ -47,6 +47,39 @@ interface CardDao {
     @Update
     suspend fun updateAll(cards: List<CollectionCard>)
 
+    @Insert
+    suspend fun addEvent(e: CardEvent): Long
+
+    @Query("SELECT * FROM card_events WHERE scryfallId = :scryfallId ORDER BY at DESC")
+    fun observeEvents(scryfallId: String): Flow<List<CardEvent>>
+
+    @Query("SELECT * FROM card_events")
+    suspend fun allEvents(): List<CardEvent>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putEvents(l: List<CardEvent>)
+
+    @Query("DELETE FROM card_events")
+    suspend fun deleteEvents()
+
+    @Query("SELECT * FROM goals ORDER BY createdAt")
+    fun observeGoals(): Flow<List<Goal>>
+
+    @Insert
+    suspend fun addGoal(g: Goal): Long
+
+    @Query("DELETE FROM goals WHERE id = :id")
+    suspend fun deleteGoal(id: Long)
+
+    @Query("SELECT * FROM goals")
+    suspend fun allGoals(): List<Goal>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putGoals(l: List<Goal>)
+
+    @Query("DELETE FROM goals")
+    suspend fun deleteGoals()
+
     /** Copies of a card (by oracle id) outside the given boxes. */
     @Query("SELECT COALESCE(SUM(quantity), 0) FROM cards WHERE oracleId = :oracleId AND boxId NOT IN (:excluded)")
     suspend fun ownedOutside(oracleId: String, excluded: List<Long>): Int

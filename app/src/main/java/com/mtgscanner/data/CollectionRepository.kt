@@ -5,7 +5,9 @@ import androidx.room.withTransaction
 import com.mtgscanner.data.db.AppDatabase
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.BoxSummary
+import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.Goal
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.PricePoint
@@ -92,6 +94,8 @@ data class Backup(
     val pending: List<PendingScan> = emptyList(),
     val priceHistory: List<PricePoint> = emptyList(),
     val packs: List<PackOpening> = emptyList(),
+    val events: List<CardEvent> = emptyList(),
+    val goals: List<Goal> = emptyList(),
 )
 
 /** Collection value and its change since cards were added. */
@@ -105,13 +109,14 @@ data class PriceMove(val name: String, val then: Double, val now: Double, val wa
 
 class CollectionRepository(
     context: Context,
-    private val db: AppDatabase,
+    internal val db: AppDatabase,
     val api: ScryfallApi,
 ) {
-    private val dao = db.cardDao()
+    /** Internal so feature files can add repository extensions. */
+    internal val dao = db.cardDao()
     val appContext: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("collection", Context.MODE_PRIVATE)
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val nameIndex = NameIndex(context.filesDir, api)
     private val art = ArtMatcher()
     val scanLog = com.mtgscanner.scan.ScanLog(context.filesDir)
@@ -312,6 +317,7 @@ class CollectionRepository(
         if (c.boxId == boxId) return id
         val other = dao.find(c.scryfallId, c.foil, boxId)
         val now = System.currentTimeMillis()
+        logEvent(c.scryfallId, c.name, "moved", "${boxName(c.boxId)} → ${boxName(boxId)}")
         return if (other != null) {
             dao.update(other.copy(quantity = other.quantity + c.quantity, updatedAt = now))
             dao.delete(c)
@@ -428,6 +434,7 @@ class CollectionRepository(
                 dao.insert(card.toEntity(foil, qty, now).copy(boxId = boxId))
             }
         }
+        logEvent(card.id, card.name, "added", "×$qty → ${boxName(boxId)}")
         appScope.launch {
             runCatching { dao.putPricePoints(listOf(card.pricePoint())) }
             runCatching { recordSnapshot() }
@@ -439,6 +446,7 @@ class CollectionRepository(
     /** Removes [qty] copies (used for undo). Deletes the row when it reaches zero. */
     suspend fun remove(id: Long, qty: Int = 1) {
         val c = dao.get(id) ?: return
+        logEvent(c.scryfallId, c.name, "removed", "×${minOf(qty, c.quantity)}")
         if (c.quantity <= qty) dao.delete(c)
         else dao.update(c.copy(quantity = c.quantity - qty, updatedAt = System.currentTimeMillis()))
         appScope.launch { runCatching { recordSnapshot() } }
@@ -454,6 +462,7 @@ class CollectionRepository(
         val old = dao.get(card.id)
         // A new condition or finish needs a new condition price.
         val changed = old != null && (old.condition != card.condition || old.foil != card.foil)
+        if (old != null && old.condition != card.condition) logEvent(card.scryfallId, card.name, "edited", "${old.condition} → ${card.condition}")
         dao.update(card.copy(updatedAt = System.currentTimeMillis()).let { if (changed) it.copy(conditionPrice = null, conditionPriceAt = 0) else it })
         if (changed && JustTcg.enabled) appScope.launch { runCatching { refreshConditionPrices(listOf(card.id)) } }
     }
@@ -475,8 +484,33 @@ class CollectionRepository(
     }
 
     suspend fun delete(id: Long) {
-        dao.get(id)?.let { dao.delete(it) }
+        dao.get(id)?.let { logEvent(it.scryfallId, it.name, "removed", "×${it.quantity}"); dao.delete(it) }
         appScope.launch { runCatching { recordSnapshot() } }
+    }
+
+    // History
+
+    private suspend fun boxName(id: Long): String = dao.box(id)?.name ?: "?"
+
+    /** Records something that happened to a card, for its history. Never fails the change itself. */
+    suspend fun logEvent(scryfallId: String, name: String, kind: String, detail: String = "") {
+        runCatching { dao.addEvent(CardEvent(scryfallId = scryfallId, name = name, kind = kind, detail = detail)) }
+    }
+
+    fun observeHistory(scryfallId: String): Flow<List<CardEvent>> = dao.observeEvents(scryfallId)
+
+    // Goals
+
+    fun observeGoals(): Flow<List<Goal>> = dao.observeGoals()
+    suspend fun addGoal(goal: Goal): Long = dao.addGoal(goal)
+    suspend fun deleteGoal(id: Long) = dao.deleteGoal(id)
+
+    // Unknown scans
+
+    /** Saves a card the scanner couldn't identify, so it can be searched by hand later. */
+    suspend fun addUnknown(text: String, boxId: Long, foil: Boolean = false) {
+        if (text.isBlank()) return
+        dao.addPending(PendingScan(name = text.trim().take(80), setCode = null, collectorNumber = null, foil = foil, quantity = 1, boxId = boxId, unknown = true))
     }
 
     // Older Androids allow at most 999 values in one query, so long id lists go in chunks.
@@ -504,7 +538,7 @@ class CollectionRepository(
     suspend fun moveMany(rowIds: List<Long>, boxId: Long) = db.withTransaction { rowIds.forEach { moveToBox(it, boxId) } }
 
     suspend fun deleteMany(rowIds: List<Long>) {
-        db.withTransaction { rowsByIds(rowIds).forEach { dao.delete(it) } }
+        db.withTransaction { rowsByIds(rowIds).forEach { logEvent(it.scryfallId, it.name, "removed", "×${it.quantity}"); dao.delete(it) } }
         appScope.launch { runCatching { recordSnapshot() } }
     }
 
@@ -814,7 +848,7 @@ class CollectionRepository(
     suspend fun resolvePending(): Int = pendingLock.withLock { resolvePendingLocked() }
 
     private suspend fun resolvePendingLocked(): Int {
-        val pending = dao.allPending()
+        val pending = dao.allPending().filterNot { it.unknown }
         if (pending.isEmpty()) return 0
         val cards = api.identify(pending.map { identifierFor(it.name, it.setCode, it.collectorNumber, null) })
         var n = 0
@@ -881,7 +915,7 @@ class CollectionRepository(
         val b = Backup(
             boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
-            priceHistory = dao.allPricePoints(), packs = dao.allPacks(),
+            priceHistory = dao.allPricePoints(), packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(),
         )
         out.buffered().use { backupJson.encodeToStream(Backup.serializer(), b, it) }
     }
@@ -892,10 +926,10 @@ class CollectionRepository(
         val b = input.buffered().use { backupJson.decodeFromStream(Backup.serializer(), it) }
         db.withTransaction {
             dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
-            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks()
+            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteEvents(); dao.deleteGoals()
             dao.putBoxes(b.boxes); dao.putCards(b.cards); dao.putSnapshots(b.snapshots)
             dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
-            dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs)
+            dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals)
         }
         b.cards.sumOf { it.quantity }
     }
@@ -969,6 +1003,9 @@ fun ScryfallCard.toEntity(foil: Boolean, qty: Int, now: Long) = CollectionCard(
     boxId = 0,
     priceAtAdd = (if (foil) (prices.usdFoil ?: prices.usdEtched ?: prices.usd) else prices.usd)?.toDoubleOrNull(),
     treatments = treatments.joinToString(","),
+    power = power ?: cardFaces?.firstOrNull()?.power,
+    toughness = toughness ?: cardFaces?.firstOrNull()?.toughness,
+    reserved = reserved,
     addedAt = now,
     updatedAt = now,
 )
@@ -990,4 +1027,10 @@ fun ScryfallCard.facts(foil: Boolean) = CardFacts(
     price = (if (foil) (prices.usdFoil ?: prices.usdEtched ?: prices.usd) else prices.usd)?.toDoubleOrNull(),
     setCode = set,
     name = name,
+    colorIdentity = colorIdentity.joinToString(""),
+    cmc = cmc,
+    power = power ?: cardFaces?.firstOrNull()?.power,
+    toughness = toughness ?: cardFaces?.firstOrNull()?.toughness,
+    reserved = reserved,
+    formats = legalities.filterValues { it == "legal" || it == "restricted" }.keys,
 )
