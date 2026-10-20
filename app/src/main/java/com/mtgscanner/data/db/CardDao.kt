@@ -101,6 +101,10 @@ interface CardDao {
     )
     suspend fun setPrices(scryfallId: String, usd: Double?, foil: Double?, treatments: String): Int
 
+    /** Fills in stats added in DB v8 for cards saved before it. */
+    @Query("UPDATE cards SET power = :power, toughness = :toughness, reserved = :reserved WHERE scryfallId = :scryfallId")
+    suspend fun setStats(scryfallId: String, power: String?, toughness: String?, reserved: Boolean)
+
     @Delete
     suspend fun delete(card: CollectionCard)
 

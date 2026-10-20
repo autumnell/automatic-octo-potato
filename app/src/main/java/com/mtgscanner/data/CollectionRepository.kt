@@ -650,6 +650,7 @@ class CollectionRepository(
                     f.id, f.prices.usd?.toDoubleOrNull(),
                     (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
                 )
+                dao.setStats(f.id, f.power ?: f.cardFaces?.firstOrNull()?.power, f.toughness ?: f.cardFaces?.firstOrNull()?.toughness, f.reserved)
             }
         }
         dao.putPricePoints(fresh.values.map { it.pricePoint() })
