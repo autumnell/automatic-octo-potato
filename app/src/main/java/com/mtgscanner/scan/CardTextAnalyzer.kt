@@ -31,6 +31,8 @@ class CardTextAnalyzer(
     /** Binder page mode: when this returns true, the next frame is read as a 3x3 page. */
     private val wantsPage: () -> Boolean = { false },
     private val onPage: (List<CardTextGuess>) -> Unit = {},
+    /** Brightness of the middle of the picture, a few times a second, even while paused (low light, foil hint). */
+    private val onLight: (FrameLight) -> Unit = {},
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -41,8 +43,29 @@ class CardTextAnalyzer(
     /** Extra quarter turns (0, 90, 180, 270) that last produced a good read. */
     @Volatile private var preferredTurn = 0
 
+    private var lastLight = 0L
+
+    /** Samples the RGBA frame directly, without making a bitmap. */
+    private fun measureLight(image: ImageProxy) {
+        runCatching {
+            val plane = image.planes[0]
+            val buf = plane.buffer
+            val row = plane.rowStride
+            val px = plane.pixelStride
+            val light = LightCheck.measure(image.width, image.height, { x, y ->
+                val i = y * row + x * px
+                ((buf.get(i).toInt() and 0xFF) shl 16) or ((buf.get(i + 1).toInt() and 0xFF) shl 8) or (buf.get(i + 2).toInt() and 0xFF)
+            })
+            onLight(light)
+        }
+    }
+
     override fun analyze(image: ImageProxy) {
         val now = SystemClock.elapsedRealtime()
+        if (now - lastLight >= 200) {
+            lastLight = now
+            measureLight(image)
+        }
         if (isPaused() || busy.get() || now - lastRun < minIntervalMs) {
             image.close()
             return
