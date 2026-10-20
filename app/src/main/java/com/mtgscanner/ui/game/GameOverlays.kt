@@ -399,7 +399,7 @@ private fun PlayerSettings(g: GameState, i: Int, vm: GameViewModel) {
     }
 }
 
-/** The middle button's panel: table actions, dice and history, in big tiles. */
+/** The middle button's panel: table actions and dice, in big tiles. */
 @Composable
 fun MenuOverlay(
     g: GameState,
@@ -414,11 +414,14 @@ fun MenuOverlay(
     var choosingFirst by remember { mutableStateOf(false) }
     var confirmRestart by remember { mutableStateOf(false) }
     var roll by remember { mutableStateOf<String?>(null) }
+    var rollKind by remember { mutableStateOf<DieKind?>(null) }
+    var rollResult by remember { mutableStateOf<String?>(null) }
+    var rollKey by remember { mutableIntStateOf(0) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
 
     // Few big tiles per page, so everything reads from across the table.
-    val tabs = listOf("Turn", "Table", "Game", "Dice", "Log")
+    val tabs = listOf("Turn", "Table", "Game", "Dice")
     TableOverlay(0, g.format.label, tabs, tab, { tab = it; picking = null; choosingFirst = false }, onDismiss) {
         val marker = picking
         val pageScroll = remember(tab, marker, choosingFirst) { ScrollState(0) }
@@ -447,33 +450,14 @@ fun MenuOverlay(
                 }
             }
             tab == 3 -> Column(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxWidth().height(110.dp), contentAlignment = Alignment.Center) {
-                    Text(roll ?: "Tap a die", color = if (roll != null) Palette.Gold else Color.White.copy(alpha = 0.7f),
-                        fontSize = 40.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
-                }
-                val dice = listOf<Pair<String, () -> String>>(
-                    "Coin" to { if (Random.nextBoolean()) "Heads" else "Tails" },
-                    "d6" to { "${Random.nextInt(1, 7)}" },
-                    "d20" to { "${Random.nextInt(1, 21)}" },
-                    "Planar die" to { when (Random.nextInt(6)) { 0 -> "Planeswalk"; 1 -> "Chaos"; else -> "Blank" } },
-                )
+                RollStage(rollKind, rollResult, rollKey)
                 ScrollPage(pageScroll) {
                     Column(Modifier.verticalScroll(pageScroll)) {
-                        TileGrid(dice.size, minTile = 150) { k, m ->
-                            val (label, rollIt) = dice[k]
-                            ActionTile(com.mtgscanner.ui.components.ManaIcons.Dice, label, m) { roll = "$label: ${rollIt()}" }
-                        }
-                    }
-                }
-            }
-            tab == 4 -> {
-                val list = rememberLazyListState()
-                if (g.history.isEmpty()) Text("Nothing yet.", color = Color.White.copy(alpha = 0.75f), fontSize = 20.sp)
-                ScrollPage(list) {
-                    LazyColumn(Modifier.fillMaxSize(), state = list) {
-                        items(g.history.takeLast(150).reversed()) { e ->
-                            Text(describe(g, e), color = Color.White, fontSize = 21.sp, modifier = Modifier.padding(vertical = 7.dp))
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+                        TileGrid(DieKind.entries.size, minTile = 150) { k, m ->
+                            val kind = DieKind.entries[k]
+                            ActionTile(com.mtgscanner.ui.components.ManaIcons.Dice, kind.label, m) {
+                                rollKind = kind; rollResult = kind.roll(); rollKey++
+                            }
                         }
                     }
                 }

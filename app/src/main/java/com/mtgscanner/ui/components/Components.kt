@@ -249,6 +249,7 @@ fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (
 fun ColorPip(letter: Char, size: Dp = 12.dp) {
     // The real mana symbol, a little larger so it reads at chip size.
     if (letter.uppercaseChar() in "WUBRGC") { Mana.Symbol(letter.uppercase(), size + 4.dp); return }
+    if (letter.uppercaseChar() == 'M') { Mana.MultiSymbol(size + 4.dp); return }
     Box(Modifier.size(size).clip(CircleShape).background(MtgColors.forLetter(letter)).border(1.dp, Color.Black.copy(alpha = 0.3f), CircleShape))
 }
 

@@ -151,6 +151,7 @@ object Mana {
     val Red = Color(0xFFDB8664)
     val Green = Color(0xFF93B483)
     val Colorless = Color(0xFFBEB9B2)
+    val Gold = Color(0xFFE0C068)
     private val Ink = Color(0xFF111111)
 
     private fun colorOf(c: Char): Color = when (c) {
@@ -195,6 +196,16 @@ object Mana {
                 Text(g.main, fontFamily = Family, color = Ink, fontSize = small, maxLines = 1, modifier = Modifier.align(BiasAlignment(-0.5f, -0.5f)))
                 Text(g.second, fontFamily = Family, color = Ink, fontSize = small, maxLines = 1, modifier = Modifier.align(BiasAlignment(0.5f, 0.5f)))
             }
+        }
+    }
+
+    /** Multicolor: a gold circle with the multicolor symbol, the same size as the mana symbols. */
+    @Composable
+    fun MultiSymbol(size: Dp = 16.dp) {
+        val g = glyph("multicolor") ?: return
+        val density = LocalDensity.current
+        Box(Modifier.size(size).clip(CircleShape).background(Gold), contentAlignment = Alignment.Center) {
+            Text(g.main, fontFamily = Family, color = Ink, fontSize = with(density) { (size * 0.72f).toSp() }, textAlign = TextAlign.Center, maxLines = 1)
         }
     }
 
