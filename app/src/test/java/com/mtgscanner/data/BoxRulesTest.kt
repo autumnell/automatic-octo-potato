@@ -87,4 +87,69 @@ class BoxRulesTest {
         assertEquals(3L, BoxRules.ruleMatch(boxes, card(colors = "U", price = 12.0)))
         assertEquals(null, BoxRules.ruleMatch(boxes, card(colors = "U", price = 1.0)))
     }
+
+    private fun facts(
+        identity: String = "", cmc: Double = 0.0, power: String? = null, toughness: String? = null,
+        formats: Set<String> = emptySet(), reserved: Boolean = false,
+    ) = card().copy(colorIdentity = identity, cmc = cmc, power = power, toughness = toughness, formats = formats, reserved = reserved)
+
+    @Test fun colorIdentityRules() {
+        val izzet = BoxRules(identity = setOf("U", "R"))
+        assertTrue(izzet.matches(facts(identity = "UR")))
+        assertFalse(izzet.matches(facts(identity = "U")))
+        val within = izzet.copy(identityMode = "within")
+        assertTrue(within.matches(facts(identity = "U")))
+        assertTrue(within.matches(facts(identity = "")))
+        assertFalse(within.matches(facts(identity = "UB")))
+        assertTrue(BoxRules(identity = setOf("C")).matches(facts(identity = "")))
+        assertFalse(BoxRules(identity = setOf("C")).matches(facts(identity = "G")))
+        assertEquals("Identity UR", izzet.describe())
+        assertEquals("Within UR", within.describe())
+    }
+
+    @Test fun manaValuePowerToughness() {
+        val cheap = BoxRules(maxCmc = 2)
+        assertTrue(cheap.matches(facts(cmc = 2.0)))
+        assertFalse(cheap.matches(facts(cmc = 3.0)))
+        val big = BoxRules(minPower = 4)
+        assertTrue(big.matches(facts(power = "5", toughness = "5")))
+        assertFalse(big.matches(facts(power = "3")))
+        assertFalse(big.matches(facts(power = "*")))
+        assertFalse(big.matches(facts()))
+        assertTrue(BoxRules(minToughness = 1, maxToughness = 1).matches(facts(power = "1+*", toughness = "1")))
+        assertEquals("MV ≤2", cheap.describe())
+        assertEquals("MV 2–3 · Power 4+", BoxRules(minCmc = 2, maxCmc = 3, minPower = 4).describe())
+        assertEquals(1, BoxRules.statValue("1+*"))
+        assertEquals(-1, BoxRules.statValue("-1"))
+        assertNull(BoxRules.statValue("*"))
+    }
+
+    @Test fun formatAndReservedRules() {
+        val pauper = BoxRules(formats = setOf("pauper"))
+        assertTrue(pauper.matches(facts(formats = setOf("pauper", "commander"))))
+        assertFalse(pauper.matches(facts(formats = setOf("commander"))))
+        assertEquals("Pauper legal", pauper.describe())
+        assertTrue(BoxRules(reserved = true).matches(facts(reserved = true)))
+        assertFalse(BoxRules(reserved = true).matches(facts()))
+        assertEquals("Reserved List", BoxRules(reserved = true).describe())
+    }
+
+    @Test fun newRulesAreNotCatchAllAndRoundTrip() {
+        val all = listOf(
+            BoxRules(identity = setOf("G")), BoxRules(minCmc = 1), BoxRules(maxCmc = 1), BoxRules(minPower = 1), BoxRules(maxPower = 1),
+            BoxRules(minToughness = 1), BoxRules(maxToughness = 1), BoxRules(formats = setOf("modern")), BoxRules(reserved = true),
+        )
+        all.forEach { assertFalse(it.isCatchAll); assertEquals(it, BoxRules.fromJson(it.toJson())) }
+        // Rules saved before these fields existed still load.
+        assertEquals(BoxRules(colors = setOf("R")), BoxRules.fromJson("""{"colors":["R"]}"""))
+        assertTrue(BoxRules(identityMode = "within").isCatchAll)
+    }
+
+    @Test fun templates() {
+        assertTrue(BOX_TEMPLATES.any { it.name == "Rares and bulk" && it.boxes.any { b -> b.fallback } })
+        val sets = BoxTemplate.setBoxes(listOf("mh3" to 40, "blb" to 10, "dmu" to 0), max = 1)
+        assertEquals(listOf("MH3", "Other sets"), sets.boxes.map { it.name })
+        assertEquals(setOf("MH3"), sets.boxes.first().rules.sets)
+        assertTrue(sets.boxes.last().rules.isCatchAll)
+    }
 }

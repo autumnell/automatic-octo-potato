@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
@@ -73,6 +75,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.BoxRules
+import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.CollectionCard
@@ -158,8 +161,32 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun closeMoves() { _moves.value = null }
 
+    /** Adds cards leaving their boxes to the physical move list. */
+    private suspend fun recordMoves(moves: List<Pair<CollectionCard, Long>>, show: Boolean) {
+        val ids = (moves.map { it.first.boxId } + moves.map { it.second }).distinct()
+        val info = ids.mapNotNull { id -> repo.box(id)?.let { id to Triple(it.name, it.kind, it.divider) } }.toMap()
+        MoveList.add(MoveList.linesFor(moves) { info[it] }, show)
+    }
+
+    /** Makes a whole system of boxes in one go; "Set boxes" is built from the sets you own. */
+    fun applyTemplate(t: BoxTemplate) = viewModelScope.launch {
+        val tpl = if (t.boxes.isEmpty()) {
+            BoxTemplate.setBoxes(repo.allCards().groupBy { it.setCode }.map { (code, cs) -> code to cs.sumOf { it.quantity } })
+        } else t
+        val hasFallback = repo.boxInfos().any { it.fallback }
+        val ids = tpl.boxes.map { p ->
+            val id = repo.createBox(p.name, p.kind, p.rules)
+            if (p.divider.isNotEmpty()) repo.setBoxLayout(id, 0, p.divider)
+            if (p.fallback && !hasFallback) repo.setFallbackBox(id)
+            id
+        }
+        Undo.offer("Made ${ids.size} boxes") { ids.forEach { repo.deleteBox(it, CardBox.AUTO_SORT) } }
+        findMisplaced(quiet = true)
+    }
+
     private fun applyMoves(list: List<Sorting.Move<CollectionCard>>) = viewModelScope.launch {
         if (list.isEmpty()) return@launch
+        recordMoves(list.map { it.item to it.to }, show = list.size > 1)
         val undo = repo.applyMoves(list.map { it.item.id to it.to })
         val n = list.sumOf { it.item.quantity }
         Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.applyMoves(undo) }
@@ -172,8 +199,13 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     /** Splits a full box in two by first letter. */
     fun splitBox(b: BoxSummary) = viewModelScope.launch {
+        val before = repo.cardsInBox(b.id)
         val newId = repo.splitBox(b.id)
         _message.value = if (newId == null) "Can't split ${b.name}" else "Split ${b.name}"
+        if (newId != null) {
+            val moved = repo.cardsInBox(newId).map { it.id }.toSet()
+            recordMoves(before.filter { it.id in moved }.map { it to newId }, show = true)
+        }
     }
 
     // Smart lists: saved Browse searches that update themselves
@@ -324,11 +356,12 @@ fun CollectionScreen(
             Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Boxes", "Decks", "Wishlist", "Tools").forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
             }
+            MoveListHost()
             when (tab) {
                 0 -> BoxesTab(ui, vm, onBrowse, onTrade)
                 1 -> DecksTab(onOpenDeck)
                 2 -> WishlistTab(vm)
-                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras)
+                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onOpenCard)
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
@@ -406,7 +439,10 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     }
 
     if (creating) {
-        BoxEditorSheet(title = "New box", onSave = { vm.createBox(it); creating = false }, onDismiss = { creating = false }, layout = true)
+        BoxEditorSheet(
+            title = "New box", onSave = { vm.createBox(it); creating = false }, onDismiss = { creating = false }, layout = true,
+            onTemplate = { vm.applyTemplate(it); creating = false },
+        )
     }
     editing?.let { b ->
         BoxEditorSheet(
@@ -613,13 +649,19 @@ private fun shareSheet(ctx: android.content.Context, title: String, text: String
 @Composable
 private fun ToolsTab(
     ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit,
-    onSets: () -> Unit, onExtras: () -> Unit,
+    onSets: () -> Unit, onExtras: () -> Unit, onOpenCard: (Long) -> Unit,
 ) {
     val trade = ui.boxes.filter { it.kind == "trade" }
     val ctx = LocalContext.current
+    var finding by remember { mutableStateOf(false) }
+    var dupes by remember { mutableStateOf(false) }
+    if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
+    if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
     LazyColumn(Modifier.fillMaxSize()) {
         item {
+            ToolCard(Icons.Filled.FindInPage, "Find a card", "Which box, which spot", { finding = true })
             ToolCard(Icons.Filled.AutoFixHigh, "Re-sort", "Cards in the wrong box", { vm.findMisplaced() })
+            ToolCard(Icons.Filled.Layers, "Duplicates", "Cards in 2+ printings", { dupes = true })
             ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
             ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
             SectionHeader("Trade binders")

@@ -100,6 +100,48 @@ object Sorting {
     }
 
     /**
+     * Where a card sits among the others behind the same divider, in name order:
+     * the names just before and after it. [contents] are the cards already in the box (name and facts).
+     */
+    data class Position(
+        /** The divider label, or null when the box has none. */
+        val spot: String?,
+        /** The name just before it, or null when it goes first. */
+        val after: String?,
+        /** The name just after it, or null when it goes last. */
+        val before: String?,
+        /** Another copy or printing with the same name is already there. */
+        val withSame: Boolean = false,
+    ) {
+        /** "between Counterspell and Cryptic Command", "after Opt", "first", "with its copies". */
+        fun text(): String = when {
+            withSame -> "with its copies"
+            after != null && before != null -> "between $after and $before"
+            after != null -> "after $after"
+            before != null -> "before $before"
+            else -> "first card"
+        }
+    }
+
+    /** Name order inside a box: case and a leading "The" don't matter. */
+    fun nameKey(name: String): String = name.trim().lowercase().removePrefix("the ").trim()
+
+    fun position(divider: Divider, name: String, card: CardFacts, contents: List<Pair<String, CardFacts>>): Position {
+        val spot = spot(divider, name, card)
+        val key = nameKey(name)
+        val same = contents.filter { spot(divider, it.first, it.second) == spot }.map { it.first }.distinct()
+        if (same.any { nameKey(it) == key }) return Position(spot, null, null, withSame = true)
+        val sorted = same.sortedBy(::nameKey)
+        val after = sorted.lastOrNull { nameKey(it) < key }
+        val before = sorted.firstOrNull { nameKey(it) > key }
+        return Position(spot, after, before)
+    }
+
+    /** "Rares → Blue → between Counterspell and Cryptic Command". */
+    fun where(boxName: String, pos: Position): String =
+        listOfNotNull(boxName, pos.spot, pos.text()).joinToString(" → ")
+
+    /**
      * A card that should live somewhere else: its box has rules it no longer fits, or it sits in a
      * box that takes any card while a rule box now fits it. Trade binders and decks are left alone.
      */
