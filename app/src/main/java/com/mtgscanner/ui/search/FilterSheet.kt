@@ -84,12 +84,11 @@ fun FilterSheet(
                 val list = SearchFilters.MAIN_FORMATS + if (moreFormats) SearchFilters.MORE_FORMATS else emptyList()
                 list.forEach { (label, key) ->
                     SelectPill(label, f.format == key, {
-                        onChange(if (f.format == key) f.copy(format = null) else f.copy(format = key, hideNotLegal = true))
+                        onChange(if (f.format == key) f.copy(format = null) else f.copy(format = key))
                     })
                 }
                 SelectPill(if (moreFormats) "Less" else "More…", false, { moreFormats = !moreFormats })
             }
-            ToggleRow("Hide not legal", f.hideNotLegal && f.format != null, enabled = f.format != null) { onChange(f.copy(hideNotLegal = it)) }
 
             Heading("Type")
             Text("Tap: is · again: not", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
@@ -110,18 +109,20 @@ fun FilterSheet(
             Heading("Stats")
             SearchFilters.STATS.forEach { stat ->
                 val t = f.stat(stat)
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(SearchFilters.statLabel(stat), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    SearchFilters.OPS.forEach { op ->
-                        SelectPill(op, t.op == op, { onChange(f.withStat(t.copy(op = op))) })
-                        Spacer(Modifier.width(6.dp))
+                Text(SearchFilters.statLabel(stat), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SearchFilters.OPS.forEach { op ->
+                            SelectPill(op.replace("<=", "≤").replace(">=", "≥"), t.op == op, { onChange(f.withStat(t.copy(op = op))) })
+                        }
                     }
+                    Spacer(Modifier.width(6.dp))
+                    // Text keyboard so "-" and "*" can be typed.
                     SmallField(
                         t.value,
-                        { v -> onChange(f.withStat(t.copy(value = v.filter { it.isDigit() || it == '.' }.take(4)))) },
-                        "#",
-                        Modifier.width(64.dp),
-                        number = true,
+                        { v -> onChange(f.withStat(t.copy(value = SearchFilters.cleanStatValue(v)))) },
+                        "# or *",
+                        Modifier.width(72.dp),
                     )
                 }
             }

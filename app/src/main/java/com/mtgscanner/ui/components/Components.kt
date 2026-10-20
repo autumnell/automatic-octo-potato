@@ -40,6 +40,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,7 +59,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.SubcomposeAsyncImage
+import androidx.compose.ui.graphics.painter.ColorPainter
+import coil.compose.AsyncImage
 import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -67,11 +71,13 @@ private val usd = NumberFormat.getCurrencyInstance(Locale.US)
 fun formatUsd(v: Double?): String = if (v == null) "--" else usd.format(v)
 fun formatUsd(v: String?): String = formatUsd(v?.toDoubleOrNull())
 
+private val MANA_SYMBOL = Regex("""\{([^}]+)\}|(//)""")
+
 /** Draws a mana cost like "{2}{U}{U}" as small colored circles. */
 @Composable
 fun ManaCost(cost: String, size: Dp = 16.dp) {
     if (cost.isBlank()) return
-    val symbols = Regex("""\{([^}]+)\}|(//)""").findAll(cost).map { it.groupValues[1].ifEmpty { "//" } }.toList()
+    val symbols = remember(cost) { MANA_SYMBOL.findAll(cost).map { it.groupValues[1].ifEmpty { "//" } }.toList() }
     // Symbol text is sized in dp so it always fits its circle, even with a large system font.
     val density = LocalDensity.current
     val symbolText = with(density) { (size * 0.55f).toSp() }
@@ -118,28 +124,26 @@ fun Shimmer(modifier: Modifier = Modifier) {
     Box(modifier.background(Palette.SurfaceHigh.copy(alpha = a)))
 }
 
-/** A card image with rounded corners like a real card, and a placeholder while loading. */
+/**
+ * A card image with rounded corners like a real card, and a plain placeholder while loading.
+ * Uses AsyncImage (no subcomposition) so long lists and grids stay smooth.
+ */
 @Composable
 fun CardImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
     val shape = RoundedCornerShape(corner)
-    SubcomposeAsyncImage(
-        model = url,
+    val fill = Palette.SurfaceHigh
+    val placeholder = remember(fill) { ColorPainter(fill) }
+    // If the stored link fails, ask Scryfall for the card's current image instead.
+    val backup = remember(url) { scryfallImageFallback(url) }
+    var useBackup by remember(url) { mutableStateOf(false) }
+    AsyncImage(
+        model = if (useBackup) backup else url,
         contentDescription = null,
         contentScale = ContentScale.Crop,
-        modifier = modifier.aspectRatio(63f / 88f).clip(shape),
-        loading = { Shimmer(Modifier.fillMaxSize()) },
-        error = {
-            // If the stored link fails, ask Scryfall for the card's current image instead.
-            val backup = scryfallImageFallback(url)
-            if (backup != null) {
-                coil.compose.AsyncImage(
-                    model = backup, contentDescription = null, contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().background(Palette.SurfaceHigh),
-                )
-            } else {
-                Box(Modifier.fillMaxSize().background(Palette.SurfaceHigh))
-            }
-        },
+        modifier = modifier.aspectRatio(63f / 88f).clip(shape).background(fill),
+        placeholder = placeholder,
+        error = placeholder,
+        onError = { if (!useBackup && backup != null) useBackup = true },
     )
 }
 

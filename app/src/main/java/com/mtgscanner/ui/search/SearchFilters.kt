@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class TypeTerm(val word: String, val not: Boolean = false)
 
-/** A number filter such as mana value < 3. [op] is "=", "<" or ">". */
+/** A number filter such as mana value < 3. [op] is one of [SearchFilters.OPS]; [value] may be negative, or "*". */
 @Serializable
 data class StatTerm(val stat: String, val op: String = "=", val value: String = "")
 
@@ -15,9 +15,8 @@ data class StatTerm(val stat: String, val op: String = "=", val value: String = 
 data class SearchFilters(
     /** One result per card (unique=cards) instead of every printing. */
     val groupPrintings: Boolean = true,
-    /** Scryfall format key, such as "commander". */
+    /** Scryfall format key, such as "commander"; only cards legal in it are shown. */
     val format: String? = null,
-    val hideNotLegal: Boolean = true,
     val types: List<TypeTerm> = emptyList(),
     val stats: List<StatTerm> = emptyList(),
     /** Scryfall language code; "" means default (English), "any" means all. */
@@ -29,20 +28,20 @@ data class SearchFilters(
     /** How many filters differ from the defaults, for the badge on the filter button. */
     val activeCount: Int
         get() = (if (!groupPrintings) 1 else 0) +
-            (if (format != null && hideNotLegal) 1 else 0) +
+            (if (format != null) 1 else 0) +
             types.size + validStats.size +
             (if (lang.isNotEmpty()) 1 else 0) +
             (if (order != "name") 1 else 0)
 
     /** True when the filters alone narrow the search, so it can run with no words typed. */
-    val narrows: Boolean get() = (format != null && hideNotLegal) || types.isNotEmpty() || validStats.isNotEmpty()
+    val narrows: Boolean get() = format != null || types.isNotEmpty() || validStats.isNotEmpty()
 
     private val validStats: List<StatTerm>
-        get() = stats.filter { it.stat in STATS && it.op in OPS && it.value.trim().toDoubleOrNull() != null }
+        get() = stats.filter { it.stat in STATS && it.op in OPS && validValue(it.op, it.value.trim()) }
 
     /** The Scryfall query terms for these filters, joined by spaces. Empty when none apply. */
     fun toQuery(): String = buildList {
-        if (format != null && hideNotLegal) add("f:$format")
+        if (format != null) add("f:$format")
         types.forEach { t ->
             val w = t.word.trim().lowercase()
             if (w.isNotEmpty()) {
@@ -54,8 +53,16 @@ data class SearchFilters(
         if (lang.isNotEmpty()) add("lang:$lang")
     }.joinToString(" ")
 
-    /** [text] plus these filters, as one Scryfall query. */
-    fun combine(text: String): String = listOf(text.trim(), toQuery()).filter { it.isNotEmpty() }.joinToString(" ")
+    /**
+     * [text] plus these filters, as one Scryfall query. Text with an "or" is wrapped in
+     * parentheses so the filters apply to every branch, not just the last one.
+     */
+    fun combine(text: String): String {
+        val t = text.trim()
+        val q = toQuery()
+        val words = if (q.isNotEmpty() && OR.containsMatchIn(t)) "($t)" else t
+        return listOf(words, q).filter { it.isNotEmpty() }.joinToString(" ")
+    }
 
     /** Cycles a type chip: off → IS → NOT → off. */
     fun cycleType(word: String): SearchFilters {
@@ -72,12 +79,32 @@ data class SearchFilters(
 
     fun stat(stat: String): StatTerm = stats.firstOrNull { it.stat == stat } ?: StatTerm(stat)
 
+    /** Sets the term for [t]'s stat. A blank "=" term is dropped; a blank one with another op is kept so the op sticks while typing. */
     fun withStat(t: StatTerm): SearchFilters =
-        copy(stats = stats.filterNot { it.stat == t.stat } + listOfNotNull(t.takeIf { it.value.isNotBlank() }))
+        copy(stats = stats.filterNot { it.stat == t.stat } + listOfNotNull(t.takeIf { it.value.isNotBlank() || it.op != "=" }))
 
     companion object {
         val STATS = listOf("mv", "pow", "tou")
-        val OPS = listOf("=", "<", ">")
+        val OPS = listOf("=", "<", ">", "<=", ">=")
+        private val OR = Regex("""(?i)(^|\s)or(\s|$)""")
+
+        /** A number (may be negative or have a decimal point), or "*" with "=". */
+        private fun validValue(op: String, v: String): Boolean =
+            v.toDoubleOrNull() != null || (v == "*" && op == "=")
+
+        /** Keeps what a stat value field may hold: a leading minus, digits and one dot, or a lone "*". */
+        fun cleanStatValue(v: String): String {
+            if (v.contains('*')) return "*"
+            val out = StringBuilder()
+            v.forEach { ch ->
+                when {
+                    ch == '-' && out.isEmpty() -> out.append(ch)
+                    ch == '.' && '.' !in out -> out.append(ch)
+                    ch.isDigit() -> out.append(ch)
+                }
+            }
+            return out.toString().take(5)
+        }
 
         /** Label to Scryfall format key. */
         val MAIN_FORMATS = listOf(
