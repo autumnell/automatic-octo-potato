@@ -27,5 +27,5 @@ fun binderShareText(name: String, cards: List<CollectionCard>, showPrices: Boole
     append("Total: ${if (n == 1) "1 card" else "$n cards"}")
     if (showPrices) append(" · ${formatUsd(cards.sumOf { it.totalPrice() })}")
     appendLine()
-    append("Shared from MTG Scanner")
+    append("Shared from Grimoire")
 }

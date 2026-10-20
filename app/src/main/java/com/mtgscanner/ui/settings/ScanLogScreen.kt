@@ -65,7 +65,7 @@ fun ScanLogScreen(onBack: () -> Unit) {
             IconButton(onClick = {
                 val text = log.asText(entries.orEmpty())
                 val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                    .putExtra(Intent.EXTRA_SUBJECT, "MTG Scanner scan log")
+                    .putExtra(Intent.EXTRA_SUBJECT, "Grimoire scan log")
                     .putExtra(Intent.EXTRA_TEXT, text)
                 ctx.startActivity(Intent.createChooser(send, "Share scan log"))
             }, enabled = !entries.isNullOrEmpty()) { Icon(Icons.Filled.Share, "Share") }

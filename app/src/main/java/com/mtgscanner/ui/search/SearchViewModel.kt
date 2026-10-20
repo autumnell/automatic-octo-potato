@@ -77,7 +77,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val history = SearchHistory(repo.appContext)
 
     init {
-        com.mtgscanner.data.CardKingdom.init(repo.appContext)
+        com.mtgscanner.data.CardKingdom.loadSaved(repo.appContext)
         _ui.update { it.copy(recent = history.recent(), viewed = history.viewed(), saved = history.saved()) }
     }
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

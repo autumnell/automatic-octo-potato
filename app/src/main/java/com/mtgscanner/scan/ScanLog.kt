@@ -85,7 +85,7 @@ class ScanLog(private val dir: File) {
 
     /** Plain text to paste into a message. */
     fun asText(list: List<ScanLogEntry>): String = buildString {
-        appendLine("MTG Scanner scan log (${list.size} lookups, newest first)")
+        appendLine("Grimoire scan log (${list.size} lookups, newest first)")
         val fmt = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
         list.forEach { e ->
             append(fmt.format(java.util.Date(e.at))).append("  ").append(e.outcome.uppercase())

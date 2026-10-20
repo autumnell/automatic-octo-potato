@@ -96,7 +96,7 @@ object CardPhotos {
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "mtg-card-${System.currentTimeMillis()}.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/MTG Scanner")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Grimoire")
             }
             ctx.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
         }.getOrNull()

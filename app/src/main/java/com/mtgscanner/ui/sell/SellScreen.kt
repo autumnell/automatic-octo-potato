@@ -113,7 +113,7 @@ fun sellText(cards: List<CollectionCard>): String = buildString {
         appendLine("Total ${formatUsd(cards.sumOf { (it.salePrice() ?: 0.0) * it.quantity })}")
     }
     appendLine()
-    append("Shared from MTG Scanner")
+    append("Shared from Grimoire")
 }
 
 /** Cards marked for sale, with a total and a Share button. */

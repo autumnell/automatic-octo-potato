@@ -233,7 +233,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
         Column {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "MTG Scanner $version",
+                    "Grimoire $version",
                     style = MaterialTheme.typography.titleSmall,
                     // Tapping the version seven times reveals the scan log.
                     modifier = Modifier.weight(1f).clickable {

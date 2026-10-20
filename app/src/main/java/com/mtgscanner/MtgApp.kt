@@ -24,7 +24,7 @@ class MtgApp : Application(), ImageLoaderFactory {
         // Card Kingdom's buy list is big: it's fetched only when Trade or Sell opens (CardKingdom.init there).
         com.mtgscanner.scan.ScanPrefs.init(this)
         val db = Room.databaseBuilder(this, AppDatabase::class.java, "collection.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .build()
         repository = CollectionRepository(this, db, ScryfallApi())
         repository.startBackgroundWork()

@@ -710,15 +710,25 @@ class CollectionRepository(
         if (!JustTcg.enabled) return@withLock 0
         val cards = if (ids == null) dao.all() else ids.mapNotNull { dao.get(it) }
         if (cards.isEmpty()) return@withLock 0
-        val prices = JustTcg.prices(cards.map { it.scryfallId })
         val now = System.currentTimeMillis()
         var n = 0
-        db.withTransaction {
-            cards.forEach { c ->
-                val p = prices[c.scryfallId]?.let { JustTcg.pick(it, c.condition, c.foil) }
-                dao.setConditionPrice(c.id, p, now)
-                if (p != null) n++
+        val byId = cards.groupBy { it.scryfallId }
+        // Each batch is saved as it arrives, so hitting the plan's limit keeps what was already fetched.
+        suspend fun save(batch: Map<String, List<JustTcg.Variant>>, asked: Collection<String>) { db.withTransaction {
+            asked.forEach { sid ->
+                byId[sid].orEmpty().forEach { c ->
+                    val p = batch[sid]?.let { JustTcg.pick(it, c.condition, c.foil) }
+                    dao.setConditionPrice(c.id, p, now)
+                    if (p != null) n++
+                }
             }
+        } }
+        try {
+            JustTcg.prices(cards.map { it.scryfallId }, onBatch = { batch -> save(batch, batch.keys) })
+        } catch (e: JustTcg.LimitException) {
+            // Batches fetched before the limit were already saved by onBatch.
+            runCatching { recordSnapshot() }
+            return@withLock n
         }
         if (ids == null) JustTcg.lastFullRefresh = now
         runCatching { recordSnapshot() }

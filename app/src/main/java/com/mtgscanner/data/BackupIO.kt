@@ -275,18 +275,21 @@ internal object BackupIO {
                         ?: fallbackBoxId
                         ?: fallbackBox?.invoke()?.also { fallbackBoxId = it }
                     if (target == null) { notFound += r.name; return@forEach }
-                    val existing = dao.find(c.id, r.foil, target)
+                    val row = c.toEntity(r.foil, r.quantity, now).copy(
+                        boxId = target,
+                        condition = r.condition ?: "NM",
+                        lang = r.language ?: c.lang,
+                        purchasePrice = r.purchasePrice,
+                    )
+                    // Same printing, finish, box, language, condition and flags: add to that stack.
+                    val existing = dao.find(
+                        row.scryfallId, row.foil, row.boxId, row.lang, row.condition,
+                        row.signed, row.altered, row.graded, row.proxy,
+                    )
                     if (existing != null) {
                         dao.update(existing.copy(quantity = existing.quantity + r.quantity, updatedAt = now))
                     } else {
-                        dao.insert(
-                            c.toEntity(r.foil, r.quantity, now).copy(
-                                boxId = target,
-                                condition = r.condition ?: "NM",
-                                lang = r.language ?: c.lang,
-                                purchasePrice = r.purchasePrice,
-                            ),
-                        )
+                        dao.insert(row)
                     }
                     val boxName = boxNames.getOrPut(target) { dao.box(target)?.name ?: "?" }
                     dao.addEvent(CardEvent(scryfallId = c.id, name = c.name, kind = "added", detail = "×${r.quantity} → $boxName"))

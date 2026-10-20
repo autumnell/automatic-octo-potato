@@ -349,7 +349,7 @@ fun HomeScreen(
 @Composable
 private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("MTG Scanner", style = MaterialTheme.typography.titleLarge)
+        Text("Grimoire", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.weight(1f))
         TextButton(onClick = onEdit) { Text("Edit", color = Palette.Muted) }
         IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings") }

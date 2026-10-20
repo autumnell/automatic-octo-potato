@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MTG Scanner</string>
+    <string name="app_name">Grimoire</string>
     <string name="widget_label">MTG collection</string>
     <string name="widget_scan">Scan</string>
     <string name="widget_description">Your collection\'s value. Tap to open the app.</string>

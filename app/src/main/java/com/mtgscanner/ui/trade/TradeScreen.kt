@@ -432,5 +432,5 @@ fun shareText(title: String, lines: List<Triple<Int, String, Double?>>): String 
         appendLine()
     }
     appendLine()
-    append("Shared from MTG Scanner")
+    append("Shared from Grimoire")
 }
