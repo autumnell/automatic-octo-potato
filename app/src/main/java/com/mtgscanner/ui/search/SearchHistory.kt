@@ -7,7 +7,7 @@ import kotlinx.serialization.json.Json
 /** Recent searches and recently viewed cards, kept in preferences. */
 class SearchHistory(context: Context) {
     private val prefs = context.getSharedPreferences("search_history", Context.MODE_PRIVATE)
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val viewedSerializer = ListSerializer(Viewed.serializer())
 
     fun recent(): List<String> =
@@ -33,6 +33,25 @@ class SearchHistory(context: Context) {
     }
 
     fun clear() = prefs.edit().remove("recent").remove("viewed").apply()
+
+    private val savedSerializer = ListSerializer(SavedScryfallSearch.serializer())
+
+    /** Named searches with their filters; not removed by [clear]. */
+    fun saved(): List<SavedScryfallSearch> =
+        runCatching { json.decodeFromString(savedSerializer, prefs.getString("saved", "[]") ?: "[]") }.getOrDefault(emptyList())
+
+    /** Saves [s] first, replacing one with the same name, and returns the new list. */
+    fun save(s: SavedScryfallSearch): List<SavedScryfallSearch> {
+        val list = listOf(s) + saved().filterNot { it.name.equals(s.name, ignoreCase = true) }
+        prefs.edit().putString("saved", json.encodeToString(savedSerializer, list)).apply()
+        return list
+    }
+
+    fun deleteSaved(name: String): List<SavedScryfallSearch> {
+        val list = saved().filterNot { it.name == name }
+        prefs.edit().putString("saved", json.encodeToString(savedSerializer, list)).apply()
+        return list
+    }
 
     private companion object {
         const val MAX_RECENT = 8
