@@ -32,4 +32,9 @@ class DecklistParserTest {
         assertEquals(1, deck.size)
         assertEquals(5, deck[0].quantity)
     }
+
+    @Test fun hugeQuantityDoesNotCrash() {
+        val lines = DecklistParser.parse("99999999999 Island")
+        assertEquals(9999, lines[0].quantity)
+    }
 }
