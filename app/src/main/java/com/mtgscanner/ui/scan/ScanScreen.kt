@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Favorite
@@ -81,6 +82,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -90,6 +93,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -102,6 +106,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mtgscanner.data.ScanBarPrefs
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.scan.CardTextAnalyzer
@@ -129,6 +134,7 @@ fun ScanScreen(
     vm: ScanViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ctx = LocalContext.current
+    ScanBarPrefs.init(ctx)
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -172,117 +178,134 @@ fun ScanScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Color.Black)) {
-        ScanHeader(state, boxes, vm)
+    val hintTargets = remember { mutableStateMapOf<String, Rect>() }
+    Box(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalHintTargets provides hintTargets) {
+            Column(Modifier.fillMaxSize().background(Color.Black)) {
+                ScanHeader(state, boxes, vm)
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (needsBox) {
-                EmptyState(
-                    icon = Icons.Filled.Inventory2,
-                    title = "Create a box first",
-                    body = "Scanned cards go into boxes.",
-                    modifier = Modifier.align(Alignment.Center),
-                    action = { GradientButton("Create a box", { vm.showNewBox(true) }, icon = Icons.Filled.Add) },
-                )
-            } else if (hasPermission) {
-                CameraPreview(vm = vm, torch = state.torch)
-            } else {
-                EmptyState(
-                    icon = Icons.Filled.CameraAlt,
-                    title = "Camera needed",
-                    body = "Needed to read your cards.",
-                    modifier = Modifier.align(Alignment.Center),
-                    action = {
-                        if (blocked) {
-                            GradientButton("Open settings", {
-                                ctx.startActivity(
-                                    android.content.Intent(
-                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        android.net.Uri.fromParts("package", ctx.packageName, null),
-                                    ),
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    if (needsBox) {
+                        EmptyState(
+                            icon = Icons.Filled.Inventory2,
+                            title = "Create a box first",
+                            body = "Scanned cards go into boxes.",
+                            modifier = Modifier.align(Alignment.Center),
+                            action = { GradientButton("Create a box", { vm.showNewBox(true) }, icon = Icons.Filled.Add) },
+                        )
+                    } else if (hasPermission) {
+                        CameraPreview(vm = vm, torch = state.torch)
+                    } else {
+                        EmptyState(
+                            icon = Icons.Filled.CameraAlt,
+                            title = "Camera needed",
+                            body = "Needed to read your cards.",
+                            modifier = Modifier.align(Alignment.Center),
+                            action = {
+                                if (blocked) {
+                                    GradientButton("Open settings", {
+                                        ctx.startActivity(
+                                            android.content.Intent(
+                                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                                android.net.Uri.fromParts("package", ctx.packageName, null),
+                                            ),
+                                        )
+                                    })
+                                } else {
+                                    GradientButton("Allow camera", { launcher.launch(Manifest.permission.CAMERA) })
+                                }
+                            },
+                        )
+                    }
+
+                    if (hasPermission && !needsBox) {
+                        if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
+                        else FrameGuide(found = state.current != null, flash = if (state.settings.flash) state.addedPulse else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
+                        Column(
+                            Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            PackChip(state, vm)
+                            SortChip(state, vm)
+                        }
+                        BoxCallout(state, Modifier.align(Alignment.Center))
+                        Column(
+                            Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (state.review.isNotEmpty()) {
+                                Surface(onClick = { vm.showReview(true) }, shape = RoundedCornerShape(14.dp), color = Palette.Gold) {
+                                    Text("Check ${state.review.size}", color = Color.Black, style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                                }
+                            }
+                            if (state.skipped > 0) {
+                                Text(
+                                    "Skipped ${state.skipped}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
                                 )
-                            })
-                        } else {
-                            GradientButton("Allow camera", { launcher.launch(Manifest.permission.CAMERA) })
-                        }
-                    },
-                )
-            }
-
-            if (hasPermission && !needsBox) {
-                if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
-                else FrameGuide(found = state.current != null, flash = if (state.settings.flash) state.addedPulse else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
-                Column(
-                    Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    PackChip(state, vm)
-                    SortChip(state, vm)
-                }
-                BoxCallout(state, Modifier.align(Alignment.Center))
-                Column(
-                    Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (state.review.isNotEmpty()) {
-                        Surface(onClick = { vm.showReview(true) }, shape = RoundedCornerShape(14.dp), color = Palette.Gold) {
-                            Text("Check ${state.review.size}", color = Color.Black, style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                            }
+                            // Cards saved for later because they couldn't be identified.
+                            if (state.unknownCount > 0) {
+                                Text(
+                                    "Unknown ${state.unknownCount}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                )
+                            }
                         }
                     }
-                    if (state.skipped > 0) {
-                        Text(
-                            "Skipped ${state.skipped}",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        )
-                    }
-                    // Cards saved for later because they couldn't be identified.
-                    if (state.unknownCount > 0) {
-                        Text(
-                            "Unknown ${state.unknownCount}",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        )
-                    }
-                }
-            }
 
-            // Settings and modes float over the top of the camera.
-            if (!needsBox) Row(
-                Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                RoundIconButton(Icons.Filled.Settings, "Scan settings", { vm.showSettings(true) })
-                ModesButton(state, vm)
-                SetLockChip(vm)
-            }
+                    // Settings and modes float over the top of the camera.
+                    if (!needsBox) Row(
+                        Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        RoundIconButton(Icons.Filled.Settings, "Scan settings", { vm.showSettings(true) }, modifier = Modifier.hintTarget("settings"))
+                        ModesButton(state, vm)
+                    }
 
-            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp)) {
-                state.unknownRead?.let { if (!needsBox) UnknownChip(it, vm, Modifier.align(Alignment.CenterHorizontally)) }
-                AnimatedVisibility(
-                    visible = state.current != null,
-                    enter = slideInVertically { it / 2 } + fadeIn(),
-                    exit = slideOutVertically { it / 2 } + fadeOut(),
-                ) {
-                    state.current?.let { ResultCard(it, state, vm) }
+                    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp)) {
+                        state.unknownRead?.let { if (!needsBox) UnknownChip(it, vm, Modifier.align(Alignment.CenterHorizontally)) }
+                        AnimatedVisibility(
+                            visible = state.current != null,
+                            enter = slideInVertically { it / 2 } + fadeIn(),
+                            exit = slideOutVertically { it / 2 } + fadeOut(),
+                        ) {
+                            state.current?.let { ResultCard(it, state, vm) }
+                        }
+                        state.offline?.let { if (state.current == null) OfflineCard(it.name, vm) }
+                        if (state.pageMode && hasPermission && !needsBox) PageControls(state, vm)
+                        else if (state.current == null && state.offline == null && !needsBox) {
+                            StatusPill(state, Modifier.align(Alignment.CenterHorizontally))
+                        }
+                        if (!needsBox) {
+                            // The last card hides while a new one is on screen.
+                            if (state.current == null && state.offline == null) {
+                                Spacer(Modifier.height(8.dp))
+                                LastCardBar(state, onOpenCard, onOpenList = { vm.showList(true) }, Modifier.hintTarget("last"))
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            ScanToggleBar(state, vm, Modifier.hintTarget("bar"))
+                        }
+                    }
                 }
-                state.offline?.let { if (state.current == null) OfflineCard(it.name, vm) }
-                if (state.pageMode && hasPermission && !needsBox) PageControls(state, vm)
-                else if (state.current == null && state.offline == null && !needsBox) {
-                    StatusPill(state, Modifier.align(Alignment.CenterHorizontally))
-                }
+
+                if (!needsBox) ControlsRow(state, vm)
             }
         }
-
-        if (!needsBox) ControlsRow(state, vm)
-        ScanListBar(state, onOpen = { vm.showList(true) })
+        val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
+            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.showNewBox
+        if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
+            ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.setHintsSeen(true) })
+        }
     }
 
     if (state.showPrintings) {
@@ -293,7 +316,7 @@ fun ScanScreen(
     if (state.showReview) ReviewSheet(state, vm)
     if (state.showPackStart) PackStartDialog(vm)
     if (state.showSort) SortSheet(state, boxes, vm)
-    if (state.showSetLock) SetLockDialog(vm)
+    if (state.showSetLock) SetPickSheet(vm)
     if (state.showDeckPick) DeckPickDialog(vm)
     if (state.page != null) PageSheet(state, vm)
     if (state.showNewBox) {
@@ -305,7 +328,7 @@ fun ScanScreen(
     }
 }
 
-/** Flashlight, pause and foil, within thumb reach above the scanned-cards strip. */
+/** Flashlight, pause and the scan list, within thumb reach. */
 @Composable
 private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
     Row(
@@ -318,6 +341,7 @@ private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
             label = "Flashlight",
             onClick = { vm.setTorch(!state.torch) },
             tint = if (state.torch) Palette.Gold else Color.White,
+            modifier = Modifier.hintTarget("flash"),
         )
         Box(
             Modifier
@@ -336,7 +360,17 @@ private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
                 )
             }
         }
-        FoilChip(state.foil, { vm.setFoil(!state.foil) })
+        Box(Modifier.hintTarget("list")) {
+            RoundIconButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Scan list", { vm.showList(true) })
+            val count = state.sessionCount
+            if (count > 0) Text(
+                if (count > 99) "99+" else "$count",
+                color = Color.Black,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(50)).background(Palette.Gold)
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            )
+        }
     }
 }
 
@@ -486,9 +520,11 @@ private fun PresetSwitcher() {
 }
 
 @Composable
-private fun RoundIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tint: Color = Color.White) {
+private fun RoundIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tint: Color = Color.White, modifier: Modifier = Modifier,
+) {
     Box(
-        Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onClick),
+        modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
 }
@@ -641,35 +677,14 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                 OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Printing", maxLines = 1)
                 }
-                OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                // Copies come from the scan bar; +4 stays as a shortcut while it's at one.
+                val qty = ScanBarPrefs.quantity
+                if (qty == 1) OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("+4", maxLines = 1)
                 }
-                GradientButton("Add", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp))
+                GradientButton(if (qty > 1) "Add $qty" else "Add", { vm.add(qty) }, Modifier.weight(1f).heightIn(min = 48.dp))
             }
         }
-    }
-}
-
-/** Strip under the camera with the latest scans; tap to see the full list. */
-@Composable
-private fun ScanListBar(state: ScanUiState, onOpen: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Palette.Background)
-            .clickable(enabled = state.session.isNotEmpty(), onClick = onOpen)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (state.session.isEmpty()) {
-            Text("Scanned cards show up here", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            return@Row
-        }
-        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            state.session.take(10).forEach { e -> CardImage(e.card.smallImageUrl, Modifier.height(48.dp), corner = 3.dp) }
-        }
-        Spacer(Modifier.width(10.dp))
-        Text("See all", style = MaterialTheme.typography.labelLarge, color = Palette.Accent)
     }
 }
 
@@ -682,6 +697,14 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
             ScanSettingsEditor()
             HorizontalDivider(color = Palette.Outline)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
+            HorizontalDivider(color = Palette.Outline)
+            Text(
+                "Show hints",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.fillMaxWidth()
+                    .clickable { vm.showSettings(false); ScanBarPrefs.setHintsSeen(false) }
+                    .padding(vertical = 14.dp),
+            )
             if (state.pendingCount > 0) {
                 HorizontalDivider(color = Palette.Outline)
                 Text(
