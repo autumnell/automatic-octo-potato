@@ -94,9 +94,17 @@ data class ScanUiState(
     val wantPage: Boolean = false,
     val pageLoading: Boolean = false,
     val page: List<PageSlot>? = null,
+    /** Foil picked on the result card for the card on screen; null follows the Foil setting. */
+    val cardFoil: Boolean? = null,
 ) {
     val autoAdd: Boolean get() = settings.autoAdd
     val foil: Boolean get() = settings.foil
+
+    /** Whether [card] gets added as foil. The result card's choice counts only for the card on screen. */
+    fun isFoil(card: ScryfallCard): Boolean {
+        val want = (if (card.id == current?.id) cardFoil else null) ?: settings.foil
+        return want && card.hasFoil || !card.hasNonFoil
+    }
     val sessionCount: Int get() = session.sumOf { it.count }
     val sessionValue: Double get() = session.sumOf { it.value }
     val packEntries: List<ScanEntry> get() = pack?.entries.orEmpty()
@@ -262,6 +270,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             it.copy(
                 lookingUp = false,
                 current = card,
+                cardFoil = if (it.current?.id == card.id) it.cardFoil else null,
                 confident = id.confident || accepted,
                 awaiting = s.autoAdd && !accepted,
                 wish = wish,
@@ -319,7 +328,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     private fun addCard(card: ScryfallCard, qty: Int, fromReview: Boolean = false, auto: Boolean = false, fromPage: Boolean = false) {
         val s = _state.value
-        val foil = s.foil && card.hasFoil || !card.hasNonFoil
+        val foil = s.isFoil(card)
         viewModelScope.launch {
             val wish = if (fromReview || fromPage) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
             // A box that was deleted (say, saved in a preset) falls back to auto-sort.
@@ -345,6 +354,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                     lastBoxName = boxName.ifEmpty { null },
                     lastBoxColor = box?.color ?: 0,
                     current = if (fromReview || auto) it.current else null,
+                    cardFoil = if (fromReview || auto) it.cardFoil else null,
                     awaiting = if (fromReview) it.awaiting else false,
                 )
             }
@@ -508,7 +518,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun skip() {
         val auto = _state.value.autoAdd
         _state.value.current?.let { if (auto) markHandled(it) }
-        _state.update { it.copy(current = null, offline = null, wish = null, error = null, awaiting = false, status = "Point your camera at a card") }
+        _state.update { it.copy(current = null, cardFoil = null, offline = null, wish = null, error = null, awaiting = false, status = "Point your camera at a card") }
         // While auto-adding, keep ignoring this card until it leaves the frame.
         if (!auto) resetTracking()
     }
@@ -526,7 +536,16 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun updateSettings(change: (ScanSettings) -> ScanSettings) = ScanPrefs.update(change)
     fun setAutoAdd(on: Boolean) = updateSettings { it.copy(autoAdd = on) }
-    fun setFoil(on: Boolean) = updateSettings { it.copy(foil = on) }
+    fun setFoil(on: Boolean) {
+        _state.update { it.copy(cardFoil = null) }
+        updateSettings { it.copy(foil = on) }
+    }
+
+    /** Flips foil for the card on screen only, so Add uses it. */
+    fun toggleCardFoil() = _state.update { s ->
+        val card = s.current
+        if (card == null || !card.hasFoil || !card.hasNonFoil) s else s.copy(cardFoil = !s.isFoil(card))
+    }
     fun setTorch(on: Boolean) = _state.update { it.copy(torch = on) }
     fun setBox(id: Long) {
         repo.lastBoxId = id

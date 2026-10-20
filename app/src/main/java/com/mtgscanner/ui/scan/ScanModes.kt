@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -236,7 +237,7 @@ fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
             Spacer(Modifier.height(10.dp))
-            LazyVerticalGrid(GridCells.Fixed(3), Modifier.height(460.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxHeight(0.75f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(slots, key = { it.index }) { s ->
                     Box(
                         Modifier.clip(RoundedCornerShape(10.dp)).background(Palette.SurfaceHigh)
