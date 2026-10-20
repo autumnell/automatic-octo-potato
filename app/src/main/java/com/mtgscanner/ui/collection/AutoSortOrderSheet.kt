@@ -101,6 +101,8 @@ fun AutoSortOrderSheet(
             FallbackChoice("No fallback box", fallback == null) { fallback = null; onFallback(null) }
             order.forEach { id ->
                 val b = byId[id] ?: return@forEach
+                // Trade binders and deck boxes aren't for leftovers (still shown if one already is).
+                if ((b.kind == "trade" || b.kind == "deck") && fallback != id) return@forEach
                 FallbackChoice(b.name, fallback == id) { fallback = id; onFallback(id) }
             }
             Spacer(Modifier.height(24.dp))

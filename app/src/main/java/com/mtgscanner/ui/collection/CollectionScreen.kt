@@ -53,8 +53,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,6 +63,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,6 +118,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -136,9 +137,11 @@ data class OverviewUi(
 class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val covers = BoxCovers(repo.appContext)
 
+    init { MoveList.init(repo.appContext) }
+
     val ui: StateFlow<OverviewUi> = combine(repo.observeAll(), repo.observeBoxSummaries(), covers.covers) { all, boxes, cv ->
         OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, boxes, BoxArt.stats(all, cv))
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OverviewUi())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OverviewUi())
 
     /** [cardId] null goes back to the box's most valuable card. */
     fun setCover(boxId: Long, cardId: Long?) = covers.set(boxId, cardId)
@@ -179,11 +182,11 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun closeMoves() { _moves.value = null }
 
-    /** Adds cards leaving their boxes to the physical move list. */
-    private suspend fun recordMoves(moves: List<Pair<CollectionCard, Long>>, show: Boolean) {
+    /** Adds cards leaving their boxes to the physical move list; returns the lines added. */
+    private suspend fun recordMoves(moves: List<Pair<CollectionCard, Long>>, show: Boolean): List<com.mtgscanner.data.MoveLine> {
         val ids = (moves.map { it.first.boxId } + moves.map { it.second }).distinct()
         val info = ids.mapNotNull { id -> repo.box(id)?.let { id to Triple(it.name, it.kind, it.divider) } }.toMap()
-        MoveList.add(MoveList.linesFor(moves) { info[it] }, show)
+        return MoveList.add(MoveList.linesFor(moves) { info[it] }, show)
     }
 
     /** Makes a whole system of boxes in one go; "Set boxes" is built from the sets you own. */
@@ -204,10 +207,15 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     private fun applyMoves(list: List<Sorting.Move<CollectionCard>>) = viewModelScope.launch {
         if (list.isEmpty()) return@launch
-        recordMoves(list.map { it.item to it.to }, show = list.size > 1)
-        val undo = repo.applyMoves(list.map { it.item.id to it.to })
+        // Moves can merge rows, so Undo puts back a snapshot rather than moving rows back.
+        val before = repo.snapshot(list.map { it.item.id })
+        val added = recordMoves(list.map { it.item to it.to }, show = list.size > 1)
+        repo.applyMoves(list.map { it.item.id to it.to })
         val n = list.sumOf { it.item.quantity }
-        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.applyMoves(undo) }
+        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") {
+            repo.restore(before)
+            MoveList.remove(added)
+        }
         val left = repo.misplaced()
         _moves.value = left.ifEmpty { null }
     }
@@ -231,7 +239,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     private val searches = SavedSearchStore(repo.appContext)
     val lists: StateFlow<List<SmartList>> = combine(repo.observeAll(), searches.saved) { all, saved ->
         saved.map { s -> SmartList.of(s, all) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun deleteList(s: SavedSearch) {
         searches.delete(s.name)
@@ -284,9 +292,8 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun setWanted(item: WishlistItem, wanted: Int) = viewModelScope.launch { repo.setWishWanted(item, wanted) }
 
-    private val allCards: StateFlow<List<CollectionCard>> = repo.observeAll()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    fun cardsIn(boxId: Long) = allCards.value.filter { it.boxId == boxId }.sortedBy { it.name }
+    /** A box's cards by name, read when needed (cover picker, binder share). */
+    suspend fun cardsIn(boxId: Long): List<CollectionCard> = repo.cardsInBox(boxId).sortedBy { it.name }
 
     fun refreshPrices() {
         if (_refreshing.value) return
@@ -329,7 +336,6 @@ fun CollectionScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -337,7 +343,8 @@ fun CollectionScreen(
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) vm.export(ctx.contentResolver, uri)
     }
-    LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
+    // The app's own snackbar shows messages, so they don't stack on top of an Undo.
+    LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
     // Home's "See all" lands here when it can't open Browse itself.
     LaunchedEffect(Unit) {
         if (BrowseLaunch.openAll) {
@@ -382,7 +389,6 @@ fun CollectionScreen(
                 else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onOpenCard)
             }
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
     val moves by vm.moves.collectAsStateWithLifecycle()
     moves?.let { list ->
@@ -505,14 +511,15 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
         )
     }
     covering?.let { b ->
+        val cards by produceState(emptyList<CollectionCard>(), b.id) { value = vm.cardsIn(b.id) }
         CoverPickerDialog(
-            b.name, vm.cardsIn(b.id), ui.stats[b.id]?.coverCardId,
+            b.name, cards, ui.stats[b.id]?.coverCardId,
             onPick = { vm.setCover(b.id, it); covering = null },
             onDismiss = { covering = null },
         )
     }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
-    deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id }, onDismiss = { deleting = null }) { moveTo ->
+    deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id && it.kind != "trade" && it.kind != "deck" }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
     } }
 }
@@ -522,7 +529,7 @@ private fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismiss
     // -1 means "delete the cards".
     var choice by remember { mutableStateOf(CollectionViewModel.TO_ANYTHING) }
     var confirmForever by remember { mutableStateOf(false) }
-    val anything = others.firstOrNull { it.kind != "trade" && BoxRules.fromJson(it.rules).isCatchAll }
+    val anything = others.firstOrNull { it.kind != "trade" && it.kind != "deck" && BoxRules.fromJson(it.rules).isCatchAll }
     if (confirmForever) {
         AlertDialog(
             onDismissRequest = { confirmForever = false },
@@ -735,6 +742,7 @@ private fun ToolsTab(
 ) {
     val trade = ui.boxes.filter { it.kind == "trade" }
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     var finding by remember { mutableStateOf(false) }
     var dupes by remember { mutableStateOf(false) }
     if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
@@ -772,7 +780,7 @@ private fun ToolsTab(
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
                     IconButton(enabled = b.cards > 0, onClick = {
-                        shareSheet(ctx, b.name, binderShareText(b.name, vm.cardsIn(b.id), AppSettings.showPrices))
+                        scope.launch { shareSheet(ctx, b.name, binderShareText(b.name, vm.cardsIn(b.id), AppSettings.showPrices)) }
                     }) { Icon(Icons.Filled.Share, "Share ${b.name}") }
                 }
             }

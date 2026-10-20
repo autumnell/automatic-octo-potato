@@ -70,6 +70,7 @@ import com.mtgscanner.data.ExtraRow
 import com.mtgscanner.data.ExtrasFinder
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallSet
+import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.unitPrice
@@ -96,8 +97,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 /** How much of a set you own: different collector numbers, out of every printing in the set. */
 data class SetProgress(
@@ -114,8 +117,8 @@ data class SetProgress(
 
 /** Set tracker and extras finder. */
 class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
-    val cards: StateFlow<List<CollectionCard>> = repo.observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val cards: StateFlow<List<CollectionCard>> = repo.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
@@ -150,7 +153,7 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
                 releasedAt = s?.releasedAt ?: cs.first().releasedAt,
             )
         }.sortedWith(compareByDescending<SetProgress> { it.fraction }.thenByDescending { it.releasedAt.orEmpty() })
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _setCards = MutableStateFlow<List<ScryfallCard>?>(null)
     val setCards: StateFlow<List<ScryfallCard>?> = _setCards
@@ -169,10 +172,13 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         _sets.value?.firstOrNull { it.code.equals(code, ignoreCase = true) }?.name
             ?: cards.value.firstOrNull { it.setCode.equals(code, ignoreCase = true) }?.setName ?: code.uppercase()
 
+    /** Wishlists each missing card once, skipping cards owned in another printing. Tapping again adds nothing. */
     fun wishlistMissing(missing: List<ScryfallCard>) {
         viewModelScope.launch {
-            missing.forEach { runCatching { repo.addToWishlist(it) } }
-            _message.value = "Added ${missing.size} cards to your wishlist"
+            val owned = repo.allCards().mapNotNull { it.oracleId }.toSet()
+            val want = wishTargets(missing, owned) { it.oracleId }
+            val n = want.count { runCatching { repo.wantAtLeast(it, 1) }.isSuccess }
+            _message.value = if (n == 1) "1 card on your wishlist" else "$n cards on your wishlist"
         }
     }
 
@@ -183,12 +189,15 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun setKeep(n: Int) { _keep.value = n }
 
     val extras: StateFlow<List<ExtraGroup>> = combine(cards, boxes, _keep) { all, bs, k ->
-        val trade = bs.filter { it.kind == "trade" }.map { it.id }.toSet()
+        // Only main boxes count: not trade binders, deck boxes, or the extras and bulk boxes.
+        val policy = SortPrefs.policy
+        val skip = bs.filter { it.kind == "trade" || it.kind == "deck" || it.id == policy.extrasBoxId || it.id == policy.bulkBoxId }
+            .map { it.id }.toSet()
         ExtrasFinder.find(
             all.map { ExtraRow(it.id, it.oracleId ?: it.name, it.name, it.quantity, it.boxId, it.addedAt, it.typeLine, it.unitPrice()) },
-            k, trade,
+            k, skip,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun moveExtras(groups: List<ExtraGroup>, boxId: Long) {
         val moves = groups.flatMap { it.moves }
@@ -203,6 +212,10 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun createTradeBinder() = viewModelScope.launch { repo.createBox("Trade binder", "trade") }
 }
+
+/** Missing cards worth wishlisting: one per card (any printing), none you already own. */
+fun <T> wishTargets(missing: List<T>, ownedOracleIds: Set<String>, oracleId: (T) -> String?): List<T> =
+    missing.filter { c -> oracleId(c).let { it != null && it !in ownedOracleIds } }.distinctBy { oracleId(it) }
 
 @Composable
 private fun toolsVm(): ToolsViewModel = viewModel(factory = AppViewModels.Factory)
@@ -308,9 +321,11 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         owned.filter { it.setCode.equals(code, ignoreCase = true) }.groupBy { it.collectorNumber.lowercase() }
     }
     val all = cards.orEmpty()
-    val missing = all.filter { it.collectorNumber.lowercase() !in mine }
-    val missingCost = missing.sumOf { it.prices.usd?.toDoubleOrNull() ?: 0.0 }
+    val missing = remember(all, mine) { all.filter { it.collectorNumber.lowercase() !in mine } }
+    val missingCost = remember(missing) { missing.sumOf { it.prices.usd?.toDoubleOrNull() ?: 0.0 } }
     val have = all.size - missing.size
+    // What "Wishlist missing" would add: once per card, none owned in another printing.
+    val toWish = remember(missing, owned) { wishTargets(missing, owned.mapNotNull { it.oracleId }.toSet()) { it.oracleId } }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -319,7 +334,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
             IconButton(onClick = { grid = !grid }) {
                 Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Text)
             }
-            if (missing.isNotEmpty()) IconButton(onClick = { confirmWish = true }) {
+            if (toWish.isNotEmpty()) IconButton(onClick = { confirmWish = true }) {
                 Icon(Icons.Filled.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Accent)
             }
         }
@@ -345,13 +360,15 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                     SelectPill("Missing", show == "missing", { show = "missing" })
                 }
                 val q = query.trim().lowercase()
-                val shown = all.filter { c ->
-                    val isMine = c.collectorNumber.lowercase() in mine
-                    (show == "all" || (show == "owned") == isMine) &&
-                        (q.isEmpty() || c.name.lowercase().contains(q) || c.collectorNumber.lowercase() == q || c.effectiveTypeLine.lowercase().contains(q))
+                val groups = remember(all, mine, show, q) {
+                    val shown = all.filter { c ->
+                        val isMine = c.collectorNumber.lowercase() in mine
+                        (show == "all" || (show == "owned") == isMine) &&
+                            (q.isEmpty() || c.name.lowercase().contains(q) || c.collectorNumber.lowercase() == q || c.effectiveTypeLine.lowercase().contains(q))
+                    }
+                    RARITY_GROUPS.map { (key, label) -> Triple(key, label, shown.filter { rarityGroup(it.rarity) == key }) }
+                        .filter { it.third.isNotEmpty() }
                 }
-                val groups = RARITY_GROUPS.map { (key, label) -> Triple(key, label, shown.filter { rarityGroup(it.rarity) == key }) }
-                    .filter { it.third.isNotEmpty() }
                 if (groups.isEmpty()) {
                     EmptyState(Icons.Filled.SearchOff, "No cards", if (show == "missing" && q.isEmpty()) "You own the whole set." else "Try another filter.")
                 } else {
@@ -405,9 +422,12 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     if (confirmWish) AlertDialog(
         onDismissRequest = { confirmWish = false },
         containerColor = Palette.Surface,
-        title = { Text("Wishlist ${missing.size} missing cards?") },
-        text = { Text("Any printing counts." + if (AppSettings.showPrices) " About ${formatUsd(missingCost)} total." else "") },
-        confirmButton = { TextButton(onClick = { vm.wishlistMissing(missing); confirmWish = false }) { Text("Add") } },
+        title = { Text("Wishlist ${toWish.size} missing cards?") },
+        text = {
+            val cost = toWish.sumOf { it.prices.usd?.toDoubleOrNull() ?: 0.0 }
+            Text("Any printing counts." + if (AppSettings.showPrices) " About ${formatUsd(cost)} total." else "")
+        },
+        confirmButton = { TextButton(onClick = { vm.wishlistMissing(toWish); confirmWish = false }) { Text("Add") } },
         dismissButton = { TextButton(onClick = { confirmWish = false }) { Text("Cancel") } },
     )
 }
@@ -547,7 +567,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
             SelectPill("Keep 1 (Commander)", keep == 1, { vm.setKeep(1) })
         }
         Text(
-            "Basic lands and trade binders not counted.",
+            "Basic lands, trade binders and decks not counted.",
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp),
         )
         if (groups.isEmpty()) {

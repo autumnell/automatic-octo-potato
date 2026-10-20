@@ -65,6 +65,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.QuantityStepper
+import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.home.ChangeText
 import com.mtgscanner.ui.theme.AppSettings
@@ -171,20 +172,39 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
         if (qty <= 0) Haptics.tick()
     }
 
-    /** Takes given cards out of the collection and adds the received ones (auto-sorted into boxes). */
+    /**
+     * Takes given cards out of the collection and adds the received ones, auto-sorted into boxes.
+     * Cards that fit no box go into this trade binder. Offers Undo for the whole trade.
+     */
     fun apply() {
         val u = _ui.value
         _ui.update { it.copy(busy = true) }
         viewModelScope.launch {
-            u.give.forEach { it.owned?.let { o -> repo.remove(o.id, minOf(it.qty, o.quantity)) } }
-            var unsorted = 0
-            u.get.forEach { item ->
-                val c = item.card ?: return@forEach
-                val box = repo.pickBox(c, false)
-                if (box != null) repo.add(c, false, item.qty, box) else unsorted++
+            val result = runCatching {
+                // Work out every destination before changing anything.
+                val binder = binderId.value.takeIf { it >= 0 && repo.box(it) != null }
+                var leftover: Long? = binder
+                var unsorted = 0
+                val adds = u.get.mapNotNull { item ->
+                    val c = item.card ?: return@mapNotNull null
+                    val box = repo.pickBox(c, false) ?: run {
+                        unsorted += item.qty
+                        leftover ?: repo.anythingBox().also { leftover = it }
+                    }
+                    Triple(c, item.qty, box)
+                }
+                val gives = u.give.mapNotNull { g -> g.owned?.let { o -> o.id to minOf(g.qty, o.quantity) } }
+                val before = repo.snapshot(gives.map { it.first })
+                gives.forEach { (id, n) -> repo.remove(id, n) }
+                val added = adds.map { (c, n, box) -> repo.add(c, false, n, box) to n }
+                val where = leftover?.let { repo.box(it)?.name } ?: "a box"
+                Undo.offer(if (unsorted > 0) "Trade saved. $unsorted fit no box, put in $where" else "Trade saved") {
+                    added.forEach { (id, n) -> repo.remove(id, n) }
+                    repo.restore(before)
+                }
             }
             Haptics.tick()
-            _ui.value = TradeUi(message = if (unsorted > 0) "Saved. $unsorted fit no box." else "Trade saved")
+            _ui.value = if (result.isSuccess) TradeUi() else u.copy(busy = false, message = "Couldn't save the trade")
         }
     }
 

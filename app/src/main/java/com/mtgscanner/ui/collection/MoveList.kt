@@ -2,6 +2,7 @@ package com.mtgscanner.ui.collection
 
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,30 +50,78 @@ import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.facts
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.theme.Palette
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+@Serializable
+private data class SavedLine(val qty: Int, val name: String, val set: String, val from: String, val to: String, val spot: String? = null)
+
+@Serializable
+private data class SavedMoves(val lines: List<SavedLine>, val done: List<Int> = emptyList())
 
 /**
  * The physical move list: after a re-sort, bulk move or split, "take X from box A to box B"
- * to tick off while moving the real cards. App-wide so it survives leaving a screen; cleared by hand.
+ * to tick off while moving the real cards. App-wide and kept across restarts; cleared by hand.
  */
 object MoveList {
     var lines by mutableStateOf<List<MoveLine>>(emptyList())
         private set
     /** Indexes of ticked lines. */
     var done by mutableStateOf<Set<Int>>(emptySet())
+        private set
     var open by mutableStateOf(false)
 
-    fun add(new: List<MoveLine>, show: Boolean = false) {
-        if (new.isEmpty()) return
-        lines = lines + new
-        if (show) open = true
+    private var prefs: SharedPreferences? = null
+    private val json = Json { ignoreUnknownKeys = true }
+
+    /** Loads the saved list once. Safe to call from every screen that shows or adds to it. */
+    fun init(ctx: Context) {
+        if (prefs != null) return
+        val p = ctx.applicationContext.getSharedPreferences("move_list", Context.MODE_PRIVATE)
+        prefs = p
+        val saved = runCatching { p.getString("state", null)?.let { json.decodeFromString(SavedMoves.serializer(), it) } }.getOrNull()
+            ?: return
+        val old = saved.lines.map { MoveLine(it.qty, it.name, it.set, it.from, it.to, it.spot) }
+        // Anything added before loading goes after the saved lines.
+        done = saved.done.filter { it in old.indices }.toSet() + done.map { it + old.size }
+        lines = old + lines
     }
 
-    fun toggle(i: Int) { done = if (i in done) done - i else done + i }
+    private fun save() {
+        val p = prefs ?: return
+        val s = SavedMoves(lines.map { SavedLine(it.qty, it.name, it.setCode, it.from, it.to, it.spot) }, done.sorted())
+        runCatching { p.edit().putString("state", json.encodeToString(SavedMoves.serializer(), s)).apply() }
+    }
+
+    /** Adds lines; returns them so an Undo can take them back off with [remove]. */
+    fun add(new: List<MoveLine>, show: Boolean = false): List<MoveLine> {
+        if (new.isEmpty()) return new
+        lines = lines + new
+        if (show) open = true
+        save()
+        return new
+    }
+
+    /** Takes lines added by [add] back off, for Undo. */
+    fun remove(added: List<MoveLine>) {
+        if (added.isEmpty()) return
+        val (l, d) = dropMoveLines(lines, done, added)
+        lines = l
+        done = d
+        if (l.isEmpty()) open = false
+        save()
+    }
+
+    fun toggle(i: Int) {
+        done = if (i in done) done - i else done + i
+        save()
+    }
 
     fun clear() {
         lines = emptyList()
         done = emptySet()
         open = false
+        save()
     }
 
     /** A line for each card leaving its box. [box] gives a box's name, kind and divider by id. */
@@ -86,6 +136,18 @@ object MoveList {
     }
 }
 
+/** [lines] without one copy of each of [drop], latest first, with ticks kept on the lines that stay. */
+fun dropMoveLines(lines: List<MoveLine>, done: Set<Int>, drop: List<MoveLine>): Pair<List<MoveLine>, Set<Int>> {
+    val gone = HashSet<Int>()
+    for (d in drop) {
+        val i = lines.indices.lastOrNull { it !in gone && lines[it] == d } ?: continue
+        gone += i
+    }
+    val kept = lines.indices.filter { it !in gone }
+    val newDone = kept.withIndex().filter { it.value in done }.map { it.index }.toSet()
+    return kept.map { lines[it] } to newDone
+}
+
 private fun share(ctx: Context, text: String) {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
         .putExtra(Intent.EXTRA_SUBJECT, "Move list").putExtra(Intent.EXTRA_TEXT, text)
@@ -95,6 +157,8 @@ private fun share(ctx: Context, text: String) {
 /** A strip saying a move list is waiting, plus the list itself when opened. */
 @Composable
 fun MoveListHost(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    remember { MoveList.init(ctx) }
     val lines = MoveList.lines
     if (lines.isEmpty()) return
     val left = lines.filterIndexed { i, _ -> i !in MoveList.done }.sumOf { it.qty }
