@@ -44,14 +44,14 @@ import com.mtgscanner.ui.theme.Palette
 fun StatsCard(records: List<GameRecord>, onOpen: () -> Unit) {
     val top = remember(records) { GameStats.byPlayer(records).firstOrNull() }
     Surface(onClick = onOpen, shape = RoundedCornerShape(20.dp), color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.EmojiEvents, null, tint = Palette.Gold)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("Game stats", style = MaterialTheme.typography.titleMedium)
                 Text(
                     when {
-                        records.isEmpty() -> "Finished games are saved here, with who won."
+                        records.isEmpty() -> "No games yet"
                         top != null && top.wins > 0 -> "${records.size} games · ${top.name} leads with ${top.wins} wins"
                         else -> "${records.size} games"
                     },

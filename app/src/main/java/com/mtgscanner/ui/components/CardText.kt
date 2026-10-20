@@ -153,7 +153,7 @@ private fun Line(label: String, value: String) {
     Text(
         buildAnnotatedString {
             append(label)
-            pushStyle(androidx.compose.ui.text.SpanStyle(color = Palette.Accent))
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = Palette.AccentText))
             append(value)
             pop()
         },
@@ -210,6 +210,8 @@ private fun RulesText(text: String) {
         plain(text.substring(last))
         if (inReminder) pop()
     }
+    // The placeholder grows with the system font size, so the symbol does too.
+    val symbolSize = 15.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale
     val inline = symbols.associateWith { sym ->
         InlineTextContent(Placeholder(1.05.em, 1.05.em, PlaceholderVerticalAlign.TextCenter)) {
             if (sym == "{T}" || sym == "{Q}") {
@@ -217,7 +219,7 @@ private fun RulesText(text: String) {
                     Text(if (sym == "{T}") "↷" else "↶", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             } else {
-                ManaCost(sym, size = 15.dp)
+                ManaCost(sym, size = symbolSize)
             }
         }
     }

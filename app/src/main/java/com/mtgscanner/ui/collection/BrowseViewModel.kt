@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.collection
 
+import android.content.Context
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.db.Box
@@ -79,12 +81,35 @@ data class BrowseUi(
 /** The card list for one box, or the whole collection when [boxId] is -1. */
 @OptIn(FlowPreview::class)
 class BrowseViewModel(private val repo: CollectionRepository, private val boxId: Long) : ViewModel() {
-    private val _filters = MutableStateFlow(Filters())
+    private val _filters = MutableStateFlow(if (boxId < 0) BrowseLaunch.take() else Filters())
     val filters: StateFlow<Filters> = _filters
 
-    private val _grid = MutableStateFlow(true)
+    private val prefs: SharedPreferences? = try {
+        repo.appContext.getSharedPreferences("browse", Context.MODE_PRIVATE)
+    } catch (e: Exception) { null }
+
+    private fun pref(key: String, default: Boolean): Boolean =
+        try { prefs?.getBoolean(key, default) ?: default } catch (e: Exception) { default }
+
+    private fun setPref(key: String, value: Boolean) {
+        try { prefs?.edit()?.putBoolean(key, value)?.apply() } catch (e: Exception) { }
+    }
+
+    /** Grid or list, remembered between visits. */
+    private val _grid = MutableStateFlow(pref("grid", true))
     val grid: StateFlow<Boolean> = _grid
-    fun toggleGrid() { _grid.value = !_grid.value }
+    fun toggleGrid() {
+        _grid.value = !_grid.value
+        setPref("grid", _grid.value)
+    }
+
+    /** A one-time tip about long-press and swipe. */
+    private val _showTip = MutableStateFlow(!pref("tipDone", false))
+    val showTip: StateFlow<Boolean> = _showTip
+    fun dismissTip() {
+        _showTip.value = false
+        setPref("tipDone", true)
+    }
 
     val ui: StateFlow<BrowseUi> = combine(repo.observeAll(), repo.observeBoxes(), _filters) { all, boxes, f ->
         val inScope = if (boxId < 0) all else all.filter { it.boxId == boxId }
@@ -131,9 +156,20 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     private val _selected = MutableStateFlow<Set<Long>>(emptySet())
     val selected: StateFlow<Set<Long>> = _selected
 
+    /** True after tapping Select, so picking mode shows even with nothing picked yet. */
+    private val _selecting = MutableStateFlow(false)
+    val selecting: StateFlow<Boolean> = _selecting
+
+    fun startSelecting() {
+        _selecting.value = true
+        if (_showTip.value) dismissTip()
+    }
     fun toggleSelect(id: Long) = _selected.update { if (id in it) it - id else it + id }
     fun selectAll() { _selected.value = ui.value.shownIds.toSet() }
-    fun clearSelection() { _selected.value = emptySet() }
+    fun clearSelection() {
+        _selected.value = emptySet()
+        _selecting.value = false
+    }
 
     private fun boxName(id: Long) = ui.value.boxes.firstOrNull { it.id == id }?.name ?: "box"
 

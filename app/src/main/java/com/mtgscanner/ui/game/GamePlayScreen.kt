@@ -1,6 +1,8 @@
 package com.mtgscanner.ui.game
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -35,8 +37,6 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -91,6 +91,9 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
+/** The table color during the day: a warm light cream. */
+private val DAY_TABLE = Color(0xFFEFE8D8)
+
 /** Turns a panel a quarter turn, swapping its width and height so it fills its slot. */
 fun Modifier.rotateLayout(degrees: Int): Modifier = when ((degrees % 360 + 360) % 360) {
     90, 270 -> this.layout { measurable, c ->
@@ -105,7 +108,7 @@ fun Modifier.rotateLayout(degrees: Int): Modifier = when ((degrees % 360 + 360) 
 
 /**
  * The table: one panel per player, turned to face them. Tap the left half to lose life and the
- * right half to gain it; hold for ten. The middle button has turns, dice, history and undo.
+ * right half to gain it; hold for ten. The middle button opens the game menu.
  */
 @Composable
 fun GamePlayScreen(onExit: () -> Unit) {
@@ -114,7 +117,6 @@ fun GamePlayScreen(onExit: () -> Unit) {
     val g = game
     val style by vm.style.collectAsStateWithLifecycle()
     var menu by remember { mutableStateOf(false) }
-    var menuPick by remember { mutableStateOf<TableMarker?>(null) }
     var ending by remember { mutableStateOf(false) }
     var playerSheet by remember { mutableStateOf<Int?>(null) }
 
@@ -135,7 +137,12 @@ fun GamePlayScreen(onExit: () -> Unit) {
         onDispose { bars?.show(WindowInsetsCompat.Type.systemBars()) }
     }
     // Back opens the game menu instead of leaving the table by accident.
-    BackHandler(enabled = !menu && playerSheet == null && !ending) { menuPick = null; menu = true }
+    BackHandler(enabled = !menu && playerSheet == null && !ending) { menu = true }
+
+    // Day lights the table up; night (or not tracked) keeps it dark.
+    val tableColor by animateColorAsState(
+        if (g?.dayNight == "day") DAY_TABLE else Color.Black, animationSpec = tween(700), label = "table",
+    )
 
     if (g == null) {
         LaunchedEffect(Unit) { onExit() }
@@ -143,7 +150,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
     }
 
     // Taps near the screen edges are life changes, not the system back swipe.
-    Box(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding().systemGestureExclusion()) {
+    Box(Modifier.fillMaxSize().background(tableColor).systemBarsPadding().systemGestureExclusion()) {
         val panel: @Composable (Int, Int, Modifier) -> Unit = { i, rot, mod ->
             PlayerPanel(g, i, rot, style, mod, onLife = { d -> vm.life(i, d) }, onMore = { playerSheet = i })
         }
@@ -201,36 +208,37 @@ fun GamePlayScreen(onExit: () -> Unit) {
             }
         }
 
-        // The middle button, with quick buttons for the monarch, initiative, day and night, and undo.
-        Row(
-            Modifier.align(Alignment.Center),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            if (g.players.size > 1) {
-                QuickButton(TableMarker.MONARCH.icon, "Monarch", g.monarch?.let { g.players[it].name }, g.monarch != null) {
-                    menuPick = TableMarker.MONARCH; menu = true
+        // The middle: the game menu and undo. Day or night shows as a small chip once it's in play.
+        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(
+                    Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black)
+                        .border(2.dp, Palette.Accent, CircleShape)
+                        .clickable { menu = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.Bold)
+                    else Icon(Icons.Filled.MoreHoriz, "Game menu", tint = Palette.Accent)
                 }
-                QuickButton(TableMarker.INITIATIVE.icon, "Initiative", g.initiative?.let { g.players[it].name }, g.initiative != null) {
-                    menuPick = TableMarker.INITIATIVE; menu = true
+                QuickButton(Icons.AutoMirrored.Filled.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
+            }
+            if (g.dayNight != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.85f))
+                        .border(1.dp, Palette.Gold, RoundedCornerShape(50))
+                        .clickable { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(dayNightIcon(g.dayNight), null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(dayNightLabel(g.dayNight), color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
                 }
             }
-            Box(
-                Modifier
-                    .size(58.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black)
-                    .border(2.dp, Palette.Accent, CircleShape)
-                    .clickable { menuPick = null; menu = true },
-                contentAlignment = Alignment.Center,
-            ) {
-                if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.Bold)
-                else Icon(Icons.Filled.MoreHoriz, "Game menu", tint = Palette.Accent)
-            }
-            QuickButton(dayNightIcon(g.dayNight), dayNightLabel(g.dayNight), null, g.dayNight != null) {
-                vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) }
-            }
-            QuickButton(Icons.AutoMirrored.Filled.Undo, "Undo", null, false, enabled = g.undoStack.isNotEmpty()) { vm.undo() }
         }
 
         g.winner?.let { w ->
@@ -243,7 +251,6 @@ fun GamePlayScreen(onExit: () -> Unit) {
         g, vm, onDismiss = { menu = false },
         onEnd = { menu = false; ending = true },
         onLeave = { menu = false; onExit() },
-        startPick = menuPick,
     )
     playerSheet?.let { i -> PlayerOverlay(g, i, vm, onDismiss = { playerSheet = null }) }
     if (ending) EndGameDialog(g, onDismiss = { ending = false }) { save, winner ->
@@ -292,7 +299,7 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
                 listOf(-1, 1).forEach { sign ->
                     Box(
                         Modifier.weight(1f).fillMaxHeight().combinedClickable(
-                            onClick = { onLife(sign) },
+                            onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onLife(sign) },
                             onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLife(sign * 10) },
                         ),
                         contentAlignment = if (sign < 0) Alignment.CenterStart else Alignment.CenterEnd,
@@ -316,8 +323,8 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
                 Modifier.align(Alignment.TopCenter).padding(top = 10.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (g.monarch == i) Badge("Monarch", Icons.Filled.WorkspacePremium, gold = true)
-                if (g.initiative == i) Badge("Initiative", Icons.Filled.Shield, gold = true)
+                if (g.monarch == i) Badge("Monarch", GameIcons.Crown, gold = true)
+                if (g.initiative == i) Badge("Initiative", GameIcons.Sword, gold = true)
                 if (p.poison > 0) Badge("☠ ${p.poison}")
                 val maxCmd = p.commanderDamage.maxOrNull() ?: 0
                 if (g.format.commanderDamage && maxCmd > 0) Badge("⚔ $maxCmd")
@@ -334,27 +341,16 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
     }
 }
 
-/** A small round button beside the middle button. Lit when it's in play. */
+/** A small round button beside the middle button. */
 @Composable
-private fun QuickButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    holder: String?,
-    lit: Boolean,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
+private fun QuickButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        Modifier.size(42.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.85f))
-            .border(1.5.dp, if (lit) Palette.Gold else Color.White.copy(alpha = 0.35f), CircleShape)
+        Modifier.size(40.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.85f))
+            .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            icon, if (holder != null) "$label: $holder" else label,
-            tint = when { !enabled -> Color.White.copy(alpha = 0.3f); lit -> Palette.Gold; else -> Color.White },
-            modifier = Modifier.size(22.dp),
-        )
+        Icon(icon, label, tint = Color.White.copy(alpha = if (enabled) 1f else 0.3f), modifier = Modifier.size(20.dp))
     }
 }
 

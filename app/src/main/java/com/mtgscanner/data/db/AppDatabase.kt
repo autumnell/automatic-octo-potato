@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -90,6 +90,14 @@ abstract class AppDatabase : RoomDatabase() {
                         "`cost` REAL, `value` REAL NOT NULL, `cards` INTEGER NOT NULL, `best` TEXT NOT NULL, `pulls` TEXT NOT NULL, " +
                         "`openedAt` INTEGER NOT NULL)",
                 )
+            }
+        }
+
+        /** Version 6 adds per-condition prices from JustTCG. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `conditionPrice` REAL")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `conditionPriceAt` INTEGER NOT NULL DEFAULT 0")
             }
         }
 

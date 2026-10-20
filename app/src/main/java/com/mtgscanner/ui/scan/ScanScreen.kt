@@ -31,11 +31,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -55,7 +57,6 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FlashOff
@@ -63,9 +64,6 @@ import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Toll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -238,35 +236,12 @@ fun ScanScreen(
                 }
             }
 
-            // Pause + settings float over the top of the camera, like a viewfinder.
+            // Settings and modes float over the top of the camera.
             if (!needsBox) Row(
                 Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                RoundIconButton(
-                    icon = if (state.torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
-                    label = "Flashlight",
-                    onClick = { vm.setTorch(!state.torch) },
-                    tint = if (state.torch) Palette.Gold else Color.White,
-                )
-                Box(
-                    Modifier
-                        .size(68.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.85f))
-                        .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-                        .clickable { vm.togglePause() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).border(3.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(
-                            if (state.paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
-                            contentDescription = if (state.paused) "Resume scanning" else "Pause scanning",
-                            tint = Color.White,
-                        )
-                    }
-                }
                 RoundIconButton(Icons.Filled.Settings, "Scan settings", { vm.showSettings(true) })
                 ModesButton(state, vm)
             }
@@ -287,6 +262,7 @@ fun ScanScreen(
             }
         }
 
+        if (!needsBox) ControlsRow(state, vm)
         ScanListBar(state, onOpen = { vm.showList(true) })
     }
 
@@ -308,6 +284,58 @@ fun ScanScreen(
     }
 }
 
+/** Flashlight, pause and foil, within thumb reach above the scanned-cards strip. */
+@Composable
+private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
+    Row(
+        Modifier.fillMaxWidth().background(Color.Black).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        RoundIconButton(
+            icon = if (state.torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+            label = "Flashlight",
+            onClick = { vm.setTorch(!state.torch) },
+            tint = if (state.torch) Palette.Gold else Color.White,
+        )
+        Box(
+            Modifier
+                .size(60.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.85f))
+                .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                .clickable { vm.togglePause() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(44.dp).clip(CircleShape).border(3.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(
+                    if (state.paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                    contentDescription = if (state.paused) "Resume scanning" else "Pause scanning",
+                    tint = Color.White,
+                )
+            }
+        }
+        FoilChip(state.foil, { vm.setFoil(!state.foil) })
+    }
+}
+
+/** Foil on/off chip, at least 48dp tall. */
+@Composable
+private fun FoilChip(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(50))
+            .background(if (on) Palette.Gold else Color.Black.copy(alpha = 0.6f))
+            .border(1.dp, if (on) Palette.Gold else Color.White.copy(alpha = 0.35f), RoundedCornerShape(50))
+            .clickable(onClickLabel = if (on) "Turn foil off" else "Turn foil on", onClick = onClick)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(if (on) "Foil on" else "Foil", color = if (on) Color.Black else Color.White, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
 @Composable
 private fun OfflineCard(name: String, vm: ScanViewModel) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Palette.Surface.copy(alpha = 0.97f)) {
@@ -316,7 +344,6 @@ private fun OfflineCard(name: String, vm: ScanViewModel) {
                 Icon(Icons.Filled.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                IconButton(onClick = vm::skip, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, "Skip", tint = Palette.Muted) }
             }
             Text(
                 "Offline. Save now, added when back online.",
@@ -324,7 +351,10 @@ private fun OfflineCard(name: String, vm: ScanViewModel) {
                 color = Palette.Muted,
             )
             Spacer(Modifier.height(12.dp))
-            GradientButton("Save for later", { vm.saveOffline() }, Modifier.fillMaxWidth(), icon = Icons.Filled.Schedule)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text("Skip") }
+                GradientButton("Save for later", { vm.saveOffline() }, Modifier.weight(1f).heightIn(min = 48.dp), icon = Icons.Filled.Schedule)
+            }
         }
     }
 }
@@ -338,7 +368,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Scan list", style = MaterialTheme.typography.titleLarge)
+            Text("Scan", style = MaterialTheme.typography.titleLarge)
             Box {
                 Row(
                     Modifier.clip(RoundedCornerShape(8.dp)).clickable { boxMenu = true }.padding(vertical = 2.dp),
@@ -389,22 +419,13 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
         }
         PresetSwitcher()
         Spacer(Modifier.width(12.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${state.sessionCount}", style = MaterialTheme.typography.titleLarge, color = Palette.Muted)
-                Spacer(Modifier.width(6.dp))
-                Icon(Icons.Filled.Style, null, tint = Palette.Text, modifier = Modifier.size(22.dp))
-            }
-            if (AppSettings.showPrices) Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (state.session.isEmpty()) "--" else formatUsd(state.sessionValue),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Palette.Gold,
-                )
-                Spacer(Modifier.width(6.dp))
-                Icon(Icons.Filled.Toll, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
-            }
-        }
+        val count = state.sessionCount
+        Text(
+            (if (count == 1) "1 card" else "$count cards") + priceSuffix(state.sessionValue),
+            style = MaterialTheme.typography.titleSmall,
+            color = Palette.Text,
+            maxLines = 1,
+        )
     }
 }
 
@@ -502,19 +523,14 @@ private fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
 
 @Composable
 private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel) {
-    val foil = state.foil && card.hasFoil || !card.hasNonFoil
+    val foil = state.isFoil(card)
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Palette.Surface.copy(alpha = 0.97f)) {
         Column(Modifier.padding(14.dp)) {
             Row {
                 CardImage(card.imageUrl, Modifier.width(92.dp), corner = 6.dp)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(card.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        IconButton(onClick = vm::skip, modifier = Modifier.size(28.dp).offset(x = 6.dp, y = (-6).dp)) {
-                            Icon(Icons.Filled.Close, "Skip", tint = Palette.Muted)
-                        }
-                    }
+                    Text(card.name, style = MaterialTheme.typography.titleMedium)
                     ManaCost(card.effectiveManaCost, size = 15.dp)
                     Spacer(Modifier.height(4.dp))
                     Text(card.effectiveTypeLine, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -523,10 +539,15 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                         RarityDot(card.rarity, 8.dp)
                         Spacer(Modifier.width(6.dp))
                         Text("${card.set.uppercase()} · #${card.collectorNumber}", style = MaterialTheme.typography.bodySmall)
-                        if (foil) {
+                        if (foil && !(card.hasFoil && card.hasNonFoil)) {
                             Spacer(Modifier.width(6.dp))
                             FoilTag()
                         }
+                    }
+                    // Foil for this card only, when it comes both ways.
+                    if (card.hasFoil && card.hasNonFoil) {
+                        Spacer(Modifier.height(6.dp))
+                        FoilChip(foil, vm::toggleCardFoil)
                     }
                     Spacer(Modifier.height(6.dp))
                     if (AppSettings.showPrices) Text(formatUsd(card.price(foil)), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
@@ -551,14 +572,18 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.Filled.SwapHoriz, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Printing")
+            val tight = PaddingValues(horizontal = 12.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Skip", maxLines = 1)
                 }
-                OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(14.dp)) { Text("+4") }
-                GradientButton("Add", { vm.add(1) }, Modifier.weight(1f), icon = Icons.Filled.Add)
+                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Printing", maxLines = 1)
+                }
+                OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("+4", maxLines = 1)
+                }
+                GradientButton("Add", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp))
             }
         }
     }
@@ -643,7 +668,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
-        LazyColumn(Modifier.fillMaxWidth().height(460.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
           val groups = if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
             else listOf("" to state.session)
           groups.forEach { (boxName, entries) ->
@@ -783,7 +808,7 @@ private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
-        LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
             items(state.review, key = { it.id }) { c ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     CardImage(c.smallImageUrl, Modifier.width(52.dp), corner = 4.dp)

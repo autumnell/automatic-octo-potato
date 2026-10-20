@@ -13,13 +13,16 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -105,7 +108,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab("home", "Home", Icons.Outlined.Home, Icons.Filled.Home),
-    Tab("game", "Game", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
+    Tab("game", "Game", Icons.Outlined.Casino, Icons.Filled.Casino),
     Tab("scan", "Scan", Icons.Outlined.CameraAlt, Icons.Filled.CameraAlt),
     Tab("search", "Search", Icons.Outlined.Search, Icons.Filled.Search),
     Tab("collection", "Collection", Icons.Outlined.CollectionsBookmark, Icons.Filled.CollectionsBookmark),
@@ -151,7 +154,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     Scaffold(
         containerColor = Palette.Background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbar) },
+        // On Scan the bottom is busy (result card, controls, strip), so the snackbar shows at the top instead.
+        snackbarHost = { if (route != "scan") SnackbarHost(snackbar) },
         bottomBar = {
             if (tabs.any { it.route == route }) {
                 NavigationBar(containerColor = Palette.NavBar, tonalElevation = androidx.compose.ui.unit.Dp(0f)) {
@@ -189,6 +193,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onCollection = { nav.goToTab("collection") },
                     onOpenCard = { nav.navigate("card/$it") },
                     onSettings = { nav.navigate("settings") },
+                    onBrowseAll = { nav.navigate("browse/-1") },
                 )
             }
             composable("scan") { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) }
@@ -284,6 +289,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             }
         }
     }
+    if (route == "scan") SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 64.dp))
     if (showTour) FirstRunTour(onDone = { Tour.setSeen(ctx, true); showTour = false })
     }
 }

@@ -49,6 +49,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
     val presets by ScanPrefs.presets.collectAsStateWithLifecycle()
     val active by ScanPrefs.activePreset.collectAsStateWithLifecycle()
     var saving by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<String?>(null) }
     val update = ScanPrefs::update
 
     Column(modifier) {
@@ -60,13 +61,13 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
             })
         }
         active?.let { name ->
-            TextButton(onClick = { ScanPrefs.delete(name) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+            TextButton(onClick = { deleting = name }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                 Text("Delete “$name”", color = Palette.Muted, style = MaterialTheme.typography.labelMedium)
             }
         }
         HorizontalDivider(color = Palette.Outline)
 
-        Toggle("Auto-add", "Add cards by themselves so you can feed them one after another.", s.autoAdd) { on ->
+        Toggle("Auto-add", "Add each card as it's read.", s.autoAdd) { on ->
             update { it.copy(autoAdd = on) }
         }
         if (s.autoAdd) {
@@ -80,7 +81,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
             }
             Text(
                 when (s.unsure) {
-                    UnsureAction.PAUSE -> "Scanning stops and shows the card so you can fix the printing."
+                    UnsureAction.PAUSE -> "Stop so you can check it."
                     UnsureAction.ASIDE -> "Scanning keeps going. Check the set-aside cards at the end."
                     UnsureAction.SKIP -> "The card isn't added. Scan it again or add it by hand."
                 },
@@ -121,6 +122,15 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
     }
 
     if (saving) SavePresetDialog(onSave = { ScanPrefs.saveAs(it); saving = false }, onDismiss = { saving = false })
+    deleting?.let { name ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            containerColor = Palette.Surface,
+            title = { Text("Delete “$name”?") },
+            confirmButton = { TextButton(onClick = { ScanPrefs.delete(name); deleting = null }) { Text("Delete", color = Palette.Danger) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+        )
+    }
 }
 
 @Composable
@@ -145,7 +155,7 @@ private fun SavePresetDialog(onSave: (String) -> Unit, onDismiss: () -> Unit) {
         title = { Text("Save as preset") },
         text = {
             Column {
-                Text("Saves auto-add, skip rules, sounds and the box you're adding to.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                Text("Saves these settings and the box.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text("e.g. Sorting bulk") })
             }

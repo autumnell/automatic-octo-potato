@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
@@ -64,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -86,7 +89,6 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.decks.DecksTab
 import com.mtgscanner.ui.trade.shareText
-import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.components.boxIcon
@@ -168,7 +170,12 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         const val TO_ANYTHING = -3L
     }
 
-    fun removeWish(id: Long) = viewModelScope.launch { repo.removeWish(id) }
+    fun removeWish(item: WishlistItem) = viewModelScope.launch {
+        repo.removeWish(item.id)
+        Undo.offer("Removed ${item.name}") { repo.restoreWish(item) }
+    }
+
+    fun setWanted(item: WishlistItem, wanted: Int) = viewModelScope.launch { repo.setWishWanted(item, wanted) }
 
     private val allCards: StateFlow<List<com.mtgscanner.data.db.CollectionCard>> = repo.observeAll()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -199,7 +206,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun messageShown() { _message.value = null }
 }
 
-/** Collection overview with three tabs: boxes, decks, and lists (wishlist and trade binders). */
+/** Collection overview with four tabs: boxes, decks, wishlist, and tools (with trade binders). */
 @Composable
 fun CollectionScreen(
     onBrowse: (boxId: Long) -> Unit,
@@ -224,6 +231,13 @@ fun CollectionScreen(
         if (uri != null) vm.export(ctx.contentResolver, uri)
     }
     LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
+    // Home's "See all" lands here when it can't open Browse itself.
+    LaunchedEffect(Unit) {
+        if (BrowseLaunch.openAll) {
+            BrowseLaunch.openAll = false
+            onBrowse(-1L)
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -251,12 +265,13 @@ fun CollectionScreen(
             }
             if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
             Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Collection", "Decks", "Lists").forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
+                listOf("Boxes", "Decks", "Wishlist", "Tools").forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
             }
             when (tab) {
                 0 -> BoxesTab(ui, vm, onBrowse)
                 1 -> DecksTab(onOpenDeck, onOpenCard)
-                else -> ListsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onPacks)
+                2 -> WishlistTab(vm)
+                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onPacks)
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
@@ -279,17 +294,18 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             else StatTile("Boxes", "${ui.boxes.size}", Modifier.weight(1f))
         }
 
-        Row(
-            Modifier
-                .align(Alignment.End)
-                .padding(horizontal = 8.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { onBrowse(-1L) }
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Surface(
+            onClick = { onBrowse(-1L) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Palette.Surface,
         ) {
-            Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, color = Palette.Muted)
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Text)
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Search, null, tint = Palette.Accent)
+                Spacer(Modifier.width(12.dp))
+                Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
+            }
         }
 
         SectionHeader("Boxes") {
@@ -469,7 +485,7 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
                         Text("Fallback", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                     }
                 }
-                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
+                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -492,30 +508,31 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
     }
 }
 
-/** The wishlist, plus shortcuts to trade binders. */
+/** Opens Android's share sheet with plain text. */
+private fun shareSheet(ctx: android.content.Context, title: String, text: String) {
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+        .putExtra(android.content.Intent.EXTRA_SUBJECT, title).putExtra(android.content.Intent.EXTRA_TEXT, text)
+    ctx.startActivity(android.content.Intent.createChooser(send, "Share $title"))
+}
+
+/** Tools, plus your trade binders with a share button each. */
 @Composable
-private fun ListsTab(
+private fun ToolsTab(
     ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: () -> Unit,
     onSets: () -> Unit, onExtras: () -> Unit, onPacks: () -> Unit,
 ) {
-    val wishlist by vm.wishlist.collectAsStateWithLifecycle()
     val trade = ui.boxes.filter { it.kind == "trade" }
     val ctx = LocalContext.current
-    fun share(title: String, text: String) {
-        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-            .putExtra(android.content.Intent.EXTRA_SUBJECT, title).putExtra(android.content.Intent.EXTRA_TEXT, text)
-        ctx.startActivity(android.content.Intent.createChooser(send, "Share $title"))
-    }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ToolCard(Icons.Filled.SwapHoriz, "Trade calculator", "Compare what you give and get, then save it", onTrade)
-            ToolCard(Icons.Filled.GridView, "Set tracker", "See how much of each set you own and what's missing", onSets)
-            ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Find copies you don't need and move them to trade", onExtras)
-            ToolCard(Icons.Filled.Inventory2, "Pack history", "Every pack you opened and what it was worth", onPacks)
+            ToolCard(Icons.Filled.SwapHoriz, "Trade calculator", "Compare what you give and get", onTrade)
+            ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
+            ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
+            ToolCard(Icons.Filled.Inventory2, "Pack history", "Packs you opened and their value", onPacks)
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(
-                    "Make a box of kind \"Trade binder\" to keep cards you'd trade away. It shows up here.",
+                    "Make a box of kind \"Trade binder\" and it shows up here.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                     modifier = Modifier.padding(horizontal = 20.dp),
@@ -529,44 +546,58 @@ private fun ListsTab(
                 shape = RoundedCornerShape(18.dp),
                 color = Palette.Surface,
             ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Accent)
                     Spacer(Modifier.width(12.dp))
-                    Text(b.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Text("${b.cards} cards${priceSuffix(b.value)}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-                    IconButton(onClick = {
-                        val cards = vm.cardsIn(b.id)
-                        share(b.name, shareText("${b.name} (for trade)", cards.map { Triple(it.quantity, "${it.name} (${it.setCode} #${it.collectorNumber})", it.unitPrice()) }))
-                    }) { Icon(Icons.Filled.Share, "Share") }
+                    Column(Modifier.weight(1f)) {
+                        Text(b.name, style = MaterialTheme.typography.titleMedium)
+                        Text("${b.cards} cards${priceSuffix(b.value)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                    IconButton(enabled = b.cards > 0, onClick = {
+                        shareSheet(ctx, b.name, binderShareText(b.name, vm.cardsIn(b.id), AppSettings.showPrices))
+                    }) { Icon(Icons.Filled.Share, "Share ${b.name}") }
                 }
             }
         }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+/** Cards you want. Tap one to change how many; delete offers Undo. */
+@Composable
+private fun WishlistTab(vm: CollectionViewModel) {
+    val wishlist by vm.wishlist.collectAsStateWithLifecycle()
+    val ctx = LocalContext.current
+    var editing by remember { mutableStateOf<WishlistItem?>(null) }
+    LazyColumn(Modifier.fillMaxSize()) {
         item {
-            SectionHeader("Wishlist") {
-                if (wishlist.isNotEmpty()) {
-                    IconButton(onClick = {
-                        share("Wishlist", shareText("My wishlist", wishlist.map { Triple(it.wanted, it.name, it.priceUsd) }))
-                    }) { Icon(Icons.Filled.Share, "Share wishlist") }
-                }
-                if (wishlist.isNotEmpty() && AppSettings.showPrices) {
-                    Text(
-                        formatUsd(wishlist.sumOf { (it.priceUsd ?: 0.0) * it.wanted }),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Palette.Gold,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                }
-            }
             if (wishlist.isEmpty()) {
                 EmptyState(
                     icon = Icons.Filled.FavoriteBorder,
                     title = "Nothing on your wishlist",
                     body = "Add cards from Search or a deck.",
                 )
+            } else {
+                SectionHeader("${wishlist.sumOf { it.wanted }} wanted") {
+                    if (AppSettings.showPrices) {
+                        Text(
+                            formatUsd(wishlist.sumOf { (it.priceUsd ?: 0.0) * it.wanted }),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Palette.Gold,
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    IconButton(onClick = {
+                        shareSheet(ctx, "Wishlist", shareText("My wishlist", wishlist.map { Triple(it.wanted, it.name, it.priceUsd) }))
+                    }) { Icon(Icons.Filled.Share, "Share wishlist") }
+                }
             }
         }
         items(wishlist, key = { "w${it.id}" }) { w ->
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().clickable { editing = w }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 CardImage(w.imageUrl, Modifier.width(44.dp), corner = 4.dp)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -574,11 +605,34 @@ private fun ListsTab(
                     Text("Want ${w.wanted}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
                 if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
-                IconButton(onClick = { vm.removeWish(w.id) }) { Icon(Icons.Filled.DeleteOutline, "Remove", tint = Palette.Muted) }
+                IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Filled.DeleteOutline, "Remove", tint = Palette.Muted) }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
+    editing?.let { w ->
+        WantedDialog(w, onSave = { n -> vm.setWanted(w, n); editing = null }, onDismiss = { editing = null })
+    }
+}
+
+/** A small stepper for how many copies of a wishlist card you want. */
+@Composable
+private fun WantedDialog(item: WishlistItem, onSave: (Int) -> Unit, onDismiss: () -> Unit) {
+    var n by remember(item.id) { mutableIntStateOf(item.wanted.coerceAtLeast(1)) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text(item.name) },
+        text = {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { if (n > 1) n-- }, enabled = n > 1) { Icon(Icons.Filled.Remove, "Fewer") }
+                Text("Want $n", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp))
+                IconButton(onClick = { n++ }) { Icon(Icons.Filled.Add, "More") }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(n) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

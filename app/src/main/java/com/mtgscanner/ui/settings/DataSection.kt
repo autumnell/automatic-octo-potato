@@ -30,7 +30,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -137,18 +137,15 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun messageShown() { _message.value = null }
 }
 
-/** Backup, restore, import, and maintenance actions. */
+/** Backup, restore, import, and maintenance actions. The caller shows [vm]'s messages, so they still appear after leaving this tab. */
 @Composable
-fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory), onMessage: (String) -> Unit) {
+fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory)) {
     val ctx = LocalContext.current
     val busy by vm.busy.collectAsStateWithLifecycle()
-    val message by vm.message.collectAsStateWithLifecycle()
     val rows by vm.importRows.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
     var confirmRestore by remember { mutableStateOf<Uri?>(null) }
-
-    LaunchedEffect(message) { message?.let { onMessage(it); vm.messageShown() } }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) vm.backup(ctx, uri)
@@ -163,29 +160,29 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
         Column {
             busy?.let {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
                     Spacer(Modifier.width(10.dp))
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }
                 HorizontalDivider(color = Palette.Outline)
             }
-            Action(Icons.Filled.FileUpload, "Import CSV", "From ManaBox, Moxfield, Archidekt, Deckbox or Dragon Shield") {
+            Action(Icons.Filled.FileUpload, "Import CSV", "ManaBox, Moxfield, Archidekt, Deckbox…") {
                 csvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
             }
             HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Save, "Back up", "Save boxes, cards, decks, wishlist and price history to a file") {
+            Action(Icons.Filled.Save, "Back up", "Save everything to a file") {
                 backupLauncher.launch("mtg-scanner-backup-${LocalDate.now()}.json")
             }
             HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Restore, "Restore from backup", "Replaces everything in the app with the backup") {
+            Action(Icons.Filled.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/*"))
             }
             HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Sell, "Refresh card roles", "Re-fetch Scryfall's tags like removal, ramp and card draw") { vm.refreshRoles() }
+            Action(Icons.Filled.Sell, "Refresh card roles", "Removal, ramp, draw tags") { vm.refreshRoles() }
             if (pending.isNotEmpty()) {
                 HorizontalDivider(color = Palette.Outline)
-                Action(Icons.Filled.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Cards scanned without a connection") { vm.resolvePending() }
+                Action(Icons.Filled.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }
             }
         }
     }
@@ -246,12 +243,12 @@ private fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClick
 
 @Composable
 private fun Action(icon: ImageVector, title: String, body: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = Palette.Accent)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
