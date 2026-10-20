@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class],
-    version = 6,
+    entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class, SmartList::class],
+    version = 7,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -98,6 +98,21 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `cards` ADD COLUMN `conditionPrice` REAL")
                 db.execSQL("ALTER TABLE `cards` ADD COLUMN `conditionPriceAt` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** Version 7 adds box capacity and dividers, signed/altered/graded flags, and saved searches. */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `boxes` ADD COLUMN `capacity` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `boxes` ADD COLUMN `divider` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `signed` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `altered` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `graded` TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `smart_lists` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`filter` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)",
+                )
             }
         }
 

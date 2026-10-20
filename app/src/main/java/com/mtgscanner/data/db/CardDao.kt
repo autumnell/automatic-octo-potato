@@ -47,6 +47,31 @@ interface CardDao {
     @Update
     suspend fun updateAll(cards: List<CollectionCard>)
 
+    @Query("SELECT * FROM smart_lists ORDER BY name")
+    fun observeSmartLists(): Flow<List<SmartList>>
+
+    @Insert
+    suspend fun addSmartList(l: SmartList): Long
+
+    @Query("DELETE FROM smart_lists WHERE id = :id")
+    suspend fun deleteSmartList(id: Long)
+
+    @Query("SELECT * FROM smart_lists")
+    suspend fun allSmartLists(): List<SmartList>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putSmartLists(l: List<SmartList>)
+
+    @Query("DELETE FROM smart_lists")
+    suspend fun deleteSmartLists()
+
+    /** Copies of a card (by oracle id) outside the given boxes. */
+    @Query("SELECT COALESCE(SUM(quantity), 0) FROM cards WHERE oracleId = :oracleId AND boxId NOT IN (:excluded)")
+    suspend fun ownedOutside(oracleId: String, excluded: List<Long>): Int
+
+    @Query("SELECT boxId, COALESCE(SUM(quantity), 0) AS n FROM cards GROUP BY boxId")
+    suspend fun boxCounts(): List<BoxCount>
+
     @Query("UPDATE cards SET conditionPrice = :price, conditionPriceAt = :at WHERE id = :id")
     suspend fun setConditionPrice(id: Long, price: Double?, at: Long)
 
