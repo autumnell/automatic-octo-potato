@@ -23,10 +23,6 @@ object AppSettings {
     var alertDollars by mutableDoubleStateOf(1.0)
         private set
 
-    /** A short beep for every card added while scanning. */
-    var scanSound by mutableStateOf(true)
-        private set
-
     /** Developer-ish: the hidden scan log is switched on. */
     var scanLogUnlocked by mutableStateOf(false)
         private set
@@ -38,7 +34,6 @@ object AppSettings {
         priceAlerts = p.getBoolean("priceAlerts", false)
         alertPercent = p.getFloat("alertPercent", 20f).toDouble()
         alertDollars = p.getFloat("alertDollars", 1f).toDouble()
-        scanSound = p.getBoolean("scanSound", true)
         scanLogUnlocked = p.getBoolean("scanLog", false)
     }
 
@@ -46,7 +41,6 @@ object AppSettings {
     fun updatePriceAlerts(v: Boolean) { priceAlerts = v; prefs?.edit()?.putBoolean("priceAlerts", v)?.apply() }
     fun updateAlertPercent(v: Double) { alertPercent = v; prefs?.edit()?.putFloat("alertPercent", v.toFloat())?.apply() }
     fun updateAlertDollars(v: Double) { alertDollars = v; prefs?.edit()?.putFloat("alertDollars", v.toFloat())?.apply() }
-    fun updateScanSound(v: Boolean) { scanSound = v; prefs?.edit()?.putBoolean("scanSound", v)?.apply() }
     fun unlockScanLog(v: Boolean) { scanLogUnlocked = v; prefs?.edit()?.putBoolean("scanLog", v)?.apply() }
 
     /** Read outside Compose (workers). */

@@ -97,14 +97,33 @@ data class BoxRules(
         private fun money(v: Double) = if (v % 1.0 == 0.0) "$${v.toInt()}" else "$" + "%.2f".format(java.util.Locale.US, v)
 
         /**
-         * Picks the box a card belongs in: the first box with rules that fit, else the first
-         * catch-all box. [boxes] should be in the order the user created them.
+         * Picks the box a card belongs in: the first box with rules that fit, in Auto-sort order.
+         * If none fits, the [fallback] box, else the first box that takes any card.
          */
-        fun <T> pick(boxes: List<Pair<T, BoxRules>>, card: CardFacts): T? =
+        fun <T> pick(boxes: List<Pair<T, BoxRules>>, card: CardFacts, fallback: T? = null): T? =
             boxes.firstOrNull { !it.second.isCatchAll && it.second.matches(card) }?.first
+                ?: fallback
                 ?: boxes.firstOrNull { it.second.isCatchAll }?.first
+
+        /**
+         * For the box editor's preview: which [cards] fit [draft], and which of those a box
+         * checked earlier would take first. Boxes that take any card never take cards first.
+         */
+        fun <T> overlap(draft: BoxRules, ahead: List<Pair<T, BoxRules>>, cards: List<CardFacts>): Overlap<T> {
+            val rulesAhead = ahead.filter { !it.second.isCatchAll }
+            val fits = cards.indices.filter { draft.matches(cards[it]) }
+            val taken = LinkedHashMap<T, MutableList<Int>>()
+            for (i in fits) {
+                val first = rulesAhead.firstOrNull { it.second.matches(cards[i]) } ?: continue
+                taken.getOrPut(first.first) { mutableListOf() } += i
+            }
+            return Overlap(fits, taken.entries.sortedByDescending { it.value.size }.map { it.key to it.value.toList() })
+        }
     }
 }
+
+/** Result of [BoxRules.overlap]: indexes of cards that fit, and the ones each earlier box takes first. */
+data class Overlap<T>(val fits: List<Int>, val takenBy: List<Pair<T, List<Int>>>)
 
 /** Ready-made starting points shown when creating a box. */
 data class BoxPreset(val name: String, val kind: String, val rules: BoxRules)

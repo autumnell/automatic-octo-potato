@@ -19,6 +19,12 @@ Each new build replaces the "latest" release, and installs cleanly over the prev
   art, full art, etched, promo, retro frame), foil or non-foil, card type, price range and set.
   There are ready-made starting points like Bulk (commons and uncommons under $1), Rares &
   Mythics, Borderless & Showcase, Foils, High value and one per color.
+  Making a box takes three steps: start from a ready-made box or a blank one, pick its name,
+  kind and color, then turn on rules (each rule is a card you can open and close). A live
+  preview shows how many of your cards fit, and warns when a box earlier in the order takes
+  some of them first.
+- **Auto-sort order:** Collection › Auto-sort order sets which box is checked first, and
+  picks a fallback box for cards no rules fit.
 - **Home:** collection value with its change since the cards were added (like "+$4.20 (3.1%)"),
   a value chart over time, recently added, most valuable, biggest gains, and a color breakdown.
   Prices refresh once a day when the app opens.
@@ -48,9 +54,15 @@ Each new build replaces the "latest" release, and installs cleanly over the prev
   - **Lists:** your wishlist and trade binders (boxes of kind "Trade binder").
 - Tap a card to change quantity, foil, condition, box and notes, see its price change since you
   added it, and what it does (Scryfall's community tags).
-- **Scanning extras:** **Bulk mode** never stops: confident cards are added, unsure ones are set
-  aside under a "Check" button to confirm at the end. Each add can beep, and a big "Put it in …"
-  label shows which box the card belongs in. The scan list can be grouped by box for filing a pile.
+- **Scan settings** (scanner gear, or Settings › Scanning):
+  - **Auto-add** adds cards by itself when it's sure enough: exact printing only, a confident
+    name, or any good match. Unsure cards can pause and ask, be set aside under a "Check"
+    button, or be skipped.
+  - **Skip rules** count but don't add basic lands, tokens or cards under a price.
+  - **Feedback:** pick the sound for an add and a different one for "set aside", plus vibrate
+    and frame flash.
+  - **Presets** such as "Sorting bulk" and "Valuing a binder" save all of this, and switch from
+    the scan header. A big "Put it in …" label in the box's color shows where the card goes. The scan list can be grouped by box for filing a pile.
 - **Decks tab** also suggests **Commander ideas**: legendary creatures you own, ranked by how many of
   your cards fit their colors. Card pages show format legality and color identity.
 - **Lists tab** has a **trade calculator** (what you give vs. get, then apply it to your collection)

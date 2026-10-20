@@ -109,7 +109,7 @@ fun SearchScreen(vm: SearchViewModel = viewModel(factory = AppViewModels.Factory
     if (newBox) {
         BoxEditorSheet(
             title = "New box",
-            onSave = { n, k, r -> vm.createBox(n, k, r); newBox = false },
+            onSave = { vm.createBox(it); newBox = false },
             onDismiss = { newBox = false },
         )
     }

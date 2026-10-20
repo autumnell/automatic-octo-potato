@@ -35,6 +35,7 @@ data class ScryfallCard(
     @SerialName("frame_effects") val frameEffects: List<String> = emptyList(),
     @SerialName("full_art") val fullArt: Boolean = false,
     val promo: Boolean = false,
+    val layout: String? = null,
     val frame: String? = null,
 ) {
     /** Special printings, used by box rules: borderless, showcase, extended art, full art, etched, promo. */

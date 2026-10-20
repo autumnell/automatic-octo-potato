@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Inventory2
@@ -73,7 +74,9 @@ import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.ui.AppViewModels
+import com.mtgscanner.ui.components.BoxDraft
 import com.mtgscanner.ui.components.BoxEditorSheet
+import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
@@ -120,8 +123,12 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
 
-    fun createBox(name: String, kind: String, rules: BoxRules) = viewModelScope.launch { repo.createBox(name, kind, rules) }
-    fun updateBox(id: Long, name: String, kind: String, rules: BoxRules) = viewModelScope.launch { repo.updateBox(id, name, kind, rules) }
+    fun createBox(d: BoxDraft) = viewModelScope.launch { repo.createBox(d.name, d.kind, d.rules, d.color) }
+    fun updateBox(id: Long, d: BoxDraft) = viewModelScope.launch { repo.updateBox(id, d.name, d.kind, d.rules, d.color) }
+
+    /** Saves the Auto-sort order, first to last. */
+    fun reorder(ids: List<Long>) = viewModelScope.launch { repo.reorderBoxes(ids) }
+    fun setFallback(id: Long?) = viewModelScope.launch { repo.setFallbackBox(id) }
 
     /** [moveTo] null deletes the cards too; [CardBox.AUTO_SORT] sorts them into the other boxes. */
     fun deleteBox(id: Long, moveTo: Long?) = viewModelScope.launch {
@@ -226,6 +233,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     var editing by remember { mutableStateOf<BoxSummary?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<BoxSummary?>(null) }
+    var ordering by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -248,6 +256,11 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
         }
 
         SectionHeader("Boxes") {
+            if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) {
+                Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Auto-sort order")
+            }
             TextButton(onClick = { creating = true }) {
                 Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
@@ -269,18 +282,18 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     }
 
     if (creating) {
-        BoxEditorSheet(title = "New box", onSave = { n, k, r -> vm.createBox(n, k, r); creating = false }, onDismiss = { creating = false })
+        BoxEditorSheet(title = "New box", onSave = { vm.createBox(it); creating = false }, onDismiss = { creating = false })
     }
     editing?.let { b ->
         BoxEditorSheet(
             title = "Edit box",
-            initialName = b.name,
-            initialKind = b.kind,
-            initialRules = BoxRules.fromJson(b.rules),
-            onSave = { n, k, r -> vm.updateBox(b.id, n, k, r); editing = null },
+            initial = BoxDraft(b.name, b.kind, b.color, BoxRules.fromJson(b.rules)),
+            editingId = b.id,
+            onSave = { vm.updateBox(b.id, it); editing = null },
             onDismiss = { editing = null },
         )
     }
+    if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
     deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
     } }
@@ -337,9 +350,13 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
         ) {
             Column(Modifier.padding(horizontal = 22.dp, vertical = 18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(boxIcon(b.kind), null, tint = Palette.Accent, modifier = Modifier.size(24.dp))
+                    Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(b.name, style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
+                    Text(b.name, style = MaterialTheme.typography.titleLarge, color = boxColor(b.color), modifier = Modifier.weight(1f, fill = false))
+                    if (b.fallback) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("Fallback", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                    }
                 }
                 Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
                 Spacer(Modifier.height(6.dp))

@@ -41,7 +41,12 @@ import java.io.IOException
 import java.time.LocalDate
 
 /** A Scryfall match for what the camera read, and whether it's safe to add without asking. */
-data class Identification(val card: ScryfallCard, val confident: Boolean)
+data class Identification(
+    val card: ScryfallCard,
+    val confident: Boolean,
+    /** The exact printing is known: the footer was read, or the artwork matched. */
+    val exact: Boolean = false,
+)
 
 /** A card name read with no connection, good enough to look up later. */
 data class OfflineRead(val name: String, val setCode: String?, val collectorNumber: String?)
@@ -96,7 +101,7 @@ class CollectionRepository(
     val api: ScryfallApi,
 ) {
     private val dao = db.cardDao()
-    private val appContext: Context = context.applicationContext
+    val appContext: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("collection", Context.MODE_PRIVATE)
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val nameIndex = NameIndex(context.filesDir, api)
@@ -129,17 +134,26 @@ class CollectionRepository(
         val byBox = cards.groupBy { it.boxId }
         boxes.map { b ->
             val inBox = byBox[b.id].orEmpty()
-            BoxSummary(b.id, b.name, b.kind, inBox.sumOf { it.quantity }, inBox.sumOf { it.totalPrice() }, b.rules)
+            BoxSummary(b.id, b.name, b.kind, inBox.sumOf { it.quantity }, inBox.sumOf { it.totalPrice() }, b.rules, b.color, b.fallback)
         }
     }
 
-    suspend fun createBox(name: String, kind: String, rules: BoxRules = BoxRules()): Long =
-        dao.insertBox(Box(name = name.trim(), kind = kind, rules = rules.toJson()))
-
-    suspend fun updateBox(id: Long, name: String, kind: String, rules: BoxRules) {
-        val b = dao.box(id) ?: return
-        dao.updateBox(b.copy(name = name.trim(), kind = kind, rules = rules.toJson()))
+    /** New boxes go to the end of the Auto-sort order. */
+    suspend fun createBox(name: String, kind: String, rules: BoxRules = BoxRules(), color: Int = 0): Long {
+        val next = (dao.allBoxes().maxOfOrNull { it.sortOrder } ?: -1) + 1
+        return dao.insertBox(Box(name = name.trim(), kind = kind, rules = rules.toJson(), color = color, sortOrder = next))
     }
+
+    suspend fun updateBox(id: Long, name: String, kind: String, rules: BoxRules, color: Int) {
+        val b = dao.box(id) ?: return
+        dao.updateBox(b.copy(name = name.trim(), kind = kind, rules = rules.toJson(), color = color))
+    }
+
+    /** Saves the Auto-sort order: [ids] first to last. */
+    suspend fun reorderBoxes(ids: List<Long>) = ids.forEachIndexed { i, id -> dao.setBoxOrder(id, i) }
+
+    /** Makes [id] the box for cards nothing else fits, or clears it with null. */
+    suspend fun setFallbackBox(id: Long?) = dao.setFallback(id ?: Long.MIN_VALUE)
 
     suspend fun box(id: Long): Box? = dao.box(id)
 
@@ -161,8 +175,10 @@ class CollectionRepository(
     }
 
     /** The box a card belongs in by the boxes' rules, or null when no box fits. */
-    suspend fun pickBox(facts: CardFacts): Long? =
-        BoxRules.pick(dao.allBoxes().map { it.id to it.boxRules() }, facts)
+    suspend fun pickBox(facts: CardFacts): Long? {
+        val boxes = dao.allBoxes()
+        return BoxRules.pick(boxes.map { it.id to it.boxRules() }, facts, fallback = boxes.firstOrNull { it.fallback }?.id)
+    }
 
     suspend fun pickBox(card: ScryfallCard, foil: Boolean): Long? = pickBox(card.facts(foil))
 
@@ -203,7 +219,7 @@ class CollectionRepository(
         base ?: return null
         val hash = guess.artHash
         if (hash != null && guess.collectorNumber == null) {
-            refineByArt(base.card, hash)?.let { return base.copy(card = it) }
+            refineByArt(base.card, hash)?.let { return base.copy(card = it, exact = true) }
         }
         return base
     }
@@ -247,7 +263,7 @@ class CollectionRepository(
             if (card != null) {
                 val sim = bestSimilarity(card)
                 // If we couldn't read a name, trust the footer; otherwise the name has to agree.
-                if (names.isEmpty() || sim >= 0.6) return Identification(card, confident = true)
+                if (names.isEmpty() || sim >= 0.6) return Identification(card, confident = true, exact = true)
             }
         }
 
@@ -263,7 +279,7 @@ class CollectionRepository(
                     ?.firstOrNull { it.collectorNumber.equals(guess.collectorNumber, ignoreCase = true) }
             } else null
             val confident = sim >= 0.85 || card.name == knownGood
-            return Identification(exact ?: card, confident = confident)
+            return Identification(exact ?: card, confident = confident, exact = exact != null || inSet != null && guess.collectorNumber != null)
         }
         return null
     }
