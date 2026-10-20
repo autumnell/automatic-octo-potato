@@ -12,16 +12,19 @@ import kotlinx.serialization.json.Json
 @Serializable
 data class SavedSearch(val name: String, val filters: Filters)
 
-/** Saved searches and recent search words for browsing the collection. */
+/**
+ * Saved searches and recent search words for browsing the collection.
+ * Every instance shares the same lists, so Browse and the smart lists on Collection stay in step.
+ */
 class SavedSearchStore(context: Context) {
     private val prefs = context.getSharedPreferences("searches", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val savedSer = ListSerializer(SavedSearch.serializer())
     private val recentSer = ListSerializer(String.serializer())
 
-    private val _saved = MutableStateFlow(load(savedSer, "saved"))
+    private val _saved: MutableStateFlow<List<SavedSearch>> = shared("saved") { load(savedSer, "saved") }
+    private val _recent: MutableStateFlow<List<String>> = shared("recent") { load(recentSer, "recent") }
     val saved: StateFlow<List<SavedSearch>> = _saved
-    private val _recent = MutableStateFlow(load(recentSer, "recent"))
     val recent: StateFlow<List<String>> = _recent
 
     private fun <T> load(ser: kotlinx.serialization.KSerializer<List<T>>, key: String): List<T> =
@@ -53,5 +56,13 @@ class SavedSearchStore(context: Context) {
         prefs.edit().remove("recent").apply()
     }
 
-    companion object { const val MAX_RECENT = 8 }
+    companion object {
+        const val MAX_RECENT = 8
+        private val flows = HashMap<String, MutableStateFlow<*>>()
+
+        @Suppress("UNCHECKED_CAST")
+        private fun <T> shared(key: String, load: () -> List<T>): MutableStateFlow<List<T>> = synchronized(flows) {
+            flows.getOrPut(key) { MutableStateFlow(load()) } as MutableStateFlow<List<T>>
+        }
+    }
 }

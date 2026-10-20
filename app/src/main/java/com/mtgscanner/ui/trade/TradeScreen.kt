@@ -66,6 +66,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -87,7 +88,15 @@ data class TradeUi(
 class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val _ui = MutableStateFlow(TradeUi())
     val ui: StateFlow<TradeUi> = _ui
-    val collection: StateFlow<List<CollectionCard>> = repo.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val binderId = MutableStateFlow(-1L)
+
+    /** The trade binder's cards: what you can give. */
+    val collection: StateFlow<List<CollectionCard>> = combine(repo.observeAll(), binderId) { all, id -> all.filter { it.boxId == id } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val binderName: StateFlow<String> = combine(repo.observeBoxes(), binderId) { boxes, id -> boxes.firstOrNull { it.id == id }?.name.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    fun setBinder(id: Long) { binderId.value = id }
     private var suggestJob: Job? = null
 
     fun give(c: CollectionCard) = _ui.update { u ->
@@ -146,13 +155,15 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun messageShown() = _ui.update { it.copy(message = null) }
 }
 
-/** Compare what you give and get in a trade, then apply it to your collection. */
+/** Trade from a trade binder: give cards from the binder, get any card, then apply it to your collection. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TradeScreen(onBack: () -> Unit) {
-    val vm: TradeViewModel = viewModel(factory = AppViewModels.Factory)
+fun TradeScreen(binderId: Long, onBack: () -> Unit) {
+    val vm: TradeViewModel = viewModel(key = "trade$binderId", factory = AppViewModels.Factory)
+    LaunchedEffect(binderId) { vm.setBinder(binderId) }
     val ui by vm.ui.collectAsStateWithLifecycle()
     val collection by vm.collection.collectAsStateWithLifecycle()
+    val binderName by vm.binderName.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf<String?>(null) } // "give" or "get"
     var confirm by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -162,7 +173,10 @@ fun TradeScreen(onBack: () -> Unit) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-                Text("Trade", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Text(
+                    if (binderName.isEmpty()) "Trade" else "Trade · $binderName",
+                    style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
                 if (ui.give.isNotEmpty() || ui.get.isNotEmpty()) TextButton(onClick = vm::clear) { Text("Clear") }
             }
             if (AppSettings.showPrices && (ui.give.isNotEmpty() || ui.get.isNotEmpty())) {
@@ -196,7 +210,7 @@ fun TradeScreen(onBack: () -> Unit) {
         ModalBottomSheet(onDismissRequest = { picking = null }, containerColor = Palette.Surface) {
             var q by remember { mutableStateOf("") }
             Column(Modifier.padding(horizontal = 16.dp)) {
-                SearchField(q, { q = it; if (picking == "get") vm.suggest(it) }, placeholder = if (picking == "give") "Search your cards" else "Search any card")
+                SearchField(q, { q = it; if (picking == "get") vm.suggest(it) }, placeholder = if (picking == "give") "Search binder" else "Search any card")
             }
             LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
                 if (picking == "give") {
