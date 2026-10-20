@@ -10,7 +10,6 @@ import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.PricePoint
 import com.mtgscanner.data.db.PendingScan
-import com.mtgscanner.data.db.SmartList
 import com.mtgscanner.data.db.ValueSnapshot
 import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.data.db.boxRules
@@ -93,7 +92,6 @@ data class Backup(
     val pending: List<PendingScan> = emptyList(),
     val priceHistory: List<PricePoint> = emptyList(),
     val packs: List<PackOpening> = emptyList(),
-    val smartLists: List<SmartList> = emptyList(),
 )
 
 /** Collection value and its change since cards were added. */
@@ -308,11 +306,6 @@ class CollectionRepository(
         newId
     }
 
-    // Smart lists
-
-    fun observeSmartLists(): Flow<List<SmartList>> = dao.observeSmartLists()
-    suspend fun addSmartList(name: String, filter: String): Long = dao.addSmartList(SmartList(name = name.trim(), filter = filter))
-    suspend fun deleteSmartList(id: Long) = dao.deleteSmartList(id)
 
     /** Moves an entry to another box, merging with the same printing already there. Returns the surviving id. */
     suspend fun moveToBox(id: Long, boxId: Long): Long {
@@ -891,7 +884,7 @@ class CollectionRepository(
         val b = Backup(
             boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
-            priceHistory = dao.allPricePoints(), packs = dao.allPacks(), smartLists = dao.allSmartLists(),
+            priceHistory = dao.allPricePoints(), packs = dao.allPacks(),
         )
         out.buffered().use { backupJson.encodeToStream(Backup.serializer(), b, it) }
     }
@@ -902,10 +895,10 @@ class CollectionRepository(
         val b = input.buffered().use { backupJson.decodeFromStream(Backup.serializer(), it) }
         db.withTransaction {
             dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
-            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteSmartLists()
+            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks()
             dao.putBoxes(b.boxes); dao.putCards(b.cards); dao.putSnapshots(b.snapshots)
             dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
-            dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs); dao.putSmartLists(b.smartLists)
+            dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs)
         }
         b.cards.sumOf { it.quantity }
     }

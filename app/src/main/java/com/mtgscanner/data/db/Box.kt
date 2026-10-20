@@ -55,3 +55,6 @@ data class BoxSummary(
     val capacity: Int = 0,
     val divider: String = "",
 )
+
+/** Copies in a box, for capacity checks. */
+data class BoxCount(val boxId: Long, val n: Int)
