@@ -7,8 +7,11 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.OfflineRead
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallException
+import com.mtgscanner.data.SortDecision
+import com.mtgscanner.data.SortPrefs
+import com.mtgscanner.data.SortReason
+import com.mtgscanner.data.facts
 import com.mtgscanner.data.db.Box
-import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.scan.CardTextGuess
 import com.mtgscanner.scan.ScanPrefs
@@ -34,12 +37,30 @@ data class ScanEntry(
     val foil: Boolean,
     val count: Int,
     val boxName: String = "",
+    val boxId: Long = 0,
+    /** Divider inside the box ("Blue", "R"), when the box has dividers. */
+    val spot: String? = null,
+    /** Short note when the box wasn't picked by plain rules ("Extra copy"). */
+    val note: String? = null,
+    val full: Boolean = false,
 ) {
+    /** "Rares → Blue" */
+    val where: String get() = if (spot != null && boxName.isNotEmpty()) "$boxName → $spot" else boxName
     val value: Double get() = (card.price(foil)?.toDoubleOrNull() ?: 0.0) * count
 }
 
 /** A pack being opened, with the cards scanned from it. Kept apart from the scan list so clearing the list keeps them. */
 data class PackDraft(val name: String, val cost: Double?, val entries: List<ScanEntry> = emptyList())
+
+/** Sorting session: cards scanned since it started, to file by box afterwards. [done] holds the box ids filed. */
+data class SortSession(val entries: List<ScanEntry> = emptyList(), val done: Set<Long> = emptySet())
+
+/** Short label for why a card went where it did, or null for plain rules. */
+fun sortNote(d: SortDecision?): String? = when (d?.reason) {
+    SortReason.BULK -> SortPrefs.bulkFloor?.let { "Bulk (under $" + "%.2f".format(java.util.Locale.US, it) + ")" } ?: "Bulk"
+    SortReason.EXTRA -> "Extra copy"
+    else -> null
+}
 
 /** One pocket of a binder page. [card] is null when it couldn't be read or found. */
 data class PageSlot(val index: Int, val read: String?, val card: ScryfallCard?, val selected: Boolean)
@@ -78,6 +99,10 @@ data class ScanUiState(
     /** The box the last card went into, shown big so you know where to file it. */
     val lastBoxName: String? = null,
     val lastBoxColor: Int = 0,
+    /** Divider spot, reason note and full flag for the last card's box. */
+    val lastSpot: String? = null,
+    val lastNote: String? = null,
+    val lastFull: Boolean = false,
     /** Group the scan list by box, to file a pile of cards. */
     val listByBox: Boolean = false,
     /** Cards skipped by the skip rules this session. They're counted, not added. */
@@ -87,8 +112,10 @@ data class ScanUiState(
     /** Pack mode: the pack being opened, if any. */
     val pack: PackDraft? = null,
     val showPackStart: Boolean = false,
-    /** The pack just finished, shown as a summary. */
-    val packSummary: PackOpening? = null,
+    /** Sorting session: the pile being scanned, if any. */
+    val sort: SortSession? = null,
+    val showSort: Boolean = false,
+    val showSetLock: Boolean = false,
     /** Binder page mode: read a 3x3 page of sleeves at once. */
     val pageMode: Boolean = false,
     val wantPage: Boolean = false,
@@ -155,7 +182,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The analyzer skips frames while this is true. */
     val isPaused: Boolean
         get() = _state.value.let {
-            if (it.pageMode) it.paused || !it.wantPage || it.pageLoading || it.page != null || it.showSettings || it.showList ||
+            if (it.showSort || it.showSetLock) true
+            else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading || it.page != null || it.showSettings || it.showList ||
                 it.showNewBox || boxes.value.isNullOrEmpty()
             else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp ||
                 it.showPrintings || it.showSettings || it.showList || it.showNewBox || it.showReview || boxes.value.isNullOrEmpty()
@@ -333,7 +361,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             val wish = if (fromReview || fromPage) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
             // A box that was deleted (say, saved in a preset) falls back to auto-sort.
             val known = boxes.value?.any { it.id == s.boxId } == true
-            val boxId = if (s.boxId == Box.AUTO_SORT || !known) repo.pickBox(card, foil) else s.boxId
+            val facts = card.facts(foil)
+            val decision = if (s.boxId == Box.AUTO_SORT || !known) runCatching { repo.pickDecision(facts, card.oracleId) }.getOrNull() else null
+            val boxId = if (s.boxId == Box.AUTO_SORT || !known) decision?.boxId else s.boxId
             if (boxId == null) {
                 _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card.") }
                 return@launch
@@ -342,17 +372,24 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             if (wish != null) repo.fulfilWish(card.oracleId, qty)
             val box = boxes.value?.firstOrNull { it.id == boxId }
             val boxName = box?.name.orEmpty()
-            val entry = ScanEntry(++entryKeys, rowId, card, foil, qty, boxName)
+            val spot = runCatching { repo.spotFor(boxId, card.name, facts) }.getOrNull()
+            val full = decision?.boxFull ?: (box != null && box.capacity > 0 &&
+                (runCatching { repo.boxInfos() }.getOrNull()?.firstOrNull { b -> b.id == boxId }?.isFull == true))
+            val entry = ScanEntry(++entryKeys, rowId, card, foil, qty, boxName, boxId, spot, sortNote(decision), full)
             _state.update {
                 it.copy(
                     session = listOf(entry) + it.session,
                     pack = it.pack?.let { p -> p.copy(entries = listOf(entry) + p.entries) },
+                    sort = it.sort?.let { o -> o.copy(entries = listOf(entry) + o.entries, done = o.done - boxId) },
                     addedPulse = it.addedPulse + 1,
-                    status = if (boxName.isNotEmpty()) "Added ${card.name} → $boxName" else "Added ${card.name}",
+                    status = if (boxName.isNotEmpty()) "Added ${card.name} → ${entry.where}" else "Added ${card.name}",
                     error = null,
                     wish = null,
                     lastBoxName = boxName.ifEmpty { null },
                     lastBoxColor = box?.color ?: 0,
+                    lastSpot = spot,
+                    lastNote = entry.note,
+                    lastFull = full,
                     current = if (fromReview || auto) it.current else null,
                     cardFoil = if (fromReview || auto) it.cardFoil else null,
                     awaiting = if (fromReview) it.awaiting else false,
@@ -393,7 +430,12 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             Undo.offer("Removed ${entry.card.name}") {
                 repo.restore(before)
                 removedKeys.remove(entry.key)
-                _state.update { it.copy(session = (it.session + entry).sortedByDescending { e -> e.key }) }
+                _state.update {
+                    it.copy(
+                        session = (it.session + entry).sortedByDescending { e -> e.key },
+                        sort = it.sort?.let { o -> o.copy(entries = (o.entries + entry).sortedByDescending { e -> e.key }) },
+                    )
+                }
             }
         }
     }
@@ -407,6 +449,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             it.copy(
                 session = it.session.filterNot { e -> e.key == entry.key },
                 pack = it.pack?.let { p -> p.copy(entries = p.entries.filterNot { e -> e.key == entry.key }) },
+                sort = it.sort?.let { o -> o.copy(entries = o.entries.filterNot { e -> e.key == entry.key }) },
                 status = "Removed ${entry.card.name}",
             )
         }
@@ -425,33 +468,42 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun cancelPack() = _state.update { it.copy(pack = null, status = "Point your camera at a card") }
 
-    /** Saves the pack to history and shows what it was worth. */
+    /** Ends the pack. Cards stay in the collection; nothing is saved to history. */
     fun finishPack() {
         val s = _state.value
         val p = s.pack ?: return
-        val entries = s.packEntries
-        if (entries.isEmpty()) { cancelPack(); return }
-        val best = entries.maxByOrNull { it.value / it.count.coerceAtLeast(1) }
-        val opening = PackOpening(
-            name = p.name,
-            cost = p.cost,
-            value = entries.sumOf { it.value },
-            cards = entries.sumOf { it.count },
-            best = best?.let { "${it.card.name} (${formatPrice(it.value / it.count.coerceAtLeast(1))})" }.orEmpty(),
-            pulls = entries.reversed().joinToString("\n") { e ->
-                "${e.card.name}|${e.card.set}|${e.card.collectorNumber}|${e.card.price(e.foil) ?: ""}"
-            },
-            openedAt = System.currentTimeMillis(),
-        )
-        viewModelScope.launch {
-            val id = repo.savePack(opening)
-            _state.update { it.copy(pack = null, packSummary = opening.copy(id = id), status = "Point your camera at a card") }
-        }
+        val n = s.packEntries.sumOf { it.count }
+        val total = if (AppSettings.showPrices) " · " + formatPrice(s.packValue) else ""
+        _state.update { it.copy(pack = null, status = if (n == 0) "Point your camera at a card" else "${p.name}: $n cards$total") }
     }
 
-    fun closePackSummary() = _state.update { it.copy(packSummary = null) }
-
     private fun formatPrice(v: Double) = "$" + "%.2f".format(java.util.Locale.US, v)
+
+    // Sorting session
+
+    fun startSort() = _state.update {
+        it.copy(sort = SortSession(), status = "Sorting · scan the pile")
+    }
+
+    fun showSort(show: Boolean) = _state.update { it.copy(showSort = show) }
+
+    /** Checks a box's stack off as filed, or back on. */
+    fun toggleSortDone(boxId: Long) = _state.update {
+        it.copy(sort = it.sort?.let { o -> o.copy(done = if (boxId in o.done) o.done - boxId else o.done + boxId) })
+    }
+
+    /** Ends the session. Cards stay in their boxes. */
+    fun endSort() = _state.update { it.copy(sort = null, showSort = false, status = "Point your camera at a card") }
+
+    // Set lock
+
+    fun showSetLock(show: Boolean) = _state.update { it.copy(showSetLock = show) }
+
+    fun setLock(code: String?) {
+        SortPrefs.updateSetLock(code?.trim())
+        _state.update { it.copy(showSetLock = false) }
+        resetTracking()
+    }
 
     // Binder page mode
 

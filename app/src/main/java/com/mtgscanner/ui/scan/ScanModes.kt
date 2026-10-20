@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,13 +62,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.GradientButton
-import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.ui.components.priceSuffix
-import com.mtgscanner.ui.home.ChangeText
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
-/** The modes button over the camera: open a pack, or scan a binder page. */
+/** The modes button over the camera: sort a pile, open a pack, scan a binder page, lock to a set. */
 @Composable
 fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
     var open by remember { mutableStateOf(false) }
@@ -75,21 +76,37 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.ViewModule, "Scan modes", tint = if (state.pack != null || state.pageMode) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
+            Icon(Icons.Filled.ViewModule, "Scan modes", tint = if (state.pack != null || state.pageMode || state.sort != null) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (state.sort == null) DropdownMenuItem(
+                text = { ModeText("Sort a pile", "Scan all, then file by box") },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null) },
+                onClick = { open = false; vm.startSort() },
+            ) else {
+                DropdownMenuItem(
+                    text = { ModeText("Sort now", "See stacks by box") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Accent) },
+                    onClick = { open = false; vm.showSort(true) },
+                )
+                DropdownMenuItem(
+                    text = { ModeText("Stop sorting", "Cards stay in their boxes") },
+                    leadingIcon = { Icon(Icons.Filled.Close, null) },
+                    onClick = { open = false; vm.endSort() },
+                )
+            }
             if (state.pack == null) DropdownMenuItem(
-                text = { ModeText("Open a pack", "Scan what you pulled and see what it was worth") },
+                text = { ModeText("Open a pack", "Running total as you scan") },
                 leadingIcon = { Icon(Icons.Filled.Inventory2, null) },
                 onClick = { open = false; vm.showPackStart(true) },
             ) else {
                 DropdownMenuItem(
-                    text = { ModeText("Finish pack", "Save it to your pack history") },
+                    text = { ModeText("Finish pack", "Cards stay added") },
                     leadingIcon = { Icon(Icons.Filled.CheckCircle, null, tint = Palette.Accent) },
                     onClick = { open = false; vm.finishPack() },
                 )
                 DropdownMenuItem(
-                    text = { ModeText("Stop pack mode", "Cards you added stay in your collection") },
+                    text = { ModeText("Stop pack mode", "Cards stay added") },
                     leadingIcon = { Icon(Icons.Filled.Close, null) },
                     onClick = { open = false; vm.cancelPack() },
                 )
@@ -102,6 +119,15 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                 leadingIcon = { Icon(Icons.Filled.GridOn, null) },
                 onClick = { open = false; vm.setPageMode(!state.pageMode) },
             )
+            DropdownMenuItem(
+                text = {
+                    val lock = SortPrefs.setLock
+                    if (lock != null) ModeText("Set: ${lock.uppercase()}", "Change or unlock")
+                    else ModeText("Lock to a set", "Faster reads for one set")
+                },
+                leadingIcon = { Icon(Icons.Filled.Lock, null, tint = if (SortPrefs.setLock != null) Palette.Gold else Palette.Text) },
+                onClick = { open = false; vm.showSetLock(true) },
+            )
         }
     }
 }
@@ -112,7 +138,7 @@ private fun ModeText(title: String, body: String) = Column {
     Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
 }
 
-/** Shows the pack being opened and its running value, with a Finish button. */
+/** Shows the pack being opened and its running total, with a Finish button. */
 @Composable
 fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val p = state.pack ?: return
@@ -121,7 +147,8 @@ fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifie
             Column {
                 Text(p.name, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${state.packEntries.sumOf { it.count }} cards" + priceSuffix(state.packValue),
+                    "${state.packEntries.sumOf { it.count }} cards" + priceSuffix(state.packValue) +
+                        (p.cost?.takeIf { it > 0 && AppSettings.showPrices }?.let { " / " + com.mtgscanner.ui.components.formatUsd(it) } ?: ""),
                     color = Palette.Gold, style = MaterialTheme.typography.labelMedium,
                 )
             }
@@ -140,49 +167,17 @@ fun PackStartDialog(vm: ScanViewModel) {
         title = { Text("Open a pack") },
         text = {
             Column {
-                Text("Scan every card in the pack, then tap Finish to see if it paid off.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Pack") }, placeholder = { Text("e.g. Bloomburrow play booster") })
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     cost, { cost = it.filter { c -> c.isDigit() || c == '.' } }, singleLine = true,
-                    label = { Text("What you paid (optional)") }, prefix = { Text("$") },
+                    label = { Text("Paid (optional)") }, prefix = { Text("$") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
         },
         confirmButton = { TextButton(onClick = { vm.startPack(name.trim(), cost.toDoubleOrNull()) }) { Text("Start") } },
         dismissButton = { TextButton(onClick = { vm.showPackStart(false) }) { Text("Cancel") } },
-    )
-}
-
-@Composable
-fun PackSummaryDialog(state: ScanUiState, vm: ScanViewModel) {
-    val p = state.packSummary ?: return
-    AlertDialog(
-        onDismissRequest = vm::closePackSummary,
-        containerColor = Palette.Surface,
-        title = { Text(p.name) },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Text("${p.cards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-                if (AppSettings.showPrices) {
-                    Text(formatUsd(p.value), style = MaterialTheme.typography.displaySmall, color = Palette.Accent)
-                    p.cost?.takeIf { it > 0 }?.let { cost ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("vs ${formatUsd(cost)} paid  ", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-                            ChangeText(p.value - cost, cost)
-                        }
-                        Text(
-                            if (p.value >= cost) "Worth it!" else "Better luck next pack.",
-                            style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-                }
-                if (p.best.isNotBlank()) Text("Best pull: ${p.best}", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
-            }
-        },
-        confirmButton = { TextButton(onClick = vm::closePackSummary) { Text("Done") } },
     )
 }
 

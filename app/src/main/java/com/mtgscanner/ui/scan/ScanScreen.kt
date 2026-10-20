@@ -211,8 +211,14 @@ fun ScanScreen(
             if (hasPermission && !needsBox) {
                 if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
                 else FrameGuide(found = state.current != null, flash = if (state.settings.flash) state.addedPulse else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
-                PackChip(state, vm, Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp))
-                BoxCallout(state.lastBoxName, state.lastBoxColor, state.addedPulse, Modifier.align(Alignment.Center))
+                Column(
+                    Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PackChip(state, vm)
+                    SortChip(state, vm)
+                }
+                BoxCallout(state, Modifier.align(Alignment.Center))
                 Column(
                     Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
                     horizontalAlignment = Alignment.End,
@@ -244,6 +250,7 @@ fun ScanScreen(
             ) {
                 RoundIconButton(Icons.Filled.Settings, "Scan settings", { vm.showSettings(true) })
                 ModesButton(state, vm)
+                SetLockChip(vm)
             }
 
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp)) {
@@ -273,7 +280,8 @@ fun ScanScreen(
     if (state.showList) ScanListSheet(state, vm, onOpenCard)
     if (state.showReview) ReviewSheet(state, vm)
     if (state.showPackStart) PackStartDialog(vm)
-    if (state.packSummary != null) PackSummaryDialog(state, vm)
+    if (state.showSort) SortSheet(state, boxes, vm)
+    if (state.showSetLock) SetLockDialog(vm)
     if (state.page != null) PageSheet(state, vm)
     if (state.showNewBox) {
         BoxEditorSheet(
@@ -699,7 +707,8 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                             }
                         }
                         Text(
-                            "${e.card.set.uppercase()} · #${e.card.collectorNumber} · ×${e.count}" + if (e.boxName.isNotEmpty()) " · ${e.boxName}" else "",
+                            "${e.card.set.uppercase()} · #${e.card.collectorNumber} · ×${e.count}" + (if (e.boxName.isNotEmpty()) " · ${e.where}" else "") +
+                                (e.note?.let { " · $it" } ?: "") + if (e.full) " · Full" else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = Palette.Muted,
                             maxLines = 1,
@@ -771,9 +780,11 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 }
 
-/** Big label showing which box the last card went into, so a pile can be filed as it's scanned. */
+/** Big label showing which box (and divider) the last card went into, so a pile can be filed as it's scanned. */
 @Composable
-private fun BoxCallout(boxName: String?, color: Int, pulse: Int, modifier: Modifier) {
+private fun BoxCallout(state: ScanUiState, modifier: Modifier) {
+    val boxName = state.lastBoxName
+    val pulse = state.addedPulse
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(pulse) {
         if (pulse > 0 && boxName != null) {
@@ -791,7 +802,20 @@ private fun BoxCallout(boxName: String?, color: Int, pulse: Int, modifier: Modif
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text("Put it in", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
-            Text(boxName.orEmpty(), color = com.mtgscanner.ui.components.boxColor(color), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    boxName.orEmpty() + (state.lastSpot?.let { " → $it" } ?: ""),
+                    color = com.mtgscanner.ui.components.boxColor(state.lastBoxColor),
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (state.lastFull) {
+                    Spacer(Modifier.width(8.dp))
+                    FullTag()
+                }
+            }
+            state.lastNote?.let { Text(it, color = Palette.Gold, style = MaterialTheme.typography.labelMedium) }
         }
     }
 }
