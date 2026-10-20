@@ -64,6 +64,19 @@ class ScryfallApi(
         return search("$q include:extras", unique = "prints", order = "released")
     }
 
+    /** All printings of the card with this oracle id (or exact [name] when there's none), newest first. */
+    suspend fun printingsOf(oracleId: String?, name: String): List<ScryfallCard> {
+        val q = oracleId?.let { "oracleid:$it" } ?: "!\"$name\""
+        return search("$q include:extras", unique = "prints", order = "released")
+    }
+
+    /** Official rulings for a card, oldest first. Empty when there are none. */
+    suspend fun rulings(id: String): List<ScryfallRuling> {
+        val url = base.newBuilder().addPathSegment("cards").addPathSegment(id).addPathSegment("rulings").build()
+        val body = request(Request.Builder().url(url).build()) ?: return emptyList()
+        return json.decodeFromString(RulingList.serializer(), body).data
+    }
+
     suspend fun search(query: String, unique: String = "cards", order: String = "name"): List<ScryfallCard> {
         val url = base.newBuilder().addPathSegments("cards/search")
             .addQueryParameter("q", query)
