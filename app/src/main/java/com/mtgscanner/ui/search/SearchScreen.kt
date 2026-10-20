@@ -303,7 +303,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl, Modifier.width(46.dp), corner = 4.dp)
+        CardImage(c.smallImageUrl, Modifier.width(46.dp), corner = 4.dp, zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -346,7 +346,7 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
                 LazyRow(contentPadding = PaddingValues(horizontal = 14.dp)) {
                     items(ui.viewed, key = { it.id }) { v ->
                         Column(Modifier.width(84.dp).clip(RoundedCornerShape(10.dp)).clickable { vm.openViewed(v) }.padding(4.dp)) {
-                            CardImage(v.image, Modifier.fillMaxWidth(), corner = 6.dp)
+                            CardImage(v.image, Modifier.fillMaxWidth(), corner = 6.dp, zoom = true)
                             Text(v.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                         }
                     }

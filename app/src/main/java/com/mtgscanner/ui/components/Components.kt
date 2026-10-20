@@ -129,7 +129,15 @@ fun Shimmer(modifier: Modifier = Modifier) {
  * Uses AsyncImage (no subcomposition) so long lists and grids stay smooth.
  */
 @Composable
-fun CardImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
+fun CardImage(
+    url: String?,
+    modifier: Modifier = Modifier,
+    corner: Dp = 8.dp,
+    /** Tap and hold shows the card big (see [cardZoom]). */
+    zoom: Boolean = false,
+    /** With [zoom]: the image handles taps itself, so a parent's own long press doesn't also fire. */
+    onTap: (() -> Unit)? = null,
+) {
     val shape = RoundedCornerShape(corner)
     val fill = Palette.SurfaceHigh
     val placeholder = remember(fill) { ColorPainter(fill) }
@@ -140,7 +148,8 @@ fun CardImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
         model = if (useBackup) backup else url,
         contentDescription = null,
         contentScale = ContentScale.Crop,
-        modifier = modifier.aspectRatio(63f / 88f).clip(shape).background(fill),
+        modifier = modifier.aspectRatio(63f / 88f).clip(shape).background(fill)
+            .then(if (zoom) Modifier.cardZoom(url, onTap = onTap) else Modifier),
         placeholder = placeholder,
         error = placeholder,
         onError = { if (!useBackup && backup != null) useBackup = true },
@@ -296,7 +305,8 @@ fun CardTile(
             .padding(4.dp),
     ) {
         Box {
-            CardImage(imageUrl, Modifier.fillMaxWidth(), corner = 9.dp)
+            // Holding the picture shows it big; with a tile long press (picking), the rest of the tile keeps it.
+            CardImage(imageUrl, Modifier.fillMaxWidth(), corner = 9.dp, zoom = true, onTap = if (onLongClick != null) onClick else null)
             if (selected) {
                 Box(
                     Modifier.align(Alignment.TopStart).padding(6.dp).size(24.dp).clip(CircleShape).background(Palette.Accent),

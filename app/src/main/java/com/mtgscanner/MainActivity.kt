@@ -299,5 +299,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     }
     if (route == "scan") SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 64.dp))
     if (showTour) FirstRunTour(onDone = { Tour.setSeen(ctx, true); showTour = false })
+    // Tap and hold any card picture to see it big; drawn over everything.
+    com.mtgscanner.ui.components.CardZoomHost()
     }
 }

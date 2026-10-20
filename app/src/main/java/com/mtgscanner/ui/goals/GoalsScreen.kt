@@ -208,7 +208,7 @@ private fun MissingList(p: GoalProgress) {
         }
         items(p.missing, key = { it.id }) { c ->
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                CardImage(c.smallImageUrl, Modifier.width(34.dp), corner = 3.dp)
+                CardImage(c.smallImageUrl, Modifier.width(34.dp), corner = 3.dp, zoom = true)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

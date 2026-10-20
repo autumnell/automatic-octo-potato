@@ -497,7 +497,7 @@ private fun SetHeader(
 private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
     Column(Modifier.padding(4.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick)) {
         Box {
-            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.45f), corner = 8.dp)
+            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.45f), corner = 8.dp, zoom = true)
             if (qty > 0) OwnedBadge(qty, Modifier.align(Alignment.TopStart).padding(5.dp))
             val price = c.anyPrice()
             if (AppSettings.showPrices && price != null) Text(
@@ -524,7 +524,7 @@ private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), corner = 4.dp)
+        CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), corner = 4.dp, zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
