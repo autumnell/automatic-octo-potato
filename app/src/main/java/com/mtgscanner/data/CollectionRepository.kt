@@ -359,7 +359,9 @@ class CollectionRepository(
 
     /** Picks the printing whose artwork matches what the camera sees. */
     suspend fun refineByArt(card: ScryfallCard, artHash: Long): ScryfallCard? {
-        val printings = runCatching { printingsCached(card) }.getOrNull() ?: return null
+        val all = runCatching { printingsCached(card) }.getOrNull() ?: return null
+        // With the set lock on, only that set's printings are candidates.
+        val printings = SortPrefs.setLock?.let { lock -> all.filter { it.set.equals(lock, ignoreCase = true) }.ifEmpty { all } } ?: all
         if (printings.size < 2) return null
         return art.bestPrinting(printings, artHash)
     }
