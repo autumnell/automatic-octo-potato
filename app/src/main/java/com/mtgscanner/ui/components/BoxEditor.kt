@@ -384,7 +384,7 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
             Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleSmall)
-                    Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.Accent else Palette.Muted, maxLines = 1)
+                    Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.AccentText else Palette.Muted, maxLines = 1)
                 }
                 Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Muted)
             }
@@ -414,7 +414,7 @@ private fun LivePreview(rules: BoxRules, editingId: Long?) {
     Surface(shape = RoundedCornerShape(16.dp), color = Palette.Background, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             Text("Preview", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-            Text(rules.describe(), style = MaterialTheme.typography.bodyMedium, color = Palette.Accent)
+            Text(rules.describe(), style = MaterialTheme.typography.bodyMedium, color = Palette.AccentText)
             Spacer(Modifier.height(6.dp))
             Text(
                 when {
