@@ -625,7 +625,7 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
             FilterGroup("Color") {
                 COLOR_FILTERS.forEach { col ->
                     val label = mapOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless", "M" to "Multicolor")[col] ?: col
-                    val pip: (@Composable () -> Unit)? = if (col in listOf("W", "U", "B", "R", "G")) {
+                    val pip: (@Composable () -> Unit)? = if (col in listOf("W", "U", "B", "R", "G", "C", "M")) {
                         { ColorPip(col[0]) }
                     } else null
                     SelectPill(label, col in f.colors, onClick = { vm.update { it.copy(colors = it.colors.toggle(col)) } }, leading = pip)

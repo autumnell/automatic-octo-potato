@@ -364,7 +364,7 @@ private fun RulesStep(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("W", "U", "B", "R", "G", "M", "C").forEach { c ->
                 SelectPill(BoxRules.COLOR_NAMES.getValue(c), c in rules.colors, { onRules(rules.copy(colors = rules.colors.toggle(c))) },
-                    leading = if (c in "WUBRGC") ({ ColorPip(c[0]) }) else null)
+                    leading = { ColorPip(c[0]) })
             }
         }
     }
@@ -425,7 +425,7 @@ private fun RulesStep(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("W", "U", "B", "R", "G", "C").forEach { c ->
                 SelectPill(BoxRules.COLOR_NAMES.getValue(c), c in rules.identity, { onRules(rules.copy(identity = rules.identity.toggle(c))) },
-                    leading = if (c != "C") ({ ColorPip(c[0]) }) else null)
+                    leading = { ColorPip(c[0]) })
             }
         }
         Spacer(Modifier.height(8.dp))

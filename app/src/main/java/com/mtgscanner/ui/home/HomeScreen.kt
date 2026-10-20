@@ -423,7 +423,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
                                 .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (k in listOf("W", "U", "B", "R", "G")) ColorPip(k[0])
+                            if (k in listOf("W", "U", "B", "R", "G", "C", "M")) ColorPip(k[0])
                             else Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(colorFor(k)))
                             Spacer(Modifier.width(6.dp))
                             Text(
