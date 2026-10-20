@@ -82,21 +82,7 @@ data class DeckCheck(val lines: List<DeckCheckLine>) {
 
 data class ImportResult(val added: Int, val notFound: List<String>)
 
-@Serializable
-data class Backup(
-    val version: Int = 1,
-    val exportedAt: Long = System.currentTimeMillis(),
-    val boxes: List<Box> = emptyList(),
-    val cards: List<CollectionCard> = emptyList(),
-    val snapshots: List<ValueSnapshot> = emptyList(),
-    val decks: List<Deck> = emptyList(),
-    val wishlist: List<WishlistItem> = emptyList(),
-    val pending: List<PendingScan> = emptyList(),
-    val priceHistory: List<PricePoint> = emptyList(),
-    val packs: List<PackOpening> = emptyList(),
-    val events: List<CardEvent> = emptyList(),
-    val goals: List<Goal> = emptyList(),
-)
+// Backup (the file format) lives in BackupIO.kt.
 
 /** Collection value and its change since cards were added. */
 data class ValueChange(val value: Double, val paid: Double) {
@@ -877,30 +863,11 @@ class CollectionRepository(
     // Import and backup
 
     /**
-     * Adds cards from another app's CSV. Each card goes to [boxId], or to the box whose rules fit
-     * when [boxId] is [Box.AUTO_SORT]. Cards that fit no box go to the box [fallbackBox] makes.
+     * Adds cards from another app's CSV, in one transaction. Each card goes to [boxId], or to the box whose rules fit
+     * when [boxId] is [Box.AUTO_SORT]. Cards that fit no box go to the box [fallbackBox] makes. See [BackupIO.importRows].
      */
-    suspend fun importRows(rows: List<ImportRow>, boxId: Long, fallbackBox: (suspend () -> Long)? = null): ImportResult {
-        var fallbackBoxId: Long? = null
-        suspend fun fallback(): Long? = fallbackBoxId ?: fallbackBox?.invoke()?.also { fallbackBoxId = it }
-        val found = api.identify(rows.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) }).toMutableList()
-        val retry = rows.indices.filter { found[it] == null && (rows[it].setCode != null || rows[it].scryfallId != null) }
-        if (retry.isNotEmpty()) {
-            val byName = api.identify(retry.map { buildJsonObject { put("name", rows[it].name) } })
-            retry.zip(byName).forEach { (i, c) -> found[i] = c }
-        }
-        var added = 0
-        val notFound = mutableListOf<String>()
-        rows.zip(found).forEach { (r, c) ->
-            if (c == null) { notFound += r.name; return@forEach }
-            val target = (if (boxId == Box.AUTO_SORT) pickBox(c, r.foil) else boxId) ?: fallback()
-            if (target == null) { notFound += r.name; return@forEach }
-            val id = add(c, r.foil, r.quantity, target)
-            if (r.condition != null && r.condition != "NM") dao.get(id)?.let { dao.update(it.copy(condition = r.condition)) }
-            added += r.quantity
-        }
-        return ImportResult(added, notFound)
-    }
+    suspend fun importRows(rows: List<ImportRow>, boxId: Long, fallbackBox: (suspend () -> Long)? = null): ImportResult =
+        BackupIO.importRows(this, rows, boxId, fallbackBox)
 
     private fun identifierFor(name: String, set: String?, number: String?, id: String?): JsonObject = buildJsonObject {
         when {
@@ -910,32 +877,13 @@ class CollectionRepository(
         }
     }
 
-    private val backupJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-
-    /** Writes a backup straight to [out], off the main thread, so a big price history fits in memory. */
-    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
-    suspend fun exportBackup(out: java.io.OutputStream) = withContext(Dispatchers.IO) {
-        val b = Backup(
-            boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
-            decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
-            priceHistory = dao.allPricePoints(), packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(),
-        )
-        out.buffered().use { backupJson.encodeToStream(Backup.serializer(), b, it) }
+    /** Writes a backup to [out]. It's built in a temporary file first, so [out] is only written once it's complete. */
+    suspend fun exportBackup(out: java.io.OutputStream) {
+        BackupIO.export(this) { out }
     }
 
-    /** Replaces everything with a backup read from [input]. Returns the number of cards restored. */
-    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
-    suspend fun restoreBackup(input: java.io.InputStream): Int = withContext(Dispatchers.IO) {
-        val b = input.buffered().use { backupJson.decodeFromStream(Backup.serializer(), it) }
-        db.withTransaction {
-            dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
-            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteEvents(); dao.deleteGoals()
-            dao.putBoxes(b.boxes); dao.putCards(b.cards); dao.putSnapshots(b.snapshots)
-            dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
-            dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals)
-        }
-        b.cards.sumOf { it.quantity }
-    }
+    /** Replaces everything with a backup read from [input], after checking it. Returns the number of cards restored. */
+    suspend fun restoreBackup(input: java.io.InputStream): Int = BackupIO.restore(this, BackupIO.read(input))
 
     companion object {
         /** A role shown in the app, and the Scryfall tagger tags that mean it. */

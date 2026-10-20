@@ -26,7 +26,11 @@ class CsvExporterTest {
     @Test fun moxfield() {
         val lines = export(CsvFormat.MOXFIELD)
         assertTrue(lines[0].startsWith("Count,Tradelist Count,Name,Edition,Condition,Language,Foil,Tags"))
-        assertEquals("3,0,Lightning Bolt,m10,Lightly Played,Japanese,foil,\"trade,red\",,146,True,False,2.50", lines[1])
+        assertEquals("3,0,Lightning Bolt,m10,Lightly Played,Japanese,foil,\"trade,red\",,146,True,False,", lines[1])
+        // Purchase Price is what was paid, not today's price; Proxy follows the card.
+        val paid = StringWriter().also { CsvExporter.write(listOf(card.copy(purchasePrice = 1.5, proxy = true)), it, CsvFormat.MOXFIELD) }
+            .toString().trim().lines()
+        assertTrue(paid[1].endsWith(",True,True,1.50"))
     }
 
     @Test fun archidekt() {
@@ -41,6 +45,17 @@ class CsvExporterTest {
             assertEquals(f.name, 1, rows.size)
             assertEquals(f.name, "Lightning Bolt", rows[0].name)
             assertEquals(f.name, 3, rows[0].quantity)
+            assertEquals(f.name, "ja", rows[0].language)
         }
+    }
+
+    @Test fun moxfieldPurchasePriceReadsBackIn() {
+        val text = StringWriter().also { CsvExporter.write(listOf(card.copy(purchasePrice = 4.25)), it, CsvFormat.MOXFIELD) }.toString()
+        val row = CsvImport.parse(text).single()
+        assertEquals(4.25, row.purchasePrice!!, 0.0001)
+        assertEquals("LP", row.condition)
+        assertEquals(true, row.foil)
+        assertEquals("146", row.collectorNumber)
+        assertEquals("m10", row.setCode)
     }
 }

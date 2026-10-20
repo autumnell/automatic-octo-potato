@@ -44,7 +44,19 @@ object Palette {
      * The accent for text (prices, selected labels). In light mode it is darkened until it reaches
      * about 4.5:1 contrast on the light background; in dark mode it is the accent itself.
      */
-    val AccentText: Color get() = if (dark) Accent else readableOn(Accent, Background)
+    val AccentText: Color get() {
+        if (dark) return Accent
+        val accent = Accent
+        val background = Background
+        // Read on every recomposition; the contrast search only needs redoing when the colors change.
+        if (accent != accentTextFor) {
+            accentTextCache = readableOn(accent, background)
+            accentTextFor = accent
+        }
+        return accentTextCache
+    }
+    private var accentTextFor: Color = Color.Unspecified
+    private var accentTextCache: Color = Color.Unspecified
     /** Text/icon color that reads well on top of the accent. */
     val OnAccent: Color get() = if (Accent.luminance() > 0.45f) Color(0xFF141414) else Color.White
 

@@ -43,6 +43,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** One formatter for every row (only used on the main thread). */
+private val logTime = SimpleDateFormat("MMM d, HH:mm:ss", Locale.US)
+
 /** The hidden scan log: recent lookups with what was read and what matched, to share when scanning goes wrong. */
 @Composable
 fun ScanLogScreen(onBack: () -> Unit) {
@@ -95,7 +98,7 @@ private fun LogRow(e: ScanLogEntry) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(e.outcome.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelLarge, color = color)
             Spacer(Modifier.width(8.dp))
-            Text(SimpleDateFormat("MMM d, HH:mm:ss", Locale.US).format(Date(e.at)), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+            Text(logTime.format(Date(e.at)), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             Spacer(Modifier.weight(1f))
             if (e.ms > 0) Text("${e.ms} ms", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }

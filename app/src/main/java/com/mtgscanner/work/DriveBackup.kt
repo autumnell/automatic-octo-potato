@@ -15,8 +15,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.mtgscanner.MtgApp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.mtgscanner.data.BackupIO
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
 
 /** Once a week: write a full backup to the file the user picked (for example on Google Drive). */
@@ -46,6 +46,13 @@ object DriveBackup {
         uri = p.getString("uri", null)?.takeIf { it.isNotBlank() }?.let(Uri::parse)
         lastBackup = p.getLong("last", 0L)
         loaded = true
+        // A setting copied by Android's own backup to a new phone points at a file this install can't write.
+        val target = uri
+        if (target != null && context.contentResolver.persistedUriPermissions.none { it.uri == target && it.isWritePermission }) {
+            uri = null
+            p.edit().remove("uri").apply()
+            WorkManager.getInstance(context).cancelUniqueWork(WORK)
+        }
     }
 
     /** Remembers [target] (keeping access after restarts) and starts the weekly job. */
@@ -76,20 +83,30 @@ object DriveBackup {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove("uri").apply()
     }
 
-    /** Overwrites the backup file now. Returns false when it couldn't be written. */
+    /**
+     * Overwrites the backup file now. Returns false when it couldn't be written.
+     * The backup is built in full first; the old file is only replaced once there's a complete new one.
+     */
     suspend fun backupNow(context: Context): Boolean {
         val target = uri ?: return false
-        val repo = (context.applicationContext as MtgApp).repository
-        return runCatching {
-            val out = withContext(Dispatchers.IO) {
+        val app = context.applicationContext
+        val repo = (app as MtgApp).repository
+        val ok = try {
+            BackupIO.export(repo) {
                 // "wt" truncates the old backup; some providers only accept "w".
-                runCatching { context.contentResolver.openOutputStream(target, "wt") }.getOrNull()
-                    ?: context.contentResolver.openOutputStream(target, "w")
-            } ?: error("Can't open backup file")
-            repo.exportBackup(out)
+                runCatching { app.contentResolver.openOutputStream(target, "wt") }.getOrNull()
+                    ?: app.contentResolver.openOutputStream(target, "w")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+        if (ok) {
             val now = System.currentTimeMillis()
             lastBackup = now
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong("last", now).apply()
-        }.isSuccess
+            app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong("last", now).apply()
+        }
+        return ok
     }
 }

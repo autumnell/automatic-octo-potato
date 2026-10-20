@@ -4,7 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.JustTcg
@@ -41,6 +42,11 @@ fun PricesSection() {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         AppSettings.updatePriceAlerts(granted)
         PriceAlerts.schedule(ctx)
+        // Denied for good, Android answers at once without asking: open the app's notification settings instead.
+        val activity = ctx as? android.app.Activity
+        if (!granted && Build.VERSION.SDK_INT >= 33 && activity != null &&
+            !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
+        ) openNotificationSettings(ctx)
     }
     Card {
         ToggleRow(
@@ -60,7 +66,12 @@ fun PricesSection() {
                 AppSettings.priceAlerts,
             ) { on ->
                 if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                else {
+                else if (on && !androidx.core.app.NotificationManagerCompat.from(ctx).areNotificationsEnabled()) {
+                    // Notifications are switched off for the app: alerts would never show.
+                    AppSettings.updatePriceAlerts(true)
+                    PriceAlerts.schedule(ctx)
+                    openNotificationSettings(ctx)
+                } else {
                     AppSettings.updatePriceAlerts(on)
                     PriceAlerts.schedule(ctx)
                 }
@@ -85,6 +96,16 @@ fun PricesSection() {
                 }
             }
         }
+    }
+}
+
+/** The app's notification settings page, where notifications can be allowed again. */
+private fun openNotificationSettings(ctx: android.content.Context) {
+    runCatching {
+        ctx.startActivity(
+            android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName),
+        )
     }
 }
 
@@ -139,7 +160,8 @@ fun ConditionPricesSection() {
                     androidx.compose.material3.TextButton(enabled = !busy, onClick = { refresh() }) { Text("Update now") }
                 }
                 androidx.compose.material3.TextButton(onClick = {
-                    ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://justtcg.com")))
+                    // No browser installed throws; nothing to do then.
+                    runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://justtcg.com"))) }
                 }) { Text("Get a key") }
             }
             status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
@@ -164,12 +186,18 @@ internal fun Card(content: @Composable () -> Unit) {
 
 @Composable
 internal fun ToggleRow(title: String, body: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    // One target for TalkBack: the whole row is the switch.
+    Row(
+        Modifier.fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+        Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
     }
 }

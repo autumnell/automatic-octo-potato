@@ -18,6 +18,16 @@ class CsvImportTest {
         assertEquals("8a4b1b6e-1a2b-4c3d-9e8f-0123456789ab", rows[0].scryfallId)
         assertTrue(rows[1].foil)
         assertEquals("LP", rows[1].condition)
+        assertEquals(1.0, rows[0].purchasePrice!!, 0.0001)
+        assertEquals(null, rows[1].purchasePrice)
+        assertEquals("en", rows[0].language)
+    }
+
+    @Test fun languageNamesBecomeCodes() {
+        assertEquals("ja", CsvImport.languageCode("Japanese"))
+        assertEquals("de", CsvImport.languageCode("DE"))
+        assertEquals("zhs", CsvImport.languageCode("Chinese Simplified"))
+        assertEquals(null, CsvImport.languageCode(" "))
     }
 
     @Test fun moxfieldExport() {
