@@ -82,12 +82,11 @@ fun PricesSection() {
     }
 }
 
+/** The same scan settings and presets as the scanner's settings sheet. */
 @Composable
 fun ScanningSection() {
     Card {
-        ToggleRow("Sound on add", "A short beep each time a card is added while scanning.", AppSettings.scanSound) {
-            AppSettings.updateScanSound(it)
-        }
+        com.mtgscanner.ui.scan.ScanSettingsEditor(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp), showFoil = false)
     }
 }
 

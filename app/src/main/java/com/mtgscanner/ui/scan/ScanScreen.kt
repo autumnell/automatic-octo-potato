@@ -43,6 +43,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -139,12 +141,17 @@ fun ScanScreen(
     val boxes = loadedBoxes.orEmpty()
     val needsBox = loadedBoxes != null && boxes.isEmpty()
     val haptics = LocalHapticFeedback.current
-    val beeper = remember { runCatching { android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 70) }.getOrNull() }
-    DisposableEffect(Unit) { onDispose { beeper?.release() } }
+    DisposableEffect(Unit) { onDispose { ScanFeedback.release() } }
     LaunchedEffect(state.addedPulse) {
         if (state.addedPulse > 0) {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            if (AppSettings.scanSound) runCatching { beeper?.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 90) }
+            if (state.settings.vibrate) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            ScanFeedback.play(ctx, state.settings.sound)
+        }
+    }
+    LaunchedEffect(state.asidePulse) {
+        if (state.asidePulse > 0) {
+            if (state.settings.vibrate) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            ScanFeedback.play(ctx, state.settings.asideSound)
         }
     }
 
@@ -173,17 +180,27 @@ fun ScanScreen(
             }
 
             if (hasPermission && !needsBox) {
-                FrameGuide(found = state.current != null, flash = state.addedPulse, paused = state.paused, modifier = Modifier.align(Alignment.Center))
-                BoxCallout(state.lastBoxName, state.addedPulse, Modifier.align(Alignment.Center))
-                if (state.review.isNotEmpty()) {
-                    Surface(
-                        onClick = { vm.showReview(true) },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Palette.Gold,
-                    ) {
-                        Text("Check ${state.review.size}", color = Color.Black, style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                FrameGuide(found = state.current != null, flash = if (state.settings.flash) state.addedPulse else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
+                BoxCallout(state.lastBoxName, state.lastBoxColor, state.addedPulse, Modifier.align(Alignment.Center))
+                Column(
+                    Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (state.review.isNotEmpty()) {
+                        Surface(onClick = { vm.showReview(true) }, shape = RoundedCornerShape(14.dp), color = Palette.Gold) {
+                            Text("Check ${state.review.size}", color = Color.Black, style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                        }
+                    }
+                    if (state.skipped > 0) {
+                        Text(
+                            "Skipped ${state.skipped}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
                     }
                 }
             }
@@ -319,7 +336,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                                     Text(b.boxRules().describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                                 }
                             },
-                            leadingIcon = { Icon(boxIcon(b.kind), null) },
+                            leadingIcon = { Icon(boxIcon(b.kind), null, tint = com.mtgscanner.ui.components.boxColor(b.color)) },
                             onClick = { vm.setBox(b.id); boxMenu = false },
                         )
                     }
@@ -332,6 +349,8 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                 }
             }
         }
+        PresetSwitcher()
+        Spacer(Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${state.sessionCount}", style = MaterialTheme.typography.titleLarge, color = Palette.Muted)
@@ -346,6 +365,34 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                 )
                 Spacer(Modifier.width(6.dp))
                 Icon(Icons.Filled.Toll, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+/** Quick switch between saved scan presets, right in the header. */
+@Composable
+private fun PresetSwitcher() {
+    val presets by com.mtgscanner.scan.ScanPrefs.presets.collectAsStateWithLifecycle()
+    val active by com.mtgscanner.scan.ScanPrefs.activePreset.collectAsStateWithLifecycle()
+    if (presets.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(Palette.SurfaceHigh).clickable { open = true }
+                .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(active ?: "Custom", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 110.dp))
+            Icon(Icons.Filled.ExpandMore, "Scan presets", tint = Palette.Muted, modifier = Modifier.size(16.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            presets.forEach { p ->
+                DropdownMenuItem(
+                    text = { Text(p.name, color = if (p.name == active) Palette.Accent else Palette.Text) },
+                    onClick = { com.mtgscanner.scan.ScanPrefs.apply(p); open = false },
+                )
             }
         }
     }
@@ -506,16 +553,9 @@ private fun ScanListBar(state: ScanUiState, onOpen: () -> Unit) {
 @Composable
 private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showSettings(false) }, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Scan settings", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(12.dp))
-            SettingRow("Auto-add", "Add confident matches straight away so you can feed cards one after another.", state.autoAdd, vm::setAutoAdd)
-            HorizontalDivider(color = Palette.Outline)
-            SettingRow("Bulk mode", "Never stop: confident cards are added, unsure ones are set aside to check at the end.", state.bulk, vm::setBulk)
-            HorizontalDivider(color = Palette.Outline)
-            SettingRow("Sound", "Beep each time a card is added.", AppSettings.scanSound, AppSettings::updateScanSound)
-            HorizontalDivider(color = Palette.Outline)
-            SettingRow("Foil", "Mark the next cards as foil.", state.foil, vm::setFoil)
+            ScanSettingsEditor()
             HorizontalDivider(color = Palette.Outline)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
             if (state.pendingCount > 0) {
@@ -659,7 +699,7 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
 
 /** Big label showing which box the last card went into, so a pile can be filed as it's scanned. */
 @Composable
-private fun BoxCallout(boxName: String?, pulse: Int, modifier: Modifier) {
+private fun BoxCallout(boxName: String?, color: Int, pulse: Int, modifier: Modifier) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(pulse) {
         if (pulse > 0 && boxName != null) {
@@ -677,19 +717,19 @@ private fun BoxCallout(boxName: String?, pulse: Int, modifier: Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text("Put it in", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
-            Text(boxName.orEmpty(), color = Palette.Accent, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            Text(boxName.orEmpty(), color = com.mtgscanner.ui.components.boxColor(color), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
         }
     }
 }
 
-/** Cards bulk mode wasn't sure about, to confirm or drop. */
+/** Cards auto-add wasn't sure about, to confirm or drop. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showReview(false) }, containerColor = Palette.Surface) {
         Text("Check these", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
         Text(
-            "Bulk mode wasn't sure about these. Add the right ones; drop the rest and scan them again.",
+            "Auto-add wasn't sure about these. Add the right ones; drop the rest and scan them again.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),

@@ -165,8 +165,8 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    fun createBox(name: String, kind: String, rules: com.mtgscanner.data.BoxRules) {
-        viewModelScope.launch { repo.createBox(name, kind, rules) }
+    fun createBox(d: com.mtgscanner.ui.components.BoxDraft) {
+        viewModelScope.launch { repo.createBox(d.name, d.kind, d.rules, d.color) }
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }

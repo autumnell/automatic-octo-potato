@@ -55,11 +55,17 @@ interface CardDao {
 
     // Boxes
 
-    @Query("SELECT * FROM boxes ORDER BY createdAt, id")
+    @Query("SELECT * FROM boxes ORDER BY sortOrder, createdAt, id")
     fun observeBoxes(): Flow<List<Box>>
 
-    @Query("SELECT * FROM boxes ORDER BY createdAt, id")
+    @Query("SELECT * FROM boxes ORDER BY sortOrder, createdAt, id")
     suspend fun allBoxes(): List<Box>
+
+    @Query("UPDATE boxes SET sortOrder = :order WHERE id = :id")
+    suspend fun setBoxOrder(id: Long, order: Int)
+
+    @Query("UPDATE boxes SET fallback = (id = :id)")
+    suspend fun setFallback(id: Long)
 
     @Query("SELECT * FROM boxes WHERE id = :id")
     suspend fun box(id: Long): Box?

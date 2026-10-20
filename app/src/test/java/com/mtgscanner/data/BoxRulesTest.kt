@@ -48,6 +48,27 @@ class BoxRulesTest {
         assertNull(BoxRules.pick(listOf(2L to BoxRules(colors = setOf("R"))), card(colors = "U")))
     }
 
+    @Test fun pickFollowsOrderThenFallback() {
+        val boxes = listOf(5L to BoxRules(rarities = setOf("rare")), 2L to BoxRules(colors = setOf("R")), 1L to BoxRules())
+        // A red rare goes to whichever box comes first in the order.
+        assertEquals(5L, BoxRules.pick(boxes, card(colors = "R", rarity = "rare")))
+        assertEquals(2L, BoxRules.pick(boxes.reversed(), card(colors = "R", rarity = "rare")))
+        // Nothing fits: the fallback beats the catch-all box.
+        assertEquals(9L, BoxRules.pick(boxes, card(colors = "U"), fallback = 9L))
+        assertEquals(1L, BoxRules.pick(boxes, card(colors = "U")))
+        assertEquals(9L, BoxRules.pick(listOf(2L to BoxRules(colors = setOf("R"))), card(colors = "U"), fallback = 9L))
+    }
+
+    @Test fun overlapFindsCardsTakenFirst() {
+        val cards = listOf(card(colors = "R", rarity = "rare"), card(colors = "R"), card(colors = "U", rarity = "rare"))
+        val ahead = listOf("Red" to BoxRules(colors = setOf("R")), "Any" to BoxRules())
+        val o = BoxRules.overlap(BoxRules(rarities = setOf("rare")), ahead, cards)
+        assertEquals(listOf(0, 2), o.fits)
+        assertEquals(listOf("Red" to listOf(0)), o.takenBy)
+        val none = BoxRules.overlap(BoxRules(rarities = setOf("rare")), emptyList<Pair<String, BoxRules>>(), cards)
+        assertTrue(none.takenBy.isEmpty())
+    }
+
     @Test fun jsonRoundTrip() {
         val r = BoxRules(colors = setOf("W", "U"), treatments = setOf("showcase"), minPrice = 2.5)
         assertEquals(r, BoxRules.fromJson(r.toJson()))

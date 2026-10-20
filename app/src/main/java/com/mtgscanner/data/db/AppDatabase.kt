@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -59,6 +59,20 @@ abstract class AppDatabase : RoomDatabase() {
                     "CREATE TABLE IF NOT EXISTS `pending_scans` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
                         "`setCode` TEXT, `collectorNumber` TEXT, `foil` INTEGER NOT NULL, `quantity` INTEGER NOT NULL, " +
                         "`boxId` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL)",
+                )
+            }
+        }
+
+        /** Version 4 adds box colors, the Auto-sort order and a fallback box. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `boxes` ADD COLUMN `color` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `boxes` ADD COLUMN `sortOrder` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `boxes` ADD COLUMN `fallback` INTEGER NOT NULL DEFAULT 0")
+                // Keep the order boxes were created in.
+                db.execSQL(
+                    "UPDATE `boxes` SET `sortOrder` = (SELECT COUNT(*) FROM `boxes` AS b2 WHERE b2.`createdAt` < `boxes`.`createdAt` " +
+                        "OR (b2.`createdAt` = `boxes`.`createdAt` AND b2.`id` < `boxes`.`id`))",
                 )
             }
         }
