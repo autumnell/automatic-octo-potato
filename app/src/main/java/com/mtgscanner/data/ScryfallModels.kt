@@ -33,6 +33,8 @@ data class ScryfallCard(
     @SerialName("card_faces") val cardFaces: List<CardFace>? = null,
     val finishes: List<String> = emptyList(),
     val legalities: Map<String, String> = emptyMap(),
+    /** On the Reserved List. */
+    val reserved: Boolean = false,
     @SerialName("border_color") val borderColor: String? = null,
     @SerialName("frame_effects") val frameEffects: List<String> = emptyList(),
     @SerialName("full_art") val fullArt: Boolean = false,

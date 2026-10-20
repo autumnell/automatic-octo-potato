@@ -31,6 +31,10 @@ data class CardTextGuess(
     val artBox: OcrBox? = null,
     /** Hash of the artwork, filled in by the analyzer when [artBox] is known. */
     val artHash: Long? = null,
+    /** Scryfall language code when the card doesn't look English ("de", "ja"), else null. */
+    val lang: String? = null,
+    /** All text read, top to bottom (capped), for the unknown card queue. */
+    val text: String = "",
 ) {
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null
 
@@ -60,7 +64,7 @@ object CardTextParser {
 
     // "MOM • EN", OCR often reads the bullet as *, ., -, or drops it.
     private val LANGS = "EN|ES|FR|DE|IT|PT|JA|JP|KO|RU|ZHS|ZHT|CS|CT|PH"
-    private val SET_LANG = Regex("""(?<![A-Z0-9])([A-Z0-9]{3,5})\s*[•·*.\-+]?\s*(?:$LANGS)(?![A-Z])""")
+    private val SET_LANG = Regex("""(?<![A-Z0-9])([A-Z0-9]{3,5})\s*[•·*.\-+]?\s*($LANGS)(?![A-Z])""")
 
     // Words that are never part of a card name but often show up near the top.
     private val NOISE_WORDS = setOf(
@@ -87,7 +91,12 @@ object CardTextParser {
         val score = clean.sumOf { readableScore(it.text) }
         val (setCode, number) = parseFooter(clean)
         val names = nameCandidates(clean)
-        return CardTextGuess(names, setCode, number, score, findArtBox(clean))
+        val text = clean.sortedBy { it.top }.joinToString("\n") { it.text }.take(600)
+        val footerLang = clean.firstNotNullOfOrNull { findLangCode(it.text) }
+        return CardTextGuess(
+            names, setCode, number, score, findArtBox(clean) ?: estimateArtBox(clean),
+            lang = LanguageDetector.detect(text, footerLang), text = text,
+        )
     }
 
     /**
@@ -167,6 +176,34 @@ object CardTextParser {
         // It's much taller than a line of text.
         if (height < nameLine.height * 3) return null
         return box
+    }
+
+    /**
+     * When the type line wasn't read, guesses the art window from the name line and the width of the
+     * text below it (rules text spans about the art's width). Old cards with no collector number can
+     * then still be told apart by their artwork. Needs a few lines, so a lone name gives nothing.
+     */
+    fun estimateArtBox(lines: List<OcrLine>): OcrBox? {
+        if (lines.size < 3) return null
+        val sorted = lines.sortedBy { it.top }
+        val nameLine = sorted.firstOrNull { cleanName(it.text) != null } ?: return null
+        val below = sorted.filter { it.top > nameLine.bottom }
+        if (below.size < 2) return null
+        val right = below.maxOf { it.right }
+        val width = right - nameLine.left
+        if (width < nameLine.height * 8) return null
+        val top = nameLine.bottom + nameLine.height / 2
+        val height = (width / 1.37).toInt()
+        // The art must end above the lowest text read, or the guess is off.
+        if (top + height > below.maxOf { it.bottom }) return null
+        return OcrBox(nameLine.left, top, right, top + height)
+    }
+
+    /** The language code from a footer like "MOM • DE", as printed. */
+    fun findLangCode(text: String): String? {
+        val m = SET_LANG.find(text.uppercase()) ?: return null
+        if (m.groupValues[1].none { it.isLetter() }) return null
+        return m.groupValues[2]
     }
 
     fun findCollectorNumber(text: String): String? {

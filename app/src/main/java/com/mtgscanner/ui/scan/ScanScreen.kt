@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandMore
@@ -239,6 +240,16 @@ fun ScanScreen(
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                         )
                     }
+                    // Cards saved for later because they couldn't be identified.
+                    if (state.unknownCount > 0) {
+                        Text(
+                            "Unknown ${state.unknownCount}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
                 }
             }
 
@@ -254,6 +265,7 @@ fun ScanScreen(
             }
 
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp)) {
+                state.unknownRead?.let { if (!needsBox) UnknownChip(it, vm, Modifier.align(Alignment.CenterHorizontally)) }
                 AnimatedVisibility(
                     visible = state.current != null,
                     enter = slideInVertically { it / 2 } + fadeIn(),
@@ -282,6 +294,7 @@ fun ScanScreen(
     if (state.showPackStart) PackStartDialog(vm)
     if (state.showSort) SortSheet(state, boxes, vm)
     if (state.showSetLock) SetLockDialog(vm)
+    if (state.showDeckPick) DeckPickDialog(vm)
     if (state.page != null) PageSheet(state, vm)
     if (state.showNewBox) {
         BoxEditorSheet(
@@ -385,10 +398,17 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
                     Icon(if (auto) Icons.Filled.AutoFixHigh else boxIcon(box!!.kind), null, tint = Palette.Accent, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
+                    val where = when (state.target) {
+                        ScanTarget.CHECK -> "Price check · not adding"
+                        ScanTarget.DECK -> "Deck: ${state.deck?.name.orEmpty()}"
+                        ScanTarget.COLLECTION -> if (auto) "Auto-sorting into boxes" else "Adding to ${box!!.name}"
+                    }
                     Text(
-                        if (auto) "Auto-sorting into boxes" else "Adding to ${box!!.name}",
+                        (if (state.stack) "Stack · " else "") + where,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Palette.Muted,
+                        color = if (state.target != ScanTarget.COLLECTION || state.stack) Palette.Gold else Palette.Muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Icon(Icons.Filled.ExpandMore, null, tint = Palette.Muted, modifier = Modifier.size(16.dp))
                 }
@@ -546,19 +566,46 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RarityDot(card.rarity, 8.dp)
                         Spacer(Modifier.width(6.dp))
-                        Text("${card.set.uppercase()} · #${card.collectorNumber}", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "${card.set.uppercase()} · #${card.collectorNumber}" + (state.currentLang?.let { " · ${it.uppercase()}" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                         if (foil && !(card.hasFoil && card.hasNonFoil)) {
                             Spacer(Modifier.width(6.dp))
                             FoilTag()
                         }
                     }
                     // Foil for this card only, when it comes both ways.
-                    if (card.hasFoil && card.hasNonFoil) {
+                    if (card.hasFoil && card.hasNonFoil && state.target != ScanTarget.CHECK) {
                         Spacer(Modifier.height(6.dp))
-                        FoilChip(foil, vm::toggleCardFoil)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            FoilChip(foil, vm::toggleCardFoil)
+                            // Glare changed between frames like a foil's does. Only a hint: tap to accept.
+                            if (state.foilHint && !foil) {
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Looks foil",
+                                    color = Color.Black,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold.copy(alpha = 0.85f))
+                                        .clickable(onClickLabel = "Mark foil", onClick = vm::acceptFoilHint)
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                )
+                            }
+                        }
                     }
                     Spacer(Modifier.height(6.dp))
-                    if (AppSettings.showPrices) Text(formatUsd(card.price(foil)), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        if (AppSettings.showPrices) Text(formatUsd(card.price(foil)), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
+                        state.owned?.let { n ->
+                            if (AppSettings.showPrices) Spacer(Modifier.width(10.dp))
+                            Text(
+                                if (n > 0) "Own ×$n" else "Not owned",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = if (n > 0) Palette.Success else Palette.Muted,
+                            )
+                        }
+                    }
                     if (!state.confident) {
                         Text("Not sure about this one. Check the printing.", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
                     }
@@ -581,7 +628,13 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
             }
             Spacer(Modifier.height(12.dp))
             val tight = PaddingValues(horizontal = 12.dp)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Price check: look, then move on. Nothing is added.
+            if (state.target == ScanTarget.CHECK) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Printing", maxLines = 1)
+                }
+                GradientButton("Next", vm::skip, Modifier.weight(1f).heightIn(min = 48.dp))
+            } else Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Skip", maxLines = 1)
                 }
@@ -664,6 +717,10 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
                 Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall, color = Palette.Gold)
             }
+            if (state.sessionCount >= 2) {
+                val n = minOf(5, state.sessionCount)
+                TextButton(onClick = { vm.removeLast(n) }) { Text("Remove last $n", color = Palette.Danger) }
+            }
             TextButton(onClick = vm::clearList) { Text("Clear list") }
         }
         Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -692,7 +749,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { vm.showList(false); onOpenCard(e.rowId) }
+                        .clickable(enabled = e.deckId == 0L) { vm.showList(false); onOpenCard(e.rowId) }
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -707,7 +764,8 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                             }
                         }
                         Text(
-                            "${e.card.set.uppercase()} · #${e.card.collectorNumber} · ×${e.count}" + (if (e.boxName.isNotEmpty()) " · ${e.where}" else "") +
+                            "${e.card.set.uppercase()} · #${e.card.collectorNumber} · ×${e.count}" + (e.lang?.let { " · ${it.uppercase()}" } ?: "") +
+                                (if (e.boxName.isNotEmpty()) " · ${e.where}" else "") +
                                 (e.note?.let { " · $it" } ?: "") + if (e.full) " · Full" else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = Palette.Muted,
@@ -739,6 +797,7 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             isPaused = { vm.isPaused },
             wantsPage = { vm.state.value.let { it.pageMode && it.wantPage } },
             onPage = vm::onPage,
+            onLight = vm::onLight,
         )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
         // The camera can take a moment to start; if the screen closed meanwhile, don't bind it.
@@ -816,6 +875,43 @@ private fun BoxCallout(state: ScanUiState, modifier: Modifier) {
                 }
             }
             state.lastNote?.let { Text(it, color = Palette.Gold, style = MaterialTheme.typography.labelMedium) }
+            // Rule preview: where else it would have fit.
+            if (state.lastAlso.isNotEmpty()) {
+                Text(
+                    "Also fits: " + state.lastAlso.joinToString(" · "),
+                    color = Color.White.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/** Offer to keep a card the scanner can't find, to search by hand later. */
+@Composable
+private fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.Black.copy(alpha = 0.8f))
+            .border(1.dp, Palette.Gold.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+            .padding(start = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Can't find “$text”",
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 170.dp),
+        )
+        TextButton(onClick = vm::saveUnknown) { Text("Save for later", color = Palette.Gold) }
+        IconButton(onClick = vm::dismissUnknown, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Filled.Close, "Dismiss", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
         }
     }
 }

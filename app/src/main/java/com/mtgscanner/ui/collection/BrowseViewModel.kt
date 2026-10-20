@@ -9,6 +9,11 @@ import com.mtgscanner.data.db.userTagList
 import com.mtgscanner.ui.components.Undo
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.serialization.json.Json
+import com.mtgscanner.data.Binder
+import com.mtgscanner.data.Placement
+import com.mtgscanner.data.numberBinderSlots
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -79,20 +84,39 @@ data class BrowseUi(
     /** Ids of every card shown, for "select all". */
     val shownIds: List<Long> = emptyList(),
     val loaded: Boolean = false,
+    /** Every card, unfiltered, to say where a card sits in its box. */
+    val all: List<CollectionCard> = emptyList(),
+    /** This box is a binder, so it has pages. */
+    val binder: Boolean = false,
+    /** The binder's cards, ignoring filters, for the page view. */
+    val binderCards: List<CollectionCard> = emptyList(),
+    /** Binder cards without a slot yet. */
+    val unslotted: Int = 0,
 )
 
 /** The card list for one box, or the whole collection when [boxId] is -1. */
 @OptIn(FlowPreview::class)
 class BrowseViewModel(private val repo: CollectionRepository, private val boxId: Long) : ViewModel() {
-    private val _filters = MutableStateFlow(if (boxId < 0) BrowseLaunch.take() else Filters())
-    val filters: StateFlow<Filters> = _filters
+    private val prefs: SharedPreferences? = try {
+        repo.appContext.getSharedPreferences("browse", Context.MODE_PRIVATE)
+    } catch (e: Exception) { null }
+
+    private val json = Json { ignoreUnknownKeys = true }
+    private val stickyKey = "filters-$boxId"
+
+    /** Opened from Home or a smart list with its own filters, rather than plain. */
+    private val launched: Boolean = boxId < 0 && (BrowseLaunch.filters != null || BrowseLaunch.sort != null || BrowseLaunch.color != null)
 
     /** A smart list's name, when one was opened. */
     private val listTitle: String? = if (boxId < 0) BrowseLaunch.takeTitle() else null
 
-    private val prefs: SharedPreferences? = try {
-        repo.appContext.getSharedPreferences("browse", Context.MODE_PRIVATE)
+    /** The last filters used on this box, so they're back next time (sticky filters). */
+    private fun loadSticky(): Filters? = try {
+        prefs?.getString(stickyKey, null)?.let { json.decodeFromString(Filters.serializer(), it) }
     } catch (e: Exception) { null }
+
+    private val _filters = MutableStateFlow(if (launched) BrowseLaunch.take() else loadSticky() ?: Filters())
+    val filters: StateFlow<Filters> = _filters
 
     private fun pref(key: String, default: Boolean): Boolean =
         try { prefs?.getBoolean(key, default) ?: default } catch (e: Exception) { default }
@@ -109,6 +133,23 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         setPref("grid", _grid.value)
     }
 
+    /** Compact rows: more cards per screen. */
+    private val _dense = MutableStateFlow(pref("dense", false))
+    val dense: StateFlow<Boolean> = _dense
+    fun toggleDense() {
+        _dense.value = !_dense.value
+        setPref("dense", _dense.value)
+        if (_dense.value && _grid.value) toggleGrid()
+    }
+
+    /** Binder page view instead of the list. */
+    private val _pages = MutableStateFlow(pref("pages", false))
+    val pages: StateFlow<Boolean> = _pages
+    fun togglePages() {
+        _pages.value = !_pages.value
+        setPref("pages", _pages.value)
+    }
+
     /** A one-time tip about long-press and swipe. */
     private val _showTip = MutableStateFlow(!pref("tipDone", false))
     val showTip: StateFlow<Boolean> = _showTip
@@ -123,6 +164,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         val box = if (boxId < 0) null else boxes.firstOrNull { it.id == boxId }
         // A box with dividers lists its cards by divider, matching the physical box.
         val divider = Divider.of(box?.divider.orEmpty())
+        val binder = box != null && Binder.isBinder(box.kind)
         BrowseUi(
             title = if (boxId < 0) listTitle ?: "All cards" else box?.name ?: "Box",
             groups = if (f.group == GroupBy.NONE && divider != Divider.NONE) bySpot(shown, divider) else group(shown, f.group),
@@ -136,6 +178,10 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             boxes = boxes,
             shownIds = shown.map { it.id },
             loaded = true,
+            all = all,
+            binder = binder,
+            binderCards = if (binder) inScope.sortedBy { it.binderSlot } else emptyList(),
+            unslotted = if (binder) inScope.count { it.binderSlot <= 0 } else 0,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
 
@@ -153,6 +199,33 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         viewModelScope.launch {
             _filters.map { it.query }.distinctUntilChanged().debounce(1500).collect { searches.addRecent(it) }
         }
+        // Remember the filters (not the search words) for next time, unless opened from a list or Home.
+        if (!launched) viewModelScope.launch {
+            _filters.map { it.copy(query = "") }.distinctUntilChanged().drop(1).debounce(400).collect { f ->
+                try { prefs?.edit()?.putString(stickyKey, json.encodeToString(Filters.serializer(), f))?.apply() } catch (e: Exception) { }
+            }
+        }
+    }
+
+    /** Where a card sits: its box, divider and neighbors, or binder page and slot. */
+    fun whereIs(c: CollectionCard): String {
+        val u = ui.value
+        return Placement.whereIs(c, u.boxes.firstOrNull { it.id == c.boxId }, u.all.filter { it.boxId == c.boxId })
+    }
+
+    /** Gives binder slots to cards without one, in name order after the last used slot. */
+    fun numberSlots() {
+        val ids = ui.value.binderCards.map { it.id }
+        val n = ui.value.unslotted
+        withUndo(ids, if (n == 1) "Numbered 1 card" else "Numbered $n cards") { repo.numberBinderSlots(boxId) }
+    }
+
+    /** Adds the cards about to move to the physical move list. */
+    private fun recordMoves(ids: List<Long>, to: Long) {
+        val u = ui.value
+        val byId = u.boxes.associateBy { it.id }
+        val cards = u.all.filter { it.id in ids }
+        MoveList.add(MoveList.linesFor(cards.map { it to to }) { id -> byId[id]?.let { Triple(it.name, it.kind, it.divider) } })
     }
 
     fun saveSearch(name: String) = searches.save(name, _filters.value)
@@ -198,6 +271,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     fun moveSelected(boxId: Long) {
         val ids = _selected.value.toList()
         clearSelection()
+        recordMoves(ids, boxId)
         withUndo(ids, "Moved ${count(ids)} to ${boxName(boxId)}") { repo.moveMany(ids, boxId) }
     }
 
@@ -213,7 +287,10 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         withUndo(ids, "Tagged ${count(ids)} “${tag.trim()}”") { repo.addTag(ids, tag) }
     }
 
-    fun moveOne(id: Long, boxId: Long) = withUndo(listOf(id), "Moved to ${boxName(boxId)}") { repo.moveToBox(id, boxId) }
+    fun moveOne(id: Long, boxId: Long) {
+        recordMoves(listOf(id), boxId)
+        withUndo(listOf(id), "Moved to ${boxName(boxId)}") { repo.moveToBox(id, boxId) }
+    }
     fun deleteOne(id: Long, name: String) = withUndo(listOf(id), "Removed $name") { repo.deleteMany(listOf(id)) }
 
     companion object {

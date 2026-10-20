@@ -38,6 +38,8 @@ data class ScanSettings(
     val asideSound: ScanSound = ScanSound.CLICK,
     val vibrate: Boolean = true,
     val flash: Boolean = true,
+    /** Turn the flashlight on by itself when the picture stays too dark, and off again when it's bright. */
+    val autoTorch: Boolean = true,
 ) {
     /** Whether a match is sure enough to add without asking. */
     fun accepts(exact: Boolean, confident: Boolean): Boolean = when (level) {

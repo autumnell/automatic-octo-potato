@@ -123,6 +123,7 @@ fun NavHostController.goToTab(route: String) = navigate(route) {
 
 @Composable
 private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
+    com.mtgscanner.util.Haptics.Attach()
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -194,8 +195,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onOpenCard = { nav.navigate("card/$it") },
                     onSettings = { nav.navigate("settings") },
                     onBrowseAll = { nav.navigate("browse/-1") },
+                    onGoals = { nav.navigate("goals") },
                 )
             }
+            composable(
+                "goals",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popBackStack() }) }
             composable("scan") { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) }
             composable("search") { SearchScreen() }
             composable("collection") {
@@ -269,7 +276,12 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 arguments = listOf(navArgument("boxId") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popBackStack() }) }
+            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popBackStack() }, onSellList = { nav.navigate("sell") }) }
+            composable(
+                "sell",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popBackStack() }, onBrowse = { nav.navigate("browse/-1") }) }
             composable(
                 "scanlog",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },

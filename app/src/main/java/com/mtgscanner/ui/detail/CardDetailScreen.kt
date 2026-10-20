@@ -3,8 +3,12 @@ package com.mtgscanner.ui.detail
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +29,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -51,9 +56,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,15 +69,21 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.mtgscanner.data.CardPhotos
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.PricePoint
@@ -103,6 +117,7 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.mapLatest
@@ -191,6 +206,67 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
 
     fun addTag(tag: String) = viewModelScope.launch { repo.addTag(listOf(currentId.value), tag) }
     fun removeTag(tag: String) = viewModelScope.launch { repo.removeTag(currentId.value, tag) }
+
+    fun setPaid(p: Double?) = viewModelScope.launch { card.value?.let { repo.update(it.copy(purchasePrice = p)) } }
+    fun setFrom(f: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(acquiredFrom = f.trim().take(30))) } }
+    fun setProxy(on: Boolean) = viewModelScope.launch {
+        card.value?.let {
+            repo.update(it.copy(proxy = on))
+            repo.logEvent(it.scryfallId, it.name, "edited", if (on) "Proxy" else "Not proxy")
+        }
+    }
+    fun setForSale(on: Boolean) = viewModelScope.launch {
+        card.value?.let {
+            repo.update(it.copy(forSale = on))
+            repo.logEvent(it.scryfallId, it.name, "edited", if (on) "For sale" else "Not for sale")
+        }
+    }
+    fun setAsk(p: Double?) = viewModelScope.launch { card.value?.let { repo.update(it.copy(askPrice = p, forSale = it.forSale || p != null)) } }
+
+    /** Saves the picture at [uri] as this copy's photo; [temp] is a camera target to delete afterwards. */
+    fun attachPhoto(uri: android.net.Uri, temp: Boolean) = viewModelScope.launch {
+        val ctx = repo.appContext
+        val c = card.value
+        val path = if (c != null) CardPhotos.save(ctx, uri, c.id) else null
+        if (temp) CardPhotos.discard(ctx, uri)
+        if (c == null || path == null) return@launch
+        val fresh = repo.cardOnce(currentId.value) ?: c
+        repo.update(fresh.copy(photo = path))
+        if (c.photo.isNotBlank() && c.photo != path) CardPhotos.delete(ctx, c.photo)
+    }
+    fun discardTemp(uri: android.net.Uri) = viewModelScope.launch { CardPhotos.discard(repo.appContext, uri) }
+    fun removePhoto() = viewModelScope.launch {
+        val c = card.value ?: return@launch
+        if (c.photo.isBlank()) return@launch
+        repo.update(c.copy(photo = ""))
+        CardPhotos.delete(repo.appContext, c.photo)
+    }
+    fun newCameraTarget(): android.net.Uri? = CardPhotos.cameraTarget(repo.appContext)
+
+    /** What happened to this printing: added, moved, edited, removed (newest first). */
+    val events: StateFlow<List<CardEvent>> = card
+        .map { it?.scryfallId }
+        .distinctUntilChanged()
+        .flatMapLatest { sid -> if (sid == null) flowOf(emptyList()) else repo.observeHistory(sid) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The other cards in the same box, in name order, for swiping. */
+    val neighbors: StateFlow<Neighbors> = combine(card, repo.observeAll()) { c, all ->
+        if (c == null) Neighbors() else neighborsOf(c, all)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Neighbors())
+
+    fun go(id: Long) { currentId.value = id }
+}
+
+data class Neighbors(val prev: Long? = null, val next: Long? = null, val index: Int = 0, val total: Int = 0)
+
+/** Previous and next card in [c]'s box, by name (then set, number, foil). Pure, for tests. */
+internal fun neighborsOf(c: CollectionCard, all: List<CollectionCard>): Neighbors {
+    val inBox = all.filter { it.boxId == c.boxId }
+        .sortedWith(compareBy<CollectionCard>({ it.name.lowercase() }, { it.setCode }, { it.collectorNumber }, { it.foil }, { it.id }))
+    val i = inBox.indexOfFirst { it.id == c.id }
+    if (i < 0) return Neighbors()
+    return Neighbors(inBox.getOrNull(i - 1)?.id, inBox.getOrNull(i + 1)?.id, i + 1, inBox.size)
 }
 
 private val LANGUAGES = listOf(
@@ -216,7 +292,57 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     var moveTarget by remember { mutableStateOf<CardBox?>(null) }
     var editingNotes by remember { mutableStateOf(false) }
     var editingGraded by remember { mutableStateOf(false) }
+    var editingPaid by remember { mutableStateOf(false) }
+    var editingAsk by remember { mutableStateOf(false) }
+    var editingFrom by remember { mutableStateOf(false) }
+    var viewingPhoto by remember { mutableStateOf(false) }
+    var showAllEvents by remember { mutableStateOf(false) }
+    val events by vm.events.collectAsStateWithLifecycle()
+    val nb by vm.neighbors.collectAsStateWithLifecycle()
     val c = card
+
+    // Photo of this copy: camera (Android 10+) or the photo picker; both are copied into app storage.
+    var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val u = cameraUri
+        cameraUri = null
+        if (u != null) { if (ok) vm.attachPhoto(u, temp = true) else vm.discardTemp(u) }
+    }
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.attachPhoto(uri, temp = false)
+    }
+    val startCamera: () -> Unit = {
+        val u = vm.newCameraTarget()
+        if (u != null) {
+            cameraUri = u
+            if (runCatching { takePhoto.launch(u) }.isFailure) { cameraUri = null; vm.discardTemp(u) }
+        }
+    }
+    val startPicker: () -> Unit = {
+        runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    }
+
+    // Swipe left/right for the next/previous card in the same box (name order).
+    val nbNow by rememberUpdatedState(nb)
+    var dragX by remember { mutableFloatStateOf(0f) }
+    val swipe = Modifier.pointerInput(Unit) {
+        detectHorizontalDragGestures(
+            onDragEnd = {
+                val limit = 72.dp.toPx()
+                val target = when {
+                    dragX < -limit -> nbNow.next
+                    dragX > limit -> nbNow.prev
+                    else -> null
+                }
+                dragX = 0f
+                if (target != null) vm.go(target)
+            },
+            onDragCancel = { dragX = 0f },
+        ) { change, amount ->
+            change.consume()
+            dragX += amount
+        }
+    }
     // A row briefly disappears while it merges into another box; only call it missing if it stays gone.
     var showMissing by remember { mutableStateOf(false) }
     LaunchedEffect(c == null, loaded) {
@@ -240,8 +366,14 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
             }
         }
         if (c != null) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                Hero(c)
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .then(swipe)
+                    .graphicsLayer { translationX = dragX * 0.4f }
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Hero(c, onPhoto = { viewingPhoto = true })
                 Column(Modifier.padding(horizontal = 16.dp).offset(y = (-12).dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(c.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
@@ -254,10 +386,18 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         if (c.signed) Badge("Signed")
                         if (c.altered) Badge("Altered")
                         if (c.graded.isNotBlank()) Badge(c.graded)
+                        if (c.proxy) InfoChip { Text("Proxy", style = MaterialTheme.typography.labelMedium, color = Palette.Danger) }
+                        if (c.forSale) Badge(if (c.askPrice != null && AppSettings.showPrices) "For sale ${formatUsd(c.askPrice)}" else "For sale")
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         InfoChip { Text("${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium) }
                         c.releasedAt?.let { InfoChip { Text(it.take(4), style = MaterialTheme.typography.labelMedium) } }
                         if (AppSettings.showPrices) InfoChip { Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
+                        InfoChip {
+                            Text(
+                                listOf("Added ${shortDate(c.addedAt)}", c.acquiredFrom).filter { it.isNotBlank() }.joinToString(" · "),
+                                style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
+                            )
+                        }
                     }
 
                     // Compact editing block: quantity, foil, condition, box, notes and tags.
@@ -281,6 +421,17 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                     onSigned = { vm.setSigned(it) },
                                     onAltered = { vm.setAltered(it) },
                                     onGraded = { editingGraded = true },
+                                    onProxy = { vm.setProxy(it) },
+                                    onForSale = { vm.setForSale(it) },
+                                    onAsk = { editingAsk = true },
+                                )
+                                MorePicker(
+                                    c,
+                                    onPaid = { editingPaid = true },
+                                    onFrom = { editingFrom = true },
+                                    onCamera = if (CardPhotos.canUseCamera) startCamera else null,
+                                    onPick = startPicker,
+                                    onRemovePhoto = { vm.removePhoto() },
                                 )
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
@@ -332,7 +483,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 if (change != null && was != null) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         ChangeText(change, was, MaterialTheme.typography.labelMedium)
-                                        Text(" since added", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                                        Text(
+                                            if (c.purchasePrice != null) " vs paid ${formatUsd(c.purchasePrice)}" else " since added",
+                                            style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
+                                        )
                                     }
                                 }
                             }
@@ -400,6 +554,21 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                     }
 
+                    Spacer(Modifier.height(12.dp))
+                    Text("History", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                    Spacer(Modifier.height(6.dp))
+                    if (events.isEmpty()) {
+                        Text("Nothing yet.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    } else {
+                        val shown = if (showAllEvents) events else events.take(4)
+                        shown.forEach { e -> EventRow(e) }
+                        if (events.size > 4) {
+                            TextButton(onClick = { showAllEvents = !showAllEvents }) {
+                                Text(if (showAllEvents) "Less" else "All ${events.size}")
+                            }
+                        }
+                    }
+
                     Spacer(Modifier.height(16.dp))
                     TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(c.scryfallUri))) }) {
                         Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(18.dp))
@@ -416,6 +585,18 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
             val btn = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.45f), contentColor = Color.White)
             IconButton(onClick = onBack, colors = btn) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Spacer(Modifier.weight(1f))
+            if (c != null && nb.total > 1) {
+                Text(
+                    "${nb.index} / ${nb.total}",
+                    style = MaterialTheme.typography.labelMedium, color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+                Spacer(Modifier.weight(1f))
+            }
             if (c != null) IconButton(onClick = { confirmDelete = true }, colors = btn) { Icon(Icons.Filled.DeleteOutline, "Remove from collection") }
         }
     }
@@ -447,6 +628,21 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
 
     if (editingGraded && c != null) GradedDialog(c.graded, onSave = { vm.setGraded(it); editingGraded = false }, onDismiss = { editingGraded = false })
 
+    if (editingPaid && c != null) AmountDialog("Paid each", c.purchasePrice, onSave = { vm.setPaid(it); editingPaid = false }, onDismiss = { editingPaid = false })
+
+    if (editingAsk && c != null) AmountDialog("Asking price", c.askPrice, onSave = { vm.setAsk(it); editingAsk = false }, onDismiss = { editingAsk = false })
+
+    if (editingFrom && c != null) FromDialog(c.acquiredFrom, onSave = { vm.setFrom(it); editingFrom = false }, onDismiss = { editingFrom = false })
+
+    if (viewingPhoto && c != null && c.photo.isNotBlank()) {
+        PhotoViewer(
+            c.photo,
+            onRemove = { viewingPhoto = false; vm.removePhoto() },
+            onReplace = { viewingPhoto = false; if (CardPhotos.canUseCamera) startCamera() else startPicker() },
+            onDismiss = { viewingPhoto = false },
+        )
+    }
+
     if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
 
     if (confirmDelete) {
@@ -463,7 +659,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
 
 /** Blurred artwork backdrop with the card itself floating on top. */
 @Composable
-private fun Hero(c: CollectionCard) {
+private fun Hero(c: CollectionCard, onPhoto: () -> Unit) {
     Box(Modifier.fillMaxWidth()) {
         AsyncImage(
             model = artCropUrl(c.imageUrl),
@@ -479,8 +675,164 @@ private fun Hero(c: CollectionCard) {
             Modifier.align(Alignment.Center).statusBarsPadding().padding(top = 8.dp, bottom = 20.dp).height(170.dp),
             corner = 10.dp,
         )
+        // Your own copy's photo, small in the corner; tap to view.
+        if (c.photo.isNotBlank()) {
+            AsyncImage(
+                model = java.io.File(c.photo),
+                contentDescription = "Your photo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 24.dp)
+                    .size(width = 48.dp, height = 64.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Palette.SurfaceHigh)
+                    .clickable(onClick = onPhoto),
+            )
+        }
     }
 }
+
+@Composable
+private fun PhotoViewer(path: String, onRemove: () -> Unit, onReplace: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(16.dp), color = Palette.Surface) {
+            Column(Modifier.padding(8.dp)) {
+                AsyncImage(
+                    model = java.io.File(path),
+                    contentDescription = "Your photo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onDismiss),
+                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onRemove) { Text("Remove", color = Palette.Danger) }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onReplace) { Text("Replace") }
+                    TextButton(onClick = onDismiss) { Text("Close") }
+                }
+            }
+        }
+    }
+}
+
+/** Purchase price, where it came from and a photo, behind one small menu. */
+@Composable
+private fun MorePicker(
+    c: CollectionCard,
+    onPaid: () -> Unit,
+    onFrom: () -> Unit,
+    onCamera: (() -> Unit)?,
+    onPick: () -> Unit,
+    onRemovePhoto: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        DropChip("More", onClick = { open = true })
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(if (c.purchasePrice == null) "Paid…" else "Paid: ${formatUsd(c.purchasePrice)}", color = if (c.purchasePrice != null) Palette.AccentText else Palette.Text) },
+                onClick = { open = false; onPaid() },
+            )
+            DropdownMenuItem(
+                text = { Text(if (c.acquiredFrom.isBlank()) "From…" else "From: ${c.acquiredFrom}", color = if (c.acquiredFrom.isNotBlank()) Palette.AccentText else Palette.Text) },
+                onClick = { open = false; onFrom() },
+            )
+            if (onCamera != null) DropdownMenuItem(
+                text = { Text(if (c.photo.isBlank()) "Take photo" else "Retake photo") },
+                onClick = { open = false; onCamera() },
+            )
+            DropdownMenuItem(
+                text = { Text(if (c.photo.isBlank()) "Pick photo" else "Pick new photo") },
+                onClick = { open = false; onPick() },
+            )
+            if (c.photo.isNotBlank()) DropdownMenuItem(
+                text = { Text("Remove photo", color = Palette.Danger) },
+                onClick = { open = false; onRemovePhoto() },
+            )
+        }
+    }
+}
+
+/** Parses "$1.50", "1,50" or "1.5"; blank is null. Returns false for the outer value when not a number. */
+internal fun parseAmount(text: String): Pair<Boolean, Double?> {
+    val t = text.trim().removePrefix("$").trim().replace(',', '.')
+    if (t.isEmpty()) return true to null
+    val v = t.toDoubleOrNull() ?: return false to null
+    return if (v < 0) (false to null) else (true to v)
+}
+
+@Composable
+private fun AmountDialog(title: String, initial: Double?, onSave: (Double?) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "") }
+    val parsed = parseAmount(text)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.take(12) },
+                placeholder = { Text("$ · blank = none") },
+                singleLine = true,
+                isError = !parsed.first,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(parsed.second) }, enabled = parsed.first) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+private val SOURCES = listOf("Pack", "Trade", "Store", "Gift")
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FromDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("From") },
+        text = {
+            Column {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SOURCES.forEach { s -> SelectPill(s, text.equals(s, ignoreCase = true), onClick = { text = if (text.equals(s, ignoreCase = true)) "" else s }) }
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.take(30) },
+                    placeholder = { Text("Or type…") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun EventRow(e: CardEvent) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            e.kind.replaceFirstChar(Char::uppercase),
+            style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
+            modifier = Modifier.width(64.dp),
+        )
+        Text(e.detail, style = MaterialTheme.typography.bodySmall, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(shortDate(e.at), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+    }
+}
+
+/** A timestamp as "Mar 3, 2025". */
+internal fun shortDate(millis: Long): String = runCatching {
+    java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy", java.util.Locale.US))
+}.getOrDefault("")
 
 @Composable
 private fun Panel(content: @Composable () -> Unit) {
@@ -563,9 +915,20 @@ private fun LangPicker(lang: String, onPick: (String) -> Unit) {
 
 /** Signed, altered and graded, in one small menu. */
 @Composable
-private fun SpecialPicker(c: CollectionCard, onSigned: (Boolean) -> Unit, onAltered: (Boolean) -> Unit, onGraded: () -> Unit) {
+private fun SpecialPicker(
+    c: CollectionCard,
+    onSigned: (Boolean) -> Unit,
+    onAltered: (Boolean) -> Unit,
+    onGraded: () -> Unit,
+    onProxy: (Boolean) -> Unit,
+    onForSale: (Boolean) -> Unit,
+    onAsk: () -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
-    val set = listOfNotNull("Signed".takeIf { c.signed }, "Altered".takeIf { c.altered }, c.graded.takeIf { it.isNotBlank() })
+    val set = listOfNotNull(
+        "Proxy".takeIf { c.proxy }, "Signed".takeIf { c.signed }, "Altered".takeIf { c.altered },
+        c.graded.takeIf { it.isNotBlank() }, "Sale".takeIf { c.forSale },
+    )
     Box {
         DropChip(if (set.isEmpty()) "Special" else set.joinToString(" · ").take(18), onClick = { open = true })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -582,6 +945,20 @@ private fun SpecialPicker(c: CollectionCard, onSigned: (Boolean) -> Unit, onAlte
             DropdownMenuItem(
                 text = { Text(if (c.graded.isBlank()) "Graded…" else "Graded: ${c.graded}", color = if (c.graded.isNotBlank()) Palette.AccentText else Palette.Text) },
                 onClick = { open = false; onGraded() },
+            )
+            DropdownMenuItem(
+                text = { Text("Proxy", color = if (c.proxy) Palette.AccentText else Palette.Text) },
+                trailingIcon = { if (c.proxy) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                onClick = { open = false; onProxy(!c.proxy) },
+            )
+            DropdownMenuItem(
+                text = { Text("For sale", color = if (c.forSale) Palette.AccentText else Palette.Text) },
+                trailingIcon = { if (c.forSale) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                onClick = { open = false; onForSale(!c.forSale) },
+            )
+            DropdownMenuItem(
+                text = { Text(if (c.askPrice == null) "Ask price…" else "Ask: ${formatUsd(c.askPrice)}", color = if (c.askPrice != null) Palette.AccentText else Palette.Text) },
+                onClick = { open = false; onAsk() },
             )
         }
     }

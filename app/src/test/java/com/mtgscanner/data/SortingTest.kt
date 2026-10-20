@@ -85,4 +85,23 @@ class SortingTest {
         assertEquals(true, am.matches(card().copy(name = "1996 World Champion")))
         assertEquals(false, am.isCatchAll)
     }
+
+    @Test fun positionBetweenNeighbors() {
+        val blueRare = card()
+        val contents = listOf(
+            "Cryptic Command" to blueRare, "Counterspell" to blueRare, "Brainstorm" to blueRare,
+            "Lightning Bolt" to card(colors = "R"),
+        )
+        val p = Sorting.position(Divider.COLOR, "Control Magic", blueRare, contents)
+        assertEquals("Blue", p.spot)
+        assertEquals("between Brainstorm and Counterspell", p.text())
+        assertEquals("Rares → Blue → between Brainstorm and Counterspell", Sorting.where("Rares", p))
+        assertEquals("before Brainstorm", Sorting.position(Divider.COLOR, "Arcane Denial", blueRare, contents).text())
+        assertEquals("after Cryptic Command", Sorting.position(Divider.COLOR, "Opt", blueRare, contents).text())
+        assertEquals("with its copies", Sorting.position(Divider.COLOR, "counterspell", blueRare, contents).text())
+        // A red card only sees the red section.
+        assertEquals("after Lightning Bolt", Sorting.position(Divider.COLOR, "Shock", card(colors = "R"), contents).text())
+        assertEquals("first card", Sorting.position(Divider.NONE, "x", blueRare, emptyList()).text())
+        assertEquals("Box → first card", Sorting.where("Box", Sorting.position(Divider.NONE, "x", blueRare, emptyList())))
+    }
 }

@@ -27,7 +27,14 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.AlertDialog
@@ -76,9 +83,33 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.ViewModule, "Scan modes", tint = if (state.pack != null || state.pageMode || state.sort != null) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
+            val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.target != ScanTarget.COLLECTION
+            Icon(Icons.Filled.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { if (state.stack) ModeText("Stop stack mode", "Back to normal") else ModeText("Stack mode", "Hands-free, beeps on each card") },
+                leadingIcon = { Icon(Icons.Filled.Layers, null, tint = if (state.stack) Palette.Gold else Palette.Text) },
+                onClick = { open = false; vm.setStack(!state.stack) },
+            )
+            if (state.target == ScanTarget.DECK) DropdownMenuItem(
+                text = { ModeText("Stop deck: ${state.deck?.name.orEmpty()}", "Add to the collection again") },
+                leadingIcon = { Icon(Icons.Filled.Style, null, tint = Palette.Gold) },
+                onClick = { open = false; vm.stopTarget() },
+            ) else DropdownMenuItem(
+                text = { ModeText("Scan to a deck", "Add to a deck list") },
+                leadingIcon = { Icon(Icons.Filled.Style, null) },
+                onClick = { open = false; vm.showDeckPick(true) },
+            )
+            if (state.target == ScanTarget.CHECK) DropdownMenuItem(
+                text = { ModeText("Stop price check", "Add cards again") },
+                leadingIcon = { Icon(Icons.Filled.Sell, null, tint = Palette.Gold) },
+                onClick = { open = false; vm.stopTarget() },
+            ) else DropdownMenuItem(
+                text = { ModeText("Price check", "Value and owned, no adding") },
+                leadingIcon = { Icon(Icons.Filled.Sell, null) },
+                onClick = { open = false; vm.startCheck() },
+            )
             if (state.sort == null) DropdownMenuItem(
                 text = { ModeText("Sort a pile", "Scan all, then file by box") },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null) },
@@ -130,6 +161,42 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             )
         }
     }
+}
+
+/** Picks the deck list that scanned cards go to, or makes a new one. */
+@Composable
+fun DeckPickDialog(vm: ScanViewModel) {
+    val decks by vm.decks.collectAsStateWithLifecycle()
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = { vm.showDeckPick(false) },
+        containerColor = Palette.Surface,
+        title = { Text("Scan to a deck") },
+        text = {
+            Column {
+                if (decks.isEmpty()) {
+                    Text("No decks yet. Name one:", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                } else {
+                    Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
+                        decks.forEach { d ->
+                            Text(
+                                d.name.ifBlank { "Untitled deck" },
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { vm.scanToDeck(d) }
+                                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text("New deck") })
+            }
+        },
+        confirmButton = { TextButton(onClick = { vm.newDeck(name) }, enabled = name.isNotBlank()) { Text("Create") } },
+        dismissButton = { TextButton(onClick = { vm.showDeckPick(false) }) { Text("Cancel") } },
+    )
 }
 
 @Composable

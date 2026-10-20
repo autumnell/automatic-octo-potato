@@ -15,6 +15,8 @@ object Undo {
     val events: SharedFlow<Event> = _events.asSharedFlow()
 
     fun offer(message: String, undo: (suspend () -> Unit)? = null) {
+        // Undo is offered right after an add, move or delete: a light tick confirms it.
+        if (undo != null) com.mtgscanner.util.Haptics.tick()
         _events.tryEmit(Event(message, undo))
     }
 }

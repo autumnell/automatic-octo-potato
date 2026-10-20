@@ -97,6 +97,18 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.runtime.key
+import androidx.compose.ui.platform.LocalConfiguration
+import com.mtgscanner.data.Binder
+import com.mtgscanner.ui.components.CardPreviewSheet
+import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.detail.CardDetailScreen
 
 @Composable
 fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, onTrade: (binderId: Long) -> Unit = {}) {
@@ -107,6 +119,19 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     val selected by vm.selected.collectAsStateWithLifecycle()
     val selecting by vm.selecting.collectAsStateWithLifecycle()
     val showTip by vm.showTip.collectAsStateWithLifecycle()
+    val dense by vm.dense.collectAsStateWithLifecycle()
+    val pagesOn by vm.pages.collectAsStateWithLifecycle()
+    /** Wide screens show the card beside the list. */
+    val wide = LocalConfiguration.current.screenWidthDp >= 840
+    /** The card in the side pane on wide screens. */
+    var paneId by remember { mutableStateOf<Long?>(null) }
+    /** The card in the quick preview sheet. */
+    var preview by remember { mutableStateOf<CollectionCard?>(null) }
+    var menu by remember { mutableStateOf(false) }
+    val kinds = remember(ui.boxes) { ui.boxes.associate { it.id to it.kind } }
+    fun tap(c: CollectionCard) {
+        if (wide) paneId = c.id else preview = c
+    }
     val saved by vm.saved.collectAsStateWithLifecycle()
     val recent by vm.recent.collectAsStateWithLifecycle()
     var showFilters by remember { mutableStateOf(false) }
@@ -117,7 +142,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     val picking = selecting || selected.isNotEmpty()
     androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
-    Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
+    Row(Modifier.fillMaxSize().background(Palette.Background)) {
+    Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
         if (picking) SelectionBar(selected.size, ui.boxes, vm, onTag = { tagging = true })
         else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
@@ -135,7 +161,29 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             IconButton(onClick = vm::toggleGrid) {
                 Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, if (grid) "List view" else "Grid view")
             }
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Compact rows") },
+                        trailingIcon = { if (dense) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
+                        onClick = { menu = false; vm.toggleDense() },
+                    )
+                    if (ui.binder) {
+                        DropdownMenuItem(
+                            text = { Text("Pages") },
+                            trailingIcon = { if (pagesOn) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
+                            onClick = { menu = false; vm.togglePages() },
+                        )
+                        if (ui.unslotted > 0) DropdownMenuItem(
+                            text = { Text("Number slots") },
+                            onClick = { menu = false; vm.numberSlots() },
+                        )
+                    }
+                }
+            }
         }
+        MoveListHost()
 
         SearchField(f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
         if (showTip && ui.totalCards > 0 && !picking) {
@@ -215,9 +263,11 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 Icons.Filled.SearchOff, "No cards match", "Try a different search or clear the filters.",
                 action = { TextButton(onClick = { vm.clearFilters(); vm.update { it.copy(query = "") } }) { Text("Clear search and filters") } },
             )
+            ui.binder && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, onNumber = vm::numberSlots, onOpen = { tap(it) })
             else -> CardGrid(
-                ui.groups, grid, selected, picking,
-                onOpen = { c -> if (picking) vm.toggleSelect(c.id) else onOpenCard(c.id) },
+                ui.groups, grid, selected, picking, dense,
+                slotOf = { c -> slotLabel(c, kinds[c.boxId]) },
+                onOpen = { c -> if (picking) vm.toggleSelect(c.id) else tap(c) },
                 onLongPress = { c -> vm.toggleSelect(c.id); if (showTip) vm.dismissTip() },
                 onSwipeMove = { c -> moving = c },
                 onSwipeDelete = { c -> vm.deleteOne(c.id, c.name) },
@@ -225,6 +275,25 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
         }
     }
 
+    if (wide) {
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+            val id = paneId
+            if (id != null) key(id) { CardDetailScreen(id = id, onBack = { paneId = null }) }
+            else EmptyState(Icons.Filled.Style, "Pick a card", "It opens here.", Modifier.align(Alignment.Center))
+        }
+    }
+    }
+
+    preview?.let { c ->
+        val where = remember(c, ui.all) { vm.whereIs(c) }
+        CardPreviewSheet(
+            card = c,
+            box = ui.boxes.firstOrNull { it.id == c.boxId },
+            where = where,
+            onOpen = { preview = null; onOpenCard(c.id) },
+            onDismiss = { preview = null },
+        )
+    }
     if (showFilters) FilterSheet(f, ui, vm, saved, onDismiss = { showFilters = false })
     if (savingSearch) NameDialog("Save this search", "e.g. Red rares under $5", "Save", onDone = { vm.saveSearch(it); savingSearch = false }, onDismiss = { savingSearch = false })
     if (tagging) TagDialog(ui.userTags, onDone = { vm.tagSelected(it); tagging = false }, onDismiss = { tagging = false })
@@ -356,6 +425,8 @@ private fun CardGrid(
     grid: Boolean,
     selected: Set<Long>,
     picking: Boolean,
+    dense: Boolean,
+    slotOf: (CollectionCard) -> String?,
     onOpen: (CollectionCard) -> Unit,
     onLongPress: (CollectionCard) -> Unit,
     onSwipeMove: (CollectionCard) -> Unit,
@@ -383,10 +454,12 @@ private fun CardGrid(
                         onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
                     )
                 } else if (picking) {
-                    CardRow(c, c.id in selected, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
+                    if (dense) DenseRow(c, c.id in selected, slotOf(c), onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
+                    else CardRow(c, c.id in selected, slotOf(c), onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
                 } else {
                     SwipeRow(onMove = { onSwipeMove(c) }, onDelete = { onSwipeDelete(c) }) {
-                        CardRow(c, false, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
+                        if (dense) DenseRow(c, false, slotOf(c), onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
+                        else CardRow(c, false, slotOf(c), onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
                     }
                 }
             }
@@ -434,7 +507,7 @@ private fun SwipeRow(onMove: () -> Unit, onDelete: () -> Unit, content: @Composa
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CardRow(c: CollectionCard, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, onClick: () -> Unit, onLongClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
             .background(if (selected) Palette.Accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent)
@@ -455,6 +528,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, onClick: () -> Unit, o
                 Spacer(Modifier.width(6.dp))
                 Text("${c.setCode} #${c.collectorNumber} · ${c.typeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            if (slot != null) Text(slot, style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End) {
@@ -463,6 +537,78 @@ private fun CardRow(c: CollectionCard, selected: Boolean, onClick: () -> Unit, o
                 Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall)
             }
             if (AppSettings.showPrices) Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
+        }
+    }
+}
+
+/** One line per card, for big boxes. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, onClick: () -> Unit, onLongClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+            .background(if (selected) Palette.Accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("${c.quantity}", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.width(24.dp))
+        RarityDot(c.rarity, 7.dp)
+        Spacer(Modifier.width(6.dp))
+        Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (c.foil) { Spacer(Modifier.width(4.dp)); FoilTag() }
+        Spacer(Modifier.width(6.dp))
+        Text(slot?.replace("Page ", "P")?.replace(" · Slot ", "·") ?: c.setCode, style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+        if (AppSettings.showPrices) {
+            Spacer(Modifier.width(8.dp))
+            Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
+        }
+    }
+}
+
+/** A binder as its pages: 9 pockets each, in slot order. Filters don't apply, so it matches the real binder. */
+@Composable
+private fun BinderPages(cards: List<CollectionCard>, unslotted: Int, onNumber: () -> Unit, onOpen: (CollectionCard) -> Unit) {
+    val bySlot = remember(cards) { cards.filter { it.binderSlot > 0 }.associateBy { it.binderSlot } }
+    val pages = bySlot.keys.maxOrNull()?.let { Binder.page(it) } ?: 0
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+        if (unslotted > 0 && pages > 0) item(key = "number") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("$unslotted without a slot", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                TextButton(onClick = onNumber) { Text("Number slots") }
+            }
+        }
+        if (pages == 0) item(key = "empty") {
+            EmptyState(
+                Icons.Filled.GridView, "No pages yet", "Give each card a slot.",
+                action = { GradientButton("Number slots", onNumber) },
+            )
+        }
+        items(pages, key = { "p$it" }) { i ->
+            val page = i + 1
+            Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                Text("Page $page", style = MaterialTheme.typography.titleSmall, color = Palette.Accent, modifier = Modifier.padding(bottom = 6.dp))
+                for (row in 0 until 3) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (col in 0 until 3) {
+                            val slot = (page - 1) * Binder.POCKETS + row * 3 + col + 1
+                            val c = bySlot[slot]
+                            Box(Modifier.weight(1f)) {
+                                if (c != null) {
+                                    Box(Modifier.clip(RoundedCornerShape(6.dp)).clickable { onOpen(c) }) {
+                                        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 6.dp)
+                                    }
+                                } else {
+                                    Box(
+                                        Modifier.fillMaxWidth().aspectRatio(63f / 88f).clip(RoundedCornerShape(6.dp))
+                                            .border(1.dp, Palette.Outline, RoundedCornerShape(6.dp)),
+                                        contentAlignment = Alignment.Center,
+                                    ) { Text("${Binder.pocket(slot)}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

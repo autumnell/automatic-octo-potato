@@ -119,6 +119,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
         }
         Toggle("Vibrate", null, s.vibrate) { on -> update { it.copy(vibrate = on) } }
         Toggle("Flash the frame", null, s.flash) { on -> update { it.copy(flash = on) } }
+        Toggle("Auto flashlight", "On when it's too dark.", s.autoTorch) { on -> update { it.copy(autoTorch = on) } }
     }
 
     if (saving) SavePresetDialog(onSave = { ScanPrefs.saveAs(it); saving = false }, onDismiss = { saving = false })
