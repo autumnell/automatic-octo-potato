@@ -17,7 +17,7 @@ data class ExtraRow(
 data class ExtraGroup(
     val key: String,
     val name: String,
-    /** Copies outside trade binders. */
+    /** Copies outside trade binders, decks and the extras and bulk boxes. */
     val owned: Int,
     val keep: Int,
     /** Row id to number of copies to move. */
@@ -33,11 +33,18 @@ object ExtrasFinder {
         (typeLine.startsWith("Basic") && typeLine.contains("Land")) || name in ANY_NUMBER
 
     /**
-     * Finds cards with more than [keep] copies outside [tradeBoxIds]. The newest copies are the
-     * ones suggested for moving, so the first ones you filed stay where they are.
+     * Boxes whose copies aren't counted or moved: trade binders, decks, and the extras and bulk boxes,
+     * as in [Sorting.isMainBox]. [boxes] are (box id, kind). Pass the result to [find].
      */
-    fun find(rows: List<ExtraRow>, keep: Int, tradeBoxIds: Set<Long>): List<ExtraGroup> =
-        rows.filter { it.boxId !in tradeBoxIds && !unlimited(it.typeLine, it.name) }
+    fun skippedBoxes(boxes: List<Pair<Long, String>>, policy: SortPolicy): Set<Long> =
+        boxes.filterNot { (id, kind) -> Sorting.isMainBox(BoxInfo(id, BoxRules(), kind), policy) }.map { it.first }.toSet()
+
+    /**
+     * Finds cards with more than [keep] copies outside [skipBoxIds] (see [skippedBoxes]). The newest
+     * copies are the ones suggested for moving, so the first ones you filed stay where they are.
+     */
+    fun find(rows: List<ExtraRow>, keep: Int, skipBoxIds: Set<Long>): List<ExtraGroup> =
+        rows.filter { it.boxId !in skipBoxIds && !unlimited(it.typeLine, it.name) }
             .groupBy { it.key }
             .mapNotNull { (key, group) ->
                 val owned = group.sumOf { it.quantity }

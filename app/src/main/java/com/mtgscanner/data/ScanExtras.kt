@@ -9,7 +9,7 @@ import com.mtgscanner.scan.DeckText
 suspend fun CollectionRepository.ownedCopies(oracleId: String?): Int =
     if (oracleId == null) 0 else dao.ownedOutside(oracleId, listOf(Long.MIN_VALUE))
 
-suspend fun CollectionRepository.deckById(id: Long): Deck? = dao.allDecks().firstOrNull { it.id == id }
+suspend fun CollectionRepository.deckById(id: Long): Deck? = dao.deck(id)
 
 /** Adds [delta] copies of [name] to a deck list's main deck (negative takes them off). Returns the copies now listed. */
 suspend fun CollectionRepository.addToDeckList(deckId: Long, name: String, delta: Int): Int? {
@@ -20,8 +20,8 @@ suspend fun CollectionRepository.addToDeckList(deckId: Long, name: String, delta
 }
 
 /**
- * Records the language read off a scanned card. Only for a row that holds just the copies scanned now:
- * a row can't hold two languages, so copies that merged into an existing row keep its language.
+ * Records the language read off a scanned card. Only for a row that holds just the copies scanned now,
+ * so copies already there keep theirs. (Passing the language to [CollectionRepository.add] keeps it from the start.)
  */
 suspend fun CollectionRepository.setScanLang(rowId: Long, qty: Int, lang: String): Boolean {
     val c = dao.get(rowId) ?: return false
@@ -32,4 +32,4 @@ suspend fun CollectionRepository.setScanLang(rowId: Long, qty: Int, lang: String
 
 /** Other boxes whose rules a card also fits, after [chosen], in Auto-sort order. Boxes that take any card are left out. */
 suspend fun CollectionRepository.alsoFits(facts: CardFacts, chosen: Long, limit: Int = 3): List<Long> =
-    boxInfos().filter { it.id != chosen && !it.rules.isCatchAll && it.rules.matches(facts) }.take(limit).map { it.id }
+    boxInfos().filter { it.id != chosen && !it.rules.isOpen && it.rules.matches(facts) }.take(limit).map { it.id }

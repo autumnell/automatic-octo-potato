@@ -86,6 +86,57 @@ class SortingTest {
         assertEquals(false, am.isCatchAll)
     }
 
+    @Test fun splitCatchAllHalvesStayBehindRuleBoxes() {
+        val am = BoxInfo(10, BoxRules(nameFrom = "A", nameTo = "M"))
+        val nz = BoxInfo(11, BoxRules(nameFrom = "N", nameTo = "Z"))
+        // The split halves come first in the order, yet a rare still goes to the rares box.
+        val d = Sorting.decide(listOf(am, nz, rares), card(colors = "G").copy(name = "Avenger"))
+        assertEquals(2L, d?.boxId)
+        assertEquals(SortReason.RULES, d?.reason)
+        // Leftovers go to the half whose range fits.
+        assertEquals(10L, Sorting.decide(listOf(am, nz, rares), card(colors = "G", rarity = "common").copy(name = "Elf"))?.boxId)
+        assertEquals(11L, Sorting.decide(listOf(am, nz, rares), card(colors = "G", rarity = "common").copy(name = "Tree"))?.boxId)
+        assertEquals(true, am.rules.isOpen)
+        assertEquals(false, rares.rules.isOpen)
+        assertEquals(2L, BoxRules.ruleMatch(listOf(10L to am.rules, 2L to rares.rules), card().copy(name = "Avenger")))
+    }
+
+    @Test fun fallbackHalfOnlyTakesItsRange() {
+        val am = BoxInfo(10, BoxRules(nameFrom = "A", nameTo = "M"), fallback = true)
+        val nz = BoxInfo(11, BoxRules(nameFrom = "N", nameTo = "Z"))
+        assertEquals(11L, Sorting.decide(listOf(am, nz), card().copy(name = "Opt"))?.boxId)
+        assertEquals(10L, Sorting.decide(listOf(am, nz), card().copy(name = "Bolt"))?.boxId)
+    }
+
+    @Test fun decksNeverCatchLeftovers() {
+        val deck = BoxInfo(6, BoxRules(), kind = "deck")
+        assertNull(Sorting.decide(listOf(blue, deck), card(colors = "R")))
+        assertEquals(3L, Sorting.decide(listOf(deck, anything), card(colors = "R"))?.boxId)
+    }
+
+    @Test fun misplacedMovesOutOfRangeCardsBetweenHalves() {
+        val am = BoxInfo(10, BoxRules(nameFrom = "A", nameTo = "M"))
+        val nz = BoxInfo(11, BoxRules(nameFrom = "N", nameTo = "Z"))
+        data class C(val box: Long, val f: CardFacts)
+        val items = listOf(
+            C(10, card(rarity = "common").copy(name = "Opt")),
+            C(10, card(rarity = "common").copy(name = "Brainstorm")),
+            C(10, card().copy(name = "Counterspell")),
+        )
+        val moves = Sorting.misplaced(items, { it.box }, { it.f }, listOf(am, nz, rares))
+        assertEquals(listOf("Opt" to 11L, "Counterspell" to 2L), moves.map { it.item.f.name to it.to })
+    }
+
+    @Test fun splitLetterUsesFileLetters() {
+        // Digits and symbols file under '#', which stays with the first half and is never a split point.
+        assertEquals('M', Sorting.splitLetter(listOf("1996 World Champion" to 5, "\"Ach!\" Hans" to 5, "Mno" to 10)))
+        assertNull(Sorting.splitLetter(listOf("1996 World Champion" to 5, "Abc" to 5)))
+        // Lower-case and leading punctuation file under the letter, like BoxRules does.
+        assertEquals('Z', Sorting.splitLetter(listOf("abc" to 3, "zed" to 3)))
+        assertEquals('A', BoxRules.nameLetter("\"Ach! Hans, Run!\""))
+        assertEquals('#', BoxRules.nameLetter("+2 Mace"))
+    }
+
     @Test fun positionBetweenNeighbors() {
         val blueRare = card()
         val contents = listOf(

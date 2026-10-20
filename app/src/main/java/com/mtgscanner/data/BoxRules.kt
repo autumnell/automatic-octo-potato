@@ -63,6 +63,23 @@ data class BoxRules(
             identity.isEmpty() && minCmc == null && maxCmc == null && minPower == null && maxPower == null &&
             minToughness == null && maxToughness == null && formats.isEmpty() && !reserved
 
+    /**
+     * Takes any card, or any card in a name range only (half of a split "Anything" box).
+     * Such boxes are checked after every box with real rules.
+     */
+    val isOpen: Boolean
+        get() = copy(nameFrom = null, nameTo = null).isCatchAll
+
+    /** Whether a card name falls in [nameFrom]–[nameTo]. Names starting with a digit or symbol ("#") fit any range. */
+    fun inNameRange(name: String): Boolean {
+        if (nameFrom == null && nameTo == null) return true
+        val letter = nameLetter(name)
+        if (letter == '#') return true
+        if (nameFrom != null && letter < nameFrom.first().uppercaseChar()) return false
+        if (nameTo != null && letter > nameTo.first().uppercaseChar()) return false
+        return true
+    }
+
     fun matches(c: CardFacts): Boolean {
         if (colors.isNotEmpty()) {
             val ok = colors.any { sel ->
@@ -86,12 +103,7 @@ data class BoxRules(
         if (minPrice != null && p < minPrice) return false
         if (maxPrice != null && p >= maxPrice) return false
         if (sets.isNotEmpty() && c.setCode.uppercase() !in sets.map { it.uppercase() }) return false
-        if (nameFrom != null || nameTo != null) {
-            val first = c.name.trimStart().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: '#'
-            val letter = if (first.isLetter()) first else '#'
-            if (nameFrom != null && letter < nameFrom.first().uppercaseChar() && letter != '#') return false
-            if (nameTo != null && letter > nameTo.first().uppercaseChar()) return false
-        }
+        if (!inNameRange(c.name)) return false
         if (identity.isNotEmpty()) {
             val want = identity.filter { it in WUBRG }.toSet()
             val has = c.colorIdentity.uppercase().map { it.toString() }.filter { it in WUBRG }.toSet()
@@ -149,6 +161,12 @@ data class BoxRules(
     companion object {
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 
+        /** The letter a name files under for name ranges and splits: its first letter, or '#' for a digit or symbol. */
+        fun nameLetter(name: String): Char {
+            val first = name.trimStart().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: return '#'
+            return if (first in 'A'..'Z') first else '#'
+        }
+
         fun fromJson(s: String): BoxRules =
             if (s.isBlank()) BoxRules() else runCatching { json.decodeFromString(serializer(), s) }.getOrDefault(BoxRules())
 
@@ -183,25 +201,25 @@ data class BoxRules(
 
         private fun money(v: Double) = if (v % 1.0 == 0.0) "$${v.toInt()}" else "$" + "%.2f".format(java.util.Locale.US, v)
 
-        /** The first box whose rules fit [card], ignoring boxes that take any card. Used to sort a catch-all box later. */
+        /** The first box whose rules fit [card], ignoring open boxes (see [isOpen]). Used to sort a catch-all box later. */
         fun <T> ruleMatch(boxes: List<Pair<T, BoxRules>>, card: CardFacts): T? =
-            boxes.firstOrNull { !it.second.isCatchAll && it.second.matches(card) }?.first
+            boxes.firstOrNull { !it.second.isOpen && it.second.matches(card) }?.first
 
         /**
          * Picks the box a card belongs in: the first box with rules that fit, in Auto-sort order.
-         * If none fits, the [fallback] box, else the first box that takes any card.
+         * If none fits, the [fallback] box, else the first open box (see [isOpen]) whose name range fits.
          */
         fun <T> pick(boxes: List<Pair<T, BoxRules>>, card: CardFacts, fallback: T? = null): T? =
-            boxes.firstOrNull { !it.second.isCatchAll && it.second.matches(card) }?.first
+            ruleMatch(boxes, card)
                 ?: fallback
-                ?: boxes.firstOrNull { it.second.isCatchAll }?.first
+                ?: boxes.firstOrNull { it.second.isOpen && it.second.matches(card) }?.first
 
         /**
          * For the box editor's preview: which [cards] fit [draft], and which of those a box
          * checked earlier would take first. Boxes that take any card never take cards first.
          */
         fun <T> overlap(draft: BoxRules, ahead: List<Pair<T, BoxRules>>, cards: List<CardFacts>): Overlap<T> {
-            val rulesAhead = ahead.filter { !it.second.isCatchAll }
+            val rulesAhead = ahead.filter { !it.second.isOpen }
             val fits = cards.indices.filter { draft.matches(cards[it]) }
             val taken = LinkedHashMap<T, MutableList<Int>>()
             for (i in fits) {

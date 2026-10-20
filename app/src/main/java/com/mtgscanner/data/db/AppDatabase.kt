@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class, CardEvent::class, Goal::class],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -137,6 +137,25 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+
+        /**
+         * Version 9 keeps copies that differ apart: rows are unique by printing, finish and box plus
+         * language, condition and the signed/altered/graded/proxy flags (see [COPY_KEY_SQL]).
+         * Old rows were unique by fewer columns, so they all fit the new index.
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_cards_scryfallId_foil_boxId`")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_cards_scryfallId_foil_boxId_lang_condition_signed_altered_graded_proxy` " +
+                        "ON `cards` ($COPY_KEY_SQL)",
+                )
+            }
+        }
+
+        /** Every migration, oldest first, for the database builder. */
+        val ALL_MIGRATIONS: Array<Migration>
+            get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
 
         fun seedBulk(db: SupportSQLiteDatabase) {
             db.execSQL(
