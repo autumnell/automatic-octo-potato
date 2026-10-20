@@ -84,10 +84,17 @@ data class DeckRow(val deck: Deck, val cards: Int, val owned: Int)
 
 class DecksViewModel(repo: CollectionRepository) : ViewModel() {
     val decks: StateFlow<List<DeckRow>?> = combine(repo.observeDecks(), repo.observeAll()) { decks, cards ->
-        val owned = cards.groupBy { it.name.substringBefore(" // ").lowercase() }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+        // Same name matching as the deck check, and each owned copy counts toward one line only.
+        fun key(n: String) = com.mtgscanner.scan.CardTextParser.normalize(n.substringBefore(" // "))
+        val owned = cards.groupBy { key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
         decks.map { d ->
             val lines = DecklistParser.parse(d.text)
-            DeckRow(d, lines.sumOf { it.quantity }, lines.sumOf { minOf(it.quantity, owned[it.name.substringBefore(" // ").lowercase()] ?: 0) })
+            val left = owned.toMutableMap()
+            val have = lines.sumOf { l ->
+                val k = key(l.name)
+                minOf(l.quantity, left[k] ?: 0).also { left[k] = (left[k] ?: 0) - it }
+            }
+            DeckRow(d, lines.sumOf { it.quantity }, have)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

@@ -91,7 +91,11 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         searchJob = viewModelScope.launch {
             runCatching { repo.api.searchPage(query, order, 1, unique) }
                 .onSuccess { r -> _ui.update { it.copy(results = r.data, hasMore = r.hasMore, loading = false) } }
-                .onFailure { e -> _ui.update { it.copy(loading = false, message = "Search failed: ${e.message}") } }
+                .onFailure { e ->
+                    // A newer search cancelled this one; it owns the spinner now.
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    _ui.update { it.copy(loading = false, message = "Search failed: ${e.message}") }
+                }
         }
     }
 
@@ -106,7 +110,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
                     page++
                     _ui.update { it.copy(results = it.results + r.data, hasMore = r.hasMore, loading = false) }
                 }
-                .onFailure { _ui.update { it.copy(loading = false) } }
+                .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e; _ui.update { it.copy(loading = false) } }
         }
     }
 

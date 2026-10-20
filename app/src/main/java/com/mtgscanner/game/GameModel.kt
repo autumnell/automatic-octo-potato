@@ -13,11 +13,18 @@ enum class GameFormat(
 ) {
     COMMANDER("Commander", 40, true, 4, "40 life · 21 commander damage"),
     STANDARD("Standard / 60-card", 20, false, 2, "20 life · Standard, Modern, Pioneer…"),
-    BRAWL("Brawl", 25, true, 2, "25 life · 21 commander damage"),
+    BRAWL("Brawl", 25, false, 2, "25 life · commander tax, no commander damage"),
     OATHBREAKER("Oathbreaker", 20, false, 4, "20 life"),
     TWO_HEADED("Two-Headed Giant", 30, false, 2, "30 life per team"),
     LIMITED("Draft / Sealed", 20, false, 2, "20 life"),
     CUSTOM("Custom", 20, false, 2, "Pick your own starting life"),
+    ;
+
+    /** Has a commander (or oathbreaker) cast from the command zone, so tax matters. */
+    val usesCommander: Boolean get() = this == COMMANDER || this == BRAWL || this == OATHBREAKER
+
+    /** Two-Headed Giant teams share a poison total and are out at 15. */
+    val poisonLimit: Int get() = if (this == TWO_HEADED) 15 else GameState.POISON_LIMIT
 }
 
 @Serializable
@@ -71,6 +78,8 @@ data class GameState(
     val dayNight: String? = null,
     /** True once this game has been saved to the stats. */
     val recorded: Boolean = false,
+    /** Who took the first turn. A new round starts each time play comes back to them. */
+    val firstSeat: Int? = null,
     val startedAt: Long = System.currentTimeMillis(),
     val history: List<GameEvent> = emptyList(),
     /** Earlier states, newest last, for undo. Not saved between runs. */
@@ -82,7 +91,7 @@ data class GameState(
         return when {
             p.conceded -> "Conceded"
             p.life <= 0 -> "Out of life"
-            p.poison >= POISON_LIMIT -> "10 poison counters"
+            p.poison >= format.poisonLimit -> "${format.poisonLimit} poison counters"
             format.commanderDamage && p.commanderDamage.any { it >= COMMANDER_LIMIT } -> "21 commander damage"
             else -> null
         }
@@ -179,7 +188,15 @@ object Game {
             else -> p
         }
         if (next == p) return s
-        return s.record(i, kind, delta, now, s.updatePlayer(i) { next })
+        // Record what actually changed, since counters stop at zero.
+        val actual = when (kind) {
+            "Energy" -> next.energy - p.energy
+            "Experience" -> next.experience - p.experience
+            "Rad" -> next.rad - p.rad
+            "Commander cast" -> next.commanderCasts - p.commanderCasts
+            else -> next.partnerCasts - p.partnerCasts
+        }
+        return s.record(i, kind, actual, now, s.updatePlayer(i) { next })
     }
 
     fun concede(s: GameState, i: Int, out: Boolean, now: Long = System.currentTimeMillis()): GameState =
@@ -189,20 +206,31 @@ object Game {
     fun recolor(s: GameState, i: Int, color: Int): GameState = s.updatePlayer(i) { it.copy(color = color) }
     fun setArt(s: GameState, i: Int, art: String?): GameState = s.updatePlayer(i) { it.copy(art = art) }
 
-    /** Passes the turn to the next player still in. A full round adds one to the turn count. */
+    /** Passes the turn to the next player still in. A new round starts when play comes back to whoever went first. */
     fun nextTurn(s: GameState, now: Long = System.currentTimeMillis()): GameState {
         val n = s.players.size
-        val from = s.active ?: return s.record(0, "Turn", 0, now, s.copy(active = 0))
-        var next = from
-        for (step in 1..n) {
-            val cand = (from + step) % n
-            if (s.outReason(cand) == null) { next = cand; break }
+        val live = (0 until n).filter { s.outReason(it) == null }
+        if (live.isEmpty()) return s
+        val from = s.active
+        if (from == null) {
+            val first = live.firstOrNull { it >= (s.firstSeat ?: 0) } ?: live.first()
+            return s.record(first, "Turn", 0, now, s.copy(active = first, firstSeat = first, turn = 1))
         }
-        val wrapped = next <= from
-        return s.record(next, "Turn", 0, now, s.copy(active = next, turn = s.turn + if (wrapped) 1 else 0))
+        val next = (1..n).map { (from + it) % n }.firstOrNull { it in live } ?: from
+        // The round's anchor: whoever went first, or the next player still in after them.
+        val start = s.firstSeat ?: 0
+        val anchor = (0 until n).map { (start + it) % n }.first { it in live }
+        val newRound = next == anchor
+        // Each pass is its own undo step, even when play comes straight back to the same player.
+        return s.copy(history = (s.history + GameEvent(next, "Turn", 0, now)).takeLast(300), undoStack = (s.undoStack + s.copy(undoStack = emptyList())).takeLast(GameState.MAX_UNDO))
+            .copy(active = next, turn = s.turn + if (newRound) 1 else 0)
     }
 
+    /** Hands the turn to a player without counting a new round. */
     fun setActive(s: GameState, i: Int?): GameState = s.copy(active = i)
+
+    /** Sets who goes first: turn 1 starts with them, and each new round starts with them. */
+    fun setFirst(s: GameState, i: Int): GameState = s.copy(active = i, firstSeat = i, turn = 1)
 
     fun monarch(s: GameState, i: Int?, now: Long = System.currentTimeMillis()): GameState =
         s.record(i ?: -1, "Monarch", 0, now, s.copy(monarch = i))

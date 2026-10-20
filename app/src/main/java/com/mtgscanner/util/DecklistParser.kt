@@ -36,7 +36,7 @@ object DecklistParser {
             var rest: String
             var lineSection = section
             if (m != null) {
-                qty = m.groupValues[2].toInt()
+                qty = (m.groupValues[2].toIntOrNull() ?: 9999).coerceAtMost(9999)
                 rest = m.groupValues[3]
                 when (m.groupValues[1].uppercase()) {
                     "SB" -> lineSection = "Sideboard"

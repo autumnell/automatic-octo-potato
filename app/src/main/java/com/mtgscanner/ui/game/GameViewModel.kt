@@ -46,6 +46,7 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     val records: StateFlow<List<GameRecord>> = _records
 
     fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean) {
+        saveIfWon()
         val clean = names.mapIndexed { i, n -> n.trim().ifEmpty { GameState.NAMES[i] } }
         prefs.edit().putString("names", clean.joinToString("\n")).apply()
         set(GameState.new(format, players, life, clean, partners))
@@ -74,14 +75,18 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
         prefs.edit().putString("records", json.encodeToString(recordsSerializer, list)).apply()
     }
 
+    /**
+     * Saves a finished game to the stats once, when the table moves on from it (Done, Play again,
+     * or a new game). Not the moment someone hits 0, so a mis-tap that's undone isn't counted.
+     */
+    private fun saveIfWon() {
+        val g = _game.value ?: return
+        if (g.winner != null && !g.recorded) addRecord(g.toRecord())
+    }
+
     private fun set(g: GameState) {
-        // The first time someone is the last player standing, the game goes into the stats.
-        val next = if (g.winner != null && !g.recorded) {
-            addRecord(g.toRecord())
-            g.copy(recorded = true)
-        } else g
-        _game.value = next
-        prefs.edit().putString("current", json.encodeToString(GameState.serializer(), next)).apply()
+        _game.value = g
+        prefs.edit().putString("current", json.encodeToString(GameState.serializer(), g)).apply()
     }
 
     // Card art from your collection, for player backgrounds.
@@ -110,5 +115,5 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun counter(i: Int, kind: String, d: Int) = update { Game.counter(it, i, kind, d) }
     fun undo() = update { Game.undo(it) }
     fun nextTurn() = update { Game.nextTurn(it) }
-    fun restart() = update { Game.restart(it) }
+    fun restart() { saveIfWon(); update { Game.restart(it) } }
 }

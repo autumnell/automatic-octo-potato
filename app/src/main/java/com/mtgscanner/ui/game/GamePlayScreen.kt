@@ -62,6 +62,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
@@ -119,12 +125,25 @@ fun GamePlayScreen(onExit: () -> Unit) {
         onDispose { view.keepScreenOn = false }
     }
 
+    // Full screen at the table: hide the status and navigation bars (swipe from an edge to see them).
+    val activity = LocalContext.current as? android.app.Activity
+    DisposableEffect(activity) {
+        val window = activity?.window
+        val bars = window?.let { WindowCompat.getInsetsController(it, it.decorView) }
+        bars?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        bars?.hide(WindowInsetsCompat.Type.systemBars())
+        onDispose { bars?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
+    // Back opens the game menu instead of leaving the table by accident.
+    BackHandler(enabled = !menu && playerSheet == null && !ending) { menuPick = null; menu = true }
+
     if (g == null) {
         LaunchedEffect(Unit) { onExit() }
         return
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
+    // Taps near the screen edges are life changes, not the system back swipe.
+    Box(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding().systemGestureExclusion()) {
         val panel: @Composable (Int, Int, Modifier) -> Unit = { i, rot, mod ->
             PlayerPanel(g, i, rot, style, mod, onLife = { d -> vm.life(i, d) }, onMore = { playerSheet = i })
         }
@@ -216,7 +235,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
 
         g.winner?.let { w ->
             WinnerBanner(g.players[w].name, Modifier.align(Alignment.Center).padding(top = 140.dp), onRestart = vm::restart,
-                onDone = { vm.end(); onExit() })
+                onDone = { vm.end(save = true, winner = w); onExit() })
         }
     }
 
@@ -359,7 +378,8 @@ private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit
     Surface(modifier, shape = RoundedCornerShape(18.dp), color = Color.Black.copy(alpha = 0.85f)) {
         Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
-            Text("Saved to your game stats", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
+            Text("Tap Done or Play again to save it to your stats. Undo if that was a mistake.",
+                color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
             Row {
                 TextButton(onClick = onRestart) { Text("Play again") }
                 TextButton(onClick = onDone) { Text("Done") }

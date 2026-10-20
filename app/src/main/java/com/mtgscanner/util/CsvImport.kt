@@ -24,7 +24,8 @@ object CsvImport {
         val headerIndex = rows.indexOfFirst { r -> r.any { col(it) in NAME } }
         if (headerIndex < 0) return emptyList()
         val header = rows[headerIndex].map(::col)
-        fun idx(names: Set<String>) = header.indexOfFirst { it in names }
+        // Aliases are checked in order, so "Edition Code" wins over "Edition" (a full set name).
+        fun idx(names: Set<String>) = names.firstNotNullOfOrNull { n -> header.indexOf(n).takeIf { it >= 0 } } ?: -1
         val iName = idx(NAME)
         val iQty = idx(QTY)
         val iSet = idx(SET_CODE)
@@ -43,7 +44,8 @@ object CsvImport {
             ImportRow(
                 quantity = qty,
                 name = name,
-                setCode = get(iSet)?.lowercase(),
+                // A set code is short with no spaces; anything else is a set name and is ignored.
+                setCode = get(iSet)?.lowercase()?.takeIf { it.length <= 6 && ' ' !in it },
                 collectorNumber = get(iNum),
                 foil = foilText in setOf("foil", "true", "yes", "1", "etched", "y"),
                 scryfallId = get(iId)?.takeIf { it.length == 36 },
@@ -57,7 +59,7 @@ object CsvImport {
 
     private val NAME = setOf("name", "card name", "card")
     private val QTY = setOf("quantity", "count", "qty", "amount")
-    private val SET_CODE = setOf("set code", "edition code", "edition", "set", "setcode")
+    private val SET_CODE = setOf("set code", "edition code", "setcode", "set", "edition")
     private val NUMBER = setOf("collector number", "card number", "number", "collector #", "cn")
     private val FOIL = setOf("foil", "finish", "printing", "foil/variant")
     private val SCRYFALL_ID = setOf("scryfall id", "scryfallid", "scryfall uuid")

@@ -174,10 +174,10 @@ private fun CounterTile(label: String, value: Int, onChange: (Int) -> Unit, modi
                 listOf(-1, 1).forEach { sign ->
                     if (sign > 0) Text(
                         "$value", color = if (warn) Palette.Danger else Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center, modifier = Modifier.width(70.dp),
+                        textAlign = TextAlign.Center, modifier = Modifier.width(56.dp),
                     )
                     Box(
-                        Modifier.size(52.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
+                        Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
                             .combinedClickable(onClick = { onChange(sign) }, onLongClick = { onChange(sign * 5) }),
                         contentAlignment = Alignment.Center,
                     ) { Text(if (sign < 0) "−" else "+", color = Color.White, fontSize = 28.sp) }
@@ -255,8 +255,8 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
             "Counters" -> {
                 val tiles = buildList<@Composable (Modifier) -> Unit> {
                     add { m -> CounterTile("Life", p.life, { vm.life(i, it) }, m, note = "Hold for 5", warn = p.life <= 5) }
-                    add { m -> CounterTile("Poison", p.poison, { vm.poison(i, it) }, m, note = "Out at ${GameState.POISON_LIMIT}", warn = p.poison >= 7) }
-                    if (g.format.commanderDamage || g.format == GameFormat.OATHBREAKER) {
+                    add { m -> CounterTile("Poison", p.poison, { vm.poison(i, it) }, m, note = "Out at ${g.format.poisonLimit}", warn = p.poison >= g.format.poisonLimit - 3) }
+                    if (g.format.usesCommander) {
                         add { m -> CounterTile("Commander casts", p.commanderCasts, { vm.counter(i, "Commander cast", it) }, m, note = "Tax {${p.commanderTax}}") }
                         if (g.partners) add { m -> CounterTile("Partner casts", p.partnerCasts, { vm.counter(i, "Partner cast", it) }, m, note = "Tax {${p.partnerTax}}") }
                     }
@@ -367,7 +367,7 @@ fun MenuOverlay(
             )
             choosingFirst -> PlayerPicker(
                 g, "Who goes first?", g.active,
-                onPick = { who -> vm.update { Game.setActive(it, who) }; choosingFirst = false },
+                onPick = { who -> if (who != null) vm.update { Game.setFirst(it, who) }; choosingFirst = false },
                 onBack = { choosingFirst = false }, allowNobody = false,
             )
             tab == 0 -> {
@@ -381,7 +381,7 @@ fun MenuOverlay(
                         add { m ->
                             ActionTile(Icons.Filled.Shuffle, "Random first", m, roll?.takeIf { it.endsWith("goes first") }) {
                                 val first = Random.nextInt(g.players.size)
-                                vm.update { Game.setActive(it, first) }
+                                vm.update { Game.setFirst(it, first) }
                                 roll = "${g.players[first].name} goes first"
                             }
                         }

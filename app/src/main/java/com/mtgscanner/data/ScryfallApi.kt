@@ -122,10 +122,12 @@ class ScryfallApi(
                 .build()
             val body = request(req)
             if (body == null) { repeat(chunk.size) { out += null }; continue }
-            val pool = json.decodeFromString(CardList.serializer(), body).data.toMutableList()
+            val found = json.decodeFromString(CardList.serializer(), body).data
+            val pool = found.toMutableList()
             for (ident in chunk) {
                 val i = pool.indexOfFirst { matchesIdentifier(ident, it) }
-                out += if (i >= 0) pool.removeAt(i) else null
+                // Scryfall may answer repeated identifiers once, so reuse an earlier match if needed.
+                out += if (i >= 0) pool.removeAt(i) else found.firstOrNull { matchesIdentifier(ident, it) }
             }
         }
         return out

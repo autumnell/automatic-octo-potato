@@ -47,6 +47,14 @@ interface CardDao {
     @Update
     suspend fun updateAll(cards: List<CollectionCard>)
 
+    /** Updates only a printing's prices, so edits made while prices download are kept. */
+    @Query(
+        "UPDATE cards SET priceUsd = :usd, priceUsdFoil = :foil, treatments = :treatments, " +
+            "priceAtAdd = COALESCE(priceAtAdd, CASE WHEN foil = 1 THEN COALESCE(:foil, :usd) ELSE :usd END) " +
+            "WHERE scryfallId = :scryfallId"
+    )
+    suspend fun setPrices(scryfallId: String, usd: Double?, foil: Double?, treatments: String): Int
+
     @Delete
     suspend fun delete(card: CollectionCard)
 
@@ -215,7 +223,7 @@ interface CardDao {
     suspend fun addPending(p: PendingScan): Long
 
     @Query("DELETE FROM pending_scans WHERE id = :id")
-    suspend fun deletePending(id: Long)
+    suspend fun deletePending(id: Long): Int
 
     @Query("DELETE FROM pending_scans")
     suspend fun deleteAllPending()

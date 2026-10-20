@@ -133,8 +133,26 @@ fun ScanScreen(
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasPermission = it }
+    // After "Don't ask again", Android won't show the prompt; the button opens the app's settings instead.
+    var blocked by remember { mutableStateOf(false) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasPermission = granted
+        val activity = ctx as? android.app.Activity
+        blocked = !granted && activity != null &&
+            !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.CAMERA)
+    }
     LaunchedEffect(Unit) { if (!hasPermission) launcher.launch(Manifest.permission.CAMERA) }
+    // Coming back from settings: check again.
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && !hasPermission) {
+                hasPermission = ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
 
     val state by vm.state.collectAsStateWithLifecycle()
     val loadedBoxes by vm.boxes.collectAsStateWithLifecycle()
@@ -175,7 +193,20 @@ fun ScanScreen(
                     title = "Camera needed",
                     body = "The scanner reads your cards with the camera. Nothing leaves your phone except the card name lookup.",
                     modifier = Modifier.align(Alignment.Center),
-                    action = { GradientButton("Allow camera", { launcher.launch(Manifest.permission.CAMERA) }) },
+                    action = {
+                        if (blocked) {
+                            GradientButton("Open settings", {
+                                ctx.startActivity(
+                                    android.content.Intent(
+                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        android.net.Uri.fromParts("package", ctx.packageName, null),
+                                    ),
+                                )
+                            })
+                        } else {
+                            GradientButton("Allow camera", { launcher.launch(Manifest.permission.CAMERA) })
+                        }
+                    },
                 )
             }
 
@@ -676,7 +707,10 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             onPage = vm::onPage,
         )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
+        // The camera can take a moment to start; if the screen closed meanwhile, don't bind it.
+        var disposed = false
         providerFuture.addListener({
+            if (disposed) return@addListener
             val provider = providerFuture.get()
             val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
             val analysis = ImageAnalysis.Builder()
@@ -692,11 +726,14 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
                 .build()
                 .also { it.setAnalyzer(executor, analyzer) }
             provider.unbindAll()
-            camera = provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            camera = runCatching {
+                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            }.getOrNull()
         }, ContextCompat.getMainExecutor(ctx))
 
         onDispose {
-            runCatching { providerFuture.get().unbindAll() }
+            disposed = true
+            if (providerFuture.isDone) runCatching { providerFuture.get().unbindAll() }
             analyzer.close()
             executor.shutdown()
         }

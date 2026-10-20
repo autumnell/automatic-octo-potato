@@ -104,6 +104,9 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
+    /** Makes every added row's key unique, even after rows are removed. */
+    private var nextKey = 0L
+
     fun get(name: String) {
         _ui.update { it.copy(busy = true, suggestions = emptyList()) }
         viewModelScope.launch {
@@ -112,7 +115,7 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 if (card == null) u.copy(busy = false, message = "Couldn't find $name")
                 else u.copy(
                     busy = false,
-                    get = u.get + TradeItem("s${card.id}${u.get.size}", card.name, card.set.uppercase(), card.smallImageUrl, card.prices.usd?.toDoubleOrNull(), 1, card = card),
+                    get = u.get + TradeItem("s${card.id}-${nextKey++}", card.name, card.set.uppercase(), card.smallImageUrl, card.prices.usd?.toDoubleOrNull(), 1, card = card),
                 )
             }
         }
