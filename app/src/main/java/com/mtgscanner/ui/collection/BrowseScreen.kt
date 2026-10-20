@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import com.mtgscanner.data.BoxRules
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -239,7 +241,7 @@ private fun CardRow(c: CollectionCard, onClick: () -> Unit) {
 @Composable
 private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Filters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (f.activeCount > 0) TextButton(onClick = vm::clearFilters) { Text("Clear all") }
@@ -263,6 +265,25 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, onDismiss
             FilterGroup("Type") {
                 CARD_TYPES.forEach { t ->
                     SelectPill(t, t in f.types, onClick = { vm.update { it.copy(types = it.types.toggle(t)) } })
+                }
+            }
+            FilterGroup("Role") {
+                if (ui.roles.isEmpty()) {
+                    Text(
+                        "Roles like Removal, Ramp and Card draw come from Scryfall's community tags. They show up here once your cards have been looked up.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.Muted,
+                    )
+                }
+                ui.roles.forEach { r ->
+                    SelectPill(r, r in f.roles, onClick = { vm.update { it.copy(roles = it.roles.toggle(r)) } })
+                }
+            }
+            if (ui.treatments.isNotEmpty()) {
+                FilterGroup("Printing") {
+                    ui.treatments.forEach { t ->
+                        SelectPill(BoxRules.TREATMENT_NAMES[t] ?: t, t in f.treatments, onClick = { vm.update { it.copy(treatments = it.treatments.toggle(t)) } })
+                    }
                 }
             }
             if (ui.sets.isNotEmpty()) {

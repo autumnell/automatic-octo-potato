@@ -45,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mtgscanner.ui.collection.BrowseScreen
 import com.mtgscanner.ui.collection.CollectionScreen
+import com.mtgscanner.ui.decks.DeckScreen
 import com.mtgscanner.ui.detail.CardDetailScreen
 import com.mtgscanner.ui.home.HomeScreen
 import com.mtgscanner.ui.scan.ScanScreen
@@ -139,7 +140,16 @@ private fun AppRoot() {
                 CollectionScreen(
                     onBrowse = { boxId -> nav.navigate("browse/$boxId") },
                     onSettings = { nav.navigate("settings") },
+                    onOpenDeck = { id -> nav.navigate("deck/$id") },
                 )
+            }
+            composable(
+                "deck/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) {
+                DeckScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popBackStack() })
             }
             composable(
                 "browse/{boxId}",

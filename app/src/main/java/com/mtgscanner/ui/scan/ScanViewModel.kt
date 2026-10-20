@@ -2,9 +2,13 @@ package com.mtgscanner.ui.scan
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.OfflineRead
 import com.mtgscanner.data.ScryfallCard
+import com.mtgscanner.data.ScryfallException
 import com.mtgscanner.data.db.Box
+import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.scan.CardTextGuess
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,6 +24,7 @@ data class ScanEntry(
     val card: ScryfallCard,
     val foil: Boolean,
     val count: Int,
+    val boxName: String = "",
 ) {
     val value: Double get() = (card.price(foil)?.toDoubleOrNull() ?: 0.0) * count
 }
@@ -34,7 +39,14 @@ data class ScanUiState(
     val autoAdd: Boolean = false,
     val foil: Boolean = false,
     val torch: Boolean = false,
-    val boxId: Long = Box.BULK_ID,
+    /** The box to add to, or [Box.AUTO_SORT] to follow each box's rules. */
+    val boxId: Long = Box.AUTO_SORT,
+    /** The current card is on the wishlist. */
+    val wish: WishlistItem? = null,
+    /** A card read while offline, waiting to be saved for later. */
+    val offline: OfflineRead? = null,
+    val pendingCount: Int = 0,
+    val showNewBox: Boolean = false,
     val session: List<ScanEntry> = emptyList(),
     /** Bumps on every add so the screen can buzz and flash. */
     val addedPulse: Int = 0,
@@ -50,11 +62,20 @@ data class ScanUiState(
 
 class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
-    private val _state = MutableStateFlow(ScanUiState())
+    private val _state = MutableStateFlow(ScanUiState(boxId = repo.lastBoxId))
     val state: StateFlow<ScanUiState> = _state
 
-    val boxes: StateFlow<List<Box>> = repo.observeBoxes()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** null until loaded, so the screen doesn't flash "create a box" on open. */
+    val boxes: StateFlow<List<Box>?> = repo.observeBoxes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    init {
+        viewModelScope.launch {
+            repo.observePending().collect { p -> _state.update { it.copy(pendingCount = p.sumOf { x -> x.quantity }) } }
+        }
+        // Try saved offline scans again whenever the scanner opens.
+        viewModelScope.launch { runCatching { repo.resolvePending() } }
+    }
 
     // Frame-to-frame bookkeeping for the camera analyzer.
     private var lastKey: String? = null
@@ -67,8 +88,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The analyzer skips frames while this is true. */
     val isPaused: Boolean
         get() = _state.value.let {
-            it.paused || (!it.autoAdd && it.current != null) || it.lookingUp ||
-                it.showPrintings || it.showSettings || it.showList
+            it.paused || (!it.autoAdd && (it.current != null || it.offline != null)) || it.lookingUp ||
+                it.showPrintings || it.showSettings || it.showList || it.showNewBox || boxes.value.isNullOrEmpty()
         }
 
     fun onGuess(guess: CardTextGuess) {
@@ -98,23 +119,34 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     private fun lookup(guess: CardTextGuess) {
-        _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null) }
+        _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null, offline = null) }
         viewModelScope.launch {
             val result = runCatching { repo.identify(guess) }
             result.onFailure { e ->
                 lookedUpKey = null
-                _state.update { it.copy(lookingUp = false, status = "Couldn't reach Scryfall", error = e.message) }
+                val offline = if (e is java.io.IOException && e !is ScryfallException) repo.offlineRead(guess) else null
+                if (offline != null) {
+                    _state.update { it.copy(lookingUp = false, offline = offline, status = "Offline · ${offline.name}") }
+                    if (_state.value.autoAdd && offline.name != lastAutoAddedId) {
+                        lastAutoAddedId = offline.name
+                        saveOffline()
+                    }
+                } else {
+                    _state.update { it.copy(lookingUp = false, status = "Couldn't reach Scryfall", error = e.message) }
+                }
             }
             val id = result.getOrNull()
             if (result.isSuccess && id == null) {
                 _state.update { it.copy(lookingUp = false, status = "No match yet · hold the card flat and well lit") }
             }
             if (id != null) {
+                val wish = runCatching { repo.wishlistItem(id.card.oracleId) }.getOrNull()
                 _state.update {
                     it.copy(
                         lookingUp = false,
                         current = id.card,
                         confident = id.confident,
+                        wish = wish,
                         status = if (id.confident) id.card.name else "Is this right?",
                     )
                 }
@@ -131,19 +163,50 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         val card = s.current ?: return
         val foil = s.foil && card.hasFoil || !card.hasNonFoil
         viewModelScope.launch {
-            val rowId = repo.add(card, foil, qty, s.boxId)
-            val entry = ScanEntry(++entryKeys, rowId, card, foil, qty)
+            val boxId = if (s.boxId == Box.AUTO_SORT) repo.pickBox(card, foil) else s.boxId
+            if (boxId == null) {
+                _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card.") }
+                return@launch
+            }
+            val rowId = repo.add(card, foil, qty, boxId)
+            if (s.wish != null) repo.fulfilWish(card.oracleId, qty)
+            val boxName = boxes.value?.firstOrNull { it.id == boxId }?.name.orEmpty()
+            val entry = ScanEntry(++entryKeys, rowId, card, foil, qty, boxName)
             _state.update {
                 it.copy(
                     session = listOf(entry) + it.session,
                     addedPulse = it.addedPulse + 1,
-                    status = "Added ${card.name}",
+                    status = if (boxName.isNotEmpty()) "Added ${card.name} → $boxName" else "Added ${card.name}",
+                    error = null,
+                    wish = null,
                     current = if (it.autoAdd) it.current else null,
                 )
             }
             if (!_state.value.autoAdd) resetTracking()
         }
     }
+
+    /** Keeps an offline read to look up and add once Scryfall can be reached. */
+    fun saveOffline(qty: Int = 1) {
+        val s = _state.value
+        val read = s.offline ?: return
+        viewModelScope.launch {
+            repo.savePending(read, s.foil, qty, s.boxId)
+            _state.update { it.copy(offline = null, addedPulse = it.addedPulse + 1, status = "Saved ${read.name} for later") }
+            resetTracking()
+        }
+    }
+
+    fun createBox(name: String, kind: String, rules: BoxRules) {
+        viewModelScope.launch {
+            val id = repo.createBox(name, kind, rules)
+            // The first box becomes the target; later ones keep the current choice.
+            if (boxes.value.isNullOrEmpty() || _state.value.boxId != Box.AUTO_SORT) setBox(id)
+            _state.update { it.copy(showNewBox = false) }
+        }
+    }
+
+    fun showNewBox(show: Boolean) = _state.update { it.copy(showNewBox = show) }
 
     /** Takes a scan back out of the collection and the list. */
     fun remove(entry: ScanEntry) {
@@ -157,7 +220,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun clearList() = _state.update { it.copy(session = emptyList(), showList = false) }
 
     fun skip() {
-        _state.update { it.copy(current = null, status = "Point your camera at a card") }
+        _state.update { it.copy(current = null, offline = null, wish = null, error = null, status = "Point your camera at a card") }
         resetTracking()
     }
 
@@ -175,7 +238,10 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun setAutoAdd(on: Boolean) = _state.update { it.copy(autoAdd = on) }
     fun setFoil(on: Boolean) = _state.update { it.copy(foil = on) }
     fun setTorch(on: Boolean) = _state.update { it.copy(torch = on) }
-    fun setBox(id: Long) = _state.update { it.copy(boxId = id) }
+    fun setBox(id: Long) {
+        repo.lastBoxId = id
+        _state.update { it.copy(boxId = id, error = null) }
+    }
     fun showSettings(show: Boolean) = _state.update { it.copy(showSettings = show) }
     fun showList(show: Boolean) = _state.update { it.copy(showList = show) }
 

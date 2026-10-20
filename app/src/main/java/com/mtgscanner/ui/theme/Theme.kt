@@ -41,7 +41,7 @@ object Palette {
     val Accent: Color get() = ThemeSettings.accent
     val AccentDeep: Color get() = lerp(Accent, Color(0xFF6E1630), 0.38f)
     /** Text/icon color that reads well on top of the accent. */
-    val OnAccent: Color get() = if (Accent.luminance() > 0.55f) Color(0xFF141414) else Color.White
+    val OnAccent: Color get() = if (Accent.luminance() > 0.45f) Color(0xFF141414) else Color.White
 
     val Background: Color get() = if (dark) Color(0xFF111214) else Color(0xFFF4F4F7)
     val Surface: Color get() = if (dark) Color(0xFF1A1B1F) else Color(0xFFFFFFFF)

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -39,6 +39,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -47,6 +51,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.ValueSnapshot
+import com.mtgscanner.data.db.changeSinceAdded
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.ui.AppViewModels
@@ -61,7 +67,7 @@ import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 data class HomeUi(
@@ -75,10 +81,16 @@ data class HomeUi(
     val valuable: List<CollectionCard> = emptyList(),
     /** Copies per color letter (W, U, B, R, G), plus "M" multicolor and "C" colorless. */
     val colors: List<Pair<String, Int>> = emptyList(),
+    /** What the cards were worth when added (only cards with a known price then). */
+    val valueAtAdd: Double = 0.0,
+    /** Today's value of those same cards. */
+    val valueNowTracked: Double = 0.0,
+    val history: List<ValueSnapshot> = emptyList(),
+    val gainers: List<CollectionCard> = emptyList(),
 )
 
 class HomeViewModel(repo: CollectionRepository) : ViewModel() {
-    val ui: StateFlow<HomeUi> = repo.observeAll().map { all ->
+    val ui: StateFlow<HomeUi> = combine(repo.observeAll(), repo.observeSnapshots()) { all, history ->
         val colorCounts = linkedMapOf("W" to 0, "U" to 0, "B" to 0, "R" to 0, "G" to 0, "M" to 0, "C" to 0)
         all.forEach { c ->
             val key = when {
@@ -98,6 +110,11 @@ class HomeViewModel(repo: CollectionRepository) : ViewModel() {
             recent = all.sortedByDescending { it.addedAt }.take(12),
             valuable = all.filter { (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12),
             colors = colorCounts.toList(),
+            valueAtAdd = all.filter { it.priceAtAdd != null }.sumOf { it.priceAtAdd!! * it.quantity },
+            valueNowTracked = all.filter { it.priceAtAdd != null }.sumOf { it.totalPrice() },
+            history = history,
+            gainers = all.filter { (it.changeSinceAdded() ?: 0.0) > 0.0 }
+                .sortedByDescending { it.changeSinceAdded()!! * it.quantity }.take(12),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
 }
@@ -153,6 +170,10 @@ fun HomeScreen(
             SectionHeader("Most valuable")
             CardCarousel(ui.valuable, onOpenCard)
         }
+        if (ui.gainers.isNotEmpty()) {
+            SectionHeader("Biggest gains")
+            CardCarousel(ui.gainers, onOpenCard, showGain = true)
+        }
         SectionHeader("Colors")
         ColorBreakdown(ui.colors)
         Spacer(Modifier.height(24.dp))
@@ -162,11 +183,6 @@ fun HomeScreen(
 @Composable
 private fun Header(onSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Palette.AccentGradient),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Filled.AutoAwesome, null, tint = Palette.OnAccent) }
-        Spacer(Modifier.width(12.dp))
         Column {
             Text("MTG Scanner", style = MaterialTheme.typography.titleLarge)
             Text("Your collection at a glance", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -194,7 +210,22 @@ private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
                     color = Palette.Accent,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+                    if (ui.valueAtAdd > 0) {
+                        Spacer(Modifier.width(10.dp))
+                        ChangeText(ui.valueNowTracked - ui.valueAtAdd, ui.valueAtAdd)
+                        Text(" since added", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                }
+                if (ui.history.size >= 2) {
+                    Spacer(Modifier.height(12.dp))
+                    ValueChart(ui.history, Modifier.fillMaxWidth().height(72.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(shortDay(ui.history.first().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                        Text(shortDay(ui.history.last().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                    }
+                }
                 Spacer(Modifier.height(16.dp))
                 GradientButton("Scan cards", onScan, Modifier.fillMaxWidth(), icon = Icons.Filled.CameraAlt)
             }
@@ -203,13 +234,13 @@ private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
 }
 
 @Composable
-private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit) {
+private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit, showGain: Boolean = false) {
     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         items(cards, key = { it.id }) { c ->
             CardTile(
                 imageUrl = c.imageUrl,
                 name = c.name,
-                price = formatUsd(c.unitPrice()),
+                price = if (showGain) "+" + formatUsd(c.changeSinceAdded()) else formatUsd(c.unitPrice()),
                 quantity = c.quantity,
                 foil = c.foil,
                 modifier = Modifier.width(118.dp),
@@ -261,3 +292,45 @@ private fun colorFor(k: String): Color = when (k) {
 private fun label(k: String) = when (k) {
     "W" -> "White"; "U" -> "Blue"; "B" -> "Black"; "R" -> "Red"; "G" -> "Green"; "M" -> "Multi"; else -> "Colorless"
 }
+
+/** "+$1.20 (4.0%)" in green, or red when the value went down. */
+@Composable
+fun ChangeText(change: Double, base: Double, style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.labelLarge) {
+    val pct = if (base > 0) change / base * 100 else 0.0
+    val up = change >= 0.005
+    val down = change <= -0.005
+    val sign = if (up) "+" else if (down) "−" else ""
+    Text(
+        "$sign${formatUsd(kotlin.math.abs(change))} (${"%.1f".format(java.util.Locale.US, kotlin.math.abs(pct))}%)",
+        style = style,
+        color = when { up -> Palette.Success; down -> Palette.Danger; else -> Palette.Muted },
+    )
+}
+
+/** Simple line chart of collection value over time. */
+@Composable
+private fun ValueChart(points: List<ValueSnapshot>, modifier: Modifier) {
+    val line = Palette.Accent
+    Canvas(modifier) {
+        val values = points.map { it.value }
+        val min = values.min()
+        val max = values.max()
+        val span = (max - min).takeIf { it > 0.0001 } ?: 1.0
+        val stepX = size.width / (points.size - 1)
+        val path = Path()
+        val fill = Path()
+        values.forEachIndexed { i, v ->
+            val x = i * stepX
+            val y = (size.height - ((v - min) / span * size.height * 0.85f) - size.height * 0.075f).toFloat()
+            if (i == 0) { path.moveTo(x, y); fill.moveTo(x, size.height); fill.lineTo(x, y) } else { path.lineTo(x, y); fill.lineTo(x, y) }
+        }
+        fill.lineTo(size.width, size.height)
+        fill.close()
+        drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = 0.35f), Color.Transparent)))
+        drawPath(path, line, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+private fun shortDay(day: String): String = runCatching {
+    java.time.LocalDate.parse(day).format(java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US))
+}.getOrDefault(day)

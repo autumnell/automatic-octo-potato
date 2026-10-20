@@ -137,13 +137,36 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun pickPrinting(card: ScryfallCard) = _ui.update { it.copy(selected = card, showPrintings = false, printings = null) }
     fun closePrintings() = _ui.update { it.copy(showPrintings = false, printings = null) }
 
+    val lastBoxId: Long get() = repo.lastBoxId
+
     fun add(foil: Boolean, qty: Int, boxId: Long) {
         val card = _ui.value.selected ?: return
         _ui.update { it.copy(selected = null) }
         viewModelScope.launch {
-            repo.add(card, foil, qty, boxId)
-            _ui.update { it.copy(message = "Added ${qty}× ${card.name}${if (foil) " (foil)" else ""}") }
+            val target = if (boxId == Box.AUTO_SORT) repo.pickBox(card, foil) else boxId
+            if (target == null) {
+                _ui.update { it.copy(message = "No box's rules fit ${card.name}. Pick a box instead.") }
+                return@launch
+            }
+            repo.lastBoxId = boxId
+            repo.add(card, foil, qty, target)
+            repo.fulfilWish(card.oracleId, qty)
+            val boxName = boxes.value.firstOrNull { it.id == target }?.name
+            _ui.update { it.copy(message = "Added ${qty}× ${card.name}${if (foil) " (foil)" else ""}${boxName?.let { " to $it" } ?: ""}") }
         }
+    }
+
+    fun wishlist() {
+        val card = _ui.value.selected ?: return
+        _ui.update { it.copy(selected = null) }
+        viewModelScope.launch {
+            repo.addToWishlist(card)
+            _ui.update { it.copy(message = "Added ${card.name} to your wishlist") }
+        }
+    }
+
+    fun createBox(name: String, kind: String, rules: com.mtgscanner.data.BoxRules) {
+        viewModelScope.launch { repo.createBox(name, kind, rules) }
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }

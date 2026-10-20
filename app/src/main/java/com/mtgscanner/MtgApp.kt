@@ -18,10 +18,10 @@ class MtgApp : Application(), ImageLoaderFactory {
         super.onCreate()
         ThemeSettings.init(this)
         val db = Room.databaseBuilder(this, AppDatabase::class.java, "collection.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2)
-            .addCallback(AppDatabase.SEED)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
-        repository = CollectionRepository(db.cardDao(), ScryfallApi())
+        repository = CollectionRepository(this, db, ScryfallApi())
+        repository.startBackgroundWork()
     }
 
     /** Card images fade in, and set symbols (SVG) can be drawn. */

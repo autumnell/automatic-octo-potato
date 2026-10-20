@@ -11,6 +11,12 @@ data class OcrLine(
     val height: Int get() = bottom - top
 }
 
+/** A rectangle in image pixels. */
+data class OcrBox(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+    val width: Int get() = right - left
+    val height: Int get() = bottom - top
+}
+
 /** What we could read off a card in one camera frame. */
 data class CardTextGuess(
     /** Likely card names, best first. */
@@ -21,6 +27,10 @@ data class CardTextGuess(
     val collectorNumber: String?,
     /** How much readable English text was found. Used to pick the upright orientation. */
     val score: Int,
+    /** Where the artwork probably is: between the name line and the type line. */
+    val artBox: OcrBox? = null,
+    /** Hash of the artwork, filled in by the analyzer when [artBox] is known. */
+    val artHash: Long? = null,
 ) {
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null
 
@@ -59,6 +69,17 @@ object CardTextParser {
         "token", "the gathering", "magic",
     )
 
+    /** Lines whose centre lies in the middle [fraction] of a [width] x [height] image. */
+    fun insideFrame(lines: List<OcrLine>, width: Int, height: Int, fraction: Double = 0.86): List<OcrLine> {
+        val mx = width * (1 - fraction) / 2
+        val my = height * (1 - fraction) / 2
+        return lines.filter { l ->
+            val cx = (l.left + l.right) / 2.0
+            val cy = (l.top + l.bottom) / 2.0
+            cx in mx..(width - mx) && cy in my..(height - my)
+        }
+    }
+
     fun parse(lines: List<OcrLine>): CardTextGuess {
         val clean = lines.filter { it.text.isNotBlank() }
         if (clean.isEmpty()) return CardTextGuess(emptyList(), null, null, 0)
@@ -66,7 +87,7 @@ object CardTextParser {
         val score = clean.sumOf { readableScore(it.text) }
         val (setCode, number) = parseFooter(clean)
         val names = nameCandidates(clean)
-        return CardTextGuess(names, setCode, number, score)
+        return CardTextGuess(names, setCode, number, score, findArtBox(clean))
     }
 
     /** Counts letters in real-looking words. Upside-down or sideways text scores near zero. */
@@ -87,6 +108,28 @@ object CardTextParser {
             if (number != null || set != null) return set to number
         }
         return null to null
+    }
+
+    private val TYPE_WORDS = Regex(
+        """^(Legendary|Basic|Snow|World|Tribal|Kindred|Creature|Instant|Sorcery|Artifact|Enchantment|Land|Planeswalker|Battle)\b""",
+    )
+
+    /** The art sits between the title line and the type line on every modern and classic frame. */
+    fun findArtBox(lines: List<OcrLine>): OcrBox? {
+        val sorted = lines.sortedBy { it.top }
+        val nameLine = sorted.firstOrNull { cleanName(it.text) != null } ?: return null
+        val typeLine = sorted.firstOrNull { l ->
+            l.top > nameLine.bottom && (l.text.contains('—') || TYPE_WORDS.containsMatchIn(l.text.trim()))
+        } ?: return null
+        val top = nameLine.bottom
+        val bottom = typeLine.top
+        val height = bottom - top
+        // The art window is about 1.37 times as wide as it is tall and starts where the name does.
+        val left = minOf(nameLine.left, typeLine.left)
+        val box = OcrBox(left, top, left + (height * 1.37).toInt(), bottom)
+        // It's much taller than a line of text.
+        if (height < nameLine.height * 3) return null
+        return box
     }
 
     fun findCollectorNumber(text: String): String? {

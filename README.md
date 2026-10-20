@@ -14,33 +14,51 @@ Each new build replaces the "latest" release, and installs cleanly over the prev
 
 ## Using it
 
-- **Home:** collection value, card counts, recently added and most valuable cards, and a color breakdown.
-
+- **Boxes come first.** Before scanning, create a box. A box can take any card, or have rules:
+  colors (including multicolor and colorless), rarity, printing (borderless, showcase, extended
+  art, full art, etched, promo, retro frame), foil or non-foil, card type, price range and set.
+  There are ready-made starting points like Bulk (commons and uncommons under $1), Rares &
+  Mythics, Borderless & Showcase, Foils, High value and one per color.
+- **Home:** collection value with its change since the cards were added (like "+$4.20 (3.1%)"),
+  a value chart over time, recently added, most valuable, biggest gains, and a color breakdown.
+  Prices refresh once a day when the app opens.
 - **Scan tab:** hold a card in front of the camera. It can be sideways or upside down.
-  The app reads the name (and on cards from 2020 on, the set code and collector number in
-  the bottom-left corner) and looks it up on Scryfall.
+  - The header picks where cards go: **Auto-sort** puts each card in the first box whose rules
+    fit, or pick one box. You can create a box right from that menu.
+  - Only text inside the frame is read. Names are corrected against Scryfall's full list of
+    card names, kept on the phone and refreshed weekly, so lookups are quicker and more exact.
+  - Cards without a readable set code and collector number (older frames, foreign or foil cards)
+    get their printing picked by comparing the artwork with each printing's art.
+  - Offline, a clearly read card can be saved for later and is added once you're back online.
+  - If a scanned card is on your wishlist, the scanner says so and ticks it off when you add it.
   - **Auto-add off** (default): the scanner stops on each card so you can check it, pick a
-    different printing, then tap **Add** (or **+4** for a playset).
-  - **Auto-add on:** confident matches are added straight away, so you can feed cards one
-    after another. Take the card out of view before scanning another copy of the same card.
-  - **Foil** marks the next cards as foil. **Undo** removes the last one added.
-- **Search tab:** search by name (Scryfall syntax like `t:dragon c:r` works too) and see results as a
-  card grid, or browse whole sets from the **Sets** tab. Tap a card to pick foil, quantity and box, then add it.
-- **Collection tab:** totals, then your **boxes** (Bulk plus any boxes, binders or decks you create).
-  Tap a box, or "Browse entire collection", to see the cards as a grid or list. There you can search by name, type, rules text or tag; filter by color, rarity, type,
-  set and foil; sort by name, price, mana value, set number, color or date added; group by
-  set, color, type or rarity. The refresh button pulls current prices from Scryfall, and the
-  download button exports a CSV that most collection sites can import.
-- Tap a card to change quantity, foil, condition, which box it's in, add notes, or open it on Scryfall.
-- **Settings** (gear on Home, or the menu on Collection): dark, light or system theme, and the accent
-  color, from a preset list or any color with the picker.
+    different printing, then tap **Add** (or **+4** for a playset). **Auto-add on** adds
+    confident matches straight away. **Foil** marks the next cards as foil.
+- **Search tab:** search by name (Scryfall syntax like `t:dragon c:r` works too) or browse whole
+  sets. Tap a card to pick foil, quantity and box (or Auto-sort), or add it to your wishlist.
+- **Collection tab** has three parts:
+  - **Collection:** totals and your boxes, each showing its rules. Edit a box's name and rules
+    from its menu. Deleting a box asks whether to sort its cards into your other boxes, move them
+    to one box, or remove them. Tap a box, or "Browse entire collection", to search, filter (color,
+    rarity, type, set, foil, printing, and role like Removal, Ramp or Card draw), sort (including
+    price change) and group.
+  - **Decks:** paste a decklist from Moxfield, Archidekt, Arena or MTGO. You see what you own,
+    which box each card is in, what's missing and what the missing cards cost, and can add the
+    missing cards to your wishlist.
+  - **Lists:** your wishlist and trade binders (boxes of kind "Trade binder").
+- Tap a card to change quantity, foil, condition, box and notes, see its price change since you
+  added it, and what it does (Scryfall's community tags).
+- **Settings:** theme and accent color (Gold by default), plus **Your data**: import a CSV from
+  ManaBox, Moxfield, Archidekt, Deckbox or Dragon Shield; back up everything to a file and
+  restore it; refresh card roles.
 
 ## What gets recorded
 
 Name, set, collector number, rarity, type line, mana cost and value, colors and color
 identity, rules text, artist, release date, USD price (normal and foil), image, Scryfall link,
 plus tags built from Scryfall data: keywords, card types and subtypes, and format legality
-(standard, pioneer, modern, commander, pauper).
+(standard, pioneer, modern, commander, pauper). Also the price when the card was added, its
+printing treatments (borderless, showcase…), and roles from Scryfall's community tags.
 
 ## How scanning works
 
@@ -48,9 +66,11 @@ Frames from CameraX go to ML Kit's on-device text recognizer. Because a card on 
 face any way, each frame is read at the orientation that worked last time, and if that isn't a
 clean read, at the other three quarter turns; the most readable result wins
 (`scan/CardTextAnalyzer.kt`). `scan/CardTextParser.kt` then picks out the name and the footer's
-set code and collector number. Two frames have to agree before Scryfall is queried, and lookups
-go exact printing first, then fuzzy name in that set, then fuzzy name anywhere
-(`data/CollectionRepository.kt`).
+set code and collector number, and where the artwork is. Names are snapped to the nearest real
+card name with `scan/CardNameMatcher.kt`. Two frames have to agree before Scryfall is queried, and
+lookups go exact printing first, then the corrected name in that set, then anywhere
+(`data/CollectionRepository.kt`). Without a footer, a small "difference hash" of the artwork
+(`scan/ImageHash.kt`, `scan/ArtMatcher.kt`) is compared with every printing's art to pick the right one.
 
 ## Building
 

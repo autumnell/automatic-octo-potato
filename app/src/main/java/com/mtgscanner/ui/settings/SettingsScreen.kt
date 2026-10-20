@@ -40,6 +40,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +50,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,10 +77,13 @@ import com.mtgscanner.ui.theme.ThemeSettings
 fun SettingsScreen(onBack: () -> Unit) {
     var picking by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val version = remember {
         runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
             .fillMaxSize()
@@ -128,6 +135,9 @@ fun SettingsScreen(onBack: () -> Unit) {
         SectionLabel("Preview")
         Preview()
 
+        SectionLabel("Your data")
+        DataSection(onMessage = { msg -> scope.launch { snackbar.showSnackbar(msg) } })
+
         SectionLabel("About")
         Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
             Column(Modifier.padding(16.dp)) {
@@ -141,6 +151,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(32.dp))
+    }
+    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
     }
 
     if (picking) {

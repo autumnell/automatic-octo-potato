@@ -23,6 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -124,6 +127,8 @@ fun AddCardSheet(
     onAdd: (foil: Boolean, qty: Int, boxId: Long) -> Unit,
     onChangePrinting: () -> Unit,
     onDismiss: () -> Unit,
+    onCreateBox: () -> Unit = {},
+    onWishlist: (() -> Unit)? = null,
 ) {
     var foil by remember(card.id) { mutableStateOf(!card.hasNonFoil) }
     var qty by remember(card.id) { mutableIntStateOf(1) }
@@ -176,11 +181,23 @@ fun AddCardSheet(
                 Text("Quantity", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 QuantityStepper(qty, onChange = { qty = it.coerceIn(1, 99) })
             }
-            if (boxes.size > 1) {
+            if (boxes.isEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text("Cards go into boxes. Create one to add this card.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = onCreateBox, shape = RoundedCornerShape(14.dp)) {
+                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Create a box")
+                }
+            } else {
                 Spacer(Modifier.height(8.dp))
                 Text("Add to", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
+                        Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.Accent else Palette.Muted)
+                    })
                     boxes.forEach { b ->
                         SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {
                             Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.Accent else Palette.Muted)
@@ -194,7 +211,16 @@ fun AddCardSheet(
                 icon = Icons.Filled.Add,
                 onClick = { onAdd(foil, qty, boxId) },
                 modifier = Modifier.fillMaxWidth(),
+                enabled = boxes.isNotEmpty(),
             )
+            if (onWishlist != null) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = onWishlist, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Add to wishlist")
+                }
+            }
             Spacer(Modifier.height(16.dp))
         }
     }

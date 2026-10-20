@@ -64,7 +64,10 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.artCropUrl
+import com.mtgscanner.data.db.changeSinceAdded
+import com.mtgscanner.data.db.roleList
 import com.mtgscanner.data.db.tagList
+import com.mtgscanner.ui.home.ChangeText
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.AppViewModels
@@ -138,6 +141,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.headlineMedium, color = Palette.Accent)
+                                val change = c.changeSinceAdded()
+                                if (change != null && c.priceAtAdd != null) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        ChangeText(change, c.priceAtAdd, MaterialTheme.typography.labelMedium)
+                                        Text(" since added", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                                    }
+                                }
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("You own", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
@@ -195,6 +205,16 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 Spacer(Modifier.height(10.dp))
                                 Text("Illustrated by $it", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                             }
+                        }
+                    }
+
+                    val roles = c.roleList()
+                    if (roles.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text("What it does", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                        Spacer(Modifier.height(8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            roles.forEach { InfoChip { Text(it, style = MaterialTheme.typography.labelMedium, color = Palette.Accent) } }
                         }
                     }
 

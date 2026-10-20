@@ -31,7 +31,24 @@ data class ScryfallCard(
     @SerialName("card_faces") val cardFaces: List<CardFace>? = null,
     val finishes: List<String> = emptyList(),
     val legalities: Map<String, String> = emptyMap(),
+    @SerialName("border_color") val borderColor: String? = null,
+    @SerialName("frame_effects") val frameEffects: List<String> = emptyList(),
+    @SerialName("full_art") val fullArt: Boolean = false,
+    val promo: Boolean = false,
+    val frame: String? = null,
 ) {
+    /** Special printings, used by box rules: borderless, showcase, extended art, full art, etched, promo. */
+    val treatments: List<String>
+        get() = buildList {
+            if (borderColor == "borderless") add("borderless")
+            if ("showcase" in frameEffects) add("showcase")
+            if ("extendedart" in frameEffects) add("extendedart")
+            if (fullArt) add("fullart")
+            if ("etched" in frameEffects || "etched" in finishes) add("etched")
+            if (promo) add("promo")
+            if (frame == "1993" || frame == "1997") add("retro")
+        }
+
     /** Colors of the card, falling back to the faces for double-faced cards. */
     val effectiveColors: List<String>
         get() = colors ?: cardFaces.orEmpty().flatMap { it.colors.orEmpty() }.distinct()

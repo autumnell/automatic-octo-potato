@@ -3,12 +3,14 @@ package com.mtgscanner.data.db
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /** One line of the collection: a specific printing, foil or not, with a quantity. */
 @Entity(
     tableName = "cards",
     indices = [Index(value = ["scryfallId", "foil", "boxId"], unique = true), Index("name"), Index("setCode"), Index("boxId")],
 )
+@Serializable
 data class CollectionCard(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val scryfallId: String,
@@ -40,7 +42,15 @@ data class CollectionCard(
     val condition: String = "NM",
     val notes: String = "",
     /** Which [Box] the copies are in. */
-    val boxId: Long = Box.BULK_ID,
+    val boxId: Long,
+    /** Price per copy when it was added, to show gains and losses. */
+    val priceAtAdd: Double? = null,
+    /** Comma separated Scryfall community tags describing what the card does (removal, ramp…). */
+    val roles: String = "",
+    /** When [roles] were last fetched (0 = never). */
+    val rolesCheckedAt: Long = 0,
+    /** Special printing treatments (borderless, showcase…), comma separated. */
+    val treatments: String = "",
     val addedAt: Long,
     val updatedAt: Long,
 )
@@ -50,5 +60,20 @@ fun CollectionCard.totalPrice(): Double = (unitPrice() ?: 0.0) * quantity
 /** Scryfall serves the same image path in several sizes; this swaps in the art-only crop. */
 fun artCropUrl(imageUrl: String?): String? = imageUrl
     ?.replace("/normal/", "/art_crop/")?.replace("/large/", "/art_crop/")?.replace("/small/", "/art_crop/")
+
+/** Change in value per copy since it was added, or null when either price is unknown. */
+fun CollectionCard.changeSinceAdded(): Double? {
+    val now = unitPrice() ?: return null
+    val then = priceAtAdd ?: return null
+    return now - then
+}
+
+fun CollectionCard.facts() = com.mtgscanner.data.CardFacts(
+    colors = colors, rarity = rarity, typeLine = typeLine,
+    treatments = treatments.split(',').filter { it.isNotBlank() }.toSet(),
+    foil = foil, price = unitPrice(), setCode = setCode,
+)
+
+fun CollectionCard.roleList(): List<String> = roles.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
 fun CollectionCard.tagList(): List<String> = tags.split(',').map { it.trim() }.filter { it.isNotEmpty() }

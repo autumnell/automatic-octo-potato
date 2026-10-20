@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -264,6 +265,7 @@ fun boxIcon(kind: String): ImageVector = when (kind) {
     "binder" -> Icons.AutoMirrored.Filled.MenuBook
     "deck" -> Icons.Filled.Style
     "wishlist" -> Icons.Filled.AutoAwesome
+    "trade" -> Icons.Filled.SwapHoriz
     else -> Icons.Filled.Inventory2
 }
 

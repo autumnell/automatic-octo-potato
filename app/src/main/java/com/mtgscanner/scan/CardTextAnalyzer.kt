@@ -1,6 +1,7 @@
 package com.mtgscanner.scan
 
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.SystemClock
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -79,7 +80,25 @@ class CardTextAnalyzer(
         }
         val (turn, guess) = best!!
         if (guess.score > 0) preferredTurn = turn
+        // Without a readable footer, the artwork is what tells printings apart.
+        val art = guess.artBox
+        if (art != null && guess.collectorNumber == null) {
+            val hash = runCatching { hashArt(bitmap, (cameraRotation + turn) % 360, art) }.getOrNull()
+            if (hash != null) return guess.copy(artHash = hash)
+        }
         return guess
+    }
+
+    private fun hashArt(bitmap: Bitmap, rotation: Int, box: OcrBox): Long? {
+        val upright = if (rotation == 0) bitmap else {
+            val m = Matrix().apply { postRotate(rotation.toFloat()) }
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
+        }
+        return try {
+            ArtHashing.hash(upright, box.left, box.top, box.right, box.bottom)
+        } finally {
+            if (upright !== bitmap) upright.recycle()
+        }
     }
 
     private fun isConfident(g: CardTextGuess): Boolean =
@@ -88,13 +107,17 @@ class CardTextAnalyzer(
 
     private suspend fun read(bitmap: Bitmap, rotation: Int): CardTextGuess {
         val text: Text = recognizer.process(InputImage.fromBitmap(bitmap, rotation)).await()
+        val sideways = rotation == 90 || rotation == 270
+        val w = if (sideways) bitmap.height else bitmap.width
+        val h = if (sideways) bitmap.width else bitmap.height
         val lines = text.textBlocks.flatMap { block ->
             block.lines.mapNotNull { line ->
                 val box = line.boundingBox ?: return@mapNotNull null
                 OcrLine(line.text, box.left, box.top, box.right, box.bottom)
             }
         }
-        return CardTextParser.parse(lines)
+        // Only read text inside the frame, so cards around the edges don't get mixed in.
+        return CardTextParser.parse(CardTextParser.insideFrame(lines, w, h))
     }
 
     fun close() {

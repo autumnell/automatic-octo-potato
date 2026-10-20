@@ -48,6 +48,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandMore
@@ -100,6 +105,8 @@ import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.scan.CardTextAnalyzer
 import com.mtgscanner.ui.AppViewModels
+import com.mtgscanner.data.db.boxRules
+import com.mtgscanner.ui.components.BoxEditorSheet
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
@@ -125,7 +132,9 @@ fun ScanScreen(
     LaunchedEffect(Unit) { if (!hasPermission) launcher.launch(Manifest.permission.CAMERA) }
 
     val state by vm.state.collectAsStateWithLifecycle()
-    val boxes by vm.boxes.collectAsStateWithLifecycle()
+    val loadedBoxes by vm.boxes.collectAsStateWithLifecycle()
+    val boxes = loadedBoxes.orEmpty()
+    val needsBox = loadedBoxes != null && boxes.isEmpty()
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(state.addedPulse) {
         if (state.addedPulse > 0) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -135,7 +144,15 @@ fun ScanScreen(
         ScanHeader(state, boxes, vm)
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (hasPermission) {
+            if (needsBox) {
+                EmptyState(
+                    icon = Icons.Filled.Inventory2,
+                    title = "Create a box first",
+                    body = "Scanned cards go into boxes. Make one for everything, or set rules like colors, rarity, borderless or foils so cards sort themselves.",
+                    modifier = Modifier.align(Alignment.Center),
+                    action = { GradientButton("Create a box", { vm.showNewBox(true) }, icon = Icons.Filled.Add) },
+                )
+            } else if (hasPermission) {
                 CameraPreview(vm = vm, torch = state.torch)
             } else {
                 EmptyState(
@@ -147,12 +164,12 @@ fun ScanScreen(
                 )
             }
 
-            if (hasPermission) {
+            if (hasPermission && !needsBox) {
                 FrameGuide(found = state.current != null, flash = state.addedPulse, paused = state.paused, modifier = Modifier.align(Alignment.Center))
             }
 
             // Pause + settings float over the top of the camera, like a viewfinder.
-            Row(
+            if (!needsBox) Row(
                 Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -191,7 +208,10 @@ fun ScanScreen(
                 ) {
                     state.current?.let { ResultCard(it, state, vm) }
                 }
-                if (state.current == null) StatusPill(state, Modifier.align(Alignment.CenterHorizontally))
+                state.offline?.let { if (state.current == null) OfflineCard(it.name, vm) }
+                if (state.current == null && state.offline == null && !needsBox) {
+                    StatusPill(state, Modifier.align(Alignment.CenterHorizontally))
+                }
             }
         }
 
@@ -203,6 +223,34 @@ fun ScanScreen(
     }
     if (state.showSettings) SettingsSheet(state, vm)
     if (state.showList) ScanListSheet(state, vm, onOpenCard)
+    if (state.showNewBox) {
+        BoxEditorSheet(
+            title = if (boxes.isEmpty()) "Your first box" else "New box",
+            onSave = vm::createBox,
+            onDismiss = { vm.showNewBox(false) },
+        )
+    }
+}
+
+@Composable
+private fun OfflineCard(name: String, vm: ScanViewModel) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Palette.Surface.copy(alpha = 0.97f)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = vm::skip, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, "Skip", tint = Palette.Muted) }
+            }
+            Text(
+                "You're offline. Save it now and it's added with its price and printing once you're back online.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.Muted,
+            )
+            Spacer(Modifier.height(12.dp))
+            GradientButton("Save for later", { vm.saveOffline() }, Modifier.fillMaxWidth(), icon = Icons.Filled.Schedule)
+        }
+    }
 }
 
 @Composable
@@ -220,19 +268,46 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     Modifier.clip(RoundedCornerShape(8.dp)).clickable { boxMenu = true }.padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(boxIcon(box?.kind ?: "box"), null, tint = Palette.Accent, modifier = Modifier.size(14.dp))
+                    val auto = state.boxId == CardBox.AUTO_SORT || box == null
+                    Icon(if (auto) Icons.Filled.AutoFixHigh else boxIcon(box!!.kind), null, tint = Palette.Accent, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Adding to ${box?.name ?: "Bulk"}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text(
+                        if (auto) "Auto-sorting into boxes" else "Adding to ${box!!.name}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.Muted,
+                    )
                     Icon(Icons.Filled.ExpandMore, null, tint = Palette.Muted, modifier = Modifier.size(16.dp))
                 }
                 DropdownMenu(expanded = boxMenu, onDismissRequest = { boxMenu = false }) {
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text("Auto-sort")
+                                Text("Each card goes to the box whose rules fit", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                            }
+                        },
+                        leadingIcon = { Icon(Icons.Filled.AutoFixHigh, null) },
+                        onClick = { vm.setBox(CardBox.AUTO_SORT); boxMenu = false },
+                    )
+                    HorizontalDivider(color = Palette.Outline)
                     boxes.forEach { b ->
                         DropdownMenuItem(
-                            text = { Text(b.name) },
+                            text = {
+                                Column {
+                                    Text(b.name)
+                                    Text(b.boxRules().describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                                }
+                            },
                             leadingIcon = { Icon(boxIcon(b.kind), null) },
                             onClick = { vm.setBox(b.id); boxMenu = false },
                         )
                     }
+                    HorizontalDivider(color = Palette.Outline)
+                    DropdownMenuItem(
+                        text = { Text("New box…") },
+                        leadingIcon = { Icon(Icons.Filled.Add, null, tint = Palette.Accent) },
+                        onClick = { boxMenu = false; vm.showNewBox(true) },
+                    )
                 }
             }
         }
@@ -352,6 +427,21 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     if (!state.confident) {
                         Text("Not sure about this one. Check the printing.", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
                     }
+                    state.wish?.let { w ->
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            Modifier.clip(RoundedCornerShape(8.dp)).background(Palette.Success.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Favorite, null, tint = Palette.Success, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                if (w.wanted > 1) "On your wishlist (want ${w.wanted})" else "On your wishlist!",
+                                color = Palette.Success,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -403,6 +493,15 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
             SettingRow("Foil", "Mark the next cards as foil.", state.foil, vm::setFoil)
             HorizontalDivider(color = Palette.Outline)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
+            if (state.pendingCount > 0) {
+                HorizontalDivider(color = Palette.Outline)
+                Text(
+                    "${state.pendingCount} cards saved while offline. They're added automatically when you're back online.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Gold,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -456,7 +555,13 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                                 FoilTag()
                             }
                         }
-                        Text("${e.card.set.uppercase()} · #${e.card.collectorNumber} · ×${e.count}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        Text(
+                            "${e.card.set.uppercase()} · #${e.card.collectorNumber} · ×${e.count}" + if (e.boxName.isNotEmpty()) " · ${e.boxName}" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.Muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
                     IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }

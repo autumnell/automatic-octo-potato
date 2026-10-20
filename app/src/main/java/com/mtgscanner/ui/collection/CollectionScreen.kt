@@ -21,21 +21,28 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -44,7 +51,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,12 +65,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.ui.AppViewModels
+import com.mtgscanner.ui.components.BoxEditorSheet
+import com.mtgscanner.ui.components.CardImage
+import com.mtgscanner.ui.components.EmptyState
+import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
+import com.mtgscanner.ui.decks.DecksTab
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.components.boxIcon
@@ -91,14 +107,24 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, boxes)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OverviewUi())
 
+    val wishlist: StateFlow<List<WishlistItem>> = repo.observeWishlist()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
 
-    fun createBox(name: String, kind: String) = viewModelScope.launch { repo.createBox(name, kind) }
-    fun updateBox(id: Long, name: String, kind: String) = viewModelScope.launch { repo.updateBox(id, name, kind) }
-    fun deleteBox(id: Long) = viewModelScope.launch { repo.deleteBox(id) }
+    fun createBox(name: String, kind: String, rules: BoxRules) = viewModelScope.launch { repo.createBox(name, kind, rules) }
+    fun updateBox(id: Long, name: String, kind: String, rules: BoxRules) = viewModelScope.launch { repo.updateBox(id, name, kind, rules) }
+
+    /** [moveTo] null deletes the cards too; [CardBox.AUTO_SORT] sorts them into the other boxes. */
+    fun deleteBox(id: Long, moveTo: Long?) = viewModelScope.launch {
+        repo.deleteBox(id, moveTo)
+        _message.value = "Box deleted"
+    }
+
+    fun removeWish(id: Long) = viewModelScope.launch { repo.removeWish(id) }
 
     fun refreshPrices() {
         if (_refreshing.value) return
@@ -125,11 +151,12 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun messageShown() { _message.value = null }
 }
 
-/** Collection overview: totals, then boxes. Tapping a box (or "Browse entire collection") opens the card list. */
+/** Collection overview with three tabs: boxes, decks, and lists (wishlist and trade binders). */
 @Composable
 fun CollectionScreen(
     onBrowse: (boxId: Long) -> Unit,
     onSettings: () -> Unit,
+    onOpenDeck: (deckId: Long) -> Unit,
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -138,9 +165,7 @@ fun CollectionScreen(
     val snackbar = remember { SnackbarHostState() }
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<BoxSummary?>(null) }
-    var creating by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf<BoxSummary?>(null) }
+    var tab by rememberSaveable { mutableIntStateOf(0) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) vm.export(ctx.contentResolver, uri)
@@ -148,7 +173,7 @@ fun CollectionScreen(
     LaunchedEffect(message) { message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
                 IconButton(onClick = vm::refreshPrices) { Icon(Icons.Filled.Refresh, "Refresh prices") }
@@ -156,7 +181,7 @@ fun CollectionScreen(
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
-                            text = { Text("Settings") },
+                            text = { Text("Settings, backup & import") },
                             leadingIcon = { Icon(Icons.Filled.Settings, null) },
                             onClick = { menu = false; onSettings() },
                         )
@@ -172,70 +197,125 @@ fun CollectionScreen(
                 }
             }
             if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
-
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile("Number of cards", "${ui.totalCards}", Modifier.weight(1f))
-                StatTile("Total value", formatUsd(ui.totalValue), Modifier.weight(1f))
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Collection", "Decks", "Lists").forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
             }
-
-            Row(
-                Modifier
-                    .align(Alignment.End)
-                    .padding(horizontal = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onBrowse(-1L) }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, color = Palette.Muted)
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Text)
+            when (tab) {
+                0 -> BoxesTab(ui, vm, onBrowse)
+                1 -> DecksTab(onOpenDeck)
+                else -> ListsTab(ui, vm, onBrowse)
             }
-
-            SectionHeader("Boxes") {
-                TextButton(onClick = { creating = true }) {
-                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("New")
-                }
-            }
-            ui.boxes.forEach { b ->
-                BoxCard(
-                    b,
-                    onClick = { onBrowse(b.id) },
-                    onEdit = { editing = b },
-                    onDelete = if (b.id == CardBox.BULK_ID) null else ({ deleting = b }),
-                )
-            }
-            Spacer(Modifier.height(24.dp))
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
-    }
-
-    if (creating) {
-        BoxDialog(title = "New box", initialName = "", initialKind = "binder", onDismiss = { creating = false }) { name, kind ->
-            vm.createBox(name, kind); creating = false
-        }
-    }
-    editing?.let { b ->
-        BoxDialog(title = "Edit box", initialName = b.name, initialKind = b.kind, onDismiss = { editing = null }) { name, kind ->
-            vm.updateBox(b.id, name, kind); editing = null
-        }
-    }
-    deleting?.let { b ->
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            containerColor = Palette.Surface,
-            title = { Text("Delete ${b.name}?") },
-            text = { Text("Its ${b.cards} cards move to Bulk. Nothing is removed from your collection.") },
-            confirmButton = { TextButton(onClick = { vm.deleteBox(b.id); deleting = null }) { Text("Delete", color = Palette.Danger) } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
-        )
     }
 }
 
 @Composable
-private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDelete: (() -> Unit)?) {
+private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit) {
+    var editing by remember { mutableStateOf<BoxSummary?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<BoxSummary?>(null) }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Number of cards", "${ui.totalCards}", Modifier.weight(1f))
+            StatTile("Total value", formatUsd(ui.totalValue), Modifier.weight(1f))
+        }
+
+        Row(
+            Modifier
+                .align(Alignment.End)
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onBrowse(-1L) }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, color = Palette.Muted)
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Text)
+        }
+
+        SectionHeader("Boxes") {
+            TextButton(onClick = { creating = true }) {
+                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("New")
+            }
+        }
+        if (ui.boxes.isEmpty()) {
+            EmptyState(
+                icon = Icons.Filled.Inventory2,
+                title = "No boxes yet",
+                body = "Create a box before scanning. Give it rules (colors, rarity, borderless, foils, price…) and scanned cards sort themselves into the right one.",
+                action = { GradientButton("Create a box", { creating = true }, icon = Icons.Filled.Add) },
+            )
+        }
+        ui.boxes.forEach { b ->
+            BoxCard(b, onClick = { onBrowse(b.id) }, onEdit = { editing = b }, onDelete = { deleting = b })
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+
+    if (creating) {
+        BoxEditorSheet(title = "New box", onSave = { n, k, r -> vm.createBox(n, k, r); creating = false }, onDismiss = { creating = false })
+    }
+    editing?.let { b ->
+        BoxEditorSheet(
+            title = "Edit box",
+            initialName = b.name,
+            initialKind = b.kind,
+            initialRules = BoxRules.fromJson(b.rules),
+            onSave = { n, k, r -> vm.updateBox(b.id, n, k, r); editing = null },
+            onDismiss = { editing = null },
+        )
+    }
+    deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id }, onDismiss = { deleting = null }) { moveTo ->
+        vm.deleteBox(b.id, moveTo); deleting = null
+    } }
+}
+
+@Composable
+private fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismiss: () -> Unit, onDelete: (Long?) -> Unit) {
+    // Choices: another box, auto-sort, or delete the cards. -1 means "delete the cards".
+    var choice by remember { mutableStateOf(if (others.isEmpty()) -1L else CardBox.AUTO_SORT) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Delete ${box.name}?") },
+        text = {
+            Column {
+                if (box.cards == 0) {
+                    Text("It's empty.")
+                } else {
+                    Text("What should happen to its ${box.cards} cards?")
+                    Spacer(Modifier.height(8.dp))
+                    if (others.isNotEmpty()) {
+                        Choice("Sort them into my other boxes", choice == CardBox.AUTO_SORT) { choice = CardBox.AUTO_SORT }
+                        others.forEach { o -> Choice("Move them to ${o.name}", choice == o.id) { choice = o.id } }
+                    }
+                    Choice("Remove them from my collection", choice == -1L) { choice = -1L }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onDelete(if (choice == -1L) null else choice) }) { Text("Delete", color = Palette.Danger) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
+    val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(
             onClick = onClick,
@@ -249,6 +329,7 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
                     Spacer(Modifier.width(10.dp))
                     Text(b.name, style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
                 }
+                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -263,50 +344,76 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onEdit() })
-                if (onDelete != null) {
-                    DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
-                }
+                DropdownMenuItem(text = { Text("Edit name and rules") }, onClick = { menu = false; onEdit() })
+                DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
         }
     }
 }
 
+/** The wishlist, plus shortcuts to trade binders. */
 @Composable
-private fun BoxDialog(
-    title: String,
-    initialName: String,
-    initialKind: String,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit,
-) {
-    var name by remember { mutableStateOf(initialName) }
-    var kind by remember { mutableStateOf(initialKind) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Palette.Surface,
-        title = { Text(title) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    placeholder = { Text("Trade binder, Commander deck…") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+private fun ListsTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit) {
+    val wishlist by vm.wishlist.collectAsStateWithLifecycle()
+    val trade = ui.boxes.filter { it.kind == "trade" }
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            SectionHeader("Trade binders")
+            if (trade.isEmpty()) {
+                Text(
+                    "Make a box of kind \"Trade binder\" to keep cards you'd trade away. It shows up here.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Muted,
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CardBox.KINDS.forEach { k ->
-                        SelectPill(k.replaceFirstChar(Char::uppercase), kind == k, onClick = { kind = k }, leading = {
-                            Icon(boxIcon(k), null, modifier = Modifier.size(14.dp), tint = if (kind == k) Palette.Accent else Palette.Muted)
-                        })
-                    }
+            }
+        }
+        items(trade, key = { "t${it.id}" }) { b ->
+            Surface(
+                onClick = { onBrowse(b.id) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = Palette.Surface,
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Accent)
+                    Spacer(Modifier.width(12.dp))
+                    Text(b.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Text("${b.cards} · ${formatUsd(b.value)}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = { onSave(name, kind) }, enabled = name.isNotBlank()) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+        }
+        item {
+            SectionHeader("Wishlist") {
+                if (wishlist.isNotEmpty()) {
+                    Text(
+                        formatUsd(wishlist.sumOf { (it.priceUsd ?: 0.0) * it.wanted }),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Palette.Gold,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                }
+            }
+            if (wishlist.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Filled.FavoriteBorder,
+                    title = "Nothing on your wishlist",
+                    body = "Add cards from Search, or the missing cards of a deck. The scanner tells you when you find one.",
+                )
+            }
+        }
+        items(wishlist, key = { "w${it.id}" }) { w ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                CardImage(w.imageUrl, Modifier.width(44.dp), corner = 4.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(w.name, style = MaterialTheme.typography.titleSmall)
+                    Text("Want ${w.wanted}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                }
+                Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
+                IconButton(onClick = { vm.removeWish(w.id) }) { Icon(Icons.Filled.DeleteOutline, "Remove", tint = Palette.Muted) }
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+    }
 }
