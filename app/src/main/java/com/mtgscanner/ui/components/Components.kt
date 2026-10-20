@@ -9,6 +9,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Inventory2
@@ -231,6 +233,7 @@ fun FoilTag(modifier: Modifier = Modifier) {
 }
 
 /** A card in a grid: the image with a quantity badge and its price underneath. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun CardTile(
     imageUrl: String?,
@@ -239,11 +242,27 @@ fun CardTile(
     modifier: Modifier = Modifier,
     quantity: Int? = null,
     foil: Boolean = false,
+    /** Long press, used to start picking several cards. */
+    onLongClick: (() -> Unit)? = null,
+    /** Shown with a check mark and an outline while picking cards. */
+    selected: Boolean = false,
     onClick: () -> Unit,
 ) {
-    Column(modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(4.dp)) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(10.dp))
+            .then(if (selected) Modifier.background(Palette.Accent.copy(alpha = 0.22f)) else Modifier)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(4.dp),
+    ) {
         Box {
             CardImage(imageUrl, Modifier.fillMaxWidth(), corner = 9.dp)
+            if (selected) {
+                Box(
+                    Modifier.align(Alignment.TopStart).padding(6.dp).size(24.dp).clip(CircleShape).background(Palette.Accent),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Filled.Check, "Selected", tint = Color.Black, modifier = Modifier.size(16.dp)) }
+            }
             if (quantity != null && quantity > 1) {
                 Box(
                     Modifier

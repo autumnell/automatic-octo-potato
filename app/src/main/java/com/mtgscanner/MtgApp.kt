@@ -21,7 +21,7 @@ class MtgApp : Application(), ImageLoaderFactory {
         AppSettings.init(this)
         com.mtgscanner.scan.ScanPrefs.init(this)
         val db = Room.databaseBuilder(this, AppDatabase::class.java, "collection.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
             .build()
         repository = CollectionRepository(this, db, ScryfallApi())
         repository.startBackgroundWork()

@@ -18,6 +18,25 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import android.content.Intent
+import com.mtgscanner.ui.components.Undo
+import com.mtgscanner.ui.game.GamePlayScreen
+import com.mtgscanner.ui.game.GameSetupScreen
+import com.mtgscanner.ui.home.FirstRunTour
+import com.mtgscanner.ui.home.Tour
+import com.mtgscanner.widget.CollectionWidget
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Home
@@ -57,8 +76,17 @@ import com.mtgscanner.ui.theme.MtgTheme
 import com.mtgscanner.ui.theme.Palette
 
 class MainActivity : ComponentActivity() {
+    /** Where a widget tap asked to go ("scan" or "home"); cleared once handled. */
+    private var openRequest by mutableStateOf<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openRequest = intent.getStringExtra(CollectionWidget.EXTRA_OPEN)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) openRequest = intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
         Palette.systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         setContent {
             // Status and navigation bar icons follow the app's own light/dark choice.
@@ -68,7 +96,7 @@ class MainActivity : ComponentActivity() {
                 else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
             }
-            MtgTheme { AppRoot() }
+            MtgTheme { AppRoot(openRequest) { openRequest = null } }
         }
     }
 }
@@ -80,6 +108,7 @@ private val tabs = listOf(
     Tab("scan", "Scan", Icons.Outlined.CameraAlt, Icons.Filled.CameraAlt),
     Tab("search", "Search", Icons.Outlined.Search, Icons.Filled.Search),
     Tab("collection", "Collection", Icons.Outlined.CollectionsBookmark, Icons.Filled.CollectionsBookmark),
+    Tab("game", "Game", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
 )
 
 /** Switches bottom tabs the standard way: one copy of each tab, state kept. */
@@ -90,13 +119,39 @@ fun NavHostController.goToTab(route: String) = navigate(route) {
 }
 
 @Composable
-private fun AppRoot() {
+private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var showTour by remember { mutableStateOf(!Tour.seen(ctx)) }
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Changes anywhere in the app can be undone from one snackbar.
+    LaunchedEffect(Unit) {
+        Undo.events.collectLatest { e ->
+            val result = snackbar.showSnackbar(
+                e.message,
+                actionLabel = if (e.undo != null) "Undo" else null,
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) e.undo?.let { u -> scope.launch { runCatching { u() } } }
+        }
+    }
+    LaunchedEffect(openRequest) {
+        when (openRequest) {
+            "scan" -> nav.goToTab("scan")
+            "home" -> nav.goToTab("home")
+        }
+        if (openRequest != null) onOpened()
+    }
+
+    androidx.compose.foundation.layout.Box(Modifier) {
     Scaffold(
         containerColor = Palette.Background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             if (tabs.any { it.route == route }) {
                 NavigationBar(containerColor = Palette.NavBar, tonalElevation = androidx.compose.ui.unit.Dp(0f)) {
@@ -145,8 +200,39 @@ private fun AppRoot() {
                     onOpenDeck = { id -> nav.navigate("deck/$id") },
                     onOpenCard = { id -> nav.navigate("card/$id") },
                     onTrade = { nav.navigate("trade") },
+                    onSets = { nav.navigate("sets") },
+                    onExtras = { nav.navigate("extras") },
+                    onPacks = { nav.navigate("packs") },
                 )
             }
+            composable("game") { GameSetupScreen(onPlay = { nav.navigate("game/play") }) }
+            composable("game/play") { GamePlayScreen(onExit = { nav.popBackStack("game", inclusive = false) }) }
+            composable(
+                "sets",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.collection.SetsScreen(onBack = { nav.popBackStack() }, onOpenSet = { nav.navigate("set/$it") }) }
+            composable(
+                "set/{code}",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) {
+                com.mtgscanner.ui.collection.SetDetailScreen(
+                    code = it.arguments?.getString("code").orEmpty(),
+                    onBack = { nav.popBackStack() },
+                    onOpenCard = { id -> nav.navigate("card/$id") },
+                )
+            }
+            composable(
+                "extras",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.collection.ExtrasScreen(onBack = { nav.popBackStack() }) }
+            composable(
+                "packs",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.collection.PacksScreen(onBack = { nav.popBackStack() }) }
             composable(
                 "deck/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
@@ -171,7 +257,13 @@ private fun AppRoot() {
                 "settings",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { SettingsScreen(onBack = { nav.popBackStack() }, onScanLog = { nav.navigate("scanlog") }) }
+            ) {
+                SettingsScreen(
+                    onBack = { nav.popBackStack() },
+                    onScanLog = { nav.navigate("scanlog") },
+                    onTour = { showTour = true },
+                )
+            }
             composable(
                 "trade",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
@@ -191,5 +283,7 @@ private fun AppRoot() {
                 CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popBackStack() })
             }
         }
+    }
+    if (showTour) FirstRunTour(onDone = { Tour.setSeen(ctx, true); showTour = false })
     }
 }

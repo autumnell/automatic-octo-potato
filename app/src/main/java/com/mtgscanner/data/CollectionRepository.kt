@@ -7,6 +7,8 @@ import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
+import com.mtgscanner.data.db.PackOpening
+import com.mtgscanner.data.db.PricePoint
 import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.data.db.ValueSnapshot
 import com.mtgscanner.data.db.WishlistItem
@@ -84,6 +86,8 @@ data class Backup(
     val decks: List<Deck> = emptyList(),
     val wishlist: List<WishlistItem> = emptyList(),
     val pending: List<PendingScan> = emptyList(),
+    val priceHistory: List<PricePoint> = emptyList(),
+    val packs: List<PackOpening> = emptyList(),
 )
 
 /** Collection value and its change since cards were added. */
@@ -116,6 +120,8 @@ class CollectionRepository(
     fun observeDeck(id: Long): Flow<Deck?> = dao.observeDeck(id)
     fun observeWishlist(): Flow<List<WishlistItem>> = dao.observeWishlist()
     fun observePending(): Flow<List<PendingScan>> = dao.observePending()
+    fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>> = dao.observePriceHistory(scryfallId)
+    fun observePacks(): Flow<List<PackOpening>> = dao.observePacks()
 
     /** Starts background work: the name list, daily prices, card roles and offline scans. */
     fun startBackgroundWork() {
@@ -173,6 +179,43 @@ class CollectionRepository(
         }
         dao.box(id)?.let { dao.deleteBox(it) }
     }
+
+    /**
+     * Sorts a box (usually a catch-all "Anything" box) after the fact: each card that fits another
+     * box's rules moves there, in Auto-sort order. Cards that fit nothing stay put. Returns copies moved.
+     */
+    suspend fun sortBox(sourceId: Long): Int {
+        val others = dao.allBoxes().filter { it.id != sourceId }.map { it.id to it.boxRules() }
+        var moved = 0
+        db.withTransaction {
+            for (c in dao.inBox(sourceId)) {
+                val target = BoxRules.ruleMatch(others, c.facts()) ?: continue
+                moveToBox(c.id, target)
+                moved += c.quantity
+            }
+        }
+        return moved
+    }
+
+    /** Moves every card in [sourceId] that fits [rules] into [targetId]. Returns copies moved. */
+    suspend fun sortInto(sourceId: Long, targetId: Long, rules: BoxRules): Int {
+        var moved = 0
+        db.withTransaction {
+            for (c in dao.inBox(sourceId)) {
+                if (!rules.matches(c.facts())) continue
+                moveToBox(c.id, targetId)
+                moved += c.quantity
+            }
+        }
+        return moved
+    }
+
+    /** A box that takes any card, made if there isn't one. */
+    suspend fun anythingBox(except: Long? = null): Long =
+        dao.allBoxes().firstOrNull { it.id != except && it.kind != "trade" && it.boxRules().isCatchAll }?.id
+            ?: createBox("Anything", "box")
+
+    suspend fun cardsInBox(id: Long): List<CollectionCard> = dao.inBox(id)
 
     /** The box a card belongs in by the boxes' rules, or null when no box fits. */
     suspend fun pickBox(facts: CardFacts): Long? {
@@ -297,6 +340,7 @@ class CollectionRepository(
             dao.insert(card.toEntity(foil, qty, now).copy(boxId = boxId))
         }
         appScope.launch {
+            runCatching { dao.putPricePoints(listOf(card.pricePoint())) }
             runCatching { recordSnapshot() }
             runCatching { fetchRoles() }
         }
@@ -334,6 +378,81 @@ class CollectionRepository(
 
     suspend fun delete(id: Long) { dao.get(id)?.let { dao.delete(it) } }
 
+    // Undo, bulk edits and tags
+
+    /** Everything needed to undo a change to these rows: every row of the same printings. */
+    suspend fun snapshot(rowIds: List<Long>): List<CollectionCard> {
+        val ids = dao.byIds(rowIds).map { it.scryfallId }.distinct()
+        return if (ids.isEmpty()) emptyList() else dao.byScryfallIds(ids)
+    }
+
+    /** Puts rows back exactly as [snapshot] saw them, undoing merges, moves and deletes. */
+    suspend fun restore(before: List<CollectionCard>) {
+        if (before.isEmpty()) return
+        db.withTransaction {
+            dao.deleteByScryfallIds(before.map { it.scryfallId }.distinct())
+            dao.putCards(before)
+        }
+        appScope.launch { runCatching { recordSnapshot() } }
+    }
+
+    suspend fun moveMany(rowIds: List<Long>, boxId: Long) = db.withTransaction { rowIds.forEach { moveToBox(it, boxId) } }
+
+    suspend fun deleteMany(rowIds: List<Long>) {
+        db.withTransaction { dao.byIds(rowIds).forEach { dao.delete(it) } }
+        appScope.launch { runCatching { recordSnapshot() } }
+    }
+
+    /** Moves [qty] copies of a row to another box, splitting the row if some copies stay. */
+    suspend fun moveCopies(rowId: Long, qty: Int, boxId: Long) {
+        val c = dao.get(rowId) ?: return
+        if (c.boxId == boxId) return
+        if (qty >= c.quantity) { moveToBox(rowId, boxId); return }
+        val now = System.currentTimeMillis()
+        dao.update(c.copy(quantity = c.quantity - qty, updatedAt = now))
+        val other = dao.find(c.scryfallId, c.foil, boxId)
+        if (other != null) dao.update(other.copy(quantity = other.quantity + qty, updatedAt = now))
+        else dao.insert(c.copy(id = 0, quantity = qty, boxId = boxId, updatedAt = now))
+    }
+
+    suspend fun addTag(rowIds: List<Long>, tag: String) {
+        val t = tag.trim().replace(",", " ").ifEmpty { return }
+        db.withTransaction {
+            dao.byIds(rowIds).forEach { c ->
+                val tags = c.userTags.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+                if (tags.none { it.equals(t, ignoreCase = true) }) dao.update(c.copy(userTags = (tags + t).joinToString(",")))
+            }
+        }
+    }
+
+    suspend fun removeTag(rowId: Long, tag: String) {
+        val c = dao.get(rowId) ?: return
+        dao.update(c.copy(userTags = c.userTags.split(',').map { it.trim() }.filter { it.isNotEmpty() && it != tag }.joinToString(",")))
+    }
+
+    // Sets
+
+    private var setsCache: List<ScryfallSet>? = null
+    private val setCardsCache = HashMap<String, List<ScryfallCard>>()
+
+    /** Paper sets from Scryfall, fetched once per app run. */
+    suspend fun sets(): List<ScryfallSet> = setsCache ?: api.sets().also { setsCache = it }
+
+    /** Every printing in a set, extras included, in collector number order. */
+    suspend fun setCards(code: String): List<ScryfallCard> {
+        val k = code.lowercase()
+        synchronized(setCardsCache) { setCardsCache[k]?.let { return it } }
+        val list = api.searchAll("e:$k include:extras", unique = "prints", maxPages = 12)
+            .sortedWith(compareBy<ScryfallCard> { it.collectorNumber.takeWhile(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }.thenBy { it.collectorNumber })
+        synchronized(setCardsCache) { setCardsCache[k] = list }
+        return list
+    }
+
+    // Packs
+
+    suspend fun savePack(p: PackOpening): Long = dao.addPack(p)
+    suspend fun deletePack(id: Long) = dao.deletePack(id)
+
     suspend fun allCards(): List<CollectionCard> = dao.all()
 
     // Prices
@@ -353,6 +472,7 @@ class CollectionRepository(
             )
         }
         dao.updateAll(updated)
+        dao.putPricePoints(fresh.values.map { it.pricePoint() })
         // Wishlist prices too, so its total and alerts stay current.
         val wishes = dao.allWishlist()
         if (wishes.isNotEmpty()) {
@@ -412,7 +532,10 @@ class CollectionRepository(
     suspend fun recordSnapshot() = snapshotLock.withLock {
         val all = dao.all()
         if (all.isEmpty()) return@withLock
-        dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), all.sumOf { it.totalPrice() }, all.sumOf { it.quantity }))
+        val value = all.sumOf { it.totalPrice() }
+        val count = all.sumOf { it.quantity }
+        dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), value, count))
+        com.mtgscanner.widget.CollectionWidget.publish(appContext, value, count)
     }
 
     // Roles (Scryfall community tags)
@@ -590,6 +713,7 @@ class CollectionRepository(
         Backup(
             boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
+            priceHistory = dao.allPricePoints(), packs = dao.allPacks(),
         ),
     )
 
@@ -598,9 +722,10 @@ class CollectionRepository(
         val b = backupJson.decodeFromString(Backup.serializer(), text)
         db.withTransaction {
             dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
-            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending()
+            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks()
             dao.putBoxes(b.boxes); dao.putCards(b.cards); dao.putSnapshots(b.snapshots)
             dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
+            dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs)
         }
         return b.cards.sumOf { it.quantity }
     }
@@ -676,6 +801,13 @@ fun ScryfallCard.toEntity(foil: Boolean, qty: Int, now: Long) = CollectionCard(
     treatments = treatments.joinToString(","),
     addedAt = now,
     updatedAt = now,
+)
+
+fun ScryfallCard.pricePoint() = PricePoint(
+    scryfallId = id,
+    day = LocalDate.now().toString(),
+    usd = prices.usd?.toDoubleOrNull(),
+    usdFoil = (prices.usdFoil ?: prices.usdEtched)?.toDoubleOrNull(),
 )
 
 /** The facts box rules look at, for a card about to be added. */

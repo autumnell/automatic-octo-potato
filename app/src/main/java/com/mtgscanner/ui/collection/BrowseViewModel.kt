@@ -2,6 +2,15 @@ package com.mtgscanner.ui.collection
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mtgscanner.data.db.Box
+import com.mtgscanner.data.db.userTagList
+import com.mtgscanner.ui.components.Undo
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.changeSinceAdded
@@ -15,6 +24,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
+@Serializable
 enum class SortBy(val label: String) {
     RECENT("Recently added"), NAME("Name"), PRICE("Price"), MANA("Mana value"), SET("Set & number"), COLOR("Color"), GAIN("Price change"),
     ;
@@ -22,12 +32,14 @@ enum class SortBy(val label: String) {
     val isPrice: Boolean get() = this == PRICE || this == GAIN
 }
 
+@Serializable
 enum class GroupBy(val label: String) { NONE("No grouping"), SET("Set"), COLOR("Color"), TYPE("Card type"), RARITY("Rarity") }
 
 val COLOR_FILTERS = listOf("W", "U", "B", "R", "G", "C", "M")
 val RARITIES = listOf("common", "uncommon", "rare", "mythic")
 val CARD_TYPES = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land", "Battle")
 
+@Serializable
 data class Filters(
     val query: String = "",
     val colors: Set<String> = emptySet(),
@@ -38,10 +50,12 @@ data class Filters(
     /** Scryfall community tags such as Removal or Ramp. */
     val roles: Set<String> = emptySet(),
     val treatments: Set<String> = emptySet(),
+    /** Your own tags. */
+    val userTags: Set<String> = emptySet(),
     val sort: SortBy = SortBy.RECENT,
     val group: GroupBy = GroupBy.NONE,
 ) {
-    val activeCount: Int get() = colors.size + rarities.size + types.size + roles.size + treatments.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0)
+    val activeCount: Int get() = colors.size + rarities.size + types.size + roles.size + treatments.size + userTags.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0)
 }
 
 data class BrowseUi(
@@ -54,10 +68,16 @@ data class BrowseUi(
     /** Roles found on cards in view, for the filter sheet. */
     val roles: List<String> = emptyList(),
     val treatments: List<String> = emptyList(),
+    /** Your own tags on cards in view. */
+    val userTags: List<String> = emptyList(),
+    val boxes: List<Box> = emptyList(),
+    /** Ids of every card shown, for "select all". */
+    val shownIds: List<Long> = emptyList(),
     val loaded: Boolean = false,
 )
 
 /** The card list for one box, or the whole collection when [boxId] is -1. */
+@OptIn(FlowPreview::class)
 class BrowseViewModel(private val repo: CollectionRepository, private val boxId: Long) : ViewModel() {
     private val _filters = MutableStateFlow(Filters())
     val filters: StateFlow<Filters> = _filters
@@ -78,6 +98,9 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
             roles = inScope.flatMap { it.roleList() }.distinct().sortedBy { r -> CollectionRepository.ROLES.indexOfFirst { it.label == r } },
             treatments = inScope.flatMap { it.treatments.split(',') }.filter { it.isNotBlank() }.distinct(),
+            userTags = inScope.flatMap { it.userTagList() }.distinct().sortedBy { it.lowercase() },
+            boxes = boxes,
+            shownIds = shown.map { it.id },
             loaded = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
@@ -85,11 +108,74 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     fun update(f: (Filters) -> Filters) = _filters.update(f)
     fun clearFilters() = _filters.update { Filters(query = it.query, sort = it.sort, group = it.group) }
 
+    // Saved and recent searches
+
+    private val searches = SavedSearchStore(repo.appContext)
+    val saved: StateFlow<List<SavedSearch>> = searches.saved
+    val recent: StateFlow<List<String>> = searches.recent
+
+    init {
+        // A search word is remembered once you stop typing for a moment.
+        viewModelScope.launch {
+            _filters.map { it.query }.distinctUntilChanged().debounce(1500).collect { searches.addRecent(it) }
+        }
+    }
+
+    fun saveSearch(name: String) = searches.save(name, _filters.value)
+    fun deleteSaved(name: String) = searches.delete(name)
+    fun applySaved(s: SavedSearch) { _filters.value = s.filters }
+    fun clearRecent() = searches.clearRecent()
+
+    // Picking several cards
+
+    private val _selected = MutableStateFlow<Set<Long>>(emptySet())
+    val selected: StateFlow<Set<Long>> = _selected
+
+    fun toggleSelect(id: Long) = _selected.update { if (id in it) it - id else it + id }
+    fun selectAll() { _selected.value = ui.value.shownIds.toSet() }
+    fun clearSelection() { _selected.value = emptySet() }
+
+    private fun boxName(id: Long) = ui.value.boxes.firstOrNull { it.id == id }?.name ?: "box"
+
+    /** Runs a change on some cards and offers to undo it. */
+    private fun withUndo(ids: List<Long>, message: String, change: suspend () -> Unit) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val before = repo.snapshot(ids)
+            change()
+            Undo.offer(message) { repo.restore(before) }
+        }
+    }
+
+    private fun count(ids: List<Long>): String =
+        if (ids.size == 1) "1 card" else "${ids.size} cards"
+
+    fun moveSelected(boxId: Long) {
+        val ids = _selected.value.toList()
+        clearSelection()
+        withUndo(ids, "Moved ${count(ids)} to ${boxName(boxId)}") { repo.moveMany(ids, boxId) }
+    }
+
+    fun deleteSelected() {
+        val ids = _selected.value.toList()
+        clearSelection()
+        withUndo(ids, "Removed ${count(ids)}") { repo.deleteMany(ids) }
+    }
+
+    fun tagSelected(tag: String) {
+        val ids = _selected.value.toList()
+        clearSelection()
+        withUndo(ids, "Tagged ${count(ids)} “${tag.trim()}”") { repo.addTag(ids, tag) }
+    }
+
+    fun moveOne(id: Long, boxId: Long) = withUndo(listOf(id), "Moved to ${boxName(boxId)}") { repo.moveToBox(id, boxId) }
+    fun deleteOne(id: Long, name: String) = withUndo(listOf(id), "Removed $name") { repo.deleteMany(listOf(id)) }
+
     companion object {
         fun matches(c: CollectionCard, f: Filters): Boolean {
             if (f.query.isNotBlank()) {
                 val q = f.query.trim().lowercase()
-                val hay = listOf(c.name, c.typeLine, c.oracleText, c.setName, c.setCode, c.tags, c.artist.orEmpty())
+                val hay = listOf(c.name, c.typeLine, c.oracleText, c.setName, c.setCode, c.tags, c.artist.orEmpty(), c.userTags)
                 if (hay.none { it.lowercase().contains(q) }) return false
             }
             if (f.colors.isNotEmpty()) {
@@ -111,6 +197,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             if (f.foilOnly && !c.foil) return false
             if (f.roles.isNotEmpty() && f.roles.none { it in c.roleList() }) return false
             if (f.treatments.isNotEmpty() && f.treatments.none { it in c.treatments.split(',') }) return false
+            if (f.userTags.isNotEmpty() && f.userTags.none { it in c.userTagList() }) return false
             return true
         }
 

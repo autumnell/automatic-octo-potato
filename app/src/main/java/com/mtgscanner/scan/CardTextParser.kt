@@ -90,6 +90,31 @@ object CardTextParser {
         return CardTextGuess(names, setCode, number, score, findArtBox(clean))
     }
 
+    /**
+     * Reads a binder page: splits the text into a [rows] x [cols] grid by where each line sits,
+     * and reads each pocket as its own card. The grid spans the text found, so the page doesn't
+     * have to fill the camera exactly. Returns one guess per pocket, row by row.
+     */
+    fun parseGrid(lines: List<OcrLine>, rows: Int = 3, cols: Int = 3): List<CardTextGuess> {
+        val clean = lines.filter { it.text.isNotBlank() }
+        if (clean.isEmpty()) return List(rows * cols) { CardTextGuess(emptyList(), null, null, 0) }
+        val left = clean.minOf { it.left }
+        val right = clean.maxOf { it.right }
+        val top = clean.minOf { it.top }
+        val bottom = clean.maxOf { it.bottom }
+        val cellW = (right - left).coerceAtLeast(1) / cols.toDouble()
+        val cellH = (bottom - top).coerceAtLeast(1) / rows.toDouble()
+        val cells = List(rows * cols) { mutableListOf<OcrLine>() }
+        for (l in clean) {
+            val cx = (l.left + l.right) / 2.0
+            val cy = (l.top + l.bottom) / 2.0
+            val c = ((cx - left) / cellW).toInt().coerceIn(0, cols - 1)
+            val r = ((cy - top) / cellH).toInt().coerceIn(0, rows - 1)
+            cells[r * cols + c] += l
+        }
+        return cells.map { parse(it) }
+    }
+
     /** Counts letters in real-looking words. Upside-down or sideways text scores near zero. */
     fun readableScore(text: String): Int =
         text.split(Regex("""\s+"""))

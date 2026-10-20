@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class],
-    version = 4,
+    entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class],
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -73,6 +73,22 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     "UPDATE `boxes` SET `sortOrder` = (SELECT COUNT(*) FROM `boxes` AS b2 WHERE b2.`createdAt` < `boxes`.`createdAt` " +
                         "OR (b2.`createdAt` = `boxes`.`createdAt` AND b2.`id` < `boxes`.`id`))",
+                )
+            }
+        }
+
+        /** Version 5 adds your own card tags, price history and opened packs. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `userTags` TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `price_history` (`scryfallId` TEXT NOT NULL, `day` TEXT NOT NULL, `usd` REAL, " +
+                        "`usdFoil` REAL, PRIMARY KEY(`scryfallId`, `day`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `packs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`cost` REAL, `value` REAL NOT NULL, `cards` INTEGER NOT NULL, `best` TEXT NOT NULL, `pulls` TEXT NOT NULL, " +
+                        "`openedAt` INTEGER NOT NULL)",
                 )
             }
         }

@@ -1,6 +1,24 @@
 package com.mtgscanner.ui.collection
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import com.mtgscanner.data.db.Box as CardBox
+import com.mtgscanner.ui.components.boxColor
+import com.mtgscanner.ui.components.boxIcon
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -86,10 +104,20 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val f by vm.filters.collectAsStateWithLifecycle()
     val grid by vm.grid.collectAsStateWithLifecycle()
+    val selected by vm.selected.collectAsStateWithLifecycle()
+    val saved by vm.saved.collectAsStateWithLifecycle()
+    val recent by vm.recent.collectAsStateWithLifecycle()
     var showFilters by remember { mutableStateOf(false) }
+    var savingSearch by remember { mutableStateOf(false) }
+    var tagging by remember { mutableStateOf(false) }
+    /** A card swiped right, waiting for a box to move to. */
+    var moving by remember { mutableStateOf<CollectionCard?>(null) }
+    val picking = selected.isNotEmpty()
+    androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (picking) SelectionBar(selected.size, ui.boxes, vm, onTag = { tagging = true })
+        else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
                 Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
@@ -106,6 +134,24 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
         }
 
         SearchField(f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+        if (f.query.isEmpty() && f.activeCount == 0 && (saved.isNotEmpty() || recent.isNotEmpty())) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                saved.forEach { sv ->
+                    SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
+                        Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
+                    })
+                }
+                recent.forEach { q ->
+                    SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
+                        Icon(Icons.Filled.History, null, tint = Palette.Muted, modifier = Modifier.size(14.dp))
+                    })
+                }
+                if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
+            }
+        }
 
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
@@ -138,6 +184,9 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
             BadgedBox(badge = { if (f.activeCount > 0) Badge(containerColor = Palette.Accent) { Text("${f.activeCount}") } }) {
                 ToolChip("Filters", Icons.Filled.FilterAlt, { showFilters = true }, active = f.activeCount > 0)
             }
+            if (f.query.isNotBlank() || f.activeCount > 0) {
+                ToolChip("Save search", Icons.Filled.StarBorder, { savingSearch = true })
+            }
         }
 
         when {
@@ -147,11 +196,114 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                 Icons.Filled.SearchOff, "No cards match", "Try a different search or clear the filters.",
                 action = { TextButton(onClick = { vm.clearFilters(); vm.update { it.copy(query = "") } }) { Text("Clear search and filters") } },
             )
-            else -> CardGrid(ui.groups, grid, onOpenCard)
+            else -> CardGrid(
+                ui.groups, grid, selected,
+                onOpen = { c -> if (picking) vm.toggleSelect(c.id) else onOpenCard(c.id) },
+                onLongPress = { c -> vm.toggleSelect(c.id) },
+                onSwipeMove = { c -> moving = c },
+                onSwipeDelete = { c -> vm.deleteOne(c.id, c.name) },
+            )
         }
     }
 
-    if (showFilters) FilterSheet(f, ui, vm, onDismiss = { showFilters = false })
+    if (showFilters) FilterSheet(f, ui, vm, saved, onDismiss = { showFilters = false })
+    if (savingSearch) NameDialog("Save this search", "e.g. Red rares under $5", "Save", onDone = { vm.saveSearch(it); savingSearch = false }, onDismiss = { savingSearch = false })
+    if (tagging) TagDialog(ui.userTags, onDone = { vm.tagSelected(it); tagging = false }, onDismiss = { tagging = false })
+    moving?.let { c ->
+        BoxPickerDialog("Move ${c.name} to", ui.boxes.filter { it.id != c.boxId }, onPick = { vm.moveOne(c.id, it); moving = null }, onDismiss = { moving = null })
+    }
+}
+
+/** Top bar while picking cards: how many, and what to do with them. */
+@Composable
+private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, onTag: () -> Unit) {
+    var moveMenu by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().background(Palette.Surface).padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = vm::clearSelection) { Icon(Icons.Filled.Close, "Stop picking") }
+        Text("$count selected", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        IconButton(onClick = vm::selectAll) { Icon(Icons.Filled.SelectAll, "Select all") }
+        Box {
+            IconButton(onClick = { moveMenu = true }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "Move to box") }
+            DropdownMenu(expanded = moveMenu, onDismissRequest = { moveMenu = false }) {
+                boxes.forEach { b ->
+                    DropdownMenuItem(
+                        text = { Text(b.name) },
+                        leadingIcon = { Icon(boxIcon(b.kind), null, tint = boxColor(b.color)) },
+                        onClick = { moveMenu = false; vm.moveSelected(b.id) },
+                    )
+                }
+            }
+        }
+        IconButton(onClick = onTag) { Icon(Icons.AutoMirrored.Filled.Label, "Add a tag") }
+        IconButton(onClick = vm::deleteSelected) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
+    }
+}
+
+@Composable
+fun NameDialog(title: String, hint: String, confirm: String, onDone: (String) -> Unit, onDismiss: () -> Unit, initial: String = "") {
+    var name by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text(title) },
+        text = { OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text(hint) }) },
+        confirmButton = { TextButton(onClick = { onDone(name) }, enabled = name.isNotBlank()) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Type a new tag, or tap one you've used before. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TagDialog(existing: List<String>, onDone: (String) -> Unit, onDismiss: () -> Unit) {
+    var tag by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Add a tag") },
+        text = {
+            Column {
+                OutlinedTextField(tag, { tag = it }, singleLine = true, placeholder = { Text("e.g. For Kenji's deck, Lent out") })
+                if (existing.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        existing.forEach { t -> SelectPill(t, false, { onDone(t) }) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onDone(tag) }, enabled = tag.isNotBlank()) { Text("Add") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text(title) },
+        text = {
+            Column {
+                if (boxes.isEmpty()) Text("Make another box first.", color = Palette.Muted)
+                boxes.forEach { b ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onPick(b.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(b.name, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -180,7 +332,15 @@ fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier = 
 }
 
 @Composable
-private fun CardGrid(groups: List<Pair<String, List<CollectionCard>>>, grid: Boolean, onOpenCard: (Long) -> Unit) {
+private fun CardGrid(
+    groups: List<Pair<String, List<CollectionCard>>>,
+    grid: Boolean,
+    selected: Set<Long>,
+    onOpen: (CollectionCard) -> Unit,
+    onLongPress: (CollectionCard) -> Unit,
+    onSwipeMove: (CollectionCard) -> Unit,
+    onSwipeDelete: (CollectionCard) -> Unit,
+) {
     LazyVerticalGrid(
         columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
         contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
@@ -198,19 +358,67 @@ private fun CardGrid(groups: List<Pair<String, List<CollectionCard>>>, grid: Boo
             }
             items(cards, key = { it.id }) { c ->
                 if (grid) {
-                    CardTile(c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil, onClick = { onOpenCard(c.id) })
+                    CardTile(
+                        c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
+                        onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
+                    )
+                } else if (selected.isNotEmpty()) {
+                    CardRow(c, c.id in selected, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
                 } else {
-                    CardRow(c) { onOpenCard(c.id) }
+                    SwipeRow(onMove = { onSwipeMove(c) }, onDelete = { onSwipeDelete(c) }) {
+                        CardRow(c, false, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
+                    }
                 }
             }
         }
     }
 }
 
+/** Swipe right to move a card to another box, left to remove it (with Undo). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CardRow(c: CollectionCard, onClick: () -> Unit) {
+private fun SwipeRow(onMove: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
+        when (v) {
+            SwipeToDismissBoxValue.StartToEnd -> onMove()
+            SwipeToDismissBoxValue.EndToStart -> onDelete()
+            else -> Unit
+        }
+        // Always spring back: the list updates itself, and a move asks for the box first.
+        false
+    })
+    SwipeToDismissBox(
+        state = state,
+        backgroundContent = {
+            val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            Row(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp))
+                    .background(if (toEnd) Palette.Accent.copy(alpha = 0.25f) else Palette.Danger.copy(alpha = 0.25f))
+                    .padding(horizontal = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = if (toEnd) Arrangement.Start else Arrangement.End,
+            ) {
+                if (toEnd) {
+                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null, tint = Palette.Accent)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Move", color = Palette.Accent)
+                } else {
+                    Text("Remove", color = Palette.Danger)
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Filled.DeleteOutline, null, tint = Palette.Danger)
+                }
+            }
+        },
+    ) { Box(Modifier.background(Palette.Background)) { content() } }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CardRow(c: CollectionCard, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(if (selected) Palette.Accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(46.dp), corner = 4.dp)
@@ -241,7 +449,7 @@ private fun CardRow(c: CollectionCard, onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, onDismiss: () -> Unit) {
+private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: List<SavedSearch>, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -281,6 +489,13 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, onDismiss
                     SelectPill(r, r in f.roles, onClick = { vm.update { it.copy(roles = it.roles.toggle(r)) } })
                 }
             }
+            if (ui.userTags.isNotEmpty()) {
+                FilterGroup("Your tags") {
+                    ui.userTags.forEach { t ->
+                        SelectPill(t, t in f.userTags, onClick = { vm.update { it.copy(userTags = it.userTags.toggle(t)) } })
+                    }
+                }
+            }
             if (ui.treatments.isNotEmpty()) {
                 FilterGroup("Printing") {
                     ui.treatments.forEach { t ->
@@ -293,6 +508,15 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, onDismiss
                     SelectPill("Any", f.set == null, onClick = { vm.update { it.copy(set = null) } })
                     ui.sets.forEach { (code, name) ->
                         SelectPill(name, f.set == code, onClick = { vm.update { it.copy(set = if (it.set == code) null else code) } })
+                    }
+                }
+            }
+            if (saved.isNotEmpty()) {
+                Text("Saved searches", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+                saved.forEach { sv ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(sv.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).clickable { vm.applySaved(sv); onDismiss() }.padding(vertical = 8.dp))
+                        IconButton(onClick = { vm.deleteSaved(sv.name) }) { Icon(Icons.Filled.DeleteOutline, "Delete saved search", tint = Palette.Muted) }
                     }
                 }
             }

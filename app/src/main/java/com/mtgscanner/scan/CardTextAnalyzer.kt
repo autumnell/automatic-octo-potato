@@ -28,6 +28,9 @@ class CardTextAnalyzer(
     private val onGuess: (CardTextGuess) -> Unit,
     private val isPaused: () -> Boolean = { false },
     private val minIntervalMs: Long = 250,
+    /** Binder page mode: when this returns true, the next frame is read as a 3x3 page. */
+    private val wantsPage: () -> Boolean = { false },
+    private val onPage: (List<CardTextGuess>) -> Unit = {},
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -58,8 +61,8 @@ class CardTextAnalyzer(
 
         scope.launch {
             try {
-                val guess = readBestOrientation(bitmap, rotation)
-                onGuess(guess)
+                if (wantsPage()) onPage(readPage(bitmap, rotation))
+                else onGuess(readBestOrientation(bitmap, rotation))
             } catch (_: Throwable) {
                 // Skip this frame; the next one will try again.
             } finally {
@@ -89,6 +92,23 @@ class CardTextAnalyzer(
         return guess
     }
 
+    /** Reads a whole binder page, picking the way up that gives the most readable text. */
+    private suspend fun readPage(bitmap: Bitmap, cameraRotation: Int): List<CardTextGuess> {
+        val order = listOf(preferredTurn) + listOf(0, 90, 180, 270).filter { it != preferredTurn }
+        var best: Pair<Int, List<OcrLine>>? = null
+        var bestScore = -1
+        for (turn in order) {
+            val lines = readLines(bitmap, (cameraRotation + turn) % 360).second
+            val score = lines.sumOf { CardTextParser.readableScore(it.text) }
+            if (score > bestScore) { bestScore = score; best = turn to lines }
+            // Plenty of readable text: this is the right way up.
+            if (score >= 120) break
+        }
+        val (turn, lines) = best!!
+        if (bestScore > 0) preferredTurn = turn
+        return CardTextParser.parseGrid(lines)
+    }
+
     private fun hashArt(bitmap: Bitmap, rotation: Int, box: OcrBox): Long? {
         val upright = if (rotation == 0) bitmap else {
             val m = Matrix().apply { postRotate(rotation.toFloat()) }
@@ -106,6 +126,13 @@ class CardTextAnalyzer(
             (g.nameCandidates.isNotEmpty() && g.score >= 25)
 
     private suspend fun read(bitmap: Bitmap, rotation: Int): CardTextGuess {
+        val (size, lines) = readLines(bitmap, rotation)
+        // Only read text inside the frame, so cards around the edges don't get mixed in.
+        return CardTextParser.parse(CardTextParser.insideFrame(lines, size.first, size.second))
+    }
+
+    /** OCR lines at [rotation], with the upright image's width and height. */
+    private suspend fun readLines(bitmap: Bitmap, rotation: Int): Pair<Pair<Int, Int>, List<OcrLine>> {
         val text: Text = recognizer.process(InputImage.fromBitmap(bitmap, rotation)).await()
         val sideways = rotation == 90 || rotation == 270
         val w = if (sideways) bitmap.height else bitmap.width
@@ -116,8 +143,7 @@ class CardTextAnalyzer(
                 OcrLine(line.text, box.left, box.top, box.right, box.bottom)
             }
         }
-        // Only read text inside the frame, so cards around the edges don't get mixed in.
-        return CardTextParser.parse(CardTextParser.insideFrame(lines, w, h))
+        return (w to h) to lines
     }
 
     fun close() {

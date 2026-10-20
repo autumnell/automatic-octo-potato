@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -63,6 +66,11 @@ import coil.compose.AsyncImage
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.PricePoint
+import com.mtgscanner.data.db.userTagList
+import com.mtgscanner.ui.collection.TagDialog
+import com.mtgscanner.ui.components.LineChart
+import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.data.db.changeSinceAdded
 import com.mtgscanner.data.db.roleList
@@ -86,6 +94,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -100,10 +110,35 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
 
     fun setQuantity(q: Int) = viewModelScope.launch { repo.setQuantity(currentId.value, q) }
     fun setFoil(foil: Boolean) = viewModelScope.launch { currentId.value = repo.setFoil(currentId.value, foil) }
-    fun moveTo(boxId: Long) = viewModelScope.launch { currentId.value = repo.moveToBox(currentId.value, boxId) }
+    fun moveTo(boxId: Long) = viewModelScope.launch {
+        val from = currentId.value
+        val before = repo.snapshot(listOf(from))
+        currentId.value = repo.moveToBox(from, boxId)
+        val name = boxes.value.firstOrNull { it.id == boxId }?.name ?: "box"
+        Undo.offer("Moved to $name") { repo.restore(before); currentId.value = from }
+    }
     fun setCondition(c: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(condition = c)) } }
     fun setNotes(n: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(notes = n)) } }
-    fun delete(done: () -> Unit) = viewModelScope.launch { repo.delete(currentId.value); done() }
+    fun delete(done: () -> Unit) = viewModelScope.launch {
+        val before = repo.snapshot(listOf(currentId.value))
+        val name = card.value?.name ?: "card"
+        repo.delete(currentId.value)
+        Undo.offer("Removed $name") { repo.restore(before) }
+        done()
+    }
+
+    /** Daily prices recorded for this printing, oldest first. */
+    val priceHistory: StateFlow<List<PricePoint>> = card
+        .flatMapLatest { c -> if (c == null) flowOf(emptyList()) else repo.observePriceHistory(c.scryfallId) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Every tag used anywhere in the collection, for suggestions. */
+    val allTags: StateFlow<List<String>> = repo.observeAll()
+        .map { all -> all.flatMap { it.userTagList() }.distinct().sorted() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addTag(tag: String) = viewModelScope.launch { repo.addTag(listOf(currentId.value), tag) }
+    fun removeTag(tag: String) = viewModelScope.launch { repo.removeTag(currentId.value, tag) }
 }
 
 private val CONDITIONS = listOf("NM" to "Near mint", "LP" to "Lightly played", "MP" to "Moderately played", "HP" to "Heavily played", "DMG" to "Damaged")
@@ -116,6 +151,9 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     val boxes by vm.boxes.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
+    var addingTag by remember { mutableStateOf(false) }
+    val history by vm.priceHistory.collectAsStateWithLifecycle()
+    val allTags by vm.allTags.collectAsStateWithLifecycle()
     val c = card
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -158,6 +196,35 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                     }
 
+                    val points = history.mapNotNull { p -> (if (c.foil) p.usdFoil ?: p.usd else p.usd)?.let { p.day to it } }
+                    if (AppSettings.showPrices && points.size >= 2) {
+                        Spacer(Modifier.height(12.dp))
+                        Panel {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Price history", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                                ChangeText(points.last().second - points.first().second, points.first().second, MaterialTheme.typography.labelMedium)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            LineChart(points.map { it.second }, Modifier.fillMaxWidth().height(80.dp))
+                            Spacer(Modifier.height(6.dp))
+                            Row {
+                                Text(shortDay(points.first().first), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                                Text(
+                                    "low ${formatUsd(points.minOf { it.second })} · high ${formatUsd(points.maxOf { it.second })}",
+                                    style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(2f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                )
+                                Text(shortDay(points.last().first), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                            }
+                        }
+                    } else if (AppSettings.showPrices) {
+                        Text(
+                            "A price chart appears here once prices have been refreshed on a few different days.",
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+
                     Spacer(Modifier.height(12.dp))
                     Panel {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -195,6 +262,25 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(14.dp))
                         NotesField(c, vm)
+                        Spacer(Modifier.height(14.dp))
+                        Text("Your tags", style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            c.userTagList().forEach { t ->
+                                InfoChip {
+                                    Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.Accent)
+                                    Spacer(Modifier.width(4.dp))
+                                    Icon(Icons.Filled.Close, "Remove tag $t", Modifier.size(14.dp).clickable { vm.removeTag(t) }, tint = Palette.Muted)
+                                }
+                            }
+                            InfoChip {
+                                Row(Modifier.clickable { addingTag = true }, verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Add, null, Modifier.size(14.dp), tint = Palette.Accent)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Add tag", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                        }
                     }
 
                     if (c.oracleText.isNotBlank()) {
@@ -272,6 +358,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
         }
     }
 
+    if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
+
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -342,3 +430,7 @@ private fun NotesField(c: CollectionCard, vm: CardDetailViewModel) {
         )
     }
 }
+
+private fun shortDay(day: String): String = runCatching {
+    java.time.LocalDate.parse(day).format(java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US))
+}.getOrDefault(day)
