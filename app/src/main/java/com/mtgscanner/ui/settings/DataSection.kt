@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Restore
@@ -50,7 +51,10 @@ import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.util.CsvExporter
+import com.mtgscanner.util.CsvFormat
 import com.mtgscanner.util.CsvImport
+import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.util.ImportRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,7 +63,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -89,6 +97,19 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val out = withContext(Dispatchers.IO) { ctx.contentResolver.openOutputStream(uri) } ?: return@run "Couldn't save to that file"
         repo.exportBackup(out)
         "Backup saved"
+    }
+
+    fun exportCsv(ctx: android.content.Context, uri: Uri, format: CsvFormat) = run("Exporting…") {
+        val cards = repo.allCards()
+        val ok = withContext(Dispatchers.IO) {
+            ctx.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { CsvExporter.write(cards, it, format) } != null
+        }
+        if (ok) "Exported ${cards.size} entries" else "Couldn't save to that file"
+    }
+
+    /** Writes the weekly backup file now. */
+    fun backupNow(ctx: android.content.Context) = run("Backing up…") {
+        if (DriveBackup.backupNow(ctx.applicationContext)) "Backup saved" else "Backup failed"
     }
 
     fun restore(ctx: android.content.Context, uri: Uri) = run("Restoring…") {
@@ -146,6 +167,9 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     val boxes by vm.boxes.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
     var confirmRestore by remember { mutableStateOf<Uri?>(null) }
+    var choosingExport by remember { mutableStateOf(false) }
+    var exportFormat by remember { mutableStateOf(CsvFormat.FULL) }
+    remember { DriveBackup.load(ctx.applicationContext) }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) vm.backup(ctx, uri)
@@ -155,6 +179,16 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     }
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.readCsv(ctx, uri)
+    }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) vm.exportCsv(ctx, uri, exportFormat)
+    }
+    // Picked once; Google Drive shows up in the picker. The weekly job then overwrites this file.
+    val weeklyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            DriveBackup.enable(ctx.applicationContext, uri)
+            vm.backupNow(ctx)
+        }
     }
 
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
@@ -171,8 +205,20 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 csvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
             }
             HorizontalDivider(color = Palette.Outline)
+            Action(Icons.Filled.FileDownload, "Export CSV", "ManaBox, Moxfield, Archidekt") { choosingExport = true }
+            HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Save, "Back up", "Save everything to a file") {
                 backupLauncher.launch("mtg-scanner-backup-${LocalDate.now()}.json")
+            }
+            HorizontalDivider(color = Palette.Outline)
+            val weekly = DriveBackup.uri != null
+            ToggleRow("Weekly backup", if (weekly) "Last backup: ${backupDay(DriveBackup.lastBackup)}" else "To Drive or a folder", weekly) { on ->
+                if (on) weeklyLauncher.launch("mtg-scanner-backup.json") else DriveBackup.disable(ctx.applicationContext)
+            }
+            if (weekly) {
+                Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
+                    TextButton(onClick = { vm.backupNow(ctx) }) { Text("Back up now") }
+                }
             }
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Restore, "Restore backup", "Replaces everything in the app") {
@@ -199,7 +245,31 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     }
 
     rows?.let { r -> ImportDialog(r, boxes, onCancel = vm::cancelImport, onImport = vm::import) }
+
+    if (choosingExport) {
+        AlertDialog(
+            onDismissRequest = { choosingExport = false },
+            containerColor = Palette.Surface,
+            title = { Text("Export for") },
+            text = {
+                Column {
+                    CsvFormat.entries.forEach { f -> Choice(f.label, exportFormat == f, null) { exportFormat = f } }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    choosingExport = false
+                    exportLauncher.launch("mtg-${exportFormat.fileTag}-${LocalDate.now()}.csv")
+                }) { Text("Export") }
+            },
+            dismissButton = { TextButton(onClick = { choosingExport = false }) { Text("Cancel") } },
+        )
+    }
 }
+
+private fun backupDay(millis: Long): String =
+    if (millis <= 0) "never"
+    else DateTimeFormatter.ofPattern("MMM d", Locale.US).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 
 @Composable
 private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -> Unit, onImport: (Long) -> Unit) {

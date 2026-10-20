@@ -12,6 +12,7 @@ data class CardFacts(
     val foil: Boolean,
     val price: Double?,
     val setCode: String,
+    val name: String = "",
 )
 
 /**
@@ -29,10 +30,13 @@ data class BoxRules(
     val minPrice: Double? = null,
     val maxPrice: Double? = null,
     val sets: Set<String> = emptySet(),
+    /** Card names starting from this letter to [nameTo] (inclusive), like "A"–"M". Used to split a full box. */
+    val nameFrom: String? = null,
+    val nameTo: String? = null,
 ) {
     val isCatchAll: Boolean
         get() = colors.isEmpty() && rarities.isEmpty() && types.isEmpty() && treatments.isEmpty() &&
-            finish == "any" && minPrice == null && maxPrice == null && sets.isEmpty()
+            finish == "any" && minPrice == null && maxPrice == null && sets.isEmpty() && nameFrom == null && nameTo == null
 
     fun matches(c: CardFacts): Boolean {
         if (colors.isNotEmpty()) {
@@ -57,6 +61,12 @@ data class BoxRules(
         if (minPrice != null && p < minPrice) return false
         if (maxPrice != null && p >= maxPrice) return false
         if (sets.isNotEmpty() && c.setCode.uppercase() !in sets.map { it.uppercase() }) return false
+        if (nameFrom != null || nameTo != null) {
+            val first = c.name.trimStart().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: '#'
+            val letter = if (first.isLetter()) first else '#'
+            if (nameFrom != null && letter < nameFrom.first().uppercaseChar() && letter != '#') return false
+            if (nameTo != null && letter > nameTo.first().uppercaseChar()) return false
+        }
         return true
     }
 
@@ -76,6 +86,7 @@ data class BoxRules(
             maxPrice != null -> parts += "Under ${money(maxPrice)}"
         }
         if (sets.isNotEmpty()) parts += sets.joinToString(", ") { it.uppercase() }
+        if (nameFrom != null || nameTo != null) parts += "${nameFrom ?: "A"}–${nameTo ?: "Z"}"
         return parts.joinToString(" · ")
     }
 

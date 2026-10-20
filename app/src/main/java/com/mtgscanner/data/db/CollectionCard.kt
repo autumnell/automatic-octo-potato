@@ -57,6 +57,12 @@ data class CollectionCard(
     val conditionPrice: Double? = null,
     /** When [conditionPrice] was fetched (0 = never). */
     val conditionPriceAt: Long = 0,
+    /** Signed by the artist or a player. */
+    val signed: Boolean = false,
+    /** Altered art. */
+    val altered: Boolean = false,
+    /** Grading, like "PSA 9"; empty when ungraded. */
+    val graded: String = "",
     val addedAt: Long,
     val updatedAt: Long,
 )
@@ -90,7 +96,7 @@ fun CollectionCard.changeSinceAdded(): Double? {
 fun CollectionCard.facts() = com.mtgscanner.data.CardFacts(
     colors = colors, rarity = rarity, typeLine = typeLine,
     treatments = treatments.split(',').filter { it.isNotBlank() }.toSet(),
-    foil = foil, price = unitPrice(), setCode = setCode,
+    foil = foil, price = unitPrice(), setCode = setCode, name = name,
 )
 
 fun CollectionCard.roleList(): List<String> = roles.split(',').map { it.trim() }.filter { it.isNotEmpty() }

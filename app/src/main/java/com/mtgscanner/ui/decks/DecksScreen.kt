@@ -58,7 +58,6 @@ import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
-import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
@@ -71,13 +70,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-/** A legendary creature you own, and how many of your cards could go in its Commander deck. */
-data class CommanderIdea(val name: String, val imageUrl: String?, val identity: String, val playable: Int, val cardId: Long)
 
 /** A saved deck with how much of it you own. */
 data class DeckRow(val deck: Deck, val cards: Int, val owned: Int)
@@ -97,27 +92,12 @@ class DecksViewModel(repo: CollectionRepository) : ViewModel() {
             DeckRow(d, lines.sumOf { it.quantity }, have)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    /** Commanders best supported by the cards you own. */
-    val commanders: StateFlow<List<CommanderIdea>> = repo.observeAll().map { cards ->
-        val legal = cards.filter { "legal:commander" in it.tags.split(',') }
-        val unique = legal.distinctBy { it.oracleId ?: it.name }
-        unique.filter { c ->
-            (c.typeLine.contains("Legendary") && c.typeLine.contains("Creature")) ||
-                c.oracleText.contains("can be your commander", ignoreCase = true)
-        }.map { cmd ->
-            val id = cmd.colorIdentity.toSet()
-            val playable = unique.count { o -> o.name != cmd.name && o.colorIdentity.all { it in id } }
-            CommanderIdea(cmd.name, cmd.imageUrl, cmd.colorIdentity, playable, cmd.id)
-        }.sortedByDescending { it.playable }.take(10)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 /** The Decks tab on the Collection screen. */
 @Composable
-fun DecksTab(onOpenDeck: (Long) -> Unit, onOpenCard: (Long) -> Unit = {}, vm: DecksViewModel = viewModel(factory = AppViewModels.Factory)) {
+fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory = AppViewModels.Factory)) {
     val decks by vm.decks.collectAsStateWithLifecycle()
-    val commanders by vm.commanders.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             SectionHeader("Decks") {
@@ -161,38 +141,6 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, onOpenCard: (Long) -> Unit = {}, vm: De
                     )
                     Spacer(Modifier.height(6.dp))
                     Text("You own ${row.owned} of ${row.cards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-                }
-            }
-        }
-        if (commanders.isNotEmpty()) {
-            item {
-                SectionHeader("Commander ideas")
-                Text(
-                    "Ranked by how many of your cards fit.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Palette.Muted,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-            items(commanders, key = { "c" + it.name }) { c ->
-                Surface(
-                    onClick = { onOpenCard(c.cardId) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Palette.Surface,
-                ) {
-                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CardImage(c.imageUrl, Modifier.width(44.dp), corner = 4.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (c.identity.isEmpty()) Text("Colorless", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                                c.identity.forEach { ColorPip(it); Spacer(Modifier.width(3.dp)) }
-                            }
-                        }
-                        Text("${c.playable} cards", style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
-                    }
                 }
             }
         }

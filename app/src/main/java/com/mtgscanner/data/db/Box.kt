@@ -21,6 +21,10 @@ data class Box(
     val sortOrder: Int = 0,
     /** Cards that fit no box go here. At most one box has this set. */
     val fallback: Boolean = false,
+    /** Most cards the box holds; 0 means no limit. */
+    val capacity: Int = 0,
+    /** How the box is split inside: a [com.mtgscanner.data.Divider] key; empty means no dividers. */
+    val divider: String = "",
 ) {
     companion object {
         /** The "Bulk" box made by older versions. New installs start with no boxes. */
@@ -48,4 +52,9 @@ data class BoxSummary(
     val rules: String = "",
     val color: Int = 0,
     val fallback: Boolean = false,
+    val capacity: Int = 0,
+    val divider: String = "",
 )
+
+/** Copies in a box, for capacity checks. */
+data class BoxCount(val boxId: Long, val n: Int)

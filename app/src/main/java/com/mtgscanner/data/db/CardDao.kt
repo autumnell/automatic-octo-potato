@@ -47,6 +47,13 @@ interface CardDao {
     @Update
     suspend fun updateAll(cards: List<CollectionCard>)
 
+    /** Copies of a card (by oracle id) outside the given boxes. */
+    @Query("SELECT COALESCE(SUM(quantity), 0) FROM cards WHERE oracleId = :oracleId AND boxId NOT IN (:excluded)")
+    suspend fun ownedOutside(oracleId: String, excluded: List<Long>): Int
+
+    @Query("SELECT boxId, COALESCE(SUM(quantity), 0) AS n FROM cards GROUP BY boxId")
+    suspend fun boxCounts(): List<BoxCount>
+
     @Query("UPDATE cards SET conditionPrice = :price, conditionPriceAt = :at WHERE id = :id")
     suspend fun setConditionPrice(id: Long, price: Double?, at: Long)
 

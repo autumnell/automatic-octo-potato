@@ -125,7 +125,6 @@ class CollectionRepository(
     fun observeWishlist(): Flow<List<WishlistItem>> = dao.observeWishlist()
     fun observePending(): Flow<List<PendingScan>> = dao.observePending()
     fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>> = dao.observePriceHistory(scryfallId)
-    fun observePacks(): Flow<List<PackOpening>> = dao.observePacks()
 
     /** Starts background work: the name list, daily prices, card roles and offline scans. */
     fun startBackgroundWork() {
@@ -145,7 +144,7 @@ class CollectionRepository(
         val byBox = cards.groupBy { it.boxId }
         boxes.map { b ->
             val inBox = byBox[b.id].orEmpty()
-            BoxSummary(b.id, b.name, b.kind, inBox.sumOf { it.quantity }, inBox.sumOf { it.totalPrice() }, b.rules, b.color, b.fallback)
+            BoxSummary(b.id, b.name, b.kind, inBox.sumOf { it.quantity }, inBox.sumOf { it.totalPrice() }, b.rules, b.color, b.fallback, b.capacity, b.divider)
         }
     }
 
@@ -155,9 +154,23 @@ class CollectionRepository(
         return dao.insertBox(Box(name = name.trim(), kind = kind, rules = rules.toJson(), color = color, sortOrder = next))
     }
 
-    suspend fun updateBox(id: Long, name: String, kind: String, rules: BoxRules, color: Int) {
+    suspend fun updateBox(
+        id: Long, name: String, kind: String, rules: BoxRules, color: Int,
+        capacity: Int? = null, divider: String? = null,
+    ) {
         val b = dao.box(id) ?: return
-        dao.updateBox(b.copy(name = name.trim(), kind = kind, rules = rules.toJson(), color = color))
+        dao.updateBox(
+            b.copy(
+                name = name.trim(), kind = kind, rules = rules.toJson(), color = color,
+                capacity = capacity ?: b.capacity, divider = divider ?: b.divider,
+            ),
+        )
+    }
+
+    /** Sets how many cards a box holds (0 = no limit) and how it's split inside. */
+    suspend fun setBoxLayout(id: Long, capacity: Int, divider: String) {
+        val b = dao.box(id) ?: return
+        dao.updateBox(b.copy(capacity = capacity.coerceAtLeast(0), divider = divider))
     }
 
     /** Saves the Auto-sort order: [ids] first to last. */
@@ -173,6 +186,7 @@ class CollectionRepository(
      * With [moveTo] = [Box.AUTO_SORT] each card goes to the box whose rules fit it.
      */
     suspend fun deleteBox(id: Long, moveTo: Long?) = db.withTransaction {
+        SortPrefs.forgetBox(id)
         val cards = dao.inBox(id)
         if (moveTo == null) dao.deleteCardsInBox(id)
         else {
@@ -223,14 +237,74 @@ class CollectionRepository(
 
     suspend fun cardsInBox(id: Long): List<CollectionCard> = dao.inBox(id)
 
-    /** The box a card belongs in by the boxes' rules, or null when no box fits. */
-    suspend fun pickBox(facts: CardFacts): Long? {
-        // A trade binder with no rules isn't a catch-all: unmatched cards shouldn't be listed for trade.
-        val boxes = dao.allBoxes().filter { it.kind != "trade" || !it.boxRules().isCatchAll || it.fallback }
-        return BoxRules.pick(boxes.map { it.id to it.boxRules() }, facts, fallback = boxes.firstOrNull { it.fallback }?.id)
+    /** Every box in Auto-sort order with its card count, for the sorting rules. */
+    suspend fun boxInfos(): List<BoxInfo> {
+        val counts = dao.boxCounts().associate { it.boxId to it.n }
+        return dao.allBoxes().map { BoxInfo(it.id, it.boxRules(), it.kind, it.capacity, counts[it.id] ?: 0, it.fallback) }
     }
 
-    suspend fun pickBox(card: ScryfallCard, foil: Boolean): Long? = pickBox(card.facts(foil))
+    /** Copies of a card already in main boxes, for the keep-a-playset rule. */
+    private suspend fun ownedInMain(oracleId: String?, boxes: List<BoxInfo>, policy: SortPolicy): Int {
+        if (oracleId == null || policy.playsetLimit <= 0) return 0
+        val notMain = boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id }.ifEmpty { listOf(Long.MIN_VALUE) }
+        return dao.ownedOutside(oracleId, notMain)
+    }
+
+    /** Where a card goes and why, using box rules, capacity, the bulk floor and the playset limit. */
+    suspend fun pickDecision(facts: CardFacts, oracleId: String? = null): SortDecision? {
+        val boxes = boxInfos()
+        val policy = SortPrefs.policy
+        return Sorting.decide(boxes, facts, policy, ownedInMain(oracleId, boxes, policy))
+    }
+
+    /** The box a card belongs in, or null when no box fits. */
+    suspend fun pickBox(facts: CardFacts, oracleId: String? = null): Long? = pickDecision(facts, oracleId)?.boxId
+
+    suspend fun pickBox(card: ScryfallCard, foil: Boolean): Long? = pickBox(card.facts(foil), card.oracleId)
+
+    /** The divider inside [boxId] a card goes behind ("Blue", "R", "MH3"), or null when the box has none. */
+    suspend fun spotFor(boxId: Long, name: String, facts: CardFacts): String? {
+        val b = dao.box(boxId) ?: return null
+        return Sorting.spot(Divider.of(b.divider), name, facts)
+    }
+
+    /** Cards that now belong in a different box, after rules changed. */
+    suspend fun misplaced(): List<Sorting.Move<CollectionCard>> =
+        Sorting.misplaced(dao.all(), { it.boxId }, { it.facts() }, boxInfos(), SortPrefs.policy)
+
+    /** Applies moves; returns what's needed to undo them (entry id → old box). */
+    suspend fun applyMoves(moves: List<Pair<Long, Long>>): List<Pair<Long, Long>> = db.withTransaction {
+        moves.mapNotNull { (id, to) ->
+            val c = dao.get(id) ?: return@mapNotNull null
+            val newId = moveToBox(id, to)
+            newId to c.boxId
+        }
+    }
+
+    /**
+     * Splits a full box in two by first letter: the original keeps A to the split letter, a new box
+     * takes the rest with the same rules. Returns the new box id, or null when it can't be split.
+     */
+    suspend fun splitBox(id: Long): Long? = db.withTransaction {
+        val b = dao.box(id) ?: return@withTransaction null
+        val cards = dao.inBox(id)
+        val at = Sorting.splitLetter(cards.map { it.name to it.quantity }) ?: return@withTransaction null
+        val before = (at - 1)
+        val rules = b.boxRules()
+        val first = rules.copy(nameFrom = rules.nameFrom ?: "A", nameTo = before.toString())
+        val second = rules.copy(nameFrom = at.toString(), nameTo = rules.nameTo ?: "Z")
+        val base = b.name.replace(Regex("""\s+\S–\S$"""), "")
+        dao.updateBox(b.copy(name = "$base ${first.nameFrom}–${first.nameTo}", rules = first.toJson()))
+        val newId = createBox("$base ${second.nameFrom}–${second.nameTo}", b.kind, second, b.color)
+        dao.box(newId)?.let { dao.updateBox(it.copy(capacity = b.capacity, divider = b.divider)) }
+        // Put the new box right after the old one in the Auto-sort order.
+        val order = dao.allBoxes().map { it.id }.toMutableList()
+        order.remove(newId); order.add(order.indexOf(id) + 1, newId)
+        reorderBoxes(order)
+        for (c in cards) if (second.matches(c.facts())) moveToBox(c.id, newId)
+        newId
+    }
+
 
     /** Moves an entry to another box, merging with the same printing already there. Returns the surviving id. */
     suspend fun moveToBox(id: Long, boxId: Long): Long {
@@ -262,8 +336,11 @@ class CollectionRepository(
      * then the card name (corrected against the offline name list), and uses the artwork to pick
      * the printing when the footer couldn't be read. Throws [IOException] when offline.
      */
-    suspend fun identify(guess: CardTextGuess): Identification? {
-        val key = guess.key ?: return null
+    suspend fun identify(raw: CardTextGuess): Identification? {
+        // With the set lock on, every read is looked up in that set first.
+        val lock = SortPrefs.setLock
+        val guess = lock?.let { raw.copy(setCode = it) } ?: raw
+        val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "")
         val cached = synchronized(lookupCache) { if (lookupCache.containsKey(key)) lookupCache[key] else null }
         val base = cached ?: doIdentify(guess).also { r -> if (r != null) synchronized(lookupCache) { lookupCache[key] = r } }
         base ?: return null
@@ -521,11 +598,6 @@ class CollectionRepository(
         dao.clearConditionPrices()
         runCatching { recordSnapshot() }
     }
-
-    // Packs
-
-    suspend fun savePack(p: PackOpening): Long = dao.addPack(p)
-    suspend fun deletePack(id: Long) = dao.deletePack(id)
 
     suspend fun allCards(): List<CollectionCard> = dao.all()
 
@@ -917,4 +989,5 @@ fun ScryfallCard.facts(foil: Boolean) = CardFacts(
     foil = foil,
     price = (if (foil) (prices.usdFoil ?: prices.usdEtched ?: prices.usd) else prices.usd)?.toDoubleOrNull(),
     setCode = set,
+    name = name,
 )

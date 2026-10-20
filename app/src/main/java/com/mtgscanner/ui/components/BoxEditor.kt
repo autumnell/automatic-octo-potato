@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import com.mtgscanner.MtgApp
 import com.mtgscanner.data.BOX_PRESETS
 import com.mtgscanner.data.BoxRules
+import com.mtgscanner.data.Divider
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.boxRules
 import com.mtgscanner.data.db.facts
@@ -70,6 +71,10 @@ data class BoxDraft(
     val kind: String = "box",
     val color: Int = 0,
     val rules: BoxRules = BoxRules(),
+    /** Most cards it holds; 0 = no limit. */
+    val capacity: Int = 0,
+    /** A [Divider] key; empty = no dividers. */
+    val divider: String = "",
 )
 
 /** A box's label color; 0 means the accent color. */
@@ -90,6 +95,8 @@ fun BoxEditorSheet(
     editingId: Long? = null,
     onSave: (BoxDraft) -> Unit,
     onDismiss: () -> Unit,
+    /** Shows the dividers and capacity fields; the caller must save [BoxDraft.capacity] and [BoxDraft.divider]. */
+    layout: Boolean = false,
 ) {
     val isNew = initial == null
     var draft by remember { mutableStateOf(initial ?: BoxDraft()) }
@@ -97,6 +104,7 @@ fun BoxEditorSheet(
     var minText by remember { mutableStateOf(draft.rules.minPrice?.let(::plain) ?: "") }
     var maxText by remember { mutableStateOf(draft.rules.maxPrice?.let(::plain) ?: "") }
     var setsText by remember { mutableStateOf(draft.rules.sets.joinToString(", ")) }
+    var capText by remember { mutableStateOf(draft.capacity.takeIf { it > 0 }?.toString() ?: "") }
 
     fun rules() = draft.rules.copy(
         minPrice = minText.replace(',', '.').toDoubleOrNull(),
@@ -142,6 +150,15 @@ fun BoxEditorSheet(
                 )
             }
 
+            if (step == 3 && layout) {
+                LayoutCards(
+                    divider = Divider.of(draft.divider),
+                    onDivider = { draft = draft.copy(divider = it.key) },
+                    capText = capText,
+                    onCap = { v -> capText = v.filter { it.isDigit() }.take(5) },
+                )
+            }
+
             if (step == 3) {
                 Spacer(Modifier.height(14.dp))
                 LivePreview(rules(), editingId)
@@ -153,7 +170,7 @@ fun BoxEditorSheet(
                 2 -> GradientButton("Next: what goes in it", { step = 3 }, Modifier.fillMaxWidth(), enabled = draft.name.isNotBlank())
                 else -> GradientButton(
                     if (isNew) "Create box" else "Save",
-                    { onSave(draft.copy(name = draft.name.trim(), rules = rules())) },
+                    { onSave(draft.copy(name = draft.name.trim(), rules = rules(), capacity = capText.toIntOrNull() ?: 0)) },
                     Modifier.fillMaxWidth(),
                     enabled = draft.name.isNotBlank(),
                 )
@@ -368,6 +385,27 @@ private fun RulesStep(
             value = setsText, onValueChange = onSets,
             placeholder = { Text("Set codes, e.g. MH3, BLB") },
             singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+        )
+    }
+}
+
+/** How the box is laid out inside: dividers and how many cards fit. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LayoutCards(divider: Divider, onDivider: (Divider) -> Unit, capText: String, onCap: (String) -> Unit) {
+    var open by remember { mutableStateOf<String?>(null) }
+    Label("Inside the box")
+    RuleCard("Dividers", divider.takeIf { it != Divider.NONE }?.label, open == "div", { open = if (open == "div") null else "div" }) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Divider.entries.forEach { d -> SelectPill(d.label, d == divider, { onDivider(d) }) }
+        }
+    }
+    RuleCard("Capacity", capText.toIntOrNull()?.takeIf { it > 0 }?.let { "$it cards" }, open == "cap", { open = if (open == "cap") null else "cap" }) {
+        OutlinedTextField(
+            value = capText, onValueChange = onCap,
+            placeholder = { Text("No limit") },
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     }
 }

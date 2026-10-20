@@ -68,10 +68,10 @@ object CsvImport {
 
     fun conditionCode(s: String): String = when (s.trim().lowercase().replace("_", " ")) {
         "mint", "near mint", "nm", "m", "nm-m", "nearmint" -> "NM"
-        "lightly played", "lp", "excellent", "ex", "slightly played", "sp", "good (lightly played)", "lightlyplayed" -> "LP"
+        "lightly played", "lp", "excellent", "ex", "slightly played", "sp", "good (lightly played)", "lightlyplayed", "light played" -> "LP"
         "moderately played", "mp", "good", "gd", "played", "pl", "moderatelyplayed" -> "MP"
         "heavily played", "hp", "poor", "heavilyplayed" -> "HP"
-        "damaged", "dmg", "dm" -> "DMG"
+        "damaged", "dmg", "dm", "d" -> "DMG"
         else -> "NM"
     }
 

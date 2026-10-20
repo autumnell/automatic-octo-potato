@@ -74,6 +74,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.Sorting
+import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.BoxSummary
@@ -128,8 +130,63 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
 
-    fun createBox(d: BoxDraft) = viewModelScope.launch { repo.createBox(d.name, d.kind, d.rules, d.color) }
-    fun updateBox(id: Long, d: BoxDraft) = viewModelScope.launch { repo.updateBox(id, d.name, d.kind, d.rules, d.color) }
+    fun createBox(d: BoxDraft) = viewModelScope.launch {
+        val id = repo.createBox(d.name, d.kind, d.rules, d.color)
+        if (d.capacity > 0 || d.divider.isNotEmpty()) repo.setBoxLayout(id, d.capacity, d.divider)
+        if (!d.rules.isCatchAll) findMisplaced(quiet = true)
+    }
+
+    /** Saves a box; when its rules or kind changed, checks for cards that now belong elsewhere. */
+    fun updateBox(id: Long, d: BoxDraft) = viewModelScope.launch {
+        val old = repo.box(id)
+        repo.updateBox(id, d.name, d.kind, d.rules, d.color, capacity = d.capacity, divider = d.divider)
+        if (old == null || BoxRules.fromJson(old.rules) != d.rules || old.kind != d.kind) findMisplaced(quiet = true)
+    }
+
+    // Re-sort: cards that should live in another box
+
+    private val _moves = MutableStateFlow<List<Sorting.Move<CollectionCard>>?>(null)
+    /** Cards to move after a rule change; null hides the sheet. */
+    val moves: StateFlow<List<Sorting.Move<CollectionCard>>?> = _moves
+
+    /** Looks for misplaced cards. [quiet] says nothing when all is well. */
+    fun findMisplaced(quiet: Boolean = false) = viewModelScope.launch {
+        val found = repo.misplaced()
+        if (found.isNotEmpty()) _moves.value = found
+        else if (!quiet) _message.value = "All cards in place"
+    }
+
+    fun closeMoves() { _moves.value = null }
+
+    private fun applyMoves(list: List<Sorting.Move<CollectionCard>>) = viewModelScope.launch {
+        if (list.isEmpty()) return@launch
+        val undo = repo.applyMoves(list.map { it.item.id to it.to })
+        val n = list.sumOf { it.item.quantity }
+        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.applyMoves(undo) }
+        val left = repo.misplaced()
+        _moves.value = left.ifEmpty { null }
+    }
+
+    fun moveOne(m: Sorting.Move<CollectionCard>) = applyMoves(listOf(m))
+    fun moveAll() = applyMoves(_moves.value.orEmpty())
+
+    /** Splits a full box in two by first letter. */
+    fun splitBox(b: BoxSummary) = viewModelScope.launch {
+        val newId = repo.splitBox(b.id)
+        _message.value = if (newId == null) "Can't split ${b.name}" else "Split ${b.name}"
+    }
+
+    // Smart lists: saved Browse searches that update themselves
+
+    private val searches = SavedSearchStore(repo.appContext)
+    val lists: StateFlow<List<SmartList>> = combine(repo.observeAll(), searches.saved) { all, saved ->
+        saved.map { s -> SmartList.of(s, all) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun deleteList(s: SavedSearch) {
+        searches.delete(s.name)
+        Undo.offer("Deleted ${s.name}") { searches.save(s.name, s.filters) }
+    }
 
     /** Saves the Auto-sort order, first to last. */
     fun reorder(ids: List<Long>) = viewModelScope.launch { repo.reorderBoxes(ids) }
@@ -177,7 +234,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun setWanted(item: WishlistItem, wanted: Int) = viewModelScope.launch { repo.setWishWanted(item, wanted) }
 
-    private val allCards: StateFlow<List<com.mtgscanner.data.db.CollectionCard>> = repo.observeAll()
+    private val allCards: StateFlow<List<CollectionCard>> = repo.observeAll()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     fun cardsIn(boxId: Long) = allCards.value.filter { it.boxId == boxId }.sortedBy { it.name }
 
@@ -213,10 +270,10 @@ fun CollectionScreen(
     onSettings: () -> Unit,
     onOpenDeck: (deckId: Long) -> Unit,
     onOpenCard: (Long) -> Unit = {},
-    onTrade: () -> Unit = {},
+    /** Opens the trade screen for a trade binder. */
+    onTrade: (binderId: Long) -> Unit = {},
     onSets: () -> Unit = {},
     onExtras: () -> Unit = {},
-    onPacks: () -> Unit = {},
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -268,18 +325,24 @@ fun CollectionScreen(
                 listOf("Boxes", "Decks", "Wishlist", "Tools").forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
             }
             when (tab) {
-                0 -> BoxesTab(ui, vm, onBrowse)
-                1 -> DecksTab(onOpenDeck, onOpenCard)
+                0 -> BoxesTab(ui, vm, onBrowse, onTrade)
+                1 -> DecksTab(onOpenDeck)
                 2 -> WishlistTab(vm)
-                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onPacks)
+                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras)
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
+    val moves by vm.moves.collectAsStateWithLifecycle()
+    moves?.let { list ->
+        ResortSheet(list, ui.boxes, onMove = vm::moveOne, onMoveAll = vm::moveAll, onDismiss = vm::closeMoves)
+    }
 }
 
 @Composable
-private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit) {
+private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit) {
+    val lists by vm.lists.collectAsStateWithLifecycle()
+    var splitting by remember { mutableStateOf<BoxSummary?>(null) }
     var editing by remember { mutableStateOf<BoxSummary?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<BoxSummary?>(null) }
@@ -329,21 +392,30 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             )
         }
         ui.boxes.forEach { b ->
-            BoxCard(b, onClick = { onBrowse(b.id) }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b })
+            BoxCard(
+                b, onClick = { onBrowse(b.id) }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
+                onSplit = { splitting = b }, onTrade = { onTrade(b.id) },
+            )
         }
+        SmartListsSection(lists, onOpen = { s ->
+            BrowseLaunch.filters = s.filters
+            BrowseLaunch.title = s.name
+            onBrowse(-1L)
+        }, onDelete = vm::deleteList)
         Spacer(Modifier.height(24.dp))
     }
 
     if (creating) {
-        BoxEditorSheet(title = "New box", onSave = { vm.createBox(it); creating = false }, onDismiss = { creating = false })
+        BoxEditorSheet(title = "New box", onSave = { vm.createBox(it); creating = false }, onDismiss = { creating = false }, layout = true)
     }
     editing?.let { b ->
         BoxEditorSheet(
             title = "Edit box",
-            initial = BoxDraft(b.name, b.kind, b.color, BoxRules.fromJson(b.rules)),
+            initial = BoxDraft(b.name, b.kind, b.color, BoxRules.fromJson(b.rules), b.capacity, b.divider),
             editingId = b.id,
             onSave = { vm.updateBox(b.id, it); editing = null },
             onDismiss = { editing = null },
+            layout = true,
         )
     }
     sorting?.let { b ->
@@ -359,6 +431,16 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             title = "Sort out of ${b.name}",
             onSave = { vm.sortIntoNew(b.id, b.name, it); sortingNew = null },
             onDismiss = { sortingNew = null },
+        )
+    }
+    splitting?.let { b ->
+        AlertDialog(
+            onDismissRequest = { splitting = null },
+            containerColor = Palette.Surface,
+            title = { Text("Split ${b.name}?") },
+            text = { Text("Makes two boxes by first letter, like A–M and N–Z.") },
+            confirmButton = { TextButton(onClick = { vm.splitBox(b); splitting = null }) { Text("Split") } },
+            dismissButton = { TextButton(onClick = { splitting = null }) { Text("Cancel") } },
         )
     }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
@@ -465,9 +547,14 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit) {
+private fun BoxCard(
+    b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit,
+    onSplit: () -> Unit, onTrade: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
+    // Nearly full at 90%.
+    val nearlyFull = b.capacity > 0 && b.cards * 10 >= b.capacity * 9
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(
             onClick = onClick,
@@ -489,8 +576,13 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        if (b.cards == 0) "No cards" else "${b.cards} cards",
+                        when {
+                            b.capacity > 0 -> "${b.cards} / ${b.capacity}"
+                            b.cards == 0 -> "No cards"
+                            else -> "${b.cards} cards"
+                        } + (if (b.cards >= b.capacity && b.capacity > 0) " · Full" else ""),
                         style = MaterialTheme.typography.bodyLarge,
+                        color = if (nearlyFull) Palette.Gold else Palette.Text,
                         modifier = Modifier.weight(1f).padding(bottom = 4.dp),
                     )
                     if (AppSettings.showPrices) Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall)
@@ -500,8 +592,10 @@ private fun BoxCard(b: BoxSummary, onClick: () -> Unit, onEdit: () -> Unit, onDe
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options") }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Edit name and rules") }, onClick = { menu = false; onEdit() })
-                if (b.cards > 0) DropdownMenuItem(text = { Text("Sort cards out of this box") }, onClick = { menu = false; onSort() })
+                DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
+                if (b.kind == "trade") DropdownMenuItem(text = { Text("Trade") }, onClick = { menu = false; onTrade() })
+                if (nearlyFull && b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
+                if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
         }
@@ -518,21 +612,20 @@ private fun shareSheet(ctx: android.content.Context, title: String, text: String
 /** Tools, plus your trade binders with a share button each. */
 @Composable
 private fun ToolsTab(
-    ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: () -> Unit,
-    onSets: () -> Unit, onExtras: () -> Unit, onPacks: () -> Unit,
+    ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit,
+    onSets: () -> Unit, onExtras: () -> Unit,
 ) {
     val trade = ui.boxes.filter { it.kind == "trade" }
     val ctx = LocalContext.current
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ToolCard(Icons.Filled.SwapHoriz, "Trade calculator", "Compare what you give and get", onTrade)
+            ToolCard(Icons.Filled.AutoFixHigh, "Re-sort", "Cards in the wrong box", { vm.findMisplaced() })
             ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
             ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
-            ToolCard(Icons.Filled.Inventory2, "Pack history", "Packs you opened and their value", onPacks)
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(
-                    "Make a box of kind \"Trade binder\" and it shows up here.",
+                    "Make a Trade binder box to trade.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                     modifier = Modifier.padding(horizontal = 20.dp),
@@ -553,6 +646,7 @@ private fun ToolsTab(
                         Text(b.name, style = MaterialTheme.typography.titleMedium)
                         Text("${b.cards} cards${priceSuffix(b.value)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
+                    TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
                     IconButton(enabled = b.cards > 0, onClick = {
                         shareSheet(ctx, b.name, binderShareText(b.name, vm.cardsIn(b.id), AppSettings.showPrices))
                     }) { Icon(Icons.Filled.Share, "Share ${b.name}") }

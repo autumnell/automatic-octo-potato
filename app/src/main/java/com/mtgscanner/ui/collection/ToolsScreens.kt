@@ -68,7 +68,6 @@ import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
-import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
@@ -80,7 +79,6 @@ import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
-import com.mtgscanner.ui.home.ChangeText
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -89,9 +87,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /** How much of a set you own: different collector numbers, out of every printing in the set. */
 data class SetProgress(
@@ -106,7 +101,7 @@ data class SetProgress(
     val fraction: Float get() = if (total > 0) (owned.toFloat() / total).coerceAtMost(1f) else 0f
 }
 
-/** Set tracker, extras finder and pack history. */
+/** Set tracker and extras finder. */
 class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
     val cards: StateFlow<List<CollectionCard>> = repo.observeAll().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -195,11 +190,6 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun createTradeBinder() = viewModelScope.launch { repo.createBox("Trade binder", "trade") }
-
-    // Packs
-
-    val packs: StateFlow<List<PackOpening>> = repo.observePacks().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    fun deletePack(id: Long) = viewModelScope.launch { repo.deletePack(id) }
 }
 
 @Composable
@@ -410,69 +400,6 @@ fun ExtrasScreen(onBack: () -> Unit) {
                         Modifier.fillMaxWidth(),
                         enabled = n > 0 && dest != null,
                     )
-                }
-            }
-        }
-    }
-}
-
-/** Packs opened in pack mode, with what each was worth. */
-@Composable
-fun PacksScreen(onBack: () -> Unit) {
-    val vm = toolsVm()
-    val packs by vm.packs.collectAsStateWithLifecycle()
-    var open by remember { mutableStateOf<Long?>(null) }
-    val fmt = remember { SimpleDateFormat("MMM d, yyyy", Locale.US) }
-
-    Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        val spent = packs.sumOf { it.cost ?: 0.0 }
-        val pulled = packs.sumOf { it.value }
-        TopBar(
-            "Pack history",
-            if (packs.isEmpty()) null else "${packs.size} packs" + if (AppSettings.showPrices) " · paid ${formatUsd(spent)} · pulled ${formatUsd(pulled)}" else "",
-            onBack,
-        )
-        if (packs.isEmpty()) {
-            EmptyState(Icons.Filled.Inventory2, "No packs yet", "Open a pack from the scanner's modes button.")
-            return@Column
-        }
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-            items(packs, key = { it.id }) { p ->
-                Surface(
-                    onClick = { open = if (open == p.id) null else p.id },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    color = Palette.Surface,
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(p.name, style = MaterialTheme.typography.titleMedium)
-                                Text("${fmt.format(Date(p.openedAt))} · ${p.cards} cards", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                            }
-                            if (AppSettings.showPrices) Column(horizontalAlignment = Alignment.End) {
-                                Text(formatUsd(p.value), style = MaterialTheme.typography.titleMedium, color = Palette.Accent)
-                                p.cost?.takeIf { it > 0 }?.let { ChangeText(p.value - it, it, MaterialTheme.typography.labelMedium) }
-                            }
-                        }
-                        if (p.best.isNotBlank()) Text("Best: ${p.best}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
-                        if (open == p.id) {
-                            Spacer(Modifier.height(8.dp))
-                            p.pulls.lines().filter { it.isNotBlank() }.forEach { line ->
-                                val parts = line.split('|')
-                                Row {
-                                    Text("${parts.getOrNull(0)} (${parts.getOrNull(1)?.uppercase()} #${parts.getOrNull(2)})",
-                                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                    if (AppSettings.showPrices) Text(formatUsd(parts.getOrNull(3)?.toDoubleOrNull()), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                                }
-                            }
-                            TextButton(onClick = { vm.deletePack(p.id) }) {
-                                Icon(Icons.Filled.DeleteOutline, null, Modifier.size(16.dp), tint = Palette.Danger)
-                                Spacer(Modifier.width(4.dp))
-                                Text("Delete from history", color = Palette.Danger)
-                            }
-                        }
-                    }
                 }
             }
         }

@@ -99,7 +99,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
 @Composable
-fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
+fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, onTrade: (binderId: Long) -> Unit = {}) {
     val vm: BrowseViewModel = viewModel(key = "browse-$boxId", factory = AppViewModels.browse(boxId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     val f by vm.filters.collectAsStateWithLifecycle()
@@ -130,6 +130,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                     color = Palette.Muted,
                 )
             }
+            if (ui.boxes.any { it.id == boxId && it.kind == "trade" }) TextButton(onClick = { onTrade(boxId) }) { Text("Trade") }
             if (ui.totalCards > 0) TextButton(onClick = vm::startSelecting) { Text("Select") }
             IconButton(onClick = vm::toggleGrid) {
                 Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, if (grid) "List view" else "Grid view")
