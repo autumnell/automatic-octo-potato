@@ -1,6 +1,8 @@
 package com.mtgscanner.ui.game
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -35,8 +37,6 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -91,6 +91,9 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
+/** The table color during the day: a warm light cream. */
+private val DAY_TABLE = Color(0xFFEFE8D8)
+
 /** Turns a panel a quarter turn, swapping its width and height so it fills its slot. */
 fun Modifier.rotateLayout(degrees: Int): Modifier = when ((degrees % 360 + 360) % 360) {
     90, 270 -> this.layout { measurable, c ->
@@ -136,13 +139,18 @@ fun GamePlayScreen(onExit: () -> Unit) {
     // Back opens the game menu instead of leaving the table by accident.
     BackHandler(enabled = !menu && playerSheet == null && !ending) { menu = true }
 
+    // Day lights the table up; night (or not tracked) keeps it dark.
+    val tableColor by animateColorAsState(
+        if (g?.dayNight == "day") DAY_TABLE else Color.Black, animationSpec = tween(700), label = "table",
+    )
+
     if (g == null) {
         LaunchedEffect(Unit) { onExit() }
         return
     }
 
     // Taps near the screen edges are life changes, not the system back swipe.
-    Box(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding().systemGestureExclusion()) {
+    Box(Modifier.fillMaxSize().background(tableColor).systemBarsPadding().systemGestureExclusion()) {
         val panel: @Composable (Int, Int, Modifier) -> Unit = { i, rot, mod ->
             PlayerPanel(g, i, rot, style, mod, onLife = { d -> vm.life(i, d) }, onMore = { playerSheet = i })
         }
@@ -315,8 +323,8 @@ private fun PlayerPanel(g: GameState, i: Int, rotation: Int, style: TableStyle, 
                 Modifier.align(Alignment.TopCenter).padding(top = 10.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (g.monarch == i) Badge("Monarch", Icons.Filled.WorkspacePremium, gold = true)
-                if (g.initiative == i) Badge("Initiative", Icons.Filled.Shield, gold = true)
+                if (g.monarch == i) Badge("Monarch", GameIcons.Crown, gold = true)
+                if (g.initiative == i) Badge("Initiative", GameIcons.Sword, gold = true)
                 if (p.poison > 0) Badge("☠ ${p.poison}")
                 val maxCmd = p.commanderDamage.maxOrNull() ?: 0
                 if (g.format.commanderDamage && maxCmd > 0) Badge("⚔ $maxCmd")
