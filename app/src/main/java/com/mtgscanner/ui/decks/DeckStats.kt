@@ -50,6 +50,12 @@ import java.util.concurrent.ConcurrentHashMap
 /** Card data looked up for decks, kept for the app's lifetime. */
 private val cardCache = ConcurrentHashMap<String, DeckCardInfo>()
 
+/** Names Scryfall answered but couldn't find (typos), so they aren't asked for again this session. */
+private val unknownNames: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+/** True when Scryfall has said it has no card by this name. */
+fun deckCardUnknown(name: String): Boolean = DeckStatsMath.key(name) in unknownNames
+
 /**
  * Card data for deck card names, keyed by [DeckStatsMath.key]: from your collection first,
  * then Scryfall (by name, in batches). Names Scryfall can't find, or all of them when offline, are left out.
@@ -73,12 +79,14 @@ suspend fun CollectionRepository.deckCardInfo(names: Collection<String>): Map<St
                 cardCache[k] = info
                 out[k] = info
             }
+            k in unknownNames -> {}
             else -> missing += name
         }
     }
     if (missing.isNotEmpty()) {
         val found = runCatching { api.identify(missing.map { n -> buildJsonObject { put("name", n.substringBefore(" // ")) } }) }.getOrNull()
         missing.zip(found ?: emptyList()).forEach { (n, c) ->
+            if (c == null) unknownNames += DeckStatsMath.key(n)
             if (c != null) {
                 val info = DeckCardInfo(
                     name = c.name, cmc = c.cmc, manaCost = c.effectiveManaCost, typeLine = c.effectiveTypeLine,

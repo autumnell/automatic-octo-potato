@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -90,14 +91,19 @@ import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.util.DeckLine
 import com.mtgscanner.util.DecklistParser
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -118,7 +124,15 @@ data class DeckRow(
     val names: List<String> = emptyList(),
 )
 
+/** Sections that are played; sideboard, maybeboard and tokens don't count toward owning a deck. */
 private val PLAYED = setOf("Main", "Commander", "Companion")
+
+/** Parsed lists by deck id, so a collection change doesn't reparse every deck. */
+private val parsedDecks = java.util.concurrent.ConcurrentHashMap<Long, Pair<String, List<DeckLine>>>()
+
+private fun parsed(d: Deck): List<DeckLine> =
+    parsedDecks[d.id]?.takeIf { it.first == d.text }?.second
+        ?: DecklistParser.parse(d.text).also { parsedDecks[d.id] = d.text to it }
 
 class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
     init { DeckShelfStore.init(repo.appContext) }
@@ -135,13 +149,14 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
         val owned = cards.groupBy { key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
         val folderIds = shelf.folders.map { it.id }.toSet()
         decks.map { d ->
-            val lines = DecklistParser.parse(d.text)
+            val lines = parsed(d)
+            val played = lines.filter { it.section in PLAYED }
             val left = owned.toMutableMap()
-            val have = lines.sumOf { l ->
+            val have = played.sumOf { l ->
                 val k = key(l.name)
                 minOf(l.quantity, left[k] ?: 0).also { left[k] = (left[k] ?: 0) - it }
             }
-            val total = lines.sumOf { it.quantity }
+            val total = played.sumOf { it.quantity }
             val cover = shelf.cover[d.id]
             val st = stamp(d, cover)
             val meta = shelf.meta[d.id]?.takeIf { it.stamp == st } ?: live[d.id] ?: shelf.meta[d.id]
@@ -157,7 +172,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
                 names = lines.map { it.name }.distinct(),
             )
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
         viewModelScope.launch {
@@ -174,21 +189,30 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
         val saved = DeckShelfStore.state.value.meta
         val stale = decks.filter { d -> val st = stamp(d, cover[d.id]); saved[d.id]?.stamp != st && st !in tried }
         if (stale.isEmpty()) return
-        val parsed = stale.associateWith { DecklistParser.parse(it.text) }
-        val info = runCatching { repo.deckCardInfo(parsed.values.flatten().map { it.name }.toSet()) }.getOrDefault(emptyMap())
-        val done = HashMap<Long, DeckMeta>()
-        val partial = HashMap<Long, DeckMeta>()
-        for ((d, lines) in parsed) {
-            val st = stamp(d, cover[d.id])
-            tried += st
+        // Only played cards (and the cover) are looked up, not the sideboard, maybeboard or tokens.
+        val byDeck = stale.associateWith { d ->
+            val lines = parsed(d)
             val played = lines.filter { it.section in PLAYED }
-            val found = played.mapNotNull { info[DeckStatsMath.key(it.name)] }
-            val identity = "WUBRG".filter { c -> found.any { c in it.colorIdentity.uppercase() } }
             val coverName = cover[d.id]
                 ?: (played.firstOrNull { it.section == "Commander" } ?: played.firstOrNull() ?: lines.firstOrNull())?.name
+            played to coverName
+        }
+        val names = byDeck.values.flatMap { (played, coverName) -> played.map { it.name } + listOfNotNull(coverName) }.toSet()
+        val info = runCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
+        val done = HashMap<Long, DeckMeta>()
+        val partial = HashMap<Long, DeckMeta>()
+        for ((d, pc) in byDeck) {
+            val (played, coverName) = pc
+            val st = stamp(d, cover[d.id])
+            tried += st
+            val found = played.mapNotNull { info[DeckStatsMath.key(it.name)] }
+            val identity = "WUBRG".filter { c -> found.any { c in it.colorIdentity.uppercase() } }
             val art = coverName?.let { info[DeckStatsMath.key(it)]?.imageUrl }?.let { artCropUrl(it) }
             val meta = DeckMeta(st, identity, art)
-            if (found.size == played.size && (art != null || coverName == null)) done[d.id] = meta else partial[d.id] = meta
+            // Names Scryfall says don't exist (typos) won't turn up later, so they don't keep the tile from being saved.
+            fun settled(n: String) = info.containsKey(DeckStatsMath.key(n)) || deckCardUnknown(n)
+            val complete = played.all { settled(it.name) } && (coverName == null || art != null || deckCardUnknown(coverName))
+            if (complete) done[d.id] = meta else partial[d.id] = meta
         }
         DeckShelfStore.putMeta(done)
         if (partial.isNotEmpty()) liveMeta.update { it + partial }
@@ -470,8 +494,12 @@ data class DeckUi(
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
     private val _ui = MutableStateFlow(DeckUi(id = deckId))
     val ui: StateFlow<DeckUi> = _ui
+    private var saving = false
+    private var wishing = false
+    private var deleting = false
 
     init {
+        DeckShelfStore.init(repo.appContext)
         viewModelScope.launch {
             val deck = if (deckId != 0L) repo.observeDeck(deckId).first() else null
             _ui.update { it.copy(loaded = true, name = deck?.name ?: "", text = deck?.text ?: "", editing = deck == null) }
@@ -485,12 +513,18 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 
     fun save() {
         val s = _ui.value
-        if (s.text.isBlank()) return
+        // A second tap while the first save runs would save a new deck twice.
+        if (s.text.isBlank() || saving) return
+        saving = true
         viewModelScope.launch {
-            val name = s.name.ifBlank { "Untitled deck" }
-            val id = repo.saveDeck(s.id, name, s.text)
-            _ui.update { it.copy(id = id, name = name, editing = false) }
-            check()
+            try {
+                val name = s.name.ifBlank { "Untitled deck" }
+                val id = repo.saveDeck(s.id, name, s.text)
+                _ui.update { it.copy(id = id, name = name, editing = false) }
+                check()
+            } finally {
+                saving = false
+            }
         }
     }
 
@@ -504,17 +538,47 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
+    /** Wants enough copies of each missing played card; tapping again doesn't add more. */
     fun wishlistMissing() {
         val check = _ui.value.check ?: return
+        if (wishing) return
+        wishing = true
         viewModelScope.launch {
-            val msg = runCatching { repo.wishlistMissing(check) }
-                .fold({ "Added $it cards to your wishlist" }, { "Couldn't reach Scryfall" })
-            _ui.update { it.copy(message = msg) }
+            try {
+                val missing = check.lines.filter { it.section in PLAYED && it.missing > 0 }
+                    .groupBy { DeckStatsMath.key(it.name) }.values
+                    .map { ls -> ls.first().name to ls.sumOf { it.missing } }
+                val msg = runCatching {
+                    val cards = repo.api.identify(missing.map { (n, _) -> buildJsonObject { put("name", n) } })
+                    var n = 0
+                    missing.zip(cards).forEach { (m, c) -> if (c != null) { repo.wantAtLeast(c, m.second); n++ } }
+                    n
+                }.fold({ "Added $it cards to your wishlist" }, { "Couldn't reach Scryfall" })
+                _ui.update { it.copy(message = msg) }
+            } finally {
+                wishing = false
+            }
         }
     }
 
+    /** Deletes the deck, with Undo bringing it back in its folder with its cover. */
     fun delete(onDone: () -> Unit) {
-        viewModelScope.launch { repo.deleteDeck(_ui.value.id); onDone() }
+        val id = _ui.value.id
+        if (deleting || id == 0L) return
+        deleting = true
+        viewModelScope.launch {
+            val deck = repo.observeDeck(id).first()
+            val shelf = DeckShelfStore.state.value
+            val folder = shelf.folderOf[id]
+            val cover = shelf.cover[id]
+            repo.deleteDeck(id)
+            if (deck != null) Undo.offer("Deck deleted") {
+                val newId = repo.saveDeck(0L, deck.name, deck.text)
+                if (folder != null) DeckShelfStore.moveDeck(newId, folder)
+                if (cover != null) DeckShelfStore.setCover(newId, cover)
+            }
+            onDone()
+        }
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }
@@ -529,7 +593,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         _ui.update { it.copy(statsFailed = false, stats = null) }
         viewModelScope.launch {
             val lines = DecklistParser.parse(text)
-            val info = runCatching { repo.deckCardInfo(lines.map { it.name }) }.getOrDefault(emptyMap())
+            // Stats only use played cards, so the sideboard, maybeboard and tokens aren't looked up.
+            val info = runCatching { repo.deckCardInfo(lines.filter { it.section in PLAYED }.map { it.name }) }.getOrDefault(emptyMap())
             val stats = if (info.isEmpty()) null else DeckStatsMath.compute(lines, info)
             if (statsFor != text) return@launch
             if (stats == null) statsFor = null // retry next time
@@ -607,14 +672,20 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
         return
     }
-    val missing = check.lines.filter { it.missing > 0 }
+    // Totals count played cards only, the same as the deck tiles.
+    val played = check.lines.filter { it.section in PLAYED }
+    val needed = played.sumOf { it.needed }
+    val have = played.sumOf { minOf(it.owned, it.needed) }
+    val missingCost = played.sumOf { (it.price ?: 0.0) * it.missing }
+    val missing = played.filter { it.missing > 0 }
+    val otherMissing = check.lines.filter { it.section !in PLAYED && it.missing > 0 }
     val owned = check.lines.filter { it.owned > 0 }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Stat("Owned", "${check.owned} / ${check.needed}", Modifier.weight(1f))
-                if (AppSettings.showPrices) Stat("Missing cost", formatUsd(check.missingCost), Modifier.weight(1f))
-                else Stat("Missing", "${check.needed - check.owned}", Modifier.weight(1f))
+                Stat("Owned", "$have / $needed", Modifier.weight(1f))
+                if (AppSettings.showPrices) Stat("Missing cost", formatUsd(missingCost), Modifier.weight(1f))
+                else Stat("Missing", "${needed - have}", Modifier.weight(1f))
             }
             if (missing.isNotEmpty()) {
                 OutlinedButton(
@@ -628,13 +699,18 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                 }
             }
         }
+        // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {
             item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
-            items(missing, key = { "m" + it.section + it.name }) { DeckLineRow(it, missingView = true) }
+            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true) }
+        }
+        if (otherMissing.isNotEmpty()) {
+            item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
+            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true) }
         }
         if (owned.isNotEmpty()) {
             item { SectionHeader("In your collection") }
-            items(owned, key = { "o" + it.section + it.name }) { DeckLineRow(it, missingView = false) }
+            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }

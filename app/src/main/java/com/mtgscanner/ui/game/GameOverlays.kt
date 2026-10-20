@@ -213,7 +213,7 @@ private fun TileGrid(count: Int, minTile: Int = 170, modifier: Modifier = Modifi
     }
 }
 
-/** A counter with big minus and plus buttons. Hold a button to change it by 5. */
+/** A counter with big minus and plus buttons. Hold a button to change it by [HOLD_STEP]. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CounterTile(
@@ -240,7 +240,7 @@ private fun CounterTile(
                     )
                     Box(
                         Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
-                            .combinedClickable(onClick = { onChange(sign) }, onLongClick = { onChange(sign * 5) }),
+                            .combinedClickable(onClick = { onChange(sign) }, onLongClick = { onChange(sign * HOLD_STEP) }),
                         contentAlignment = Alignment.Center,
                     ) { Text(if (sign < 0) "−" else "+", color = Color.White, fontSize = 28.sp) }
                 }
@@ -317,7 +317,7 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
         when (name) {
             "Counters" -> {
                 val tiles = buildList<@Composable (Modifier) -> Unit> {
-                    add { m -> CounterTile("Life", p.life, { vm.life(i, it) }, m, note = "Hold for 5", warn = p.life <= 5) }
+                    add { m -> CounterTile("Life", p.life, { vm.life(i, it) }, m, note = "Hold for $HOLD_STEP", warn = p.life <= 5) }
                     add { m -> CounterTile("Poison", p.poison, { vm.poison(i, it) }, m, note = "Out at ${g.format.poisonLimit}", warn = p.poison >= g.format.poisonLimit - 3, icon = com.mtgscanner.ui.components.ManaIcons.Poison) }
                     if (g.format.usesCommander) {
                         add { m -> CounterTile("Commander casts", p.commanderCasts, { vm.counter(i, "Commander cast", it) }, m, note = "Tax {${p.commanderTax}}", icon = com.mtgscanner.ui.components.ManaIcons.Commander) }
@@ -523,12 +523,13 @@ fun MenuOverlay(
 }
 
 private fun describe(g: GameState, e: com.mtgscanner.game.GameEvent): String {
-    val who = g.players.getOrNull(e.player)?.name ?: "Nobody"
     val change = when {
         e.delta > 0 -> " +${e.delta}"
         e.delta < 0 -> " ${e.delta}"
         else -> ""
     }
+    // Table-wide lines (day/night, a cleared monarch) have no player.
+    val who = g.players.getOrNull(e.player)?.name ?: return "${e.what}$change"
     return "$who · ${e.what}$change"
 }
 
