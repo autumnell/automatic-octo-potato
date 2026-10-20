@@ -3,7 +3,6 @@ package com.mtgscanner.ui.game
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,8 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -48,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -90,106 +88,103 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     var startingNew by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
 
-    Column(
-        Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-    ) {
-        Text("Game", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
-        Text("A life counter for up to ${Player.MAX_PLAYERS} players.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+    Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        ) {
+            Text("Game", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+            Text("A life counter for up to ${Player.MAX_PLAYERS} players.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
 
-        current?.let { g ->
-            Spacer(Modifier.height(14.dp))
-            Surface(shape = RoundedCornerShape(20.dp), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Game in progress", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                    Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleMedium)
-                    Text(g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GradientButton("Resume", onPlay, Modifier.weight(1f), icon = Icons.Filled.PlayArrow)
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
+            current?.let { g ->
+                Spacer(Modifier.height(14.dp))
+                Surface(shape = RoundedCornerShape(20.dp), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Game in progress", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+                        Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleMedium)
+                        Text(g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        Spacer(Modifier.height(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            GradientButton("Resume", onPlay, Modifier.weight(1f), icon = Icons.Filled.PlayArrow)
+                            Spacer(Modifier.width(8.dp))
+                            TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
+                        }
                     }
                 }
             }
-        }
 
-        Label("Game mode")
-        GameFormat.entries.forEach { f ->
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
-                    format = f; life = f.life; players = f.defaultPlayers
-                    if (!f.commanderDamage) partners = false
-                }.padding(vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = format == f, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
-                Column {
-                    Text(f.label, style = MaterialTheme.typography.titleSmall)
-                    Text(f.detail, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Label("Game mode")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                GameFormat.entries.forEach { f ->
+                    SelectPill(f.label, format == f, {
+                        format = f; life = f.life; players = f.defaultPlayers
+                        if (!f.commanderDamage) partners = false
+                    })
                 }
             }
-        }
+            Text(
+                format.detail, style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp),
+            )
 
-        Label("Players")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            (1..Player.MAX_PLAYERS).forEach { n -> SelectPill("$n", players == n, { players = n }) }
-        }
-
-        Label("Starting life")
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(20, 25, 30, 40).forEach { v -> SelectPill("$v", life == v, { life = v }) }
+            Label("Players")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                (1..Player.MAX_PLAYERS).forEach { n -> SelectPill("$n", players == n, { players = n }) }
             }
-            QuantityStepper(life, onChange = { life = it.coerceIn(1, 999) })
-        }
 
-        if (format.commanderDamage) {
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Partner commanders", style = MaterialTheme.typography.titleSmall)
-                    Text("Track damage and tax for two commanders each.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Label("Starting life")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(20, 25, 30, 40).forEach { v -> SelectPill("$v", life == v, { life = v }) }
                 }
-                Switch(partners, { partners = it }, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+                QuantityStepper(life, onChange = { life = it.coerceIn(1, 999) })
             }
-        }
 
-        Label("Table style")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TableStyle.entries.forEach { t -> SelectPill(t.label, style == t, { vm.setStyle(t) }) }
-        }
-
-        Label("Names")
-        (0 until players).forEach { i ->
-            Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(22.dp).clip(CircleShape).background(PLAYER_COLORS[i]).border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape))
-                Spacer(Modifier.width(10.dp))
-                OutlinedTextField(
-                    value = names[i],
-                    onValueChange = { names[i] = it },
-                    placeholder = { Text("Player ${i + 1}") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline),
-                )
+            if (format.commanderDamage) {
+                Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Partner commanders", style = MaterialTheme.typography.titleSmall)
+                        Text("Track damage and tax for two commanders each.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                    Switch(partners, { partners = it }, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+                }
             }
-        }
 
-        Spacer(Modifier.height(18.dp))
+            Label("Table style")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TableStyle.entries.forEach { t -> SelectPill(t.label, style == t, { vm.setStyle(t) }) }
+            }
+
+            Label("Names")
+            (0 until players).forEach { i ->
+                Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(22.dp).clip(CircleShape).background(PLAYER_COLORS[i]).border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape))
+                    Spacer(Modifier.width(10.dp))
+                    OutlinedTextField(
+                        value = names[i],
+                        onValueChange = { names[i] = it },
+                        placeholder = { Text("Player ${i + 1}") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+            StatsCard(records, onOpen = { showStats = true })
+            Spacer(Modifier.height(18.dp))
+        }
+        // Pinned under the scroll so it's always in reach.
         GradientButton(
             if (current != null) "Start a new game" else "Start game",
             {
                 if (current != null) startingNew = true
                 else { vm.start(format, players, life, names.take(players), partners); onPlay() }
             },
-            Modifier.fillMaxWidth(),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             icon = Icons.Filled.Favorite,
         )
-
-        Spacer(Modifier.height(18.dp))
-        StatsCard(records, onOpen = { showStats = true })
-        Spacer(Modifier.height(32.dp))
     }
 
     current?.let { g -> if (ending) EndGameDialog(g, onDismiss = { ending = false }) { save, winner -> ending = false; vm.end(save, winner) } }
