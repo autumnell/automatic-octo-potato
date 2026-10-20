@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.JustTcg
 import com.mtgscanner.ui.components.SelectPill
@@ -44,7 +45,7 @@ fun PricesSection() {
     Card {
         ToggleRow(
             "Show prices",
-            "Hide all prices and alerts.",
+            "Off hides all prices",
             AppSettings.showPrices,
         ) {
             AppSettings.updateShowPrices(it)
@@ -55,7 +56,7 @@ fun PricesSection() {
             HorizontalDivider(color = Palette.Outline)
             ToggleRow(
                 "Price alerts",
-                "Daily alert for big price moves.",
+                "Daily, for big moves",
                 AppSettings.priceAlerts,
             ) { on ->
                 if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -65,8 +66,8 @@ fun PricesSection() {
                 }
             }
             if (AppSettings.priceAlerts) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) {
-                    Text("Alert when the price moves at least", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+                    Text("Moves at least", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     Spacer(Modifier.padding(top = 6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(10.0, 20.0, 50.0).forEach { p ->
@@ -106,12 +107,12 @@ fun ConditionPricesSection() {
         }
     }
     Card {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text("Condition prices", style = MaterialTheme.typography.titleSmall)
             Text(
-                if (JustTcg.enabled) "From JustTCG · ${JustTcg.usedThisMonth}/${JustTcg.MONTHLY_LIMIT} lookups this month"
-                else "Add a free JustTCG key for NM/LP/MP/HP prices. Otherwise near mint.",
-                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                if (JustTcg.enabled) "JustTCG · ${JustTcg.usedThisMonth}/${JustTcg.MONTHLY_LIMIT} lookups this month"
+                else "Free JustTCG key for NM/LP/MP/HP prices",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.padding(top = 8.dp))
             androidx.compose.material3.OutlinedTextField(
@@ -122,7 +123,7 @@ fun ConditionPricesSection() {
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp)) {
                 androidx.compose.material3.TextButton(
                     enabled = !busy && key.trim() != JustTcg.apiKey,
                     onClick = {
@@ -163,10 +164,10 @@ private fun Card(content: @Composable () -> Unit) {
 
 @Composable
 private fun ToggleRow(title: String, body: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(12.dp))
         Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))

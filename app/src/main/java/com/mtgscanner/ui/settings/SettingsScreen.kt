@@ -6,10 +6,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -37,6 +39,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,12 +49,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,131 +71,119 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mtgscanner.ui.components.GradientButton
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.ThemeMode
 import com.mtgscanner.ui.theme.ThemeSettings
 
-@OptIn(ExperimentalLayoutApi::class)
+private val settingsTabs = listOf("Look", "Prices", "Scanning", "Data")
+
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () -> Unit = {}) {
-    var picking by remember { mutableStateOf(false) }
-    val ctx = LocalContext.current
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var versionTaps by remember { mutableIntStateOf(0) }
-    val version = remember {
-        runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
-    }
+    val showMessage: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
+    val dataVm: SettingsViewModel = viewModel(factory = AppViewModels.Factory)
+    val message by dataVm.message.collectAsStateWithLifecycle()
+    // Collected here, not in the Data tab, so a backup that finishes after switching tabs still reports.
+    LaunchedEffect(message) { message?.let { showMessage(it); dataVm.messageShown() } }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Palette.Background)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                Text("Settings", style = MaterialTheme.typography.headlineSmall)
+            }
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                settingsTabs.forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
+            }
+            // Each branch is its own call site, so each tab keeps its own scroll position.
+            when (tab) {
+                0 -> Page { LookTab() }
+                1 -> Page {
+                    SectionLabel("Prices")
+                    PricesSection()
+                    if (AppSettings.showPrices) {
+                        Spacer(Modifier.height(10.dp))
+                        ConditionPricesSection()
+                    }
+                }
+                2 -> Page {
+                    SectionLabel("Scanning")
+                    ScanningSection()
+                }
+                else -> Page { DataTab(dataVm, onScanLog, onTour, showMessage) }
+            }
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+    }
+}
+
+@Composable
+private fun ColumnScope.Page(content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier
-            .fillMaxSize()
-            .background(Palette.Background)
-            .statusBarsPadding()
+            .weight(1f)
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .navigationBarsPadding(),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-            Text("Settings", style = MaterialTheme.typography.headlineSmall)
+            .navigationBarsPadding()
+            .padding(bottom = 24.dp),
+        content = content,
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LookTab() {
+    var picking by remember { mutableStateOf(false) }
+
+    SectionLabel("Theme")
+    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ThemeMode.entries.forEach { m ->
+            ModeCard(
+                mode = m,
+                selected = ThemeSettings.mode == m,
+                modifier = Modifier.weight(1f),
+                onClick = { ThemeSettings.updateMode(m) },
+            )
         }
-
-        SectionLabel("Theme")
-        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ThemeMode.entries.forEach { m ->
-                ModeCard(
-                    mode = m,
-                    selected = ThemeSettings.mode == m,
-                    modifier = Modifier.weight(1f),
-                    onClick = { ThemeSettings.updateMode(m) },
-                )
-            }
-        }
-
-        SectionLabel("Accent color")
-        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-            Column(Modifier.padding(16.dp)) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    ThemeSettings.presets.forEach { p ->
-                        Swatch(p.color, selected = ThemeSettings.accent.toArgb() == p.color.toArgb(), label = p.name) {
-                            ThemeSettings.updateAccent(p.color)
-                        }
-                    }
-                    ThemeSettings.customAccent?.let { c ->
-                        Swatch(c, selected = ThemeSettings.accent.toArgb() == c.toArgb(), label = "Custom") {
-                            ThemeSettings.updateAccent(c)
-                        }
-                    }
-                    CustomSwatch(onClick = { picking = true })
-                }
-            }
-        }
-
-        SectionLabel("Preview")
-        Preview()
-
-        SectionLabel("Prices")
-        PricesSection()
-        if (com.mtgscanner.ui.theme.AppSettings.showPrices) {
-            androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
-            ConditionPricesSection()
-        }
-
-        SectionLabel("Scanning")
-        ScanningSection()
-
-        SectionLabel("Your data")
-        DataSection(onMessage = { msg -> scope.launch { snackbar.showSnackbar(msg) } })
-
-        SectionLabel("About")
-        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-            Column(Modifier.padding(16.dp)) {
-                Text(
-                    "MTG Scanner $version",
-                    style = MaterialTheme.typography.titleSmall,
-                    // Tapping the version seven times reveals the scan log.
-                    modifier = Modifier.clickable {
-                        versionTaps++
-                        if (versionTaps >= 7 && !AppSettings.scanLogUnlocked) {
-                            AppSettings.unlockScanLog(true)
-                            scope.launch { snackbar.showSnackbar("Scan log turned on") }
-                        }
-                    },
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Card data, images and prices come from Scryfall. Magic: The Gathering is © Wizards of the Coast; this app is unofficial.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Palette.Muted,
-                )
-                TextButton(onClick = onTour, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Show the tour again") }
-            }
-        }
-        if (AppSettings.scanLogUnlocked) {
-            SectionLabel("Troubleshooting")
-            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-                Row(Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Scan log", style = MaterialTheme.typography.titleSmall)
-                        Text("What the scanner read and matched, to share when it gets a card wrong", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    }
-                    TextButton(onClick = { AppSettings.unlockScanLog(false); versionTaps = 0 }) { Text("Hide") }
-                }
-            }
-        }
-        Spacer(Modifier.height(32.dp))
     }
-    SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+
+    SectionLabel("Accent color")
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+        Column(Modifier.padding(12.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                ThemeSettings.presets.forEach { p ->
+                    Swatch(p.color, selected = ThemeSettings.accent.toArgb() == p.color.toArgb(), label = p.name) {
+                        ThemeSettings.updateAccent(p.color)
+                    }
+                }
+                ThemeSettings.customAccent?.let { c ->
+                    Swatch(c, selected = ThemeSettings.accent.toArgb() == c.toArgb(), label = "Custom") {
+                        ThemeSettings.updateAccent(c)
+                    }
+                }
+                CustomSwatch(onClick = { picking = true })
+            }
+        }
     }
+
+    SectionLabel("Preview")
+    Preview()
 
     if (picking) {
         ColorPickerDialog(
@@ -202,8 +195,64 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
 }
 
 @Composable
+private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> Unit, onMessage: (String) -> Unit) {
+    val ctx = LocalContext.current
+    var versionTaps by remember { mutableIntStateOf(0) }
+    val version = remember {
+        runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
+    }
+
+    SectionLabel("Your data")
+    DataSection(vm)
+
+    if (AppSettings.scanLogUnlocked) {
+        SectionLabel("Troubleshooting")
+        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+            Row(
+                Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Scan log", style = MaterialTheme.typography.titleSmall)
+                    Text("What the scanner read", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                TextButton(onClick = { AppSettings.unlockScanLog(false); versionTaps = 0 }) { Text("Hide") }
+            }
+        }
+    }
+
+    SectionLabel("About")
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+        Column {
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "MTG Scanner $version",
+                    style = MaterialTheme.typography.titleSmall,
+                    // Tapping the version seven times reveals the scan log.
+                    modifier = Modifier.weight(1f).clickable {
+                        versionTaps++
+                        if (versionTaps >= 7 && !AppSettings.scanLogUnlocked) {
+                            AppSettings.unlockScanLog(true)
+                            onMessage("Scan log turned on")
+                        }
+                    },
+                )
+                TextButton(onClick = onTour) { Text("Show tour") }
+            }
+            HorizontalDivider(color = Palette.Outline)
+            Text(
+                "Data from Scryfall. Unofficial; Magic is © Wizards of the Coast.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.Muted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
 private fun SectionLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 22.dp, bottom = 10.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp))
 }
 
 @Composable
@@ -213,27 +262,28 @@ private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onC
         ThemeMode.LIGHT -> Triple(Color(0xFFF4F4F7), Color(0xFF17181C), Icons.Filled.LightMode)
         ThemeMode.SYSTEM -> Triple(Palette.SurfaceHigh, Palette.Text, Icons.Filled.PhoneAndroid)
     }
-    Column(
+    Row(
         modifier
-            .clip(RoundedCornerShape(18.dp))
-            .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Accent else Palette.Outline, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Accent else Palette.Outline, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .background(bg)
-            .padding(vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (selected) Palette.Accent else fg)
-        Spacer(Modifier.height(8.dp))
-        Text(mode.label, style = MaterialTheme.typography.labelLarge, color = fg)
+        Icon(icon, null, tint = if (selected) Palette.Accent else fg, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(mode.label, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
     }
 }
 
 @Composable
 private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(52.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
         Box(
             Modifier
-                .size(44.dp)
+                .size(38.dp)
                 .clip(CircleShape)
                 .border(if (selected) 3.dp else 0.dp, if (selected) Palette.Text else Color.Transparent, CircleShape)
                 .padding(if (selected) 5.dp else 0.dp)
@@ -242,10 +292,10 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Icon(Icons.Filled.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(18.dp))
+            if (selected) Icon(Icons.Filled.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(16.dp))
         }
-        Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1)
+        Spacer(Modifier.height(2.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -253,34 +303,30 @@ private val rainbow = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, C
 
 @Composable
 private fun CustomSwatch(onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(52.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(Brush.sweepGradient(rainbow)).clickable(onClick = onClick),
+            Modifier.size(38.dp).clip(CircleShape).background(Brush.sweepGradient(rainbow)).clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Add, "Pick a custom color", tint = Color.White, modifier = Modifier.size(16.dp))
+            Box(Modifier.size(20.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Add, "Pick a custom color", tint = Color.White, modifier = Modifier.size(14.dp))
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text("Pick…", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
     }
 }
 
-/** A small mock-up so the chosen colors can be judged at a glance. */
+/** A one-line mock-up so the chosen colors can be judged at a glance. */
 @Composable
 private fun Preview() {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), color = Color.Transparent) {
-        Column(Modifier.background(Palette.HeroGradient).padding(18.dp)) {
-            Text("Collection value", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-            Text("$1,234.56", style = MaterialTheme.typography.headlineMedium, color = Palette.Accent)
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectPill("Selected", true, onClick = {})
-                SelectPill("Not selected", false, onClick = {})
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Color.Transparent) {
+        Row(Modifier.background(Palette.HeroGradient).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                Text("$1,234.56", style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
             }
-            Spacer(Modifier.height(12.dp))
-            GradientButton("Scan cards", onClick = {}, modifier = Modifier.fillMaxWidth())
+            SelectPill("Selected", true, onClick = {})
         }
     }
 }
