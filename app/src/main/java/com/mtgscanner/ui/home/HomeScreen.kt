@@ -93,7 +93,7 @@ data class HomeUi(
     val foils: Int = 0,
     val recent: List<CollectionCard> = emptyList(),
     val valuable: List<CollectionCard> = emptyList(),
-    /** Copies per color letter (W, U, B, R, G), plus "M" multicolor and "C" colorless. */
+    /** Copies per color (W, U, B, R, G) and "C" colorless. A multicolor card counts once for each of its colors. */
     val colors: List<Pair<String, Int>> = emptyList(),
     /** What the cards were worth when added (only cards with a known price then). */
     val valueAtAdd: Double = 0.0,
@@ -114,14 +114,10 @@ data class PriceData(
 
 class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val ui: StateFlow<HomeUi> = combine(repo.observeAll(), repo.observeSnapshots(), repo.observeBoxes()) { all, history, boxes ->
-        val colorCounts = linkedMapOf("W" to 0, "U" to 0, "B" to 0, "R" to 0, "G" to 0, "M" to 0, "C" to 0)
+        val colorCounts = linkedMapOf("W" to 0, "U" to 0, "B" to 0, "R" to 0, "G" to 0, "C" to 0)
         all.forEach { c ->
-            val key = when {
-                c.colors.isEmpty() -> "C"
-                c.colors.length > 1 -> "M"
-                else -> c.colors
-            }
-            colorCounts[key] = (colorCounts[key] ?: 0) + c.quantity
+            val keys = if (c.colors.isEmpty()) listOf("C") else c.colors.map { it.toString() }.filter { it in colorCounts }
+            keys.forEach { key -> colorCounts[key] = (colorCounts[key] ?: 0) + c.quantity }
         }
         HomeUi(
             loaded = true,
@@ -253,7 +249,7 @@ fun HomeScreen(
             .statusBarsPadding(),
     ) {
         Header(onSettings, onEdit = { editing = true })
-        HeroCard(ui, onScan)
+        HeroCard(ui)
         Spacer(Modifier.height(12.dp))
 
         if (ui.loaded && ui.totalCards == 0) {
@@ -357,7 +353,7 @@ private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
 }
 
 @Composable
-private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
+private fun HeroCard(ui: HomeUi) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(24.dp),
@@ -392,8 +388,6 @@ private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
                         Text(shortDay(ui.history.last().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                GradientButton("Scan cards", onScan, Modifier.fillMaxWidth(), icon = Icons.Filled.CameraAlt)
             }
         }
     }
@@ -437,7 +431,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
                                 .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (k in listOf("W", "U", "B", "R", "G", "C", "M")) ColorPip(k[0])
+                            if (k in listOf("W", "U", "B", "R", "G", "C")) ColorPip(k[0])
                             else Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(colorFor(k)))
                             Spacer(Modifier.width(6.dp))
                             Text(
@@ -455,13 +449,12 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
 }
 
 private fun colorFor(k: String): Color = when (k) {
-    "M" -> MtgColors.Multi
     "C" -> MtgColors.C
     else -> MtgColors.forLetter(k[0])
 }
 
 private fun label(k: String) = when (k) {
-    "W" -> "White"; "U" -> "Blue"; "B" -> "Black"; "R" -> "Red"; "G" -> "Green"; "M" -> "Multi"; else -> "Colorless"
+    "W" -> "White"; "U" -> "Blue"; "B" -> "Black"; "R" -> "Red"; "G" -> "Green"; else -> "Colorless"
 }
 
 /** "+$1.20 (4.0%)" in green, or red when the value went down. */
