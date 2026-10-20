@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.Divider
+import com.mtgscanner.data.Sorting
+import com.mtgscanner.data.db.facts
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.changeSinceAdded
 import com.mtgscanner.data.db.roleList
@@ -84,6 +87,9 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     private val _filters = MutableStateFlow(if (boxId < 0) BrowseLaunch.take() else Filters())
     val filters: StateFlow<Filters> = _filters
 
+    /** A smart list's name, when one was opened. */
+    private val listTitle: String? = if (boxId < 0) BrowseLaunch.takeTitle() else null
+
     private val prefs: SharedPreferences? = try {
         repo.appContext.getSharedPreferences("browse", Context.MODE_PRIVATE)
     } catch (e: Exception) { null }
@@ -114,9 +120,12 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     val ui: StateFlow<BrowseUi> = combine(repo.observeAll(), repo.observeBoxes(), _filters) { all, boxes, f ->
         val inScope = if (boxId < 0) all else all.filter { it.boxId == boxId }
         val shown = inScope.filter { matches(it, f) }.sortedWith(comparator(f.sort))
+        val box = if (boxId < 0) null else boxes.firstOrNull { it.id == boxId }
+        // A box with dividers lists its cards by divider, matching the physical box.
+        val divider = Divider.of(box?.divider.orEmpty())
         BrowseUi(
-            title = if (boxId < 0) "All cards" else boxes.firstOrNull { it.id == boxId }?.name ?: "Box",
-            groups = group(shown, f.group),
+            title = if (boxId < 0) listTitle ?: "All cards" else box?.name ?: "Box",
+            groups = if (f.group == GroupBy.NONE && divider != Divider.NONE) bySpot(shown, divider) else group(shown, f.group),
             shownCards = shown.sumOf { it.quantity },
             shownValue = shown.sumOf { it.totalPrice() },
             totalCards = inScope.sumOf { it.quantity },
@@ -264,6 +273,13 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             c.colors.isEmpty() -> "Colorless"
             c.colors.length > 1 -> "Multicolor"
             else -> mapOf('W' to "White", 'U' to "Blue", 'B' to "Black", 'R' to "Red", 'G' to "Green")[c.colors[0]] ?: "Colorless"
+        }
+
+        /** Groups cards by the divider they sit behind, front of the box first. */
+        fun bySpot(cards: List<CollectionCard>, divider: Divider): List<Pair<String, List<CollectionCard>>> {
+            val order = Sorting.spotOrder(divider)
+            return cards.groupBy { Sorting.spot(divider, it.name, it.facts()) ?: "" }
+                .toList().sortedWith(compareBy<Pair<String, List<CollectionCard>>, String>(order) { it.first })
         }
 
         fun group(cards: List<CollectionCard>, by: GroupBy): List<Pair<String, List<CollectionCard>>> = when (by) {

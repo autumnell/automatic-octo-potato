@@ -204,10 +204,9 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onSettings = { nav.navigate("settings") },
                     onOpenDeck = { id -> nav.navigate("deck/$id") },
                     onOpenCard = { id -> nav.navigate("card/$id") },
-                    onTrade = { nav.navigate("trade") },
+                    onTrade = { binderId -> nav.navigate("trade/$binderId") },
                     onSets = { nav.navigate("sets") },
                     onExtras = { nav.navigate("extras") },
-                    onPacks = { nav.navigate("packs") },
                 )
             }
             composable("game") { GameSetupScreen(onPlay = { nav.navigate("game/play") }) }
@@ -234,11 +233,6 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) { com.mtgscanner.ui.collection.ExtrasScreen(onBack = { nav.popBackStack() }) }
             composable(
-                "packs",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.collection.PacksScreen(onBack = { nav.popBackStack() }) }
-            composable(
                 "deck/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
@@ -256,6 +250,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     boxId = it.arguments?.getLong("boxId") ?: -1L,
                     onBack = { nav.popBackStack() },
                     onOpenCard = { id -> nav.navigate("card/$id") },
+                    onTrade = { binderId -> nav.navigate("trade/$binderId") },
                 )
             }
             composable(
@@ -270,10 +265,11 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 )
             }
             composable(
-                "trade",
+                "trade/{boxId}",
+                arguments = listOf(navArgument("boxId") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { TradeScreen(onBack = { nav.popBackStack() }) }
+            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popBackStack() }) }
             composable(
                 "scanlog",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
