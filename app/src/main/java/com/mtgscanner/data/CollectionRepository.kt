@@ -134,6 +134,7 @@ class CollectionRepository(
             runCatching { refreshPricesIfStale() }
             runCatching { resolvePending() }
             runCatching { fetchRoles() }
+            runCatching { refreshConditionPricesIfStale() }
         }
     }
 
@@ -372,7 +373,13 @@ class CollectionRepository(
         appScope.launch { runCatching { recordSnapshot() } }
     }
 
-    suspend fun update(card: CollectionCard) = dao.update(card.copy(updatedAt = System.currentTimeMillis()))
+    suspend fun update(card: CollectionCard) {
+        val old = dao.get(card.id)
+        // A new condition or finish needs a new condition price.
+        val changed = old != null && (old.condition != card.condition || old.foil != card.foil)
+        dao.update(card.copy(updatedAt = System.currentTimeMillis()).let { if (changed) it.copy(conditionPrice = null, conditionPriceAt = 0) else it })
+        if (changed && JustTcg.enabled) appScope.launch { runCatching { refreshConditionPrices(listOf(card.id)) } }
+    }
 
     /** Switches foil on/off, merging into the other entry if one already exists. Returns the surviving id. */
     suspend fun setFoil(id: Long, foil: Boolean): Long {
@@ -384,7 +391,8 @@ class CollectionRepository(
             dao.delete(c)
             other.id
         } else {
-            dao.update(c.copy(foil = foil, updatedAt = System.currentTimeMillis()))
+            dao.update(c.copy(foil = foil, conditionPrice = null, conditionPriceAt = 0, updatedAt = System.currentTimeMillis()))
+            if (JustTcg.enabled) appScope.launch { runCatching { refreshConditionPrices(listOf(id)) } }
             id
         }
     }
@@ -470,6 +478,46 @@ class CollectionRepository(
             .sortedWith(compareBy<ScryfallCard> { it.collectorNumber.takeWhile(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }.thenBy { it.collectorNumber })
         synchronized(setCardsCache) { setCardsCache[k] = list }
         return list
+    }
+
+    // Condition prices (JustTCG, optional)
+
+    private val conditionLock = Mutex()
+
+    /**
+     * Fetches JustTCG prices for [ids] (or every card), so each copy is priced for its condition and finish.
+     * Returns how many cards got a price. Does nothing without a key.
+     */
+    suspend fun refreshConditionPrices(ids: List<Long>? = null): Int = conditionLock.withLock {
+        if (!JustTcg.enabled) return@withLock 0
+        val cards = if (ids == null) dao.all() else ids.mapNotNull { dao.get(it) }
+        if (cards.isEmpty()) return@withLock 0
+        val prices = JustTcg.prices(cards.map { it.scryfallId })
+        val now = System.currentTimeMillis()
+        var n = 0
+        db.withTransaction {
+            cards.forEach { c ->
+                val p = prices[c.scryfallId]?.let { JustTcg.pick(it, c.condition, c.foil) }
+                dao.setConditionPrice(c.id, p, now)
+                if (p != null) n++
+            }
+        }
+        if (ids == null) JustTcg.lastFullRefresh = now
+        runCatching { recordSnapshot() }
+        n
+    }
+
+    /** Refreshes condition prices for the whole collection about once a week, to stay inside the free plan. */
+    suspend fun refreshConditionPricesIfStale() {
+        if (JustTcg.enabled && System.currentTimeMillis() - JustTcg.lastFullRefresh > 7L * 24 * 60 * 60 * 1000) {
+            refreshConditionPrices()
+        }
+    }
+
+    /** Drops every condition price, back to near-mint prices (when the key is removed). */
+    suspend fun clearConditionPrices() {
+        dao.clearConditionPrices()
+        runCatching { recordSnapshot() }
     }
 
     // Packs

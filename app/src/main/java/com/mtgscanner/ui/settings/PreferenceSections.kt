@@ -24,7 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.mtgscanner.data.JustTcg
 import com.mtgscanner.ui.components.SelectPill
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.PriceAlerts
@@ -79,6 +83,65 @@ fun PricesSection() {
                     }
                 }
             }
+        }
+    }
+}
+
+/** Optional JustTCG key for real per-condition prices. Without one, prices are near mint. */
+@Composable
+fun ConditionPricesSection() {
+    val ctx = LocalContext.current
+    val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var key by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(JustTcg.apiKey) }
+    var status by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    fun refresh() {
+        busy = true
+        status = "Updating…"
+        scope.launch {
+            status = runCatching { repo.refreshConditionPrices() }
+                .fold({ "Priced $it cards by condition" }, { it.message ?: "Couldn't reach JustTCG" })
+            busy = false
+        }
+    }
+    Card {
+        Column(Modifier.padding(16.dp)) {
+            Text("Condition prices", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (JustTcg.enabled) "From JustTCG · ${JustTcg.usedThisMonth}/${JustTcg.MONTHLY_LIMIT} lookups this month"
+                else "Add a free JustTCG key for NM/LP/MP/HP prices. Otherwise near mint.",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+            )
+            Spacer(Modifier.padding(top = 8.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = key,
+                onValueChange = { key = it },
+                label = { Text("JustTCG API key") },
+                singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                androidx.compose.material3.TextButton(
+                    enabled = !busy && key.trim() != JustTcg.apiKey,
+                    onClick = {
+                        val removed = key.isBlank()
+                        JustTcg.updateKey(key)
+                        if (removed) {
+                            scope.launch { repo.clearConditionPrices() }
+                            status = "Using near-mint prices"
+                        } else refresh()
+                    },
+                ) { Text("Save") }
+                if (JustTcg.enabled) {
+                    androidx.compose.material3.TextButton(enabled = !busy, onClick = { refresh() }) { Text("Update now") }
+                }
+                androidx.compose.material3.TextButton(onClick = {
+                    ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://justtcg.com")))
+                }) { Text("Get a key") }
+            }
+            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
         }
     }
 }

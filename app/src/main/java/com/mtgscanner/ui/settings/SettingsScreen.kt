@@ -140,6 +140,10 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
 
         SectionLabel("Prices")
         PricesSection()
+        if (com.mtgscanner.ui.theme.AppSettings.showPrices) {
+            androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
+            ConditionPricesSection()
+        }
 
         SectionLabel("Scanning")
         ScanningSection()

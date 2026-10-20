@@ -47,6 +47,12 @@ interface CardDao {
     @Update
     suspend fun updateAll(cards: List<CollectionCard>)
 
+    @Query("UPDATE cards SET conditionPrice = :price, conditionPriceAt = :at WHERE id = :id")
+    suspend fun setConditionPrice(id: Long, price: Double?, at: Long)
+
+    @Query("UPDATE cards SET conditionPrice = NULL, conditionPriceAt = 0")
+    suspend fun clearConditionPrices()
+
     /** Updates only a printing's prices, so edits made while prices download are kept. */
     @Query(
         "UPDATE cards SET priceUsd = :usd, priceUsdFoil = :foil, treatments = :treatments, " +

@@ -53,6 +53,10 @@ data class CollectionCard(
     val treatments: String = "",
     /** Your own labels, comma separated, like "for Kenji's deck" or "lent out". */
     val userTags: String = "",
+    /** Price per copy in this condition and finish from JustTCG, when a key is set (null = use near mint). */
+    val conditionPrice: Double? = null,
+    /** When [conditionPrice] was fetched (0 = never). */
+    val conditionPriceAt: Long = 0,
     val addedAt: Long,
     val updatedAt: Long,
 )
@@ -60,34 +64,27 @@ data class CollectionCard(
 /** Scryfall's price for this printing, which is the near-mint market price. */
 fun CollectionCard.nearMintPrice(): Double? = if (foil) priceUsdFoil ?: priceUsd else priceUsd
 
-/**
- * What played copies usually sell for compared with near mint, using the usual TCGplayer
- * steps. Scryfall only has near-mint prices, so other conditions are estimated from it.
- */
-fun conditionFactor(condition: String): Double = when (condition) {
-    "LP" -> 0.87
-    "MP" -> 0.72
-    "HP" -> 0.55
-    "DMG" -> 0.40
-    else -> 1.0
-}
-
-/** Market price for one copy in its condition. */
-fun CollectionCard.unitPrice(): Double? = nearMintPrice()?.let { it * conditionFactor(condition) }
+/** Price for one copy: JustTCG's price for its condition when there is one, else Scryfall's near-mint price. */
+fun CollectionCard.unitPrice(): Double? = conditionPrice ?: nearMintPrice()
 fun CollectionCard.totalPrice(): Double = (unitPrice() ?: 0.0) * quantity
 /** Scryfall serves the same image path in several sizes; this swaps in the art-only crop. */
 fun artCropUrl(imageUrl: String?): String? = imageUrl
     ?.replace("/normal/", "/art_crop/")?.replace("/large/", "/art_crop/")?.replace("/small/", "/art_crop/")
 
 /** Price per copy when it was added, in its condition. */
-fun CollectionCard.priceWhenAdded(): Double? = priceAtAdd?.let { it * conditionFactor(condition) }
+fun CollectionCard.priceWhenAdded(): Double? {
+    val then = priceAtAdd ?: return null
+    // The price when added was near mint; scale it the same way today's condition price relates to near mint.
+    val nm = nearMintPrice()
+    val now = unitPrice()
+    return if (conditionPrice != null && nm != null && nm > 0 && now != null) then * now / nm else then
+}
 
 /** Change in value per copy since it was added, or null when either price is unknown. */
 fun CollectionCard.changeSinceAdded(): Double? {
-    // The price when added was a near-mint price, so compare like with like, then scale to the condition.
-    val now = nearMintPrice() ?: return null
-    val then = priceAtAdd ?: return null
-    return (now - then) * conditionFactor(condition)
+    val now = unitPrice() ?: return null
+    val then = priceWhenAdded() ?: return null
+    return now - then
 }
 
 fun CollectionCard.facts() = com.mtgscanner.data.CardFacts(
