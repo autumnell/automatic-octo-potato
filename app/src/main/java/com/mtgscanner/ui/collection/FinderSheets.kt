@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -83,10 +81,7 @@ fun FindCardSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                 )
                 found.isEmpty() && !settled -> Spacer(Modifier.height(48.dp))
-                found.isEmpty() -> EmptyState(
-                    Icons.Filled.SearchOff, "Not in your collection", "Check the spelling.",
-                    action = { TextButton(onClick = { query = "" }) { Text("Clear") } },
-                )
+                found.isEmpty() -> EmptyState("Not in your collection", action = "Clear", onAction = { query = "" })
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
                     items(found, key = { it.card.id }) { f ->
                         FoundRow(f.card, f.where) { onOpenCard(f.card.id) }
@@ -144,10 +139,7 @@ fun DuplicatesSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
             )
             Text("Cards in 2+ printings", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp))
             if (cards != null && groups.isEmpty()) {
-                EmptyState(
-                    Icons.Filled.ContentCopy, "No duplicates", "Every card is in one printing.",
-                    action = { TextButton(onClick = onDismiss) { Text("Close") } },
-                )
+                EmptyState("No duplicates", action = "Close", onAction = onDismiss)
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
                 groups.forEach { g ->

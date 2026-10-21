@@ -32,8 +32,6 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.FileDownload
@@ -67,6 +65,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
@@ -101,7 +100,6 @@ import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
-import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.decks.DecksTab
 import com.mtgscanner.ui.trade.shareText
@@ -448,12 +446,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             }
         }
         if (ui.boxes.isEmpty()) {
-            EmptyState(
-                icon = Icons.Filled.Inventory2,
-                title = "No boxes yet",
-                body = "Create a box to start scanning.",
-                action = { GradientButton("Create a box", { creating = true }, icon = Icons.Filled.Add) },
-            )
+            EmptyState(title = "No boxes yet", action = "New box", onAction = { creating = true })
         }
         // A search field once the list gets long.
         val searching = ui.boxes.size > 6
@@ -627,7 +620,7 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** A box row: its cover card's art behind, a color stripe, count, value and change since added. */
+/** A box row: a strip of its cover card's art under the name, a color stripe, count, value and change since added. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BoxCard(
@@ -637,17 +630,14 @@ private fun BoxCard(
 ) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
-    // Nearly full at 90%.
-    val nearlyFull = b.capacity > 0 && b.cards * 10 >= b.capacity * 9
+    val fill = BoxFillMath.state(b.cards, b.capacity)
+    val nearlyFull = fill != BoxFill.OK
     val art = if (b.cards > 0) stats?.artUrl else null
-    val onArt = art != null
-    val fg = if (onArt) Color.White else Palette.Text
-    val muted = if (onArt) Color.White.copy(alpha = 0.72f) else Palette.Muted
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(20.dp)
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
+        Column(
             Modifier.weight(1f).clip(shape)
-                .background(if (onArt) Color(0xFF15161A) else Palette.BoxCard)
+                .background(Palette.BoxCard)
                 .combinedClickable(onClick = onClick, onLongClick = { if (b.cards > 0) onCover() })
                 .drawWithContent {
                     drawContent()
@@ -655,32 +645,26 @@ private fun BoxCard(
                 },
         ) {
             if (art != null) {
-                AsyncImage(
-                    model = art,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                )
-                Box(
-                    Modifier.matchParentSize().background(
-                        Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.88f), Color.Black.copy(alpha = 0.66f), Color.Black.copy(alpha = 0.3f))),
-                    ),
-                )
-            }
-            Column(Modifier.padding(start = 22.dp, end = 18.dp, top = 16.dp, bottom = 16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(boxIcon(b.kind), null, tint = stripe, modifier = Modifier.size(22.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        b.name, style = MaterialTheme.typography.titleLarge, color = if (onArt) Color.White else boxColor(b.color),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                // The cover's art as a cropped strip, dimmed toward the bottom so the name reads on it.
+                Box(Modifier.fillMaxWidth().height(68.dp).background(Color(0xFF15161A))) {
+                    AsyncImage(
+                        model = art,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alignment = BiasAlignment(0f, -0.35f),
+                        modifier = Modifier.matchParentSize(),
                     )
-                    if (b.fallback) {
-                        Spacer(Modifier.width(8.dp))
-                        Text("Fallback", style = MaterialTheme.typography.labelSmall, color = muted)
-                    }
+                    Box(
+                        Modifier.matchParentSize().background(
+                            Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.5f), Color.Black.copy(alpha = 0.82f))),
+                        ),
+                    )
+                    BoxTitle(b, stripe, onArt = true, Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 18.dp, bottom = 8.dp))
                 }
-                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Column(Modifier.padding(start = 22.dp, end = 18.dp, top = if (art != null) 10.dp else 16.dp, bottom = 14.dp)) {
+                if (art == null) BoxTitle(b, stripe, onArt = false)
+                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -688,34 +672,28 @@ private fun BoxCard(
                             b.capacity > 0 -> "${b.cards} / ${b.capacity}"
                             b.cards == 0 -> "No cards"
                             else -> "${b.cards} cards"
-                        } + (if (b.cards >= b.capacity && b.capacity > 0) " · Full" else ""),
+                        } + (if (fill == BoxFill.FULL) " · Full" else ""),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (nearlyFull) Palette.Gold else fg,
+                        color = fillColor(fill, Palette.Text),
                         modifier = Modifier.weight(1f).padding(bottom = 4.dp),
                     )
                     if (AppSettings.showPrices) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall, color = fg)
+                            Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall, color = Palette.Text)
                             val pct = stats?.changePercent
                             if (stats != null && pct != null) {
                                 Text(
                                     boxChangeLabel(stats.change, pct),
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = boxChangeColor(stats.change, onDark = onArt),
+                                    color = boxChangeColor(stats.change),
                                 )
                             }
                         }
                     }
                 }
                 if (b.capacity > 0) {
-                    // How full the box is.
                     Spacer(Modifier.height(8.dp))
-                    Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(if (onArt) Color.White.copy(alpha = 0.2f) else Palette.Outline)) {
-                        Box(
-                            Modifier.fillMaxWidth((b.cards.toFloat() / b.capacity).coerceIn(0f, 1f)).height(4.dp)
-                                .background(if (nearlyFull) Palette.Gold else stripe),
-                        )
-                    }
+                    BoxFillMeter(b.cards, b.capacity, stripe)
                 }
             }
         }
@@ -729,6 +707,23 @@ private fun BoxCard(
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
+        }
+    }
+}
+
+/** A box's icon and name, light on the art strip or in the box's own color without one. */
+@Composable
+private fun BoxTitle(b: BoxSummary, stripe: Color, onArt: Boolean, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(boxIcon(b.kind), null, tint = stripe, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            b.name, style = MaterialTheme.typography.titleLarge, color = if (onArt) Color.White else boxColor(b.color),
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+        )
+        if (b.fallback) {
+            Spacer(Modifier.width(8.dp))
+            Text("Fallback", style = MaterialTheme.typography.labelSmall, color = if (onArt) Color.White.copy(alpha = 0.72f) else Palette.Muted)
         }
     }
 }
@@ -804,11 +799,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             if (wishlist.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Filled.FavoriteBorder,
-                    title = "Nothing on your wishlist",
-                    body = "Add cards from Search or a deck.",
-                )
+                EmptyState(title = "Wishlist is empty")
             } else {
                 SectionHeader("${wishlist.sumOf { it.wanted }} wanted") {
                     if (AppSettings.showPrices) {

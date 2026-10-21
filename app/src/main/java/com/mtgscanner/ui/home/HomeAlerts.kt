@@ -5,13 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,31 +44,29 @@ fun alertLines(a: CardPriceAlert): String = listOfNotNull(
 @androidx.compose.runtime.Composable
 internal fun AlertsList(rows: List<AlertRow>, onOpenCard: (Long) -> Unit) {
     val ctx = LocalContext.current
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Column(Modifier.padding(vertical = 4.dp)) {
-            rows.forEach { r ->
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clickable(enabled = r.cardId != null) { r.cardId?.let(onOpenCard) }
-                        .padding(start = 16.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                        Text(
-                            r.alert.name + if (r.alert.foil) " · foil" else "",
-                            style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            alertLines(r.alert) + (r.price?.let { " · now ${formatUsd(it)}" } ?: ""),
-                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    IconButton(onClick = {
-                        val gone = r.alert
-                        CardAlertStore.remove(ctx, gone.key)
-                        Undo.offer("Alert removed") { CardAlertStore.put(ctx, gone) }
-                    }) { Icon(Icons.Filled.DeleteOutline, "Delete alert", tint = Palette.Muted) }
+    Column(Modifier.fillMaxWidth()) {
+        rows.forEach { r ->
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable(enabled = r.cardId != null) { r.cardId?.let(onOpenCard) }
+                    .padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                    Text(
+                        r.alert.name + if (r.alert.foil) " · foil" else "",
+                        style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        alertLines(r.alert) + (r.price?.let { " · now ${formatUsd(it)}" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
                 }
+                IconButton(onClick = {
+                    val gone = r.alert
+                    CardAlertStore.remove(ctx, gone.key)
+                    Undo.offer("Alert removed") { CardAlertStore.put(ctx, gone) }
+                }) { Icon(Icons.Filled.DeleteOutline, "Delete alert", tint = Palette.Muted) }
             }
         }
     }

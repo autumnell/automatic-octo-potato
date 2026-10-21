@@ -81,6 +81,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.ThemeMode
 import com.mtgscanner.ui.theme.ThemeSettings
+import com.mtgscanner.ui.theme.PriceStyle
 
 private val settingsTabs = listOf("Look", "Prices", "Scanning", "Sorting", "Data")
 
@@ -163,21 +164,34 @@ private fun LookTab() {
         }
     }
 
+    Spacer(Modifier.height(10.dp))
+    Card {
+        ToggleRow("True black", "Black backgrounds in dark mode", ThemeSettings.trueBlack) { ThemeSettings.updateTrueBlack(it) }
+    }
+
     SectionLabel("Accent color")
+    val fromCollection = ThemeSettings.accentFromCollection
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Column(Modifier.padding(12.dp)) {
+        Column {
+            ToggleRow(
+                "From my collection",
+                if (fromCollection) "Now ${colorName(ThemeSettings.collectionColor)}" else "Your most-owned color",
+                fromCollection,
+            ) { ThemeSettings.updateAccentFromCollection(it) }
+            HorizontalDivider(color = Palette.Outline)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
             ) {
+                // Tapping a swatch turns "From my collection" off.
                 ThemeSettings.presets.forEach { p ->
-                    Swatch(p.color, selected = ThemeSettings.accent.toArgb() == p.color.toArgb(), label = p.name) {
+                    Swatch(p.color, selected = !fromCollection && ThemeSettings.accent.toArgb() == p.color.toArgb(), label = p.name) {
                         ThemeSettings.updateAccent(p.color)
                     }
                 }
                 ThemeSettings.customAccent?.let { c ->
-                    Swatch(c, selected = ThemeSettings.accent.toArgb() == c.toArgb(), label = "Custom") {
+                    Swatch(c, selected = !fromCollection && ThemeSettings.accent.toArgb() == c.toArgb(), label = "Custom") {
                         ThemeSettings.updateAccent(c)
                     }
                 }
@@ -257,6 +271,11 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
     }
 }
 
+/** "White", "Blue"… for the collection-accent row; "Gold" when there's no colored card yet. */
+private fun colorName(letter: Char?): String = when (letter) {
+    'W' -> "White"; 'U' -> "Blue"; 'B' -> "Black"; 'R' -> "Red"; 'G' -> "Green"; else -> "Gold"
+}
+
 @Composable
 private fun SectionLabel(text: String) {
     Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp))
@@ -331,7 +350,7 @@ private fun Preview() {
         Row(Modifier.background(Palette.HeroGradient).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text("$1,234.56", style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
+                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Accent)
             }
             SelectPill("Selected", true, onClick = {})
         }

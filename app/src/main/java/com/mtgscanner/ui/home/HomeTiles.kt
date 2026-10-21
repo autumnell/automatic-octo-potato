@@ -22,7 +22,6 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,9 +36,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.SelectPill
-import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import com.mtgscanner.ui.components.RollingText
+import com.mtgscanner.ui.theme.PriceStyle
 
 /** Numbers for the stat tiles: every metric, and each saved search's card count by name. */
 data class TileData(val values: Map<TileMetric, Double> = emptyMap(), val lists: Map<String, Int> = emptyMap())
@@ -62,29 +68,35 @@ internal fun StatTileRow(data: TileData, onTap: (TileMetric) -> Unit, onEdit: ()
     val shown = shownTiles(HomePrefs.tiles, data, listName, AppSettings.showPrices)
     if (shown.isEmpty()) return
     val compact = shown.size >= 4
-    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)) {
-        shown.forEach { m ->
+    // Plain figures split by hairlines, no boxes: the value card above is the only panel.
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        shown.forEachIndexed { i, m ->
+            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 10.dp).background(Palette.Hairline))
             val label = if (m == TileMetric.CUSTOM) listName.orEmpty() else m.short
-            val value = if (m == TileMetric.CUSTOM) TileMath.shortCount((listName?.let { data.lists[it] } ?: 0).toDouble())
-            else TileMath.text(m, data.values[m] ?: 0.0)
-            val tap = Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).combinedClickable(onClick = { onTap(m) }, onLongClick = onEdit)
-            if (compact) CompactTile(label, value, tap) else StatTile(label, value, tap)
+            val value = if (m == TileMetric.CUSTOM) (listName?.let { data.lists[it] } ?: 0).toDouble() else data.values[m] ?: 0.0
+            val format: (Double) -> String = { v -> if (m == TileMetric.CUSTOM) TileMath.shortCount(v) else TileMath.text(m, v) }
+            FlatTile(
+                label, value, format, compact,
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onClick = { onTap(m) }, onLongClick = onEdit),
+            )
         }
     }
 }
 
-/** A narrower [StatTile] for four in a row. */
+/** One stat: the number counting up in the serif, its label under it. */
 @Composable
-private fun CompactTile(label: String, value: String, modifier: Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 6.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                label, style = MaterialTheme.typography.labelMedium, color = Palette.Text,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.titleLarge, color = Palette.AccentText, maxLines = 1)
-        }
+private fun FlatTile(label: String, value: Double, format: (Double) -> String, compact: Boolean, modifier: Modifier) {
+    Column(modifier.padding(horizontal = 4.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        RollingText(
+            value, format,
+            PriceStyle.copy(fontSize = PriceStyle.fontSize * (if (compact) 1.2f else 1.4f), lineHeight = PriceStyle.lineHeight * 1.3f),
+            Palette.AccentText,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+        )
     }
 }
 

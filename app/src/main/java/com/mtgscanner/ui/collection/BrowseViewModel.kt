@@ -36,6 +36,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.catch
+import com.mtgscanner.data.db.nearMintPrice
+import java.time.LocalDate
 
 @Serializable
 enum class SortBy(val label: String) {
@@ -145,6 +148,23 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         if (_dense.value && _grid.value) toggleGrid()
     }
 
+    /** Grid, then list, then compact one-line rows. */
+    fun cycleView() {
+        when {
+            _grid.value -> { toggleGrid(); if (_dense.value) { _dense.value = false; setPref("dense", false) } }
+            !_dense.value -> toggleDense()
+            else -> { _dense.value = false; setPref("dense", false); toggleGrid() }
+        }
+    }
+
+    /** A box shown as a fanned stack of cards, one at a time. */
+    private val _stack = MutableStateFlow(boxId >= 0 && pref("stack", false))
+    val stack: StateFlow<Boolean> = _stack
+    fun toggleStack() {
+        _stack.value = !_stack.value
+        setPref("stack", _stack.value)
+    }
+
     /** Binder page view instead of the list. */
     private val _pages = MutableStateFlow(pref("pages", false))
     val pages: StateFlow<Boolean> = _pages
@@ -214,7 +234,12 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         _selected.update { sel -> if (sel.all { it in shownSet }) sel else sel.filterTo(HashSet()) { it in shownSet } }
         BrowseUi(
             title = if (boxId < 0) listTitle ?: "All cards" else box?.name ?: "Box",
-            groups = if (f.group == GroupBy.NONE && divider != Divider.NONE) bySpot(shown, divider) else group(shown, f.group),
+            groups = when {
+                f.group == GroupBy.NONE && divider != Divider.NONE -> bySpot(shown, divider)
+                // Long plain lists get headers by letter or set.
+                f.group == GroupBy.NONE -> ListSections.sections(shown, f.sort) ?: group(shown, f.group)
+                else -> group(shown, f.group)
+            },
             shownCards = shown.sumOf { it.quantity },
             shownValue = shown.sumOf { it.totalPrice() },
             totalCards = sc.totalCards,
@@ -231,6 +256,23 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             unslotted = if (binder) sc.inScope.count { it.binderSlot <= 0 } else 0,
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
+
+    /** 30-day price lines by card row id, for the sparklines; only cards with two or more points. */
+    val sparks: StateFlow<Map<Long, List<Double>>> = scope.map { it.inScope }
+        .distinctUntilChanged()
+        .map { cards ->
+            val history = PriceTrends.history(repo, cards.mapTo(HashSet()) { it.scryfallId })
+            val today = LocalDate.now().toString()
+            val out = HashMap<Long, List<Double>>()
+            for (c in cards) {
+                val pts = PriceTrends.sparkPoints(history[c.scryfallId].orEmpty(), c.foil, c.nearMintPrice(), today)
+                if (pts.size >= 2) out[c.id] = pts
+            }
+            out as Map<Long, List<Double>>
+        }
+        .catch { emit(emptyMap()) }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun update(f: (Filters) -> Filters) = _filters.update(f)
     fun clearFilters() = _filters.update { Filters(query = it.query, sort = it.sort, group = it.group) }
@@ -347,6 +389,14 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         val lines = recordMoves(listOf(id), boxId)
         withUndo(listOf(id), "Moved to ${boxName(boxId)}", { MoveList.remove(lines) }) { repo.moveToBox(id, boxId) }
     }
+    /** Lists one card for sale (swipe left), with Undo. */
+    fun sellOne(c: CollectionCard) {
+        if (c.forSale) { Undo.offer("${c.name} is already for sale"); return }
+        withUndo(listOf(c.id), "${c.name} for sale") {
+            repo.cardOnce(c.id)?.let { if (!it.forSale) repo.update(it.copy(forSale = true)) }
+        }
+    }
+
     fun deleteOne(id: Long, name: String) = withUndo(listOf(id), "Removed $name") { repo.deleteMany(listOf(id)) }
 
     companion object {

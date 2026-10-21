@@ -38,7 +38,10 @@ object Palette {
             ThemeMode.SYSTEM -> systemDark
         }
 
-    val Accent: Color get() = ThemeSettings.accent
+    /** Dark mode on pure black (Settings › Look). */
+    val black: Boolean get() = dark && ThemeSettings.trueBlack
+
+    val Accent: Color get() = ThemeSettings.activeAccent
     val AccentDeep: Color get() = lerp(Accent, Color(0xFF6E1630), 0.38f)
     /**
      * The accent for text (prices, selected labels). In light mode it is darkened until it reaches
@@ -60,16 +63,18 @@ object Palette {
     /** Text/icon color that reads well on top of the accent. */
     val OnAccent: Color get() = if (Accent.luminance() > 0.45f) Color(0xFF141414) else Color.White
 
-    val Background: Color get() = if (dark) Color(0xFF111214) else Color(0xFFF4F4F7)
-    val Surface: Color get() = if (dark) Color(0xFF1A1B1F) else Color(0xFFFFFFFF)
-    val SurfaceHigh: Color get() = if (dark) Color(0xFF24262C) else Color(0xFFE9EAEF)
-    val BoxCard: Color get() = if (dark) Color(0xFF1E2233) else Color(0xFFE4E8F6)
-    val NavBar: Color get() = if (dark) Color(0xFF09090A) else Color(0xFFFFFFFF)
+    val Background: Color get() = when { black -> Color.Black; dark -> Color(0xFF111214); else -> Color(0xFFF4F4F7) }
+    val Surface: Color get() = when { black -> Color(0xFF0D0D0F); dark -> Color(0xFF1A1B1F); else -> Color(0xFFFFFFFF) }
+    val SurfaceHigh: Color get() = when { black -> Color(0xFF1A1B1E); dark -> Color(0xFF24262C); else -> Color(0xFFE9EAEF) }
+    val BoxCard: Color get() = when { black -> Color(0xFF10121A); dark -> Color(0xFF1E2233); else -> Color(0xFFE4E8F6) }
+    val NavBar: Color get() = when { black -> Color.Black; dark -> Color(0xFF09090A); else -> Color(0xFFFFFFFF) }
     val Gold: Color get() = if (dark) Color(0xFFF2C14E) else Color(0xFFB07D12)
     val Info: Color get() = if (dark) Color(0xFF5B9BE0) else Color(0xFF2F6FB8)
     val Text: Color get() = if (dark) Color(0xFFEDEDEF) else Color(0xFF17181C)
     val Muted: Color get() = if (dark) Color(0xFF9A9BA3) else Color(0xFF666873)
-    val Outline: Color get() = if (dark) Color(0xFF34363D) else Color(0xFFD3D5DC)
+    val Outline: Color get() = when { black -> Color(0xFF26272C); dark -> Color(0xFF34363D); else -> Color(0xFFD3D5DC) }
+    /** Hairline between plain sections: fainter than [Outline]. */
+    val Hairline: Color get() = Outline.copy(alpha = if (dark) 0.7f else 0.8f)
     val Danger: Color get() = if (dark) Color(0xFFE5534B) else Color(0xFFC62F28)
     val Success: Color get() = if (dark) Color(0xFF4CC38A) else Color(0xFF1E8E5A)
 
@@ -104,6 +109,21 @@ val Lexend = FontFamily(
     Font(R.font.lexend_bold, FontWeight.Bold),
 )
 
+/**
+ * Cormorant SC (SIL OFL): a sharp engraved serif in small caps, for headings, the big value and prices.
+ * A Latin subset; anything it lacks falls back to the system font.
+ */
+val Cormorant = FontFamily(
+    Font(R.font.cormorant_sc_semibold, FontWeight.Medium),
+    Font(R.font.cormorant_sc_semibold, FontWeight.SemiBold),
+    Font(R.font.cormorant_sc_bold, FontWeight.Bold),
+)
+
+/** Lining figures, so numbers in headings sit on the line instead of Cormorant's old-style digits. */
+private const val HEADING_FIGURES = "lnum"
+/** Lining and tabular figures: every digit the same width, so prices line up and counters don't jiggle. */
+private const val PRICE_FIGURES = "lnum, tnum"
+
 private fun scheme(): ColorScheme {
     val p = Palette
     val common = if (p.dark) darkColorScheme() else lightColorScheme()
@@ -137,12 +157,19 @@ private fun scheme(): ColorScheme {
 private fun base(size: Int, weight: FontWeight, line: Int = (size * 1.35f).toInt(), spacing: Double = 0.0) =
     TextStyle(fontFamily = Lexend, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp)
 
+/** Cormorant runs small next to Lexend, so its sizes are a step up for the same visual weight. */
+private fun heading(size: Int, weight: FontWeight = FontWeight.Bold, spacing: Double = 0.4) =
+    TextStyle(
+        fontFamily = Cormorant, fontWeight = weight, fontSize = size.sp, lineHeight = (size * 1.2f).toInt().sp,
+        letterSpacing = spacing.sp, fontFeatureSettings = HEADING_FIGURES,
+    )
+
 private val typography = Typography(
-    displaySmall = base(34, FontWeight.SemiBold),
-    headlineLarge = base(30, FontWeight.SemiBold),
-    headlineMedium = base(26, FontWeight.SemiBold),
-    headlineSmall = base(22, FontWeight.SemiBold),
-    titleLarge = base(20, FontWeight.SemiBold),
+    displaySmall = heading(40),
+    headlineLarge = heading(34),
+    headlineMedium = heading(30),
+    headlineSmall = heading(26),
+    titleLarge = heading(23),
     titleMedium = base(16, FontWeight.SemiBold),
     titleSmall = base(14, FontWeight.Medium),
     bodyLarge = base(16, FontWeight.Normal),
@@ -165,6 +192,18 @@ private fun Typography.scaled(factor: Float): Typography {
 }
 
 private val bigTypography = typography.scaled(1.2f)
+
+private val priceStyle = TextStyle(
+    fontFamily = Cormorant, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 22.sp,
+    letterSpacing = 0.2.sp, fontFeatureSettings = PRICE_FIGURES,
+)
+private val bigPriceStyle = priceStyle.copy(fontSize = priceStyle.fontSize * 1.2f, lineHeight = priceStyle.lineHeight * 1.2f)
+
+/**
+ * For prices and other numbers: the heading serif with tabular lining figures. 18sp; change the size with
+ * `PriceStyle.copy(fontSize = …)`. Bigger in big-text mode. No color: pass one (usually [Palette.AccentText]).
+ */
+val PriceStyle: TextStyle get() = if (AppSettings.bigText) bigPriceStyle else priceStyle
 
 private val shapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),

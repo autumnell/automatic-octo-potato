@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -26,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -111,61 +109,59 @@ internal fun ToSortSection(
     onOpenCard: (Long) -> Unit,
     onUnknown: (PendingScan) -> Unit,
 ) {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Column(Modifier.padding(vertical = 8.dp)) {
-            if (ui.items.isNotEmpty()) {
-                val copies = ui.items.sumOf { it.card.quantity }
-                Text(
-                    if (copies == 1) "1 card to move" else "$copies cards to move",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-                ui.items.take(4).forEach { item ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = 16.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CardImage(item.card.smallImageUrl ?: item.card.imageUrl, Modifier.width(28.dp), corner = 3.dp, zoom = true)
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            (if (item.card.quantity > 1) "${item.card.quantity}× " else "") + item.card.name,
-                            style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Palette.Muted, modifier = Modifier.size(14.dp).padding(horizontal = 2.dp))
-                        Text(
-                            listOfNotNull(ui.boxNames[item.to], item.spot).joinToString(" · "),
-                            style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1,
-                            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.8f).padding(start = 4.dp),
-                        )
-                    }
+    Column(Modifier.fillMaxWidth()) {
+        if (ui.items.isNotEmpty()) {
+            val copies = ui.items.sumOf { it.card.quantity }
+            Text(
+                if (copies == 1) "1 card to move" else "$copies cards to move",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            ui.items.take(4).forEach { item ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CardImage(item.card.smallImageUrl ?: item.card.imageUrl, Modifier.width(28.dp), corner = 3.dp, zoom = true)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        (if (item.card.quantity > 1) "${item.card.quantity}× " else "") + item.card.name,
+                        style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Palette.Muted, modifier = Modifier.size(14.dp).padding(horizontal = 2.dp))
+                    Text(
+                        listOfNotNull(ui.boxNames[item.to], item.spot).joinToString(" · "),
+                        style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.8f).padding(start = 4.dp),
+                    )
                 }
-                if (ui.items.size > 4) {
-                    Text("+ ${ui.items.size - 4} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp))
-                }
-                GradientButton("Sort", onSort, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
             }
-            if (ui.items.isNotEmpty() && ui.unknown.isNotEmpty()) HorizontalDivider(color = Palette.Outline)
-            if (ui.unknown.isNotEmpty()) {
-                Text(
-                    if (ui.unknown.size == 1) "1 unknown scan" else "${ui.unknown.size} unknown scans",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-                ui.unknown.take(5).forEach { p ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Filled.QuestionMark, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text("\"${p.name}\"", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Icon(Icons.Filled.Search, "Find", tint = Palette.Accent, modifier = Modifier.size(18.dp))
-                    }
+            if (ui.items.size > 4) {
+                Text("+ ${ui.items.size - 4} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp))
+            }
+            GradientButton("Sort", onSort, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+        }
+        if (ui.items.isNotEmpty() && ui.unknown.isNotEmpty()) HorizontalDivider(color = Palette.Outline)
+        if (ui.unknown.isNotEmpty()) {
+            Text(
+                if (ui.unknown.size == 1) "1 unknown scan" else "${ui.unknown.size} unknown scans",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            ui.unknown.take(5).forEach { p ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.QuestionMark, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("\"${p.name}\"", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.Search, "Find", tint = Palette.Accent, modifier = Modifier.size(18.dp))
                 }
-                if (ui.unknown.size > 5) {
-                    Text("+ ${ui.unknown.size - 5} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                }
+            }
+            if (ui.unknown.size > 5) {
+                Text("+ ${ui.unknown.size - 5} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             }
         }
     }

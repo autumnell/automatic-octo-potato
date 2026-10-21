@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -106,7 +105,7 @@ fun StatsScreen(
         }
         val s = stats ?: return@Column
         if (s.cards == 0) {
-            EmptyState(icon = Icons.Filled.BarChart, title = "No cards yet", body = "Scan cards to see stats.")
+            EmptyState("No cards yet")
             return@Column
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {

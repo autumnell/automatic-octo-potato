@@ -24,14 +24,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,8 +67,6 @@ import com.mtgscanner.ui.collection.SortBy
 import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
-import com.mtgscanner.ui.components.GradientButton
-import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -88,6 +81,18 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import coil.compose.AsyncImage
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.LaunchedEffect
+import com.mtgscanner.ui.components.RollingText
+import com.mtgscanner.ui.theme.PriceStyle
+import com.mtgscanner.ui.theme.ThemeSettings
+import com.mtgscanner.ui.theme.AccentMath
+import com.mtgscanner.data.db.artCropUrl
 
 data class HomeUi(
     val loaded: Boolean = false,
@@ -109,6 +114,10 @@ data class HomeUi(
     /** Commons and uncommons under 50¢, for the bulk estimate. */
     val bulkCards: Int = 0,
     val boxCount: Int = 0,
+    /** Art crop of the most valuable card, shown faintly behind the value card. */
+    val heroArt: String? = null,
+    /** The color (W/U/B/R/G) with the most copies by color identity, for "Accent from my collection". */
+    val colorLetter: Char? = null,
 )
 
 /** Worked out from price history: this week's movers and each box's value by day. */
@@ -124,6 +133,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             val keys = if (c.colors.isEmpty()) listOf("C") else c.colors.map { it.toString() }.filter { it in colorCounts }
             keys.forEach { key -> colorCounts[key] = (colorCounts[key] ?: 0) + c.quantity }
         }
+        val valuable = all.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12)
         HomeUi(
             loaded = true,
             totalCards = all.sumOf { it.quantity },
@@ -132,7 +142,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             sets = all.map { it.setCode }.distinct().size,
             foils = all.filter { it.foil }.sumOf { it.quantity },
             recent = all.sortedByDescending { it.addedAt }.take(12),
-            valuable = all.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12),
+            valuable = valuable,
             colors = colorCounts.toList(),
             // Proxies are worth $0 today, so leave them out of "since added" on both sides.
             valueAtAdd = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { (it.priceWhenAdded() ?: 0.0) * it.quantity },
@@ -142,6 +152,8 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 .sortedByDescending { (it.changeSinceAdded() ?: 0.0) * it.quantity }.take(12),
             bulkCards = HomeMath.bulk(all, 0.0).cards,
             boxCount = boxes.size,
+            heroArt = artCropUrl(valuable.firstOrNull()?.imageUrl),
+            colorLetter = AccentMath.dominant(all.map { it.colorIdentity to it.quantity }),
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
 
@@ -267,6 +279,8 @@ fun HomeScreen(
     var editing by remember { mutableStateOf(false) }
     var editingTiles by remember { mutableStateOf(false) }
     var unknown by remember { mutableStateOf<PendingScan?>(null) }
+    // Keeps "Accent from my collection" in step with what's owned (saved, so it's right at the next start).
+    LaunchedEffect(ui.loaded, ui.colorLetter) { if (ui.loaded) ThemeSettings.noteCollectionColor(ui.colorLetter) }
 
     fun browse(sort: SortBy? = null, color: String? = null) {
         BrowseLaunch.sort = sort
@@ -316,30 +330,11 @@ fun HomeScreen(
         com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
 
         if (ui.loaded && ui.totalCards == 0) {
-            if (ui.boxCount == 0) {
-                EmptyState(
-                    icon = Icons.Filled.Inventory2,
-                    title = "Start with a box",
-                    body = "Then scan cards into it.",
-                    action = { GradientButton("Make a box", onCollection, icon = Icons.Filled.Inventory2) },
-                )
-            } else {
-                EmptyState(
-                    icon = Icons.Filled.Style,
-                    title = "No cards yet",
-                    body = "Scan or search to add cards.",
-                    action = {
-                        TextButton(onClick = onSearch) {
-                            Icon(Icons.Filled.Search, null)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Search by name")
-                        }
-                    },
-                )
-            }
+            if (ui.boxCount == 0) EmptyState("Start with a box", action = "Make a box", onAction = onCollection)
+            else EmptyState("No cards yet", action = "Search by name", onAction = onSearch)
             // Unknown scans can exist before any card was added.
             if (!toSort.isEmpty) {
-                SectionHeader("To be sorted")
+                HomeHeading("To be sorted")
                 ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it })
             }
         } else if (ui.loaded) {
@@ -348,43 +343,43 @@ fun HomeScreen(
             HomePrefs.sections.forEach { section ->
                 when (section) {
                     HomeSection.TO_SORT -> if (!toSort.isEmpty) {
-                        SectionHeader("To be sorted")
+                        HomeHeading("To be sorted")
                         ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it })
                     }
                     HomeSection.GOALS -> {
-                        SectionHeader("Goals") { if (goals.isNotEmpty()) TextButton(onClick = onGoals) { Text("See all") } }
+                        HomeHeading("Goals", if (goals.isNotEmpty()) "See all" else null, onGoals)
                         GoalsPreview(goals, onGoals)
                     }
                     HomeSection.RECENT -> if (ui.recent.isNotEmpty()) {
-                        SectionHeader("Recently added") { TextButton(onClick = { browse(SortBy.RECENT) }) { Text("See all") } }
+                        HomeHeading("Recently added", "See all") { browse(SortBy.RECENT) }
                         CardCarousel(ui.recent, onOpenCard)
                     }
                     HomeSection.MOVERS -> if (showPrices && prices.movers.isNotEmpty()) {
-                        SectionHeader("Price moves this week")
+                        HomeHeading("Moves this week")
                         MoversCarousel(prices.movers, onOpenCard)
                     }
                     HomeSection.VALUABLE -> if (showPrices && ui.valuable.isNotEmpty()) {
-                        SectionHeader("Most valuable") { TextButton(onClick = { browse(SortBy.PRICE) }) { Text("See all") } }
+                        HomeHeading("Most valuable", "See all") { browse(SortBy.PRICE) }
                         CardCarousel(ui.valuable, onOpenCard)
                     }
                     HomeSection.GAINERS -> if (showPrices && ui.gainers.isNotEmpty()) {
-                        SectionHeader("Biggest gains") { TextButton(onClick = { browse(SortBy.GAIN) }) { Text("See all") } }
+                        HomeHeading("Biggest gains", "See all") { browse(SortBy.GAIN) }
                         CardCarousel(ui.gainers, onOpenCard, showGain = true)
                     }
                     HomeSection.BOX_VALUES -> if (showPrices && prices.boxValues.days.size >= 2 && boxes.isNotEmpty()) {
-                        SectionHeader("Value by box")
+                        HomeHeading("Value by box")
                         BoxValueChart(prices.boxValues, boxes)
                     }
                     HomeSection.BULK -> if (showPrices && ui.bulkCards > 0) {
-                        SectionHeader("Bulk estimate")
+                        HomeHeading("Bulk estimate")
                         BulkCard(ui.bulkCards)
                     }
                     HomeSection.COLORS -> {
-                        SectionHeader("Colors")
+                        HomeHeading("Colors")
                         ColorBreakdown(ui.colors, onColor = { browse(color = it) })
                     }
                     HomeSection.ALERTS -> if (showPrices && alerts.isNotEmpty()) {
-                        SectionHeader("Price alerts")
+                        HomeHeading("Price alerts")
                         AlertsList(alerts, onOpenCard)
                     }
                 }
@@ -416,52 +411,84 @@ private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
     }
 }
 
+/**
+ * A plain section start: a hairline, the heading in the serif, and an optional text action on the right.
+ * Home's sections sit straight on the background under these, without cards around them.
+ */
+@Composable
+internal fun HomeHeading(title: String, action: String? = null, onAction: () -> Unit = {}) {
+    Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+        HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = Palette.Hairline)
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, style = MaterialTheme.typography.titleLarge, color = Palette.Text, modifier = Modifier.weight(1f))
+            if (action != null) TextButton(onClick = onAction) { Text(action, color = Palette.AccentText) }
+        }
+    }
+}
+
+/** The one hero on Home: collection value over faint art from the most valuable card. */
 @Composable
 private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(24.dp))
+    val shape = RoundedCornerShape(24.dp)
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            .clip(shape)
+            .background(Palette.HeroGradient)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(24.dp),
-        color = Color.Transparent,
     ) {
-        Box(
-            Modifier.background(Palette.HeroGradient),
-        ) {
-            Column(Modifier.padding(20.dp)) {
-                val prices = AppSettings.showPrices
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (prices) "Collection value" else "Your collection", style = MaterialTheme.typography.labelLarge, color = Palette.Muted,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (onClick != null) {
-                        Text("Stats", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
-                    }
-                }
+        val art = ui.heroArt?.takeIf { AppSettings.showPrices }
+        if (art != null) {
+            // Faint and softened (blur works on Android 12+), with a scrim on the text side so numbers stay crisp.
+            AsyncImage(
+                model = art,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alpha = if (Palette.dark) 0.34f else 0.22f,
+                modifier = Modifier.matchParentSize().blur(4.dp),
+            )
+            Box(
+                Modifier.matchParentSize().background(
+                    Brush.horizontalGradient(
+                        0f to Palette.BoxCard.copy(alpha = 0.9f),
+                        0.55f to Palette.BoxCard.copy(alpha = 0.6f),
+                        1f to Palette.BoxCard.copy(alpha = 0.15f),
+                    ),
+                ),
+            )
+        }
+        Column(Modifier.padding(20.dp)) {
+            val prices = AppSettings.showPrices
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (prices) formatUsd(ui.totalValue) else "${ui.totalCards} cards",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = Palette.Accent,
-                    fontWeight = FontWeight.SemiBold,
+                    if (prices) "Collection value" else "Your collection", style = MaterialTheme.typography.labelLarge, color = Palette.Muted,
+                    modifier = Modifier.weight(1f),
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
-                    else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
-                    if (prices && ui.valueAtAdd > 0) {
-                        Spacer(Modifier.width(10.dp))
-                        ChangeText(ui.valueNowTracked - ui.valueAtAdd, ui.valueAtAdd)
-                        Text(" since added", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    }
+                if (onClick != null) {
+                    Text("Stats", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
                 }
-                if (prices && ui.history.size >= 2) {
-                    Spacer(Modifier.height(12.dp))
-                    ValueChart(ui.history, Modifier.fillMaxWidth().height(72.dp))
-                    Row(Modifier.fillMaxWidth()) {
-                        Text(shortDay(ui.history.first().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
-                        Text(shortDay(ui.history.last().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
-                    }
+            }
+            val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
+            if (prices) RollingText(ui.totalValue, { formatUsd(it) }, big, Palette.Accent)
+            else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.Accent)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+                else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+                if (prices && ui.valueAtAdd > 0) {
+                    Spacer(Modifier.width(10.dp))
+                    ChangeText(ui.valueNowTracked - ui.valueAtAdd, ui.valueAtAdd)
+                    Text(" since added", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                }
+            }
+            if (prices && ui.history.size >= 2) {
+                Spacer(Modifier.height(12.dp))
+                ValueChart(ui.history, Modifier.fillMaxWidth().height(72.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    Text(shortDay(ui.history.first().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                    Text(shortDay(ui.history.last().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                 }
             }
         }
@@ -488,36 +515,34 @@ private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
 @Composable
 private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) -> Unit) {
     val total = colors.sumOf { it.second }.coerceAtLeast(1)
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(7.dp))) {
-                colors.filter { it.second > 0 }.forEach { (k, n) ->
-                    Box(Modifier.weight(n.toFloat()).fillMaxHeight().background(colorFor(k)))
-                }
-                if (colors.all { it.second == 0 }) Box(Modifier.weight(1f).fillMaxHeight().background(Palette.SurfaceHigh))
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
+        Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))) {
+            colors.filter { it.second > 0 }.forEach { (k, n) ->
+                Box(Modifier.weight(n.toFloat()).fillMaxHeight().background(colorFor(k)))
             }
-            Spacer(Modifier.height(14.dp))
-            colors.chunked(4).forEach { row ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                    row.forEach { (k, n) ->
-                        Row(
-                            Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                                .clickable(enabled = n > 0) { onColor(k) }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (k in listOf("W", "U", "B", "R", "G", "C")) ColorPip(k[0])
-                            else Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(colorFor(k)))
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "${label(k)} ${n * 100 / total}%",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (n > 0) Palette.Text else Palette.Muted,
-                            )
-                        }
+            if (colors.all { it.second == 0 }) Box(Modifier.weight(1f).fillMaxHeight().background(Palette.SurfaceHigh))
+        }
+        Spacer(Modifier.height(14.dp))
+        colors.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                row.forEach { (k, n) ->
+                    Row(
+                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = n > 0) { onColor(k) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (k in listOf("W", "U", "B", "R", "G", "C")) ColorPip(k[0])
+                        else Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(colorFor(k)))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "${label(k)} ${n * 100 / total}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (n > 0) Palette.Text else Palette.Muted,
+                        )
                     }
-                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

@@ -379,7 +379,7 @@ private fun RulesStep(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("common", "uncommon", "rare", "mythic").forEach { r ->
                 SelectPill(r.replaceFirstChar(Char::uppercase), r in rules.rarities, { onRules(rules.copy(rarities = rules.rarities.toggle(r))) },
-                    leading = { RarityDot(r, 8.dp) })
+                    leading = { RarityMark(r) })
             }
         }
     }
