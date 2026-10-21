@@ -100,8 +100,9 @@ suspend fun CollectionRepository.deckCardInfo(names: Collection<String>): Map<St
     return out
 }
 
+/** Slice colors. White is a darker cream in light mode, where the usual near-white vanishes on the panel. */
 fun StatColor.color(): Color = when (this) {
-    StatColor.White -> MtgColors.W
+    StatColor.White -> if (Palette.dark) MtgColors.W else Color(0xFFDCCB94)
     StatColor.Blue -> MtgColors.U
     StatColor.Black -> MtgColors.B
     StatColor.Red -> MtgColors.R
