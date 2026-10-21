@@ -119,9 +119,13 @@ class CollectionRepository(
     private val prefs = context.getSharedPreferences("collection", Context.MODE_PRIVATE)
     internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val nameIndex = NameIndex(context.filesDir, api)
-    private val art = ArtMatcher()
+    /** The on-device art model, downloaded the first time art needs comparing. */
+    val artEmbedder = com.mtgscanner.scan.ArtEmbedder(context.applicationContext)
+    private val art = ArtMatcher(embedder = artEmbedder)
     /** Downloaded per-set art hashes, to find cards from their artwork when no text can be read. */
-    val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api)
+    val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api, artEmbedder)
+    /** Set symbol shapes, drawn from Scryfall's icons as sets are needed. */
+    private val setSymbols = com.mtgscanner.scan.SetSymbols(context.applicationContext, api)
     val scanLog = com.mtgscanner.scan.ScanLog(context.filesDir)
 
     /** One shared read of the cards table for every screen; kept 5 s after the last screen stops watching. */
@@ -457,20 +461,48 @@ class CollectionRepository(
             }
         }
         base ?: return null
-        val hash = guess.artHash
-        if (hash != null && guess.collectorNumber == null) {
-            refineByArt(base.card, hash)?.let { return base.copy(card = it, exact = true) }
-        }
+        if (guess.collectorNumber == null) choosePrinting(base, guess)?.let { return it }
         return base
     }
 
-    /** Picks the printing whose artwork matches what the camera sees. */
-    suspend fun refineByArt(card: ScryfallCard, artHash: Long): ScryfallCard? {
-        val all = runCatching { printingsCached(card) }.getOrNull() ?: return null
-        // With the set lock on, only that set's printings are candidates.
-        val printings = SortPrefs.setLock?.let { lock -> all.filter { it.set.equals(lock, ignoreCase = true) }.ifEmpty { all } } ?: all
-        if (printings.size < 2) return null
-        return art.bestPrinting(printings, artHash)
+    /**
+     * The footer's number wasn't read, so the name alone gave Scryfall's newest printing. Narrows the printings
+     * by the copyright year, then the set symbol, then the artwork; with only the year to go on, the newest
+     * printing from that year. Null when nothing narrows it (keep [base]).
+     */
+    private suspend fun choosePrinting(base: Identification, guess: CardTextGuess): Identification? {
+        val year = guess.year
+        val symbol = guess.symbol
+        val hash = guess.artHash
+        val embedding = guess.artEmbedding
+        if (year == null && symbol == null && hash == null && embedding == null) return null
+        val all = runCatching { printingsCached(base.card) }.getOrNull() ?: return null
+        // With the set lock on (or the set code read), only that set's printings are candidates.
+        val set = SortPrefs.setLock ?: guess.setCode
+        var pool = set?.let { s -> all.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { all } } ?: all
+        if (pool.size < 2) return null
+        pool = PrintingPick.newestFirst(pool) { it.releasedAt }
+        var narrowed = false
+        if (year != null) {
+            val inYear = PrintingPick.byYear(pool, year) { it.releasedAt }
+            if (inYear.isNotEmpty()) { pool = inYear; narrowed = true }
+        }
+        var bySymbol = false
+        val sets = pool.map { it.set.lowercase() }.distinct()
+        if (symbol != null && sets.size > 1) {
+            val winners = runCatching { setSymbols.pick(symbol, sets) }.getOrNull()
+            if (winners != null) {
+                pool = pool.filter { it.set.lowercase() in winners }
+                narrowed = true
+                bySymbol = true
+            }
+        }
+        if (pool.size > 1 && (hash != null || embedding != null)) {
+            runCatching { art.bestPrinting(pool, hash, embedding) }.getOrNull()?.let { return base.copy(card = it, exact = true) }
+        }
+        if (!narrowed) return null
+        val pick = pool.first()
+        return base.copy(card = pick, exact = base.exact || (bySymbol && pool.size == 1))
     }
 
     private val printingsCache = HashMap<String, List<ScryfallCard>>()

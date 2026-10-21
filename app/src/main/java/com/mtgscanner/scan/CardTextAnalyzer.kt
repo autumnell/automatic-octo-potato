@@ -36,6 +36,8 @@ class CardTextAnalyzer(
     private val onLight: (FrameLight) -> Unit = {},
     /** True when art indexes are downloaded, so a card with no readable text is worth hashing. */
     private val wantsArt: () -> Boolean = { false },
+    /** The art model: an embedding of a picture of artwork, or null when it isn't ready. */
+    private val embed: (Bitmap) -> ByteArray? = { null },
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -70,8 +72,22 @@ class CardTextAnalyzer(
     /** Reused for every frame, so a 3.7 MB bitmap isn't made four times a second. */
     private var frameBitmap: Bitmap? = null
 
-    /** Where to read in the frame (sensor pixels), and whether that is a found card or just the guide. */
-    private class ReadArea(val box: OcrBox, val isCard: Boolean, val outline: OcrBox? = null)
+    /**
+     * Where to read in the frame (sensor pixels), and whether that is a found card or just the guide.
+     * [quad] is the card's corners (sensor pixels, in the frame's own order) when an outline was found.
+     */
+    private class ReadArea(val box: OcrBox, val isCard: Boolean, val outline: OcrBox? = null, val quad: FloatArray? = null)
+
+    /** What reading the name bar and footer strips of the straightened card gave. */
+    private class StripRead(
+        val guess: CardTextGuess,
+        /** The clockwise turn of the frame that stood the card upright, when the strips could be read. */
+        val turn: Int?,
+        val glare: Boolean,
+    )
+
+    /** The last art embeddings worked out, by the art hash they came with: a card held still isn't embedded again. */
+    private val embedCache = ArrayDeque<Pair<Long, ByteArray>>()
 
     override fun analyze(image: ImageProxy) {
         val now = SystemClock.elapsedRealtime()
@@ -126,27 +142,41 @@ class CardTextAnalyzer(
 
         scope.launch {
             var crop: Bitmap? = null
+            var small: Bitmap? = null
             try {
                 if (page) onPage(readPage(bitmap, rotation))
                 else {
                     val a = area ?: ReadArea(guideArea(bitmap.width, bitmap.height, rotation), isCard = false)
-                    val b = a.box
-                    val c = if (b.width >= 32 && b.height >= 32 && (b.width < bitmap.width || b.height < bitmap.height)) {
-                        Bitmap.createBitmap(bitmap, b.left, b.top, b.width, b.height)
-                    } else bitmap
-                    if (c !== bitmap) crop = c
-                    // Cropped to a found card, everything read is on it; cropped to the guide, keep to the guide.
-                    val guess = readBestOrientation(c, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP)
-                    val outline = a.outline
-                    // No name or footer on a steady card: its artwork may still say which card it is.
-                    val artOnly = if (outline != null && guess.nameCandidates.isEmpty() && guess.collectorNumber == null && wantsArt()) {
-                        runCatching { hashWholeCard(bitmap, rotation, outline) }.getOrDefault(emptyList())
-                    } else emptyList()
-                    onGuess(if (artOnly.isEmpty()) guess else guess.copy(artOnly = artOnly))
+                    val quad = a.quad
+                    // A found card: read just its name bar and footer, straightened and sharp.
+                    val strips = if (quad != null) runCatching { readStrips(bitmap, quad, rotation) }.getOrNull() else null
+                    val stripGuess = strips?.guess
+                    var guess = if (stripGuess != null && stripGuess.setCode != null && stripGuess.collectorNumber != null) {
+                        stripGuess
+                    } else {
+                        // No complete footer from the strips: read the whole card too, as before (its rules
+                        // text also tells the language), and take the best of both.
+                        val b = a.box
+                        val c = if (b.width >= 32 && b.height >= 32 && (b.width < bitmap.width || b.height < bitmap.height)) {
+                            Bitmap.createBitmap(bitmap, b.left, b.top, b.width, b.height)
+                        } else bitmap
+                        if (c !== bitmap) crop = c
+                        // A big frame is read at about the size the reader worked with before, to keep it quick.
+                        val readable = shrunk(c)
+                        if (readable !== c) small = readable
+                        // Cropped to a found card, everything read is on it; cropped to the guide, keep to the guide.
+                        val full = readBestOrientation(readable, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP)
+                        if (stripGuess != null) CardTextParser.merge(stripGuess, full) else full
+                    }
+                    if (strips != null) guess = guess.copy(glare = strips.glare)
+                    // The straightened card's art, and its set symbol, tell printings (or a textless card) apart.
+                    if (quad != null) guess = runCatching { withArt(bitmap, quad, rotation, strips?.turn, guess) }.getOrDefault(guess)
+                    onGuess(guess)
                 }
             } catch (_: Throwable) {
                 // Skip this frame; the next one will try again.
             } finally {
+                small?.recycle()
                 crop?.recycle()
                 if (!reused) bitmap.recycle()
                 busy.set(false)
@@ -209,8 +239,146 @@ class CardTextAnalyzer(
         val res = gate.check(luma, gw, gh)
         val card = res.card ?: return res to null
         val box = OcrBox(region.left + card.left * step, region.top + card.top * step, region.left + card.right * step, region.top + card.bottom * step)
+        // The outline's corners, traced along each edge (a card held at an angle isn't a neat rectangle).
+        val corners = CardQuad.corners(luma, gw, gh, card) ?: CardQuad.ofBox(card)
+        val quad = CardQuad.scaled(corners, step, region.left, region.top)
         // Grown well past the outline found, in case it was an inner frame line (art, text box) rather than the card edge.
-        return res to ReadArea(FrameGeometry.grow(box, 0.15, image.width, image.height), isCard = true, outline = box)
+        return res to ReadArea(FrameGeometry.grow(box, 0.15, image.width, image.height), isCard = true, outline = box, quad = quad)
+    }
+
+    /** [b] scaled down to [MAX_READ] pixels on its long side, or [b] itself when it's no bigger. */
+    private fun shrunk(b: Bitmap): Bitmap {
+        val long = maxOf(b.width, b.height)
+        if (long <= MAX_READ) return b
+        val s = MAX_READ.toFloat() / long
+        return Bitmap.createScaledBitmap(b, (b.width * s).toInt().coerceAtLeast(1), (b.height * s).toInt().coerceAtLeast(1), true)
+    }
+
+    private fun norm(turn: Int) = ((turn % 360) + 360) % 360
+
+    /**
+     * Reads the name bar and the footer of the card straightened from [quad], each drawn from the full frame:
+     * the footer at twice its size, so its small print is sharp. Tries the way up that worked last, then the other
+     * the outline allows. Also checks the two strips for glare.
+     */
+    private suspend fun readStrips(src: Bitmap, quad: FloatArray, rotation: Int): StripRead {
+        val cardH = CardWarp.cardHeight(quad)
+        if (cardH < 120f) return StripRead(CardTextGuess(emptyList(), null, null, 0), null, false)
+        val nameScale = (NAME_TARGET_H / cardH).coerceIn(1f, 2f)
+        var glare = false
+        var year: Int? = null
+        for ((i, turn) in CardQuad.uprightTurns(quad, rotation + preferredTurn).withIndex()) {
+            val q = CardQuad.ordered(quad, turn)
+            val name = CardWarp.renderScaled(src, q, CardWarp.NAME, cardH, nameScale) ?: continue
+            val footer = CardWarp.renderScaled(src, q, CardWarp.FOOTER, cardH, FOOTER_SCALE)
+            try {
+                if (i == 0) {
+                    glare = glareIn(name, CardWarp.NAME, CardWarp.NAME_GLARE) ||
+                        (footer != null && glareIn(footer, CardWarp.FOOTER, CardWarp.FOOTER_GLARE))
+                }
+                val nameLines = stripLines(name, CardWarp.NAME, cardH)
+                val footerLines = if (footer != null) stripLines(footer, CardWarp.FOOTER, cardH) else emptyList()
+                if (nameLines.isEmpty() && footerLines.isEmpty()) continue
+                // Names only from the name bar: the footer's artist line is not a card name.
+                val names = CardTextParser.parse(nameLines).nameCandidates
+                val g = CardTextParser.parse(nameLines + footerLines).copy(nameCandidates = names)
+                if (year == null) year = g.year
+                val footerRead = g.setCode != null && g.collectorNumber != null
+                val nameRead = names.firstOrNull()?.let { CardTextParser.readableScore(it) >= 4 } == true
+                if (footerRead || nameRead) {
+                    preferredTurn = norm(turn - rotation)
+                    return StripRead(g, turn, glare)
+                }
+            } finally {
+                name.recycle()
+                footer?.recycle()
+            }
+        }
+        return StripRead(CardTextGuess(emptyList(), null, null, 0, year = year), null, glare)
+    }
+
+    /** OCR lines of a strip drawn from [part] of the card, placed on a card [cardH] pixels tall. */
+    private suspend fun stripLines(strip: Bitmap, part: FloatArray, cardH: Float): List<OcrLine> {
+        val cardW = cardH * (63f / 88f)
+        val sx = strip.width / ((part[2] - part[0]) * cardW)
+        val sy = strip.height / ((part[3] - part[1]) * cardH)
+        val ox = part[0] * cardW
+        val oy = part[1] * cardH
+        val text: Text = recognizer.process(InputImage.fromBitmap(strip, 0)).await()
+        return text.textBlocks.flatMap { block ->
+            block.lines.mapNotNull { line ->
+                val box = line.boundingBox ?: return@mapNotNull null
+                OcrLine(
+                    line.text,
+                    (ox + box.left / sx).toInt(), (oy + box.top / sy).toInt(),
+                    (ox + box.right / sx).toInt(), (oy + box.bottom / sy).toInt(),
+                )
+            }
+        }
+    }
+
+    /** Glare over [sub] (fractions of the card) of a strip drawn from [part]. */
+    private fun glareIn(strip: Bitmap, part: FloatArray, sub: FloatArray): Boolean {
+        fun fx(u: Float) = ((u - part[0]) / (part[2] - part[0]) * strip.width).toInt().coerceIn(0, strip.width)
+        fun fy(v: Float) = ((v - part[1]) / (part[3] - part[1]) * strip.height).toInt().coerceIn(0, strip.height)
+        val l = fx(sub[0])
+        val t = fy(sub[1])
+        val w = fx(sub[2]) - l
+        val h = fy(sub[3]) - t
+        if (w < 12 || h < 3) return false
+        val px = IntArray(w * h)
+        strip.getPixels(px, 0, w, l, t, w, h)
+        return LightCheck.glare(px, w, h)
+    }
+
+    /**
+     * Adds what the straightened card's picture tells: with no text read, its art hashed (and embedded) both ways
+     * up the outline allows, for the art indexes; with a name but no footer number, its art and set symbol, to
+     * pick the printing. [stripTurn] is the way up the strips were read at.
+     */
+    private fun withArt(src: Bitmap, quad: FloatArray, rotation: Int, stripTurn: Int?, g: CardTextGuess): CardTextGuess {
+        if (g.collectorNumber != null) return g
+        if (g.nameCandidates.isEmpty()) {
+            if (!wantsArt()) return g
+            val arts = CardQuad.uprightTurns(quad, rotation + preferredTurn).mapNotNull { artOf(src, quad, it) }
+            if (arts.isEmpty()) return g
+            return g.copy(artOnly = arts.map { it.first }, artOnlyEmbeddings = arts.mapNotNull { it.second })
+        }
+        // Which way up the card is: as the strips were read, or as the whole-card read settled, if the outline agrees.
+        val turn = stripTurn ?: norm(rotation + preferredTurn).takeIf { CardQuad.uprightTurns(quad, it).first() == it } ?: return g
+        val art = artOf(src, quad, turn)
+        val symbol = symbolOf(src, quad, turn)
+        return g.copy(artHash = art?.first ?: g.artHash, artEmbedding = art?.second, symbol = symbol)
+    }
+
+    /** The art window of the straightened card: its hash, and its embedding when the art model is ready. */
+    private fun artOf(src: Bitmap, quad: FloatArray, turn: Int): Pair<Long, ByteArray?>? {
+        val art = CardWarp.render(src, CardQuad.ordered(quad, turn), CardWarp.ART, ART_W, ART_H) ?: return null
+        return try {
+            val hash = ArtHashing.hash(art, 0, 0, art.width, art.height) ?: return null
+            hash to embedCached(hash, art)
+        } finally {
+            art.recycle()
+        }
+    }
+
+    /** The set symbol's shape, from the right end of the type line. */
+    private fun symbolOf(src: Bitmap, quad: FloatArray, turn: Int): SymbolPrint? {
+        val b = CardWarp.render(src, CardQuad.ordered(quad, turn), CardWarp.SYMBOL, SYMBOL_PX, SYMBOL_PX) ?: return null
+        return try {
+            SetSymbol.fingerprint(CardWarp.luma(b), b.width, b.height)
+        } finally {
+            b.recycle()
+        }
+    }
+
+    /** An embedding of [art], reused while the same art (by its [hash]) stays in view. */
+    private fun embedCached(hash: Long, art: Bitmap): ByteArray? {
+        embedCache.firstOrNull { ImageHash.distance(it.first, hash) <= SAME_ART_BITS }?.let { return it.second }
+        val e = embed(art) ?: return null
+        embedCache.addFirst(hash to e)
+        while (embedCache.size > 4) embedCache.removeLast()
+        return e
     }
 
     private suspend fun readBestOrientation(bitmap: Bitmap, cameraRotation: Int, frame: Double): CardTextGuess {
@@ -270,35 +438,6 @@ class CardTextAnalyzer(
         }
     }
 
-    /**
-     * Hashes the art window of the card inside [box] (sensor pixels) the way the art index hashes Scryfall's
-     * pictures. With no text to say which way is up, it's hashed both ways up of the card's long side.
-     */
-    private fun hashWholeCard(bitmap: Bitmap, cameraRotation: Int, box: OcrBox): List<Long> {
-        val l = box.left.coerceIn(0, bitmap.width - 1)
-        val t = box.top.coerceIn(0, bitmap.height - 1)
-        val w = box.right.coerceAtMost(bitmap.width) - l
-        val h = box.bottom.coerceAtMost(bitmap.height) - t
-        if (w < 18 || h < 18) return emptyList()
-        val base = (cameraRotation + preferredTurn) % 360
-        val sideways = base % 180 == 90
-        val uprightW = if (sideways) h else w
-        val uprightH = if (sideways) w else h
-        // The turn that stands the card tall, then the same upside down.
-        val first = if (uprightW <= uprightH) base else (base + 90) % 360
-        // Small is plenty for a 9x8 hash and keeps it quick.
-        val scale = minOf(1f, 160f / maxOf(w, h))
-        return listOf(first, (first + 180) % 360).mapNotNull { r ->
-            val m = Matrix().apply { postScale(scale, scale); postRotate(r.toFloat()) }
-            val upright = Bitmap.createBitmap(bitmap, l, t, w, h, m, true)
-            try {
-                ArtHashing.hashCardImage(upright)
-            } finally {
-                if (upright !== bitmap) upright.recycle()
-            }
-        }
-    }
-
     private fun isConfident(g: CardTextGuess): Boolean =
         (g.setCode != null && g.collectorNumber != null) ||
             (g.nameCandidates.isNotEmpty() && g.score >= 25)
@@ -336,5 +475,17 @@ class CardTextAnalyzer(
         const val GRID = 160
         /** A little more than the guide's share of the guide crop ([FrameGeometry.guideCrop] adds 20%). */
         const val GUIDE_IN_CROP = 0.9
+        /** Longest side, in pixels, of a whole-card read. */
+        const val MAX_READ = 1024
+        /** The name strip is drawn at least this tall per card height, so small cards still read. */
+        const val NAME_TARGET_H = 700f
+        /** The footer's small print, drawn at twice its size. */
+        const val FOOTER_SCALE = 2f
+        /** The art window, about the shape of the card's (0.84 x 0.44 of 63:88). */
+        const val ART_W = 224
+        const val ART_H = 164
+        const val SYMBOL_PX = 88
+        /** Art hashes this close are the same art held still: its embedding is reused. */
+        const val SAME_ART_BITS = 4
     }
 }

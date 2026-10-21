@@ -168,6 +168,8 @@ data class ScanUiState(
     val currentLang: String? = null,
     /** The frames suggest the card on screen is foil. Only a hint: tap to accept. */
     val foilHint: Boolean = false,
+    /** Glare over the card's name or footer in recent frames. */
+    val glare: Boolean = false,
     /** Text read that matched no card for a while, offered to save for later. */
     val unknownRead: String? = null,
     val unknownCount: Int = 0,
@@ -315,7 +317,23 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         viewModelScope.launch { handleGuess(guess) }
     }
 
+    /** Frames in a row with glare, and without. */
+    private var glareRun = 0
+    private var clearRun = 0
+
+    /** Shows "Tilt to reduce glare" after two frames with glare over the name or footer; hides it after two without. */
+    private fun trackGlare(guess: CardTextGuess) {
+        if (guess.glare) { glareRun++; clearRun = 0 } else { clearRun++; glareRun = 0 }
+        val show = when {
+            glareRun >= 2 -> true
+            clearRun >= 2 -> false
+            else -> return
+        }
+        if (_state.value.glare != show) _state.update { it.copy(glare = show) }
+    }
+
     private fun handleGuess(guess: CardTextGuess) {
+        trackGlare(guess)
         val key = guess.key
         if (key == null && guess.artOnly.isNotEmpty()) {
             // A card is there, just no readable text: not an empty frame.
@@ -445,8 +463,11 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The analyzer hashes cards with no readable text only when there's an index to match them against. */
     fun wantsArt(): Boolean = repo.artIndex.hasAny
 
+    /** The art model's embedding of a picture of artwork; null until the model is downloaded. Camera thread. */
+    fun embedArt(art: android.graphics.Bitmap): ByteArray? = repo.artEmbedder.embed(art)
+
     private fun handleArt(guess: CardTextGuess) {
-        val hit = repo.artIndex.match(guess.artOnly.toLongArray(), SortPrefs.setLock)
+        val hit = repo.artIndex.match(guess.artOnly.toLongArray(), SortPrefs.setLock, guess.artOnlyEmbeddings)
         // The same card on two frames in a row, so one lucky frame doesn't add the wrong card.
         val agreed = artVote.offer(hit?.id) ?: return
         if (hit == null || hit.id != agreed) return

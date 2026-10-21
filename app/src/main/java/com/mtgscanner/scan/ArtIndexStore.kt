@@ -25,7 +25,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** A downloaded art index: the set and how many pictures it holds. */
-data class ArtSetInfo(val set: String, val cards: Int)
+/** [embedded]: built with the art model; older files are rebuilt once the model is here. */
+data class ArtSetInfo(val set: String, val cards: Int, val embedded: Boolean = false)
 
 /** A download under way: [done] of [total] pictures for [set], and how many sets wait after it. */
 data class ArtDownload(val set: String, val done: Int, val total: Int, val queued: Int)
@@ -35,7 +36,7 @@ data class ArtDownload(val set: String, val done: Int, val total: Int, val queue
  * fetches every card's small image from Scryfall once and keeps only its art hash. They're read from disk the
  * first time a match is needed, and again after a download or delete.
  */
-class ArtIndexStore(filesDir: File, private val api: ScryfallApi) {
+class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val embedder: ArtEmbedder? = null) {
     private val dir = File(filesDir, "art-index")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = sharedHttpClient.newBuilder().readTimeout(15, TimeUnit.SECONDS).build()
@@ -72,7 +73,7 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi) {
 
     private fun refreshList() {
         val list = dir.listFiles { f -> f.name.endsWith(".bin") }.orEmpty().mapNotNull { f ->
-            runCatching { f.inputStream().use { ArtIndexCodec.header(it) } }.getOrNull()?.let { (set, n) -> ArtSetInfo(set, n) }
+            runCatching { f.inputStream().use { ArtIndexCodec.info(it) } }.getOrNull()?.let { ArtSetInfo(it.set, it.cards, it.embedded) }
         }.sortedBy { it.set }
         _sets.value = list
     }
@@ -81,14 +82,30 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi) {
      * Matches art against the loaded indexes. Not loaded yet: starts loading and returns null, so the camera never
      * waits on the disk. With [setLock], only that set counts when its index is here.
      */
-    fun match(targets: LongArray, setLock: String?): ArtHit? {
+    fun match(targets: LongArray, setLock: String?, embeddings: List<ByteArray> = emptyList()): ArtHit? {
         val idx = index
         if (idx == null) {
             if (hasAny && loading.compareAndSet(false, true)) scope.launch { load() }
             return null
         }
+        rebuildOld()
         val only = setLock?.lowercase()?.takeIf { idx.hasSet(it) }
-        return idx.match(targets, only)
+        return idx.match(targets, only, targetEmbeddings = embeddings)
+    }
+
+    /** Asked to rebuild the old indexes this session already. */
+    private val rebuildAsked = AtomicBoolean(false)
+
+    /**
+     * Indexes built before the art model have hashes only. Once the model is here they're downloaded again in
+     * the background, one after another, the first time art is matched.
+     */
+    private fun rebuildOld() {
+        val e = embedder ?: return
+        if (!e.ready) { e.ensure(); return }
+        val old = _sets.value.filter { !it.embedded }.map { it.set }
+        if (old.isEmpty() || !rebuildAsked.compareAndSet(false, true)) return
+        enqueue(old, rebuild = true)
     }
 
     private fun load() {
@@ -111,12 +128,12 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi) {
     }
 
     /** Downloads these sets one after another, in the background. Ones already here or queued are left alone. */
-    fun enqueue(codes: Collection<String>) {
+    fun enqueue(codes: Collection<String>, rebuild: Boolean = false) {
         scope.launch {
             queueLock.withLock {
                 val current = _download.value?.set
                 codes.map { c -> c.lowercase().filter { it.isLetterOrDigit() } }.filter { it.isNotEmpty() }.distinct()
-                    .filter { !fileFor(it).exists() && it !in queue && it != current }
+                    .filter { (rebuild || !fileFor(it).exists()) && it !in queue && it != current }
                     .forEach { queue.addLast(it) }
                 if (!running && queue.isNotEmpty()) {
                     running = true
@@ -151,6 +168,8 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi) {
         val cards = api.searchAll("e:$set", unique = "prints", maxPages = 20, order = "set")
         if (cards.isEmpty()) throw IOException("No cards in $set")
         _download.update { it?.copy(total = cards.size) }
+        // The art model first (downloaded once), so the index gets embeddings too.
+        embedder?.awaitReady()
         val gate = Semaphore(PARALLEL)
         val entries = coroutineScope {
             cards.map { card ->
@@ -176,16 +195,23 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi) {
     private fun entriesFor(card: ScryfallCard): List<ArtEntry> {
         val urls = card.cardFaces.orEmpty().mapNotNull { it.imageUris?.small }.ifEmpty { listOfNotNull(card.smallImageUrl) }
         return urls.mapNotNull { url ->
-            hashUrl(url)?.let { ArtEntry(it, card.id, card.name, card.set.lowercase(), card.collectorNumber) }
+            hashUrl(url)?.let { (hash, emb) -> ArtEntry(hash, card.id, card.name, card.set.lowercase(), card.collectorNumber, emb) }
         }
     }
 
-    private fun hashUrl(url: String): Long? = runCatching {
+    /** The picture's art hash, and its embedding when the art model is here. */
+    private fun hashUrl(url: String): Pair<Long, ByteArray?>? = runCatching {
         client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
             if (!resp.isSuccessful) return@use null
             val bytes = resp.body?.bytes() ?: return@use null
             val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@use null
-            ArtHashing.hashCardImage(bmp).also { bmp.recycle() }
+            try {
+                val hash = ArtHashing.hashCardImage(bmp) ?: return@use null
+                val emb = embedder?.takeIf { it.ready }?.let { ArtHashing.embedCardImage(bmp, it) }
+                hash to emb
+            } finally {
+                bmp.recycle()
+            }
         }
     }.getOrNull()
 

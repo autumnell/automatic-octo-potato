@@ -36,6 +36,16 @@
 # Room: the generated database is created by name (room-runtime ships this rule too).
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 
+# MediaPipe Tasks (art model): its native code calls back into Java classes and reads protobuf messages
+# by reflection, and the AAR ships no consumer rules for that.
+-keep class com.google.mediapipe.** { *; }
+-keep class com.google.protobuf.** { *; }
+-dontwarn com.google.mediapipe.**
+-dontwarn com.google.protobuf.**
+-dontwarn com.google.auto.value.**
+-dontwarn javax.lang.model.**
+-dontwarn autovalue.shaded.**
+
 # Optional dependencies some libraries mention but don't need on Android.
 -dontwarn org.slf4j.**
 -dontwarn org.conscrypt.**

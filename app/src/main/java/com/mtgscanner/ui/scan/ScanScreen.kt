@@ -583,6 +583,9 @@ private fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
                 state.reading?.let {
                     Text("Reading “$it”", color = Palette.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                if (state.glare) {
+                    Text("Tilt to reduce glare", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
+                }
             }
             state.error?.let { Text(it, color = Palette.Danger, style = MaterialTheme.typography.bodySmall) }
         }
@@ -831,6 +834,7 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             onPage = vm::onPage,
             onLight = vm::onLight,
             wantsArt = vm::wantsArt,
+            embed = vm::embedArt,
         )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
         // The camera can take a moment to start; if the screen closed meanwhile, don't bind it.
@@ -843,7 +847,9 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
                 .setResolutionSelector(
                     ResolutionSelector.Builder()
                         .setResolutionStrategy(
-                            ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
+                            // 1080p: the footer's small print is drawn from these pixels. Whole-card reads are
+                            // scaled down to about the size they had at 720p, so they stay quick.
+                            ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
                         )
                         .build(),
                 )
