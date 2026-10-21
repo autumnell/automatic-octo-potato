@@ -121,7 +121,8 @@ class CollectionRepository(
     val nameIndex = NameIndex(context.filesDir, api)
     /** The on-device art model, downloaded the first time art needs comparing. */
     val artEmbedder = com.mtgscanner.scan.ArtEmbedder(context.applicationContext)
-    private val art = ArtMatcher(embedder = artEmbedder)
+    /** Printings already in a downloaded art index are compared from there, without fetching their pictures. */
+    private val art by lazy { ArtMatcher(embedder = artEmbedder, known = { id -> artIndex.artOf(id) }) }
     /** Downloaded per-set art hashes, to find cards from their artwork when no text can be read. */
     val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api, artEmbedder)
     /** Set symbol shapes, drawn from Scryfall's icons as sets are needed. */
@@ -443,17 +444,19 @@ class CollectionRepository(
      * then the card name (corrected against the offline name list), and uses the artwork to pick
      * the printing when the footer couldn't be read. Throws [IOException] when offline.
      */
-    suspend fun identify(raw: CardTextGuess): Identification? {
-        // With the set lock on, every read is looked up in that set first.
-        val lock = SortPrefs.setLock
+    suspend fun identify(raw: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
+        // With the set lock on, a read with no set code is looked up in that set first. A set code printed on the
+        // card wins (Special Guests and The List carry their own).
+        val lock = SortPrefs.setLock?.takeIf { raw.setCode == null }
         val guess = lock?.let { raw.copy(setCode = it) } ?: raw
-        val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "")
+        // [skip]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing.
+        val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skip != null) "|s" else "")
         val cached = synchronized(lookupCache) { if (lookupCache.containsKey(key)) lookupCache[key] else null }
         if (cached == null) {
             val missedAt = synchronized(missCache) { missCache[key] }
             if (missedAt != null && System.currentTimeMillis() - missedAt < MISS_TTL_MS) return null
         }
-        val base = cached ?: doIdentify(guess).also { r ->
+        val base = cached ?: doIdentify(guess, skip).also { r ->
             if (r != null) synchronized(lookupCache) { lookupCache[key] = r }
             else synchronized(missCache) {
                 if (missCache.size > 500) missCache.clear()
@@ -461,7 +464,7 @@ class CollectionRepository(
             }
         }
         base ?: return null
-        if (guess.collectorNumber == null) choosePrinting(base, guess)?.let { return it }
+        if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess)?.let { return it }
         return base
     }
 
@@ -477,8 +480,8 @@ class CollectionRepository(
         val embedding = guess.artEmbedding
         if (year == null && symbol == null && hash == null && embedding == null) return null
         val all = runCatching { printingsCached(base.card) }.getOrNull() ?: return null
-        // With the set lock on (or the set code read), only that set's printings are candidates.
-        val set = SortPrefs.setLock ?: guess.setCode
+        // With the set code read (or the set lock standing in for it), only that set's printings are candidates.
+        val set = guess.setCode
         var pool = set?.let { s -> all.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { all } } ?: all
         if (pool.size < 2) return null
         pool = PrintingPick.newestFirst(pool) { it.releasedAt }
@@ -505,6 +508,27 @@ class CollectionRepository(
         return base.copy(card = pick, exact = base.exact || (bySymbol && pool.size == 1))
     }
 
+    /**
+     * Printings sharing the collector number read, narrowed by the copyright year, the set symbol and the art.
+     * Returns the pick and whether it's sure (one printing left, or the art matched).
+     */
+    private suspend fun narrowSameNumber(same: List<ScryfallCard>, guess: CardTextGuess): Pair<ScryfallCard, Boolean> {
+        if (same.size == 1) return same[0] to true
+        var pool = PrintingPick.newestFirst(same) { it.releasedAt }
+        guess.year?.let { y -> PrintingPick.byYear(pool, y) { it.releasedAt }.takeIf { it.isNotEmpty() }?.let { pool = it } }
+        val symbol = guess.symbol
+        val sets = pool.map { it.set.lowercase() }.distinct()
+        if (pool.size > 1 && symbol != null && sets.size > 1) {
+            runCatching { setSymbols.pick(symbol, sets) }.getOrNull()?.let { winners ->
+                pool.filter { it.set.lowercase() in winners }.takeIf { it.isNotEmpty() }?.let { pool = it }
+            }
+        }
+        if (pool.size > 1 && (guess.artHash != null || guess.artEmbedding != null)) {
+            runCatching { art.bestPrinting(pool, guess.artHash, guess.artEmbedding) }.getOrNull()?.let { return it to true }
+        }
+        return pool.first() to (pool.size == 1)
+    }
+
     private val printingsCache = HashMap<String, List<ScryfallCard>>()
     private suspend fun printingsCached(card: ScryfallCard): List<ScryfallCard> {
         val k = card.oracleId ?: card.name
@@ -516,12 +540,15 @@ class CollectionRepository(
 
     /** What to save for later when the camera read a name but Scryfall can't be reached. */
     suspend fun offlineRead(guess: CardTextGuess): OfflineRead? {
-        val best = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }.firstOrNull() ?: return null
-        if (best.score < 0.85) return null
-        return OfflineRead(best.name, guess.setCode, guess.collectorNumber, lang = guess.lang)
+        val best = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }.firstOrNull()?.takeIf { it.score >= 0.85 }
+        if (best != null) return OfflineRead(best.name, guess.setCode, guess.collectorNumber, lang = guess.lang)
+        // No English name (only the footer, or a name in Japanese, Chinese or Korean): set and number find it later.
+        val set = guess.setCode ?: return null
+        val number = guess.collectorNumber ?: return null
+        return OfflineRead(guess.printedName ?: "${set.uppercase()} #$number", set, number, lang = guess.lang)
     }
 
-    private suspend fun doIdentify(guess: CardTextGuess): Identification? {
+    private suspend fun doIdentify(guess: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
         // Real card names close to what was read come first, then the raw text.
         // Comparing against every card name is heavy: keep it off the main thread.
         val corrected = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }
@@ -548,13 +575,21 @@ class CollectionRepository(
             val card = inSet ?: api.named(name) ?: continue
             val sim = bestSimilarity(card)
             if (sim < 0.5) continue
-            // Fuzzy search returns the newest printing; if we know the collector number, pick that one.
-            val exact = if (inSet == null && guess.collectorNumber != null) {
-                runCatching { printingsCached(card) }.getOrNull()
-                    ?.firstOrNull { it.collectorNumber.equals(guess.collectorNumber, ignoreCase = true) }
-            } else null
             val confident = sim >= 0.85 || card.name == knownGood
-            return Identification(exact ?: card, confident = confident, exact = exact != null || inSet != null && guess.collectorNumber != null)
+            // Skipped anyway (a basic land with "Skip basics" on): don't search its many printings.
+            if (skip?.invoke(card) == true) return Identification(card, confident = confident)
+            // Fuzzy search returns the newest printing; with the collector number but no set code (2003-2019 cards
+            // print "241/350"), several sets can have that number: narrow them, and it's exact only if one is left.
+            val number = guess.collectorNumber
+            if (inSet == null && number != null) {
+                val same = runCatching { printingsCached(card) }.getOrNull().orEmpty()
+                    .filter { it.collectorNumber.equals(number, ignoreCase = true) }
+                if (same.isNotEmpty()) {
+                    val (pick, sure) = narrowSameNumber(same, guess)
+                    return Identification(pick, confident = confident, exact = sure)
+                }
+            }
+            return Identification(card, confident = confident, exact = inSet != null && number != null)
         }
         guess.printedName?.let { printed -> return identifyPrinted(printed, guess) }
         return null
@@ -715,9 +750,14 @@ class CollectionRepository(
     // Unknown scans
 
     /** Saves a card the scanner couldn't identify, so it can be searched by hand later. */
-    suspend fun addUnknown(text: String, boxId: Long, foil: Boolean = false) {
+    suspend fun addUnknown(text: String, boxId: Long, foil: Boolean = false, qty: Int = 1, lang: String? = null) {
         if (text.isBlank()) return
-        dao.addPending(PendingScan(name = text.trim().take(80), setCode = null, collectorNumber = null, foil = foil, quantity = 1, boxId = boxId, unknown = true))
+        dao.addPending(
+            PendingScan(
+                name = text.trim().take(80), setCode = null, collectorNumber = null, foil = foil, quantity = qty.coerceAtLeast(1),
+                boxId = boxId, unknown = true, lang = lang?.takeIf { it != "en" },
+            ),
+        )
     }
 
     // Older Androids allow at most 999 values in one query, so long id lists go in chunks.

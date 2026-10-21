@@ -65,10 +65,7 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
     init {
         scope.launch { refreshList() }
         // Another art model picked: embeddings already loaded can't be compared with the new one's.
-        embedder?.onModelChanged = {
-            rebuildAsked.set(false)
-            changed()
-        }
+        embedder?.onModelChanged = { changed() }
     }
 
     /** The id of the art model whose embeddings count now. */
@@ -107,21 +104,37 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
         return idx.match(targets, only, targetEmbeddings = usable, model = chosen)
     }
 
-    /** Asked to rebuild the old indexes this session already. */
-    private val rebuildAsked = AtomicBoolean(false)
-
     /**
-     * Indexes built before the art model, or with the other model, have no embeddings that count. Once the chosen
-     * model is here they're downloaded again in the background, one after another, the first time art is matched.
-     * Until then those sets are matched by their hashes.
+     * Indexes built before the art model, or with the other model, have no embeddings that count; they're matched by
+     * their hashes. They're not downloaded again by themselves (that's every picture of every set): the scan
+     * settings offer to update them ([stale]). Here only the model itself is fetched when it's missing.
      */
     private fun rebuildOld() {
         val e = embedder ?: return
-        if (!e.ready) { e.ensure(); return }
+        if (!e.ready) e.ensure()
+    }
+
+    /** Sets whose index has no embeddings from the chosen model, once that model is here. */
+    fun stale(): List<String> {
+        val e = embedder ?: return emptyList()
+        if (!e.ready) return emptyList()
         val current = e.model.id
-        val old = _sets.value.filter { !it.embedded || it.model != current }.map { it.set }
-        if (old.isEmpty() || !rebuildAsked.compareAndSet(false, true)) return
-        enqueue(old, rebuild = true)
+        return _sets.value.filter { !it.embedded || it.model != current }.map { it.set }
+    }
+
+    /** Downloads these sets' indexes again, with the chosen model. */
+    fun rebuild(codes: Collection<String>) = enqueue(codes, rebuild = true)
+
+    /** A printing's art from the loaded indexes: its hash and, when built with the chosen model, its embedding. */
+    fun artOf(id: String): Pair<Long, ArtVector?>? {
+        val idx = index
+        if (idx == null) {
+            if (hasAny && loading.compareAndSet(false, true)) scope.launch { load() }
+            return null
+        }
+        val (hash, emb) = idx.artOf(id) ?: return null
+        val model = modelId
+        return hash to (if (emb != null && model != null) ArtVector(model, emb) else null)
     }
 
     private fun load() {

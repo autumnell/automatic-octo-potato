@@ -249,7 +249,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun resolveUnknown(scan: PendingScan, card: ScryfallCard) = viewModelScope.launch {
         val box = if (scan.boxId != CardBox.AUTO_SORT && repo.box(scan.boxId) != null) scan.boxId
         else repo.pickBox(card, scan.foil) ?: repo.anythingBox()
-        repo.add(card, scan.foil, scan.quantity.coerceAtLeast(1), box)
+        repo.add(card, scan.foil, scan.quantity.coerceAtLeast(1), box, lang = if (card.lang != "en") card.lang else scan.lang ?: "en")
         repo.deletePending(scan.id)
         Undo.offer("Added ${card.name}")
     }
