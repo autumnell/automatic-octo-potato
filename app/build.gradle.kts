@@ -16,6 +16,8 @@ android {
         targetSdk = 35
         versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
         versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+        // Phones only: leaving out emulator (x86) native libraries keeps the APK smaller.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
