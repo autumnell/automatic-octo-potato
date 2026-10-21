@@ -58,4 +58,17 @@ class CsvExporterTest {
         assertEquals("146", row.collectorNumber)
         assertEquals("m10", row.setCode)
     }
+
+    @Test fun conditionsRoundTripInEveryFormat() {
+        for (f in CsvFormat.entries) for (cond in listOf("NM", "LP", "MP", "HP", "DMG")) {
+            val text = StringWriter().also { CsvExporter.write(listOf(card.copy(condition = cond)), it, f) }.toString()
+            assertEquals("${f.name} $cond", cond, CsvImport.parse(text).single().condition)
+        }
+    }
+
+    @Test fun flagsRoundTripThroughMoxfield() {
+        val text = StringWriter().also { CsvExporter.write(listOf(card.copy(proxy = true)), it, CsvFormat.MOXFIELD) }.toString()
+        val r = CsvImport.parse(text).single()
+        assertTrue(r.altered && r.proxy && r.foil)
+    }
 }

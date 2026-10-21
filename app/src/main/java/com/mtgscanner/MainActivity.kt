@@ -118,12 +118,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         openRequest = intent.getStringExtra(CollectionWidget.EXTRA_OPEN)
+        com.mtgscanner.util.IncomingShare.accept(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.mtgscanner.ui.settings.CrashLog.install(this)
-        if (savedInstanceState == null) openRequest = intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
+        if (savedInstanceState == null) {
+            openRequest = intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
+            // A CSV, decklist or deck link shared to the app or opened with it.
+            com.mtgscanner.util.IncomingShare.accept(intent)
+        }
         Palette.systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         // The window shows behind the first frame and during transitions: match the app's theme, not the XML's dark one.
         window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Palette.Background.toArgb()))
@@ -196,9 +201,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     // A message saved before a restart (restoring a backup), with its Undo.
     com.mtgscanner.ui.settings.RestartNoticeEffect()
     LaunchedEffect(openRequest) {
+        // From the widget, app shortcuts and notifications.
         when (openRequest) {
             "scan" -> nav.goToTab("scan")
             "home" -> nav.goToTab("home")
+            "search" -> nav.goToTab("search")
+            "check" -> { com.mtgscanner.util.OpenRequests.priceCheck.value = true; nav.goToTab("scan") }
+            "settings" -> nav.navigate("settings") { launchSingleTop = true }
+            else -> openRequest?.takeIf { it.startsWith("card/") && it.removePrefix("card/").toLongOrNull() != null }?.let { nav.navigate(it) }
         }
         if (openRequest != null) onOpened()
     }
@@ -361,6 +371,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     if (showTour) FirstRunTour(onDone = { Tour.setSeen(ctx, true); showTour = false })
     // Tap and hold any card picture to see it big; drawn over everything.
     com.mtgscanner.ui.components.CardZoomHost()
+    // Imports shared from other apps, and the offer to restore a backup on a new phone.
+    com.mtgscanner.ui.settings.DataHost()
     }
 }
 

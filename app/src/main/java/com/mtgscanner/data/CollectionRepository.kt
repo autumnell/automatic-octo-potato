@@ -143,9 +143,14 @@ class CollectionRepository(
     fun observePending(): Flow<List<PendingScan>> = dao.observePending()
     fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>> = dao.observePriceHistory(scryfallId)
 
-    /** Starts background work: the name list, daily prices, card roles and offline scans. */
+    /**
+     * Starts background work: the name list, daily prices, card roles and offline scans, and tidies away
+     * photos of deleted cards. Called once when a screen first opens, not when a background job or the
+     * widget starts the app.
+     */
     fun startBackgroundWork() {
         appScope.launch { runCatching { nameIndex.load() } }
+        appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.all().map { it.photo }) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }
             runCatching { resolvePending() }
@@ -958,29 +963,33 @@ class CollectionRepository(
     }
 
     private suspend fun refreshPricesLocked(): Int {
-        val all = dao.all()
-        if (all.isEmpty()) return 0
-        val fresh = api.collection(all.map { it.scryfallId }.distinct()).associateBy { it.id }
-        // Only the price columns are written, so a quantity or box changed during the download is kept.
+        val ids = dao.all().map { it.scryfallId }.distinct()
+        if (ids.isEmpty()) return 0
+        // Fetched and saved a batch at a time: a failed request keeps what came before, and network
+        // errors and "too many requests" are tried again after a pause.
         var updated = 0
-        db.withTransaction {
-            fresh.values.forEach { f ->
-                updated += dao.setPrices(
-                    f.id, f.prices.usd?.toDoubleOrNull(),
-                    (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
-                )
-                dao.setStats(f.id, f.power ?: f.cardFaces?.firstOrNull()?.power, f.toughness ?: f.cardFaces?.firstOrNull()?.toughness, f.reserved)
-                // Bans and rarity changes reach box rules.
-                dao.setPrintingInfo(f.id, f.rarity, f.scryfallTags().joinToString(","))
+        for (chunk in ids.chunked(150)) {
+            val fresh = withBackoff { api.collection(chunk) }
+            // Only the price columns are written, so a quantity or box changed during the download is kept.
+            db.withTransaction {
+                fresh.forEach { f ->
+                    updated += dao.setPrices(
+                        f.id, f.prices.usd?.toDoubleOrNull(),
+                        (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
+                    )
+                    dao.setStats(f.id, f.power ?: f.cardFaces?.firstOrNull()?.power, f.toughness ?: f.cardFaces?.firstOrNull()?.toughness, f.reserved)
+                    // Bans and rarity changes reach box rules.
+                    dao.setPrintingInfo(f.id, f.rarity, f.scryfallTags().joinToString(","))
+                }
             }
+            dao.putPricePoints(fresh.map { it.pricePoint() })
         }
-        dao.putPricePoints(fresh.values.map { it.pricePoint() })
         // Daily points older than 90 days thin out to weekly ones.
         runCatching { dao.thinPriceHistory(LocalDate.now().minusDays(90).toString()) }
         // Wishlist prices too, so its total and alerts stay current.
         val wishes = dao.allWishlist()
         if (wishes.isNotEmpty()) {
-            val freshWish = runCatching { api.collection(wishes.map { it.scryfallId }) }.getOrDefault(emptyList()).associateBy { it.id }
+            val freshWish = runCatching { withBackoff { api.collection(wishes.map { it.scryfallId }) } }.getOrDefault(emptyList()).associateBy { it.id }
             wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.updateWish(w.copy(priceUsd = f.prices.usd?.toDoubleOrNull())) } }
         }
         prefs.edit().putLong("pricesAt", System.currentTimeMillis()).apply()

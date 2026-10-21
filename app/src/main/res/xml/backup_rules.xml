@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android's own backup (Android 11 and older). Its limit is 25 MB, so big files that are downloaded
+     again when needed, and card photos (they're in the app's own backups), stay out. -->
+<full-backup-content>
+    <exclude domain="file" path="models" />
+    <exclude domain="file" path="art-index" />
+    <exclude domain="file" path="photos" />
+    <exclude domain="file" path="backups" />
+    <exclude domain="file" path="ck-buylist.tsv" />
+    <exclude domain="file" path="card-names.txt" />
+    <exclude domain="file" path="scan-log.jsonl" />
+    <exclude domain="file" path="before-restore.json" />
+</full-backup-content>

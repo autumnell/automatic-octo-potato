@@ -321,7 +321,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
             _message.value = runCatching {
                 val cards = repo.allCards()
                 withContext(Dispatchers.IO) {
-                    resolver.openOutputStream(uri)?.bufferedWriter()?.use { CsvExporter.write(cards, it) }
+                    (runCatching { resolver.openOutputStream(uri, "wt") }.getOrNull() ?: resolver.openOutputStream(uri))?.bufferedWriter()?.use { CsvExporter.write(cards, it) }
                 }
                 cards.size
             }.fold({ "Exported $it entries" }, { "Export failed: ${it.message}" })

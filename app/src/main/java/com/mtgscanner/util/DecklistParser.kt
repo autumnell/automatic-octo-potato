@@ -7,6 +7,8 @@ data class DeckLine(
     val setCode: String? = null,
     val collectorNumber: String? = null,
     val section: String = "Main",
+    /** Marked foil or etched ("*F*", "*E*"), as Moxfield and Archidekt write it. */
+    val foil: Boolean = false,
 )
 
 /**
@@ -26,6 +28,13 @@ object DecklistParser {
     private val BRACKET_TAG = Regex("""\s+\[([^\]]*)\]$""")
     private val SET_IN_BRACKETS = Regex("""[A-Z0-9]{2,6}""")
     private val ARENA_NAME = Regex("""^name\s+.+$""", RegexOption.IGNORE_CASE)
+    private val FOIL_MARK = Regex("""\s\*(F|E|FOIL|ETCHED)\*(\s|$)""", RegexOption.IGNORE_CASE)
+    // Group headers in exported lists: "Creatures (24)", "Lands", "Ramp (10)".
+    private val TYPE_HEADER = Regex(
+        """^(creatures?|instants?|sorcery|sorceries|artifacts?|enchantments?|planeswalkers?|lands?|battles?|spells?|others?|non-?lands?|main|mainboard)\s*:?\s*(\(\d+\))?$""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val COUNTED_HEADER = Regex("""^[^()\[\]]+\s\(\d+\)$""")
 
     fun parse(text: String): List<DeckLine> {
         var section = "Main"
@@ -62,15 +71,18 @@ object DecklistParser {
             } else {
                 // Arena export preamble: "About" / "Name My Deck".
                 if (line.equals("about", ignoreCase = true) || ARENA_NAME.matches(line)) continue
+                // "Creatures (24)" and other group headers: not cards, and back in the main deck.
+                if (TYPE_HEADER.matches(line) || COUNTED_HEADER.matches(line)) { section = "Main"; continue }
                 qty = 1
                 rest = line
             }
+            val foil = FOIL_MARK.containsMatchIn(" $rest")
             rest = stripTags(rest)
             val p = PRINTING.matchEntire(rest)
             val entry = if (p != null) {
-                DeckLine(qty, p.groupValues[1].trim(), p.groupValues[2].lowercase(), p.groupValues[3].ifEmpty { null }, lineSection)
+                DeckLine(qty, p.groupValues[1].trim(), p.groupValues[2].lowercase(), p.groupValues[3].ifEmpty { null }, lineSection, foil)
             } else {
-                DeckLine(qty, rest, section = lineSection)
+                DeckLine(qty, rest, section = lineSection, foil = foil)
             }
             if (entry.name.isNotBlank() && entry.quantity > 0) out += entry
         }
@@ -84,8 +96,8 @@ object DecklistParser {
                 for (i in start until out.size) out[i] = out[i].copy(section = "Sideboard")
             }
         }
-        // Merge duplicates in the same section.
-        return out.groupBy { Triple(it.name.lowercase(), it.section, it.setCode) }
+        // Merge duplicates in the same section; different printings (Forest #246 and #247) stay apart.
+        return out.groupBy { listOf(it.name.lowercase(), it.section, it.setCode, it.collectorNumber?.lowercase(), it.foil) }
             .map { (_, v) -> v.first().copy(quantity = v.sumOf { it.quantity }) }
     }
 

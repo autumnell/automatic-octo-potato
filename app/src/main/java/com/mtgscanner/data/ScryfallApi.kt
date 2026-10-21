@@ -218,25 +218,67 @@ class ScryfallApi(
         listOfNotNull(details?.takeIf { it.isNotBlank() }).plus(warnings).firstOrNull()
     }.getOrNull()
 
-    /** Returns the body, or null on 404. Throws on network errors and other failures. */
+    /**
+     * Returns the body, or null on 404. Throws on network errors and other failures. "Too many requests" (429)
+     * and server errors are tried again twice, after Scryfall's Retry-After or a growing pause.
+     */
     private suspend fun request(base: Request): String? = withContext(Dispatchers.IO) {
+        val req = base.newBuilder()
+            .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+            .header("Accept", "application/json")
+            .build()
+        var attempt = 0
+        var r = fetchOnce(req, attempt)
+        while (r.retryAfterMs > 0) {
+            delay(r.retryAfterMs)
+            attempt++
+            r = fetchOnce(req, attempt)
+        }
+        r.body
+    }
+
+    /** One response: its body (null on 404), or a pause before asking again when [retryAfterMs] > 0. */
+    private class Attempt(val body: String?, val retryAfterMs: Long = 0)
+
+    private suspend fun fetchOnce(req: Request, attempt: Int): Attempt {
         rateLock.withLock {
             val wait = 110 - (System.currentTimeMillis() - lastRequestAt)
             if (wait > 0) delay(wait)
             lastRequestAt = System.currentTimeMillis()
         }
-        val req = base.newBuilder()
-            .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
-            .header("Accept", "application/json")
-            .build()
-        client.newCall(req).execute().use { resp ->
+        return client.newCall(req).execute().use { resp ->
             when {
-                resp.isSuccessful -> resp.body?.string()
-                resp.code == 404 -> null
-                resp.code == 429 -> throw ScryfallException("Scryfall is rate limiting; slow down a moment")
+                resp.isSuccessful -> Attempt(resp.body?.string())
+                resp.code == 404 -> Attempt(null)
                 resp.code == 400 -> throw ScryfallQueryException(errorDetails(resp.body?.string()) ?: "Scryfall couldn't read that search")
+                (resp.code == 429 || resp.code >= 500) && attempt < 2 -> Attempt(
+                    null,
+                    resp.header("Retry-After")?.trim()?.toLongOrNull()?.times(1000)?.coerceIn(500L, 10_000L) ?: (1000L shl attempt),
+                )
+                resp.code == 429 -> throw ScryfallException("Scryfall is rate limiting; slow down a moment")
                 else -> throw ScryfallException("Scryfall error ${resp.code}")
             }
         }
     }
+}
+
+/**
+ * Runs [block], trying again after a pause (2 s, then 6 s) when it fails with a network error.
+ * For background jobs; screens should fail fast instead.
+ */
+internal suspend fun <T> withBackoff(tries: Int = 3, block: suspend () -> T): T {
+    var pause = 2_000L
+    repeat(tries - 1) {
+        try {
+            return block()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: ScryfallQueryException) {
+            throw e
+        } catch (e: IOException) {
+            delay(pause)
+            pause *= 3
+        }
+    }
+    return block()
 }

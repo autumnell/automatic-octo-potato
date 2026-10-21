@@ -23,6 +23,24 @@ import java.io.InputStream
 object CardPhotos {
     private fun dir(ctx: Context): File = File(ctx.filesDir, "photos").apply { mkdirs() }
 
+    /** The folder photos are kept in. */
+    fun folder(ctx: Context): File = dir(ctx)
+
+    /**
+     * Deletes photo files no card points at any more (the card was deleted or its photo replaced).
+     * Run at start-up, well after any Undo could bring the card back. Returns how many were deleted.
+     */
+    suspend fun sweepOrphans(ctx: Context, inUse: Collection<String>): Int = withContext(Dispatchers.IO) {
+        val keep = inUse.filter { it.isNotBlank() }.map { File(it).name }.toSet()
+        val dayAgo = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+        var n = 0
+        dir(ctx).listFiles()?.forEach { f ->
+            // A photo saved in the last day may belong to a card still being edited or undone.
+            if (f.isFile && f.name !in keep && f.lastModified() < dayAgo && f.delete()) n++
+        }
+        n
+    }
+
     /** Longest side of a saved photo: plenty to see wear on a card, a fraction of a camera's full size. */
     private const val MAX_SIDE = 1600
 

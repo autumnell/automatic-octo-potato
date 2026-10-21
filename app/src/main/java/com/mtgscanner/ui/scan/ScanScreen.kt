@@ -162,6 +162,11 @@ fun ScanScreen(
 
     val state by vm.state.collectAsStateWithLifecycle()
     val loadedBoxes by vm.boxes.collectAsStateWithLifecycle()
+    // The "Price check" app shortcut.
+    val priceCheck by com.mtgscanner.util.OpenRequests.priceCheck.collectAsStateWithLifecycle()
+    LaunchedEffect(priceCheck) {
+        if (priceCheck) { com.mtgscanner.util.OpenRequests.priceCheck.value = false; vm.startCheck() }
+    }
     val boxes = loadedBoxes.orEmpty()
     val needsBox = loadedBoxes != null && boxes.isEmpty()
     val view = LocalView.current

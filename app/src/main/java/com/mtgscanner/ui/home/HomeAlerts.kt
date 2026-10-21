@@ -58,7 +58,8 @@ internal fun AlertsList(rows: List<AlertRow>, onOpenCard: (Long) -> Unit) {
                         style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        alertLines(r.alert) + (r.price?.let { " · now ${formatUsd(it)}" } ?: ""),
+                        // An alert on a card no longer owned never fires: say so, and it can be deleted.
+                        if (r.cardId == null) "No copies left" else alertLines(r.alert) + (r.price?.let { " · now ${formatUsd(it)}" } ?: ""),
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }

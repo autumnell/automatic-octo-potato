@@ -58,7 +58,7 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
         }
     }
     // No weekly backup yet: pick where it goes (Drive shows in the picker), then save the first one.
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
             DriveBackup.enable(app, uri)
             backUp()
@@ -80,7 +80,7 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
         )
         TextButton(onClick = { DriveBackupReminder.snooze(app) }) { Text("Later", color = Palette.Muted) }
         TextButton(
-            onClick = { if (DriveBackup.uri != null) backUp() else pick.launch("mtg-scanner-backup.json") },
+            onClick = { if (DriveBackup.uri != null) backUp() else pick.launch("grimoire-backup.zip") },
             enabled = busy == null,
         ) { Text("Back up") }
     }
