@@ -7,6 +7,14 @@ import com.mtgscanner.data.db.unitPrice
 /** One line of a breakdown: copies and their value. [key] is what Browse filters on (set code, color letter, rarity). */
 data class StatRow(val key: String, val label: String, val cards: Int, val value: Double)
 
+/**
+ * Copies with a price paid ([CollectionCard.purchasePrice]): what was paid for them and what they're worth
+ * today. Proxies are left out on both sides.
+ */
+data class PaidSummary(val copies: Int = 0, val paid: Double = 0.0, val worth: Double = 0.0) {
+    val change: Double get() = worth - paid
+}
+
 data class CollectionStats(
     val cards: Int = 0,
     val value: Double = 0.0,
@@ -17,6 +25,7 @@ data class CollectionStats(
     val byRarity: List<StatRow> = emptyList(),
     /** Priciest single copies, proxies left out. */
     val top: List<CollectionCard> = emptyList(),
+    val paid: PaidSummary = PaidSummary(),
 )
 
 /** Collection breakdowns for the Stats screen, kept free of Android so they can be tested. Proxies count as cards but are worth $0. */
@@ -48,6 +57,13 @@ object StatsMath {
             .sortedWith(compareByDescending<CollectionCard> { it.unitPrice() ?: 0.0 }.thenBy { it.name })
             .take(topN)
 
+        val paidRows = cards.filter { !it.proxy && it.purchasePrice != null }
+        val paid = PaidSummary(
+            copies = paidRows.sumOf { it.quantity },
+            paid = paidRows.sumOf { (it.purchasePrice ?: 0.0) * it.quantity },
+            worth = paidRows.sumOf { it.totalPrice() },
+        )
+
         return CollectionStats(
             cards = cards.sumOf { it.quantity },
             value = cards.sumOf { it.totalPrice() },
@@ -55,6 +71,7 @@ object StatsMath {
             byColor = byColor,
             byRarity = byRarity,
             top = top,
+            paid = paid,
         )
     }
 }

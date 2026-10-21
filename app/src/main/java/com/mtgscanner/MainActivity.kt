@@ -239,11 +239,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) {
+              // Card pictures on Stats grow into the card page too.
+              ScreenAnimation(this) {
                 com.mtgscanner.ui.home.StatsScreen(
                     onBack = { nav.popFrom(it) },
                     onOpenCard = { id -> nav.navigate("card/$id") },
                     onBrowseAll = { nav.navigate("browse/-1") },
                 )
+              }
             }
             composable(
                 "goals",

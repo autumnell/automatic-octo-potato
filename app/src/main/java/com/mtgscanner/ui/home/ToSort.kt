@@ -51,6 +51,7 @@ import com.mtgscanner.data.db.facts
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.detail.sharedCard
 
 /** A card that should go to another box, and the divider inside it when the box has dividers. */
 data class SortItem(val card: CollectionCard, val to: Long, val spot: String?)
@@ -108,6 +109,8 @@ internal fun ToSortSection(
     onSort: () -> Unit,
     onOpenCard: (Long) -> Unit,
     onUnknown: (PendingScan) -> Unit,
+    /** Cards whose picture here grows into the card page. */
+    shared: Set<Long> = emptySet(),
 ) {
     Column(Modifier.fillMaxWidth()) {
         if (ui.items.isNotEmpty()) {
@@ -122,7 +125,11 @@ internal fun ToSortSection(
                     Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CardImage(item.card.smallImageUrl ?: item.card.imageUrl, Modifier.width(28.dp), corner = 3.dp, zoom = true)
+                    CardImage(
+                        item.card.smallImageUrl ?: item.card.imageUrl,
+                        Modifier.width(28.dp).then(if (item.card.id in shared) Modifier.sharedCard(item.card.id) else Modifier),
+                        corner = 3.dp, zoom = true,
+                    )
                     Spacer(Modifier.width(10.dp))
                     Text(
                         (if (item.card.quantity > 1) "${item.card.quantity}× " else "") + item.card.name,
@@ -157,7 +164,7 @@ internal fun ToSortSection(
                     Icon(Icons.Filled.QuestionMark, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(10.dp))
                     Text("\"${p.name}\"", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.Search, "Find", tint = Palette.Accent, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Search, "Find", tint = Palette.AccentText, modifier = Modifier.size(18.dp))
                 }
             }
             if (ui.unknown.size > 5) {
@@ -171,7 +178,8 @@ internal fun ToSortSection(
 @Composable
 internal fun UnknownScanDialog(
     scan: PendingScan,
-    search: suspend (String) -> List<ScryfallCard>,
+    /** Null when Scryfall couldn't be reached. */
+    search: suspend (String) -> List<ScryfallCard>?,
     onPick: (ScryfallCard) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -179,13 +187,19 @@ internal fun UnknownScanDialog(
     var query by remember { mutableStateOf(scan.name) }
     var results by remember { mutableStateOf<List<ScryfallCard>?>(null) }
     var loading by remember { mutableStateOf(false) }
-    LaunchedEffect(query) {
+    var offline by remember { mutableStateOf(false) }
+    var tries by remember { mutableStateOf(0) }
+    LaunchedEffect(query, tries) {
         loading = false
-        if (query.isBlank()) { results = emptyList(); return@LaunchedEffect }
+        if (query.isBlank()) { results = emptyList(); offline = false; return@LaunchedEffect }
         kotlinx.coroutines.delay(350)
         loading = true
         // A newer query cancels this one; don't leave the spinner on.
-        try { results = search(query) } finally { loading = false }
+        try {
+            val got = search(query)
+            offline = got == null
+            results = got.orEmpty()
+        } finally { loading = false }
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -199,6 +213,10 @@ internal fun UnknownScanDialog(
                     val r = results
                     when {
                         loading && r == null -> CircularProgressIndicator(Modifier.size(22.dp).align(Alignment.CenterHorizontally), strokeWidth = 2.dp, color = Palette.Accent)
+                        offline && !loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Offline", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { tries++ }) { Text("Retry") }
+                        }
                         r != null && r.isEmpty() && !loading -> Text("No match", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
                         r != null -> r.forEach { c ->
                             Row(

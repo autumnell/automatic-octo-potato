@@ -295,6 +295,8 @@ fun CardTile(
     selected: Boolean = false,
     /** Copies already in the collection; shows a small badge when above zero. */
     owned: Int = 0,
+    /** Extra modifier for the picture alone, e.g. to grow it into the card page. */
+    imageModifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Column(
@@ -306,7 +308,7 @@ fun CardTile(
     ) {
         Box {
             // Holding the picture shows it big; with a tile long press (picking), the rest of the tile keeps it.
-            CardImage(imageUrl, Modifier.fillMaxWidth(), corner = 9.dp, zoom = true, onTap = if (onLongClick != null) onClick else null)
+            CardImage(imageUrl, Modifier.fillMaxWidth().then(imageModifier), corner = 9.dp, zoom = true, onTap = if (onLongClick != null) onClick else null)
             if (selected) {
                 Box(
                     Modifier.align(Alignment.TopStart).padding(6.dp).size(24.dp).clip(CircleShape).background(Palette.Accent),

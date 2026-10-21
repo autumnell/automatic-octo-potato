@@ -54,6 +54,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.filled.CloudOff
 import com.mtgscanner.ui.theme.PriceStyle
+import com.mtgscanner.ui.detail.sharedCard
 
 /** Up to three goals, or a button to add the first one. */
 @Composable
@@ -104,7 +105,7 @@ private fun GoalRow(p: GoalProgress, onClick: () -> Unit) {
 
 /** Cards whose price moved most this week; the label is the change per copy. */
 @Composable
-internal fun MoversCarousel(movers: List<PriceMover>, onOpenCard: (Long) -> Unit) {
+internal fun MoversCarousel(movers: List<PriceMover>, onOpenCard: (Long) -> Unit, shared: Set<Long> = emptySet()) {
     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         items(movers, key = { it.card.id }) { m ->
             val diff = m.now - m.then
@@ -115,6 +116,7 @@ internal fun MoversCarousel(movers: List<PriceMover>, onOpenCard: (Long) -> Unit
                 quantity = m.card.quantity,
                 foil = m.card.foil,
                 modifier = Modifier.width(118.dp),
+                imageModifier = if (m.card.id in shared) Modifier.sharedCard(m.card.id) else Modifier,
                 onClick = { onOpenCard(m.card.id) },
             )
         }
