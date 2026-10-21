@@ -33,7 +33,7 @@ class MtgApp : Application(), ImageLoaderFactory {
         repository = CollectionRepository(this, db, ScryfallApi())
         // Price refresh, lookups and the name list only when a screen opens: a background job or the
         // widget waking the app shouldn't spend battery, data and JustTCG requests on them.
-        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+        registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
                 if (!backgroundStarted) {
                     backgroundStarted = true
