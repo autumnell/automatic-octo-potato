@@ -1,7 +1,6 @@
 package com.mtgscanner.ui.decks
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -108,7 +106,6 @@ fun StatColor.color(): Color = when (this) {
     StatColor.Black -> MtgColors.B
     StatColor.Red -> MtgColors.R
     StatColor.Green -> MtgColors.G
-    StatColor.Multi -> MtgColors.Multi
     StatColor.Colorless -> MtgColors.C
 }
 
@@ -197,14 +194,18 @@ private fun StatCard(
     }
 }
 
-/** Stacked bars for mana values 0..7+, colored by card color, with the count on top. */
+/**
+ * Bars for mana values 0..7+ with the card count on top. Each bar is split by color; a multicolor card
+ * counts for each of its colors, so the split shows each color's share of the bar.
+ */
 @Composable
 private fun Curve(stats: DeckStats) {
-    val max = stats.curve.maxOf { it.values.sum() }.coerceAtLeast(1)
+    val max = stats.curveCounts.max().coerceAtLeast(1)
     val track = Palette.SurfaceHigh
     Row(Modifier.fillMaxWidth().height(170.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         stats.curve.forEachIndexed { mv, groups ->
-            val total = groups.values.sum()
+            val total = stats.curveCounts[mv]
+            val parts = groups.values.sum().coerceAtLeast(1)
             Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     if (total > 0) "$total" else "",
@@ -218,7 +219,7 @@ private fun Curve(stats: DeckStats) {
                     for (g in StatColor.entries) {
                         val n = groups[g] ?: 0
                         if (n == 0) continue
-                        val h = size.height * n / max
+                        val h = size.height * total / max * n / parts
                         top -= h
                         drawRoundRect(g.color(), topLeft = Offset(0f, top), size = Size(size.width, h), cornerRadius = r)
                     }
@@ -286,8 +287,7 @@ private fun Legend(items: List<Pair<StatColor, Int>>, percent: Boolean) {
 @Composable
 private fun LegendRow(c: StatColor, n: Int, extra: String?) {
     Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (c == StatColor.Multi) Box(Modifier.size(16.dp).background(c.color(), CircleShape))
-        else Mana.Symbol(c.letter.toString(), 16.dp)
+        Mana.Symbol(c.letter.toString(), 16.dp)
         Spacer(Modifier.width(8.dp))
         Text(c.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Text("$n", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
