@@ -362,7 +362,7 @@ class CardTextAnalyzer(
                 if (nameLines.isEmpty() && footerLines.isEmpty()) continue
                 // Names only from the name bar: the footer's artist line is not a card name.
                 val names = CardTextParser.parse(nameLines).nameCandidates
-                var g = CardTextParser.parse(nameLines + footerLines).copy(nameCandidates = names)
+                var g = CardTextParser.parse(nameLines + footerLines, footerAnywhere = true).copy(nameCandidates = names)
                 if (year == null) year = g.year
                 val footerRead = g.setCode != null && g.collectorNumber != null
                 val nameRead = names.firstOrNull()?.let { CardTextParser.readableScore(it) >= 4 } == true

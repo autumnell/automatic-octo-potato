@@ -107,12 +107,16 @@ object CardTextParser {
         }
     }
 
-    fun parse(lines: List<OcrLine>): CardTextGuess {
+    /**
+     * [footerAnywhere]: every line may hold the footer, for reads of just the name bar and footer strips.
+     * Otherwise the footer is only looked for in the lower part of the text, so rules text can't give one.
+     */
+    fun parse(lines: List<OcrLine>, footerAnywhere: Boolean = false): CardTextGuess {
         val clean = lines.filter { it.text.isNotBlank() }
         if (clean.isEmpty()) return CardTextGuess(emptyList(), null, null, 0)
 
         val score = clean.sumOf { readableScore(it.text) }
-        val (setCode, number) = parseFooter(clean)
+        val (setCode, number) = parseFooter(clean, footerAnywhere)
         val names = nameCandidates(clean)
         val text = clean.sortedBy { it.top }.joinToString("\n") { it.text }.take(600)
         // The language code is printed in the footer only.
@@ -228,11 +232,10 @@ object CardTextParser {
         return lines.filter { it.top >= cutoff }.sortedBy { it.left }
     }
 
-    private fun parseFooter(lines: List<OcrLine>): Pair<String?, String?> {
+    private fun parseFooter(lines: List<OcrLine>, anywhere: Boolean): Pair<String?, String?> {
         // The footer is in the lower left of the text block (power/toughness sits lower right).
-        // Look there first, then anywhere.
         val lower = lowerLines(lines)
-        for (pool in listOf(lower, lines)) {
+        for (pool in if (anywhere) listOf(lower, lines) else listOf(lower)) {
             val number = pool.firstNotNullOfOrNull { findCollectorNumber(it.text) }
             val set = pool.firstNotNullOfOrNull { findSetCode(it.text) }
             if (number != null || set != null) return set to number
@@ -314,28 +317,68 @@ object CardTextParser {
         return code
     }
 
+    /**
+     * Name candidates from the title line only: lines in the top ~25% of the text, and above the type line
+     * when one was read. Lines that read like rules or flavor text are skipped. When the title wasn't read
+     * (glare, or cut off at the top) this gives nothing, so the scanner goes by the footer or the art instead.
+     */
     private fun nameCandidates(lines: List<OcrLine>): List<String> {
         val minTop = lines.minOf { it.top }
         val maxBottom = lines.maxOf { it.bottom }
         val span = (maxBottom - minTop).coerceAtLeast(1)
-        // Names live in the top ~25% of the card's text.
-        val topLines = lines
-            .filter { it.top - minTop <= span * 0.25 }
-            .sortedWith(compareBy<OcrLine> { it.top }.thenBy { it.left })
+        val sorted = lines.sortedWith(compareBy<OcrLine> { it.top }.thenBy { it.left })
+        val typeLine = sorted.firstOrNull { isTypeLine(it.text) }
+        val topLines = sorted.filter { l ->
+            l.top - minTop <= span * 0.25 && (typeLine == null || l.bottom <= typeLine.top + typeLine.height / 2)
+        }.filter { it !== typeLine }
 
         val out = LinkedHashSet<String>()
         for (line in topLines) {
+            if (!looksLikeTitle(line.text)) continue
             val name = cleanName(line.text) ?: continue
             out += name
             if (out.size >= 3) break
         }
-        // Fallback: tallest plausible lines anywhere (title text is big).
-        if (out.isEmpty()) {
-            lines.sortedByDescending { it.height }.forEach { line ->
-                if (out.size < 2) cleanName(line.text)?.let { out += it }
-            }
-        }
         return out.toList()
+    }
+
+    private val TYPE_ONLY_WORDS = setOf(
+        "legendary", "basic", "snow", "world", "tribal", "kindred", "creature", "instant", "sorcery", "artifact",
+        "enchantment", "land", "planeswalker", "battle", "token", "ongoing", "elite",
+    )
+
+    /**
+     * A type line: "Creature — Elf Druid", or only type words ("Instant", "Legendary Artifact"). Names that
+     * start with a type word ("Land Tax") aren't, as they don't have the dash and have other words.
+     */
+    fun isTypeLine(text: String): Boolean {
+        val t = text.trim()
+        val dash = Regex("""\s[—–-]\s""").find(t)
+        val head = if (dash != null) t.substring(0, dash.range.first) else t
+        val words = head.lowercase().split(Regex("""\s+""")).filter { it.isNotBlank() }
+        if (words.isEmpty()) return false
+        return if (dash != null) words.any { it in TYPE_ONLY_WORDS } && words.all { it in TYPE_ONLY_WORDS || it.length <= 2 }
+        else words.all { it in TYPE_ONLY_WORDS }
+    }
+
+    // Short words a card name can have in lower case ("Jace, the Mind Sculptor", "Will-o'-the-Wisp").
+    private val NAME_SMALL_WORDS = setOf(
+        "a", "an", "the", "of", "and", "or", "to", "in", "on", "at", "by", "for", "from", "with", "into", "upon",
+        "as", "de", "la", "le", "du", "des", "del", "von", "o'", "o", "vs", "s", "is", "it",
+    )
+
+    /**
+     * Whether a line could be a card title, not rules or flavor text. Titles are in Title Case; flavor text is a
+     * quoted sentence and rules text is sentences in lower case. One lower-case word is let through for OCR slips.
+     */
+    fun looksLikeTitle(raw: String): Boolean {
+        val t = raw.trim()
+        if (t.isEmpty()) return false
+        if (t.first() in "\"“”‘'„«—–") return false
+        if (t.endsWith('.') || t.endsWith('”') || t.endsWith('"')) return false
+        val words = t.split(Regex("""[\s\-]+""")).map { it.trim(',', ':', '!', '?', '(', ')', '"', '“', '”') }.filter { w -> w.any { it.isLetter() } }
+        val lower = words.count { w -> w.first().isLowerCase() && w.lowercase() !in NAME_SMALL_WORDS }
+        return lower <= 1
     }
 
     /** Strips mana symbols and OCR junk from a title line. Returns null if it isn't name-like. */

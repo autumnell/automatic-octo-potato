@@ -188,4 +188,59 @@ class CardTextParserTest {
         assertEquals("MOM", g.setCode)
         assertEquals("35", g.collectorNumber)
     }
+
+    // Rae's Storm, Windrider scan: the title sat outside the frame, so the reader picked the flavor text.
+
+    @Test fun flavorTextIsNeverAName() {
+        val lines = listOf(
+            line("Legendary Creature — Mutant Hero", 0),
+            line("Flying", 40),
+            line("Creatures with flying can't attack you or", 70),
+            line("block creatures you control.", 95),
+            line("“Wind and lightning, hear my call!”", 200, height = 26),
+        )
+        val g = CardTextParser.parse(lines)
+        assertTrue(g.nameCandidates.toString(), g.nameCandidates.isEmpty())
+    }
+
+    @Test fun titleAboveTheTypeLineStillReads() {
+        val lines = listOf(
+            line("Storm, Windrider 1UW", 0, height = 30),
+            line("Legendary Creature — Mutant Hero", 300),
+            line("Flying", 340),
+            line("“Wind and lightning, hear my call!”", 420),
+            line("R 0230", 560),
+            line("MSH • EN", 580),
+        )
+        val g = CardTextParser.parse(lines)
+        assertEquals(listOf("Storm, Windrider"), g.nameCandidates)
+        assertEquals("230", g.collectorNumber)
+        assertEquals("MSH", g.setCode)
+    }
+
+    @Test fun footerOnlyFromTheBottom() {
+        // A number in rules text near the top isn't a footer.
+        val lines = listOf(
+            line("Some Card", 0),
+            line("Creature — Elf", 300),
+            line("Put a 0/1 counter on it. C 0012 here", 340),
+            line("Flavor words on the way down", 380),
+            line("Illus. Someone", 560),
+        )
+        assertNull(CardTextParser.parse(lines).collectorNumber)
+    }
+
+    @Test fun titleCheck() {
+        listOf("Lightning Bolt", "Jace, the Mind Sculptor", "Will-o'-the-Wisp", "Sword of Fire and Ice", "Storm, Windrider", "Ach! Hans, Run!")
+            .forEach { assertTrue(it, CardTextParser.looksLikeTitle(it)) }
+        listOf("“Wind and lightning, hear my call!”", "Creatures with flying can't attack you or", "block creatures you control.", "Draw a card.")
+            .forEach { assertTrue(it, !CardTextParser.looksLikeTitle(it)) }
+    }
+
+    @Test fun typeLineCheck() {
+        listOf("Instant", "Legendary Creature — Mutant Hero", "Basic Land — Forest", "Artifact Creature - Golem")
+            .forEach { assertTrue(it, CardTextParser.isTypeLine(it)) }
+        listOf("Land Tax", "Lightning Bolt", "World Shaper", "Battle Hymn")
+            .forEach { assertTrue(it, !CardTextParser.isTypeLine(it)) }
+    }
 }
