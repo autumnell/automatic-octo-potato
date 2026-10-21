@@ -19,6 +19,9 @@ object ScanBarPrefs {
     /** Language recorded for scanned cards, when the card itself doesn't say (lower-case Scryfall code). */
     var lang by mutableStateOf("en")
         private set
+    /** Condition recorded for scanned cards ("NM", "LP", "MP", "HP", "DMG"). */
+    var condition by mutableStateOf("NM")
+        private set
     /** The first-run scan hints have been shown. */
     var hintsSeen by mutableStateOf(true)
         private set
@@ -34,7 +37,16 @@ object ScanBarPrefs {
         quantity = p.getInt("qty", 1).coerceIn(1, 99)
         lang = p.getString("lang", "en")?.takeIf { it.isNotBlank() } ?: "en"
         hintsSeen = p.getBoolean("hintsSeen", false)
+        condition = p.getString("condition", "NM")?.takeIf { it in CONDITIONS } ?: "NM"
     }
+
+    fun updateCondition(code: String) {
+        condition = code.takeIf { it in CONDITIONS } ?: "NM"
+        prefs?.edit()?.putString("condition", condition)?.apply()
+    }
+
+    /** Conditions offered in the bar, best first. */
+    val CONDITIONS = listOf("NM", "LP", "MP", "HP", "DMG")
 
     fun updateQuantity(n: Int) {
         quantity = n.coerceIn(1, 99)
