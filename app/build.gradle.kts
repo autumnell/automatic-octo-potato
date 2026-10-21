@@ -1,3 +1,6 @@
+import java.time.LocalDate
+import java.time.ZoneOffset
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -20,7 +23,7 @@ android {
         versionCode = maxOf(buildNumber, 1)
         versionName = "1.$buildNumber"
         buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
-        buildConfigField("String", "BUILD_DATE", "\"${java.time.LocalDate.now(java.time.ZoneOffset.UTC)}\"")
+        buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now(ZoneOffset.UTC)}\"")
         // Phones only: leaving out emulator (x86) native libraries keeps the APK smaller.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
