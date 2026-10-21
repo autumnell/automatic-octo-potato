@@ -2,6 +2,7 @@ package com.mtgscanner.ui.trade
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Sell
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,11 +79,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** A card on one side of a trade. [owned] is set for cards you give away. */
+@kotlinx.serialization.Serializable
 data class TradeItem(
     val key: String, val name: String, val set: String, val imageUrl: String?, val price: Double?, val qty: Int,
     val owned: CollectionCard? = null, val card: ScryfallCard? = null,
@@ -119,9 +122,28 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val binderName: StateFlow<String> = combine(repo.observeBoxes(), binderId) { boxes, id -> boxes.firstOrNull { it.id == id }?.name.orEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
-    init { CardKingdom.init(repo.appContext) }
+    /** The binder whose saved draft is loaded; changes are saved back only after that. */
+    private var draftFor: Long? = null
 
-    fun setBinder(id: Long) { binderId.value = id }
+    init {
+        CardKingdom.init(repo.appContext)
+        TradeDrafts.init(repo.appContext)
+        // Keep the trade as it's built, so Back or leaving the app doesn't lose it.
+        viewModelScope.launch {
+            _ui.map { TradeDraft(it.give, it.get) }.distinctUntilChanged().collect { d ->
+                draftFor?.let { TradeDrafts.put(it, d) }
+            }
+        }
+    }
+
+    fun setBinder(id: Long) {
+        binderId.value = id
+        if (draftFor == id) return
+        val d = TradeDrafts.get(id)
+        nextKey = System.currentTimeMillis()
+        _ui.update { it.copy(give = d.give, get = d.get) }
+        draftFor = id
+    }
     private var suggestJob: Job? = null
 
     fun give(c: CollectionCard) {
@@ -244,7 +266,16 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    fun clear() = _ui.update { TradeUi() }
+    /** Empties both sides, with Undo. */
+    fun clear() {
+        val before = _ui.value
+        if (before.give.isEmpty() && before.get.isEmpty()) return
+        _ui.update { TradeUi() }
+        Undo.offer("Trade cleared") {
+            _ui.update { it.copy(give = before.give, get = before.get) }
+            draftFor?.let { TradeDrafts.put(it, TradeDraft(before.give, before.get)) }
+        }
+    }
     fun messageShown() = _ui.update { it.copy(message = null) }
 }
 
@@ -303,9 +334,9 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                 if (ui.give.isEmpty() && ui.get.isEmpty()) {
                     item {
                         if (collection.isEmpty()) {
-                            EmptyState(Icons.Filled.SwapHoriz, "Binder is empty", "Add what you'd get.", action = { GradientButton("Add card", { picking = "get" }, icon = Icons.Filled.Add) })
+                            EmptyState("Binder is empty", action = "Add a card you get", onAction = { picking = "get" })
                         } else {
-                            EmptyState(Icons.Filled.SwapHoriz, "Start a trade", "Add cards to each side.", action = { GradientButton("Pick from binder", { picking = "give" }, icon = Icons.Filled.Add) })
+                            EmptyState("Start a trade", action = "Pick from binder", onAction = { picking = "give" })
                         }
                     }
                 }
@@ -365,7 +396,15 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
         )
     }
-    if (ui.busy) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+    if (ui.busy) {
+        // Blocks taps underneath while a card is looked up or the trade is saved.
+        Box(
+            Modifier.fillMaxSize()
+                .background(Palette.Background.copy(alpha = 0.4f))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
+            contentAlignment = Alignment.Center,
+        ) { CircularProgressIndicator(color = Palette.Accent) }
+    }
 }
 
 @Composable
@@ -419,7 +458,8 @@ private fun FairnessMeter(give: Double, get: Double) {
         }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
             Text("Give", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
-            Text(label, style = MaterialTheme.typography.labelMedium, color = color, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+            // Gold is too faint for text in light mode; the bar keeps it.
+            Text(label, style = MaterialTheme.typography.labelMedium, color = if (color == Palette.Gold) Palette.Text else color, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
             Text("Get", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }
     }
