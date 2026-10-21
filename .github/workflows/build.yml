@@ -29,10 +29,33 @@ jobs:
       - name: Run unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      # A release build (R8, no debugging): much faster on the phone. Signed with the same
-      # committed key and same app id as the old debug builds, so it installs over them.
+      # Optional private signing key. Only used when the RELEASE_KEYSTORE_BASE64 secret is set (plus
+      # RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD); otherwise the build uses the
+      # committed key in keystore/ as before. Switching keys means one uninstall on the phone.
+      - name: Release signing key
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "RELEASE_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "Signing with the private release key."
+          else
+            echo "No release key secret: signing with the committed key."
+          fi
+
+      # A release build (R8, no debugging): much faster on the phone. Same app id as the old debug
+      # builds, and the same committed key unless the private key above is set.
       - name: Build APK
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -40,16 +63,70 @@ jobs:
           name: mtg-scanner-apk
           path: app/build/outputs/apk/release/app-release.apk
 
-      # Every build of main replaces the "latest" release, so the newest APK
-      # is always one tap away from a phone's browser.
-      - name: Publish latest release
+      # R8 renames classes in release builds; this file turns a crash report's stack trace back into
+      # readable names (retrace). Each build's own copy is also attached to its release below.
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtg-scanner-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+
+      # Every build of main replaces the "latest" release, so the newest APK is always one tap away from
+      # a phone's browser (same tag, same asset name). Each build also gets its own release, build-N, kept
+      # so an older build can be reinstalled. build-N is created first and marked not-latest, so GitHub's
+      # "Latest" badge stays on the "latest" release.
+      - name: Publish releases
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/release/app-release.apk mtg-scanner.apk
-          gh release delete latest --yes --cleanup-tag || true
+          cp app/build/outputs/mapping/release/mapping.txt mapping.txt
           BUILD_DATE="$(date -u '+%b %-d')"
-          gh release create latest mtg-scanner.apk \
-            --title "Grimoire build ${GITHUB_RUN_NUMBER} · ${BUILD_DATE}" \
+          TITLE="Grimoire build ${GITHUB_RUN_NUMBER} · ${BUILD_DATE}"
+          TAG="build-${GITHUB_RUN_NUMBER}"
+
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          gh release create "$TAG" mtg-scanner.apk mapping.txt \
+            --target "$GITHUB_SHA" \
+            --latest=false \
+            --title "$TITLE" \
+            --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}, ${BUILD_DATE}. To go back to this build, download mtg-scanner.apk on your phone and open it. mapping.txt reads this build's crash reports."
+
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest mtg-scanner.apk mapping.txt \
+            --target "$GITHUB_SHA" \
+            --latest \
+            --title "$TITLE" \
             --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}, ${BUILD_DATE}. Download mtg-scanner.apk on your phone and open it to install."
+
+      # Android lint, mainly for calls to APIs newer than Android 8 (minSdk 26). It reports but doesn't
+      # fail the build yet (abortOnError = false in app/build.gradle.kts).
+      - name: Android lint
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          ./gradlew --no-daemon lintDebug
+          REPORT=app/build/reports/lint-results-debug.xml
+          if [ -f "$REPORT" ]; then
+            ERRORS=$(grep -c 'severity="Error"' "$REPORT" || true)
+            WARNINGS=$(grep -c 'severity="Warning"' "$REPORT" || true)
+            NEWAPI=$(grep -c 'id="NewApi"' "$REPORT" || true)
+            {
+              echo "### Android lint"
+              echo "- Errors: ${ERRORS}"
+              echo "- Warnings: ${WARNINGS}"
+              echo "- NewApi (newer than Android 8): ${NEWAPI}"
+              echo "Full report: the lint-report artifact."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload lint report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+          if-no-files-found: ignore
