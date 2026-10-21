@@ -29,7 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -63,18 +64,22 @@ import com.mtgscanner.MtgApp
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.GoalProgress
 import com.mtgscanner.data.Goals
+import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Goal
 import com.mtgscanner.data.observeGoalProgress
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
-import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.Undo
+import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -102,6 +107,34 @@ class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val label = if (rarities.isEmpty() || rarities.size == Goals.RARITIES.size) "" else
             " " + Goals.RARITIES.filter { it in rarities }.joinToString("/") { it.replaceFirstChar(Char::uppercase) }
         repo.addGoal(Goal(name = "${set.name}$label", kind = Goals.SET, target = set.code.lowercase(), rarities = rarities.joinToString(",")))
+    }
+
+    /** Oracle ids on the wishlist, for the hearts on missing cards. */
+    val wished: StateFlow<Set<String>> = repo.observeWishlist().map { l -> l.map { it.oracleId }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** Puts a missing card on the wishlist, or takes it off when it's already there. Undo either way. */
+    fun toggleWish(card: ScryfallCard) = viewModelScope.launch {
+        val oracle = card.oracleId ?: return@launch
+        val existing = repo.wishlistItem(oracle)
+        if (existing != null) {
+            repo.removeWish(existing.id)
+            Undo.offer("Off wishlist") { repo.restoreWish(existing) }
+        } else {
+            repo.addToWishlist(card)
+            Undo.offer("Wishlisted ${card.name}") { repo.wishlistItem(oracle)?.let { repo.removeWish(it.id) } }
+        }
+    }
+
+    /** Wishlists every missing card not already on it, with Undo. */
+    fun wishlistAll(missing: List<ScryfallCard>) = viewModelScope.launch {
+        val have = repo.observeWishlist().first().map { it.oracleId }.toSet()
+        val add = Goals.toWishlist(missing, have)
+        if (add.isEmpty()) { _message.value = "All on your wishlist"; return@launch }
+        add.forEach { repo.addToWishlist(it) }
+        Undo.offer(if (add.size == 1) "Wishlisted 1 card" else "Wishlisted ${add.size} cards") {
+            add.forEach { c -> repo.wishlistItem(c.oracleId)?.let { repo.removeWish(it.id) } }
+        }
     }
 
     fun delete(goal: Goal) = viewModelScope.launch {
@@ -139,13 +172,8 @@ fun GoalsScreen(onBack: () -> Unit, vm: GoalsViewModel = viewModel(factory = Goa
         val list = goals
         when {
             list == null -> Unit
-            open != null -> MissingList(open)
-            list.isEmpty() -> EmptyState(
-                icon = Icons.Filled.EmojiEvents,
-                title = "No goals yet",
-                body = "Every printing of a card, or a set.",
-                action = { GradientButton("Add goal", { adding = true }, icon = Icons.Filled.Add) },
-            )
+            open != null -> MissingList(open, vm)
+            list.isEmpty() -> EmptyState("No goals yet", action = "Add goal", onAction = { adding = true })
             else -> LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -193,21 +221,38 @@ fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun MissingList(p: GoalProgress) {
+private fun MissingList(p: GoalProgress, vm: GoalsViewModel) {
     if (p.loaded && p.missing.isEmpty()) {
-        EmptyState(Icons.Filled.EmojiEvents, "Complete", "You have them all.")
+        EmptyState("Complete")
         return
     }
     if (!p.loaded) {
         EmptyState(Icons.Filled.CloudOff, if (p.error) "Offline" else "Loading…", "Needs Scryfall.")
         return
     }
+    val wished by vm.wished.collectAsStateWithLifecycle()
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), modifier = Modifier.navigationBarsPadding()) {
         item {
-            Text("Missing ${p.missing.size}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(vertical = 8.dp))
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Missing ${p.missing.size}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                    if (AppSettings.showPrices && p.cost > 0) {
+                        Text("${formatUsd(p.cost)} to complete", style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
+                    }
+                }
+                TextButton(onClick = { vm.wishlistAll(p.missing) }) {
+                    Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Wishlist all")
+                }
+            }
         }
         items(p.missing, key = { it.id }) { c ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            val isWished = c.oracleId != null && c.oracleId in wished
+            Row(
+                Modifier.fillMaxWidth().clickable(onClickLabel = if (isWished) "Remove from wishlist" else "Add to wishlist") { vm.toggleWish(c) }.padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 CardImage(c.smallImageUrl, Modifier.width(34.dp), corner = 3.dp, zoom = true)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -217,6 +262,16 @@ private fun MissingList(p: GoalProgress) {
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1,
                     )
                 }
+                if (AppSettings.showPrices) Goals.cheapest(c)?.let {
+                    Text(formatUsd(it), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Icon(
+                    if (isWished) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    null,
+                    tint = if (isWished) Palette.AccentText else Palette.Muted,
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
     }
