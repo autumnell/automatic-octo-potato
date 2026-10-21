@@ -361,12 +361,18 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
                 }
             }
         }
-        IconButton(onClick = onTag) { Icon(Icons.AutoMirrored.Filled.Label, "Add a tag") }
-        IconButton(onClick = vm::sellSelected) { Icon(Icons.Filled.Sell, "Mark for sale") }
         IconButton(onClick = vm::deleteSelected) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
         Box {
             IconButton(onClick = { more = true }) { Icon(Icons.Filled.MoreVert, "More") }
             DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                DropdownMenuItem(
+                    text = { Text("Add a tag") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
+                    onClick = { more = false; onTag() },
+                )
+                DropdownMenuItem(
+                    text = { Text("For sale") }, leadingIcon = { Icon(Icons.Filled.Sell, null) },
+                    onClick = { more = false; vm.sellSelected() },
+                )
                 DropdownMenuItem(text = { Text("Condition, language, foil") }, onClick = { more = false; onEdit() })
                 DropdownMenuItem(text = { Text("Stay in this box") }, onClick = { more = false; vm.pinSelected(true) })
                 DropdownMenuItem(text = { Text("Let re-sort move") }, onClick = { more = false; vm.pinSelected(false) })

@@ -298,10 +298,11 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
 
-    /** 30-day price lines by card row id, for the sparklines; only cards with two or more points. */
     /** What a sparkline depends on; the line is only rebuilt when this changes. */
     private data class SparkKey(val scryfallId: String, val foil: Boolean, val price: Double?, val day: String)
     private val sparkCache = HashMap<Long, Pair<SparkKey, List<Double>>>()
+
+    /** 30-day price lines by card row id, for the sparklines; only cards with two or more points. */
 
     val sparks: StateFlow<Map<Long, List<Double>>> = scope.map { it.inScope }
         .distinctUntilChanged()

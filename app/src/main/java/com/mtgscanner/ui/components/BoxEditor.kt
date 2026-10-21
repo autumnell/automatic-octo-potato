@@ -167,7 +167,7 @@ fun BoxEditorSheet(
                 LayoutCards(
                     divider = Divider.of(draft.divider),
                     // Keeps a second level and number order set from the box menu's Dividers.
-                    onDivider = { draft = draft.copy(divider = com.mtgscanner.data.BoxLayout.of(draft.divider).copy(first = it).key) },
+                    onDivider = { draft = draft.copy(divider = if (it == Divider.NONE) "" else com.mtgscanner.data.BoxLayout.of(draft.divider).copy(first = it).key) },
                     capText = capText,
                     onCap = { v -> capText = v.filter { it.isDigit() }.take(5) },
                 )
