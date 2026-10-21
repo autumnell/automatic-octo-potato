@@ -13,7 +13,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +72,9 @@ object PullChecksStore {
         if (now.isEmpty()) m - deckId else m + (deckId to now)
     }
 
+    /** Puts a deck's checkmarks back, for Undo. */
+    fun set(deckId: Long, keys: Set<String>) = edit { m -> if (keys.isEmpty()) m - deckId else m + (deckId to keys) }
+
     fun clear(deckId: Long) {
         if (_state.value.containsKey(deckId)) edit { it - deckId }
     }
@@ -79,7 +88,14 @@ object PullChecksStore {
 
 /** The cards to take out of your boxes for a deck, box by box, with checkmarks. */
 @Composable
-fun PullListView(list: PullList?, checked: Set<String>, onToggle: (String) -> Unit, onClear: () -> Unit) {
+fun PullListView(
+    list: PullList?,
+    checked: Set<String>,
+    onToggle: (String) -> Unit,
+    onClear: () -> Unit,
+    /** Files the checked cards into the deck's box. */
+    onMoveChecked: (() -> Unit)? = null,
+) {
     if (list == null) {
         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
         return
@@ -99,6 +115,17 @@ fun PullListView(list: PullList?, checked: Set<String>, onToggle: (String) -> Un
                     }
                 }
                 if (checked.isNotEmpty()) TextButton(onClick = onClear) { Text("Clear") }
+            }
+            if (onMoveChecked != null && done > 0) {
+                OutlinedButton(
+                    onClick = onMoveChecked,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Filled.Style, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Move checked to deck box")
+                }
             }
         }
         for (g in list.groups) {

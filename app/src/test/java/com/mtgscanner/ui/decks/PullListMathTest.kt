@@ -66,4 +66,17 @@ class PullListMathTest {
         assertEquals(2, p.inDeckBox)
         assertEquals(listOf(PullMissing("Fireblast", 2), PullMissing("Shock", 1)), p.missing)
     }
+
+    @Test
+    fun movesForCheckedItemsCarryRowsAndCopies() {
+        val bolt = card("Lightning Bolt", 1, qty = 3)
+        val shock = card("Shock", 2, qty = 1)
+        val p = PullListMath.build(listOf(DeckLine(2, "Lightning Bolt"), DeckLine(1, "Shock")), listOf(bolt, shock), boxes, "Other")
+        val boltKey = PullListMath.itemKey(bolt)
+        assertEquals(listOf(bolt.id to 2), p.movesFor(setOf(boltKey)))
+        assertEquals(2, p.movesFor(setOf(boltKey, PullListMath.itemKey(shock))).size)
+        // Items already in the deck box aren't moved again.
+        assertEquals(emptyList<Pair<Long, Int>>(), p.movesFor(setOf(boltKey), deckBoxId = 1))
+        assertEquals(emptyList<Pair<Long, Int>>(), p.movesFor(emptySet()))
+    }
 }

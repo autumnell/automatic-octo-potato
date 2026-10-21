@@ -89,6 +89,8 @@ fun SearchScreen(
     vm: SearchViewModel = viewModel(factory = AppViewModels.Factory),
     /** Opens the set browser for a set code; without it, a set opens as a card search. */
     onOpenSet: ((String) -> Unit)? = null,
+    /** Opens a collection row; "You own" in the add sheet uses it. */
+    onOpenCard: ((Long) -> Unit)? = null,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val ownedSets by vm.ownedBySet.collectAsStateWithLifecycle()
@@ -109,16 +111,19 @@ fun SearchScreen(
 
     ui.selected?.let { card ->
         if (!ui.showPrintings) {
+            val mine = owned.of(card)
             AddCardSheet(
                 card = card,
                 boxes = boxes,
-                defaultBoxId = vm.lastBoxId,
+                // Default to where you already keep this card.
+                defaultBoxId = mine?.boxId ?: vm.lastBoxId,
                 onAdd = vm::add,
                 onChangePrinting = vm::openPrintings,
                 onDismiss = { vm.select(null) },
                 onCreateBox = { newBox = true },
                 onWishlist = vm::wishlist,
-                owned = owned.of(card)?.label,
+                owned = mine?.label,
+                onOwned = mine?.rowId?.let { id -> onOpenCard?.let { open -> { vm.select(null); open(id) } } },
             )
         }
     }
@@ -147,7 +152,7 @@ private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifie
         Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = if (selected) Palette.Text else Palette.Muted, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(10.dp))
-            Text(label.uppercase(), style = MaterialTheme.typography.labelLarge, color = if (selected) Palette.Text else Palette.Muted)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) Palette.Text else Palette.Muted)
         }
         Box(Modifier.fillMaxWidth().height(3.dp).background(if (selected) Palette.Accent else Palette.Outline.copy(alpha = 0.4f)))
     }
@@ -190,7 +195,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     .background(Palette.AccentGradient)
                     .clickable { focus.clearFocus(); vm.submit() }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
-            ) { Text("SEARCH", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
+            ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
             IconButton(onClick = vm::toggleGrid) {
                 Icon(if (ui.grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Text)
             }

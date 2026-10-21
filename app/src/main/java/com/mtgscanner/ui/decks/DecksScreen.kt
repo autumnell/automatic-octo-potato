@@ -97,6 +97,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -516,6 +518,37 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     fun togglePulled(key: String) { _ui.value.id.takeIf { it != 0L }?.let { PullChecksStore.toggle(it, key) } }
     fun clearPulled() = PullChecksStore.clear(_ui.value.id)
 
+    private var filing = false
+
+    /** Moves the checked cards into this deck's deck box (made if there isn't one), with Undo. */
+    fun moveCheckedToDeckBox() {
+        val id = _ui.value.id
+        val name = _ui.value.name.ifBlank { "Untitled deck" }
+        val list = pull.value ?: return
+        val checks = pullChecks.value
+        if (filing || id == 0L || checks.isEmpty()) return
+        filing = true
+        viewModelScope.launch {
+            try {
+                val existing = repo.observeBoxes().first().firstOrNull { PullListMath.isDeckBoxFor(it, name) }
+                val moves = list.movesFor(checks, existing?.id)
+                if (moves.isEmpty()) return@launch
+                val before = repo.snapshot(moves.map { it.first })
+                val boxId = existing?.id ?: repo.createBox(name, "deck")
+                repo.moveCopiesMany(moves, boxId)
+                PullChecksStore.clear(id)
+                val n = moves.sumOf { it.second }
+                Undo.offer(if (n == 1) "Moved 1 card to $name" else "Moved $n cards to $name") {
+                    repo.restore(before)
+                    if (existing == null) repo.deleteBox(boxId, com.mtgscanner.data.db.Box.AUTO_SORT)
+                    PullChecksStore.set(id, checks)
+                }
+            } finally {
+                filing = false
+            }
+        }
+    }
+
     fun setName(v: String) = _ui.update { it.copy(name = v) }
     fun setText(v: String) = _ui.update { it.copy(text = v) }
     fun edit() = _ui.update { it.copy(editing = true) }
@@ -537,13 +570,22 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
+    private var checkJob: Job? = null
+
+    /** Checks the saved list against the collection, and again whenever the collection changes. */
     private fun check() {
         _ui.update { it.copy(checking = true) }
-        viewModelScope.launch {
-            val cards = repo.observeAll().first()
-            val boxes = repo.observeBoxes().first()
-            val result = repo.checkDeck(_ui.value.text, cards, boxes)
-            _ui.update { it.copy(checking = false, check = result) }
+        val text = _ui.value.text
+        checkJob?.cancel()
+        checkJob = viewModelScope.launch {
+            var initial = true
+            combine(repo.observeAll(), repo.observeBoxes()) { cards, boxes -> cards to boxes }.collectLatest { (cards, boxes) ->
+                // Later changes come in bursts (a scan, a bulk move): wait for them to settle.
+                if (!initial) delay(400)
+                initial = false
+                val result = repo.checkDeck(text, cards, boxes)
+                _ui.update { it.copy(checking = false, check = result) }
+            }
         }
     }
 
@@ -651,7 +693,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                     2 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
                         val checks by vm.pullChecks.collectAsStateWithLifecycle()
-                        PullListView(pull, checks, vm::togglePulled, vm::clearPulled)
+                        PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeckBox)
                     }
                     else -> Results(ui, vm)
                 }
@@ -761,7 +803,7 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
             } else l.boxes.joinToString(" · ") { (b, n) -> "$b ×$n" }
             Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall, color = Palette.Accent) }
+        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText) }
         else Icon(Icons.Filled.CheckCircle, null, tint = if (l.owned >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
     }
 }

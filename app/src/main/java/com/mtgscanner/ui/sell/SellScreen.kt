@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -18,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,11 +50,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mtgscanner.MtgApp
 import com.mtgscanner.data.CardKingdom
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
-import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -81,6 +83,26 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
         val now = repo.cardOnce(c.id) ?: return@launch
         repo.update(now.copy(askPrice = price))
         Haptics.tick()
+    }
+
+    /** What sales have brought in, from the cards' history. Updates as cards are sold. */
+    val earned: StateFlow<Double> = repo.observeAll()
+        .map { _ -> runCatching { Sales.earned(repo.dao.allEvents().map { it.kind to it.detail }) }.getOrDefault(0.0) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0.0)
+
+    /** Takes [qty] sold copies out of the collection and notes the price in the card's history, with Undo. */
+    fun sold(c: CollectionCard, qty: Int, each: Double) = viewModelScope.launch {
+        val now = repo.cardOnce(c.id) ?: return@launch
+        val n = qty.coerceIn(1, now.quantity)
+        val before = repo.snapshot(listOf(now.id))
+        val event = CardEvent(scryfallId = now.scryfallId, name = now.name, kind = Sales.KIND, detail = Sales.detail(n, each))
+        val eventId = runCatching { repo.dao.addEvent(event) }.getOrNull()
+        repo.setQuantity(now.id, now.quantity - n)
+        Undo.offer("Sold ${n}× ${now.name}") {
+            // The history keeps a note instead of the sale, so it no longer counts toward earned.
+            if (eventId != null) runCatching { repo.dao.putEvents(listOf(event.copy(id = eventId, kind = "edited", detail = "Sale undone"))) }
+            repo.restore(before)
+        }
     }
 
     fun unlist(c: CollectionCard) = viewModelScope.launch {
@@ -121,8 +143,10 @@ fun sellText(cards: List<CollectionCard>): String = buildString {
 fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
     val vm: SellViewModel = viewModel(factory = SellViewModel.Factory)
     val cards by vm.cards.collectAsStateWithLifecycle()
+    val earned by vm.earned.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     var editing by remember { mutableStateOf<CollectionCard?>(null) }
+    var selling by remember { mutableStateOf<CollectionCard?>(null) }
     Haptics.Attach()
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
@@ -139,21 +163,23 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
             }
         }
         val list = cards ?: return@Column
-        if (list.isEmpty()) {
-            EmptyState(
-                Icons.Filled.Sell, "Nothing for sale", "Mark cards for sale on their page.",
-                Modifier.padding(top = 24.dp),
-                action = { GradientButton("Browse cards", onBrowse) },
-            )
-            return@Column
-        }
-        if (AppSettings.showPrices) {
+        if (AppSettings.showPrices && (list.isNotEmpty() || earned > 0)) {
             Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(18.dp), color = Palette.Surface) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${list.sumOf { it.quantity }} cards", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)
+                Column(Modifier.padding(14.dp)) {
+                    if (list.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${list.sumOf { it.quantity }} cards", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)
+                    }
+                    if (earned > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Earned", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                        Text(formatUsd(earned), style = MaterialTheme.typography.titleSmall, color = Palette.Success)
+                    }
                 }
             }
+        }
+        if (list.isEmpty()) {
+            EmptyState("Nothing for sale", Modifier.padding(top = 24.dp), action = "Browse cards", onAction = onBrowse)
+            return@Column
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(list, key = { it.id }) { c -> SellRow(c) { editing = c } }
@@ -165,8 +191,12 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
             c,
             onSave = { vm.setAsk(c, it); editing = null },
             onUnlist = { vm.unlist(c); editing = null },
+            onSold = { selling = c; editing = null },
             onDismiss = { editing = null },
         )
+    }
+    selling?.let { c ->
+        SoldDialog(c, onSold = { qty, each -> vm.sold(c, qty, each); selling = null }, onDismiss = { selling = null })
     }
 }
 
@@ -194,7 +224,7 @@ private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AskDialog(c: CollectionCard, onSave: (Double?) -> Unit, onUnlist: () -> Unit, onDismiss: () -> Unit) {
+private fun AskDialog(c: CollectionCard, onSave: (Double?) -> Unit, onUnlist: () -> Unit, onSold: () -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(c.askPrice?.let { "%.2f".format(java.util.Locale.US, it) }.orEmpty()) }
     val parsed = text.replace(',', '.').trim().removePrefix("$").toDoubleOrNull()
     val valid = text.isBlank() || (parsed != null && parsed >= 0)
@@ -214,10 +244,50 @@ private fun AskDialog(c: CollectionCard, onSave: (Double?) -> Unit, onUnlist: ()
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                TextButton(onClick = onUnlist) { Text("Not for sale", color = Palette.Danger) }
+                Row {
+                    TextButton(onClick = onSold) { Text("Sold", color = Palette.AccentText) }
+                    TextButton(onClick = onUnlist) { Text("Not for sale", color = Palette.Danger) }
+                }
             }
         },
         confirmButton = { TextButton(onClick = { onSave(if (text.isBlank()) null else parsed) }, enabled = valid) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Marks copies as sold: how many, and the price each. */
+@Composable
+private fun SoldDialog(c: CollectionCard, onSold: (qty: Int, each: Double) -> Unit, onDismiss: () -> Unit) {
+    var qty by remember { mutableIntStateOf(c.quantity) }
+    var text by remember { mutableStateOf(c.salePrice()?.let { "%.2f".format(java.util.Locale.US, it) }.orEmpty()) }
+    val each = Sales.parsePrice(text)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Sold", maxLines = 1) },
+        text = {
+            Column {
+                Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(10.dp))
+                if (c.quantity > 1) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Copies", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        QuantityStepper(qty, onChange = { qty = it.coerceIn(1, c.quantity) })
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Price each") },
+                    singleLine = true,
+                    isError = each == null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { each?.let { onSold(qty, it) } }, enabled = each != null) { Text("Sold") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

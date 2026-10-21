@@ -56,8 +56,11 @@ data class SearchUi(
 @kotlinx.serialization.Serializable
 data class Viewed(val id: String, val name: String, val image: String? = null)
 
-/** How many copies of a card (any printing) are in the collection, and where most of them are. */
-data class Owned(val count: Int, val boxName: String?, val boxCount: Int) {
+/**
+ * How many copies of a card (any printing) are in the collection, and where most of them are.
+ * [boxId] is the box holding the most copies; [rowId] is the biggest row in it, opened by "You own".
+ */
+data class Owned(val count: Int, val boxName: String?, val boxCount: Int, val boxId: Long? = null, val rowId: Long? = null) {
     /** "You own 3 · Rares", or "You own 3 · 2 boxes". */
     val label: String get() = "You own $count" + when {
         boxCount > 1 -> " · $boxCount boxes"
@@ -88,7 +91,8 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         fun summarize(rows: List<com.mtgscanner.data.db.CollectionCard>): Owned {
             val byBox = rows.groupBy { it.boxId }.mapValues { (_, r) -> r.sumOf { it.quantity } }
             val top = byBox.maxByOrNull { it.value }?.key
-            return Owned(rows.sumOf { it.quantity }, top?.let { names[it] }, byBox.size)
+            val row = rows.filter { it.boxId == top }.maxByOrNull { it.quantity }
+            return Owned(rows.sumOf { it.quantity }, top?.let { names[it] }, byBox.size, top, row?.id)
         }
         val out = HashMap<String, Owned>()
         cards.filter { it.oracleId != null }.groupBy { it.oracleId!! }.forEach { (k, rows) -> out["o:$k"] = summarize(rows) }
@@ -285,11 +289,17 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
                 return@launch
             }
             repo.lastBoxId = boxId
-            repo.add(card, foil, qty, target)
-            com.mtgscanner.util.Haptics.tick()
+            val rowId = repo.add(card, foil, qty, target)
+            // Adding counts toward the wishlist; Undo puts the wish back as it was.
+            val wish = repo.wishlistItem(card.oracleId)
             repo.fulfilWish(card.oracleId, qty)
             val boxName = boxes.value.firstOrNull { it.id == target }?.name
-            _ui.update { it.copy(message = "Added ${qty}× ${card.name}${if (foil) " (foil)" else ""}${boxName?.let { " to $it" } ?: ""}") }
+            val msg = "Added ${qty}× ${card.name}${if (foil) " (foil)" else ""}${boxName?.let { " to $it" } ?: ""}" +
+                (if (wish != null) " · off wishlist" else "")
+            com.mtgscanner.ui.components.Undo.offer(msg) {
+                repo.remove(rowId, qty)
+                if (wish != null) repo.restoreWish(wish)
+            }
         }
     }
 
