@@ -159,15 +159,18 @@ internal object BackupIO {
      * Returns false when [open] gives no stream.
      */
     suspend fun export(repo: CollectionRepository, open: suspend () -> OutputStream?): Boolean =
-        exportCounted(repo, open) != null
+        exportCounted(repo) { open() } != null
 
-    /** Like [export]; returns the cards saved, or null when [open] gives no stream. */
-    suspend fun exportCounted(repo: CollectionRepository, open: suspend () -> OutputStream?): Int? = withContext(Dispatchers.IO) {
+    /**
+     * Like [export], but [open] is told how many cards the finished backup holds (it can refuse with null).
+     * Returns the cards saved, or null when [open] gives no stream.
+     */
+    suspend fun exportCounted(repo: CollectionRepository, open: suspend (cards: Int) -> OutputStream?): Int? = withContext(Dispatchers.IO) {
         val tmp = File.createTempFile("backup", ".zip", repo.appContext.cacheDir)
         try {
             val count = writeArchive(repo, tmp.outputStream())
             withContext(NonCancellable) {
-                val out = open() ?: return@withContext null
+                val out = open(count) ?: return@withContext null
                 out.use { o -> tmp.inputStream().use { it.copyTo(o) } }
                 count
             }

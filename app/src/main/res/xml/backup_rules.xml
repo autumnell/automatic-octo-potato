@@ -5,6 +5,7 @@
     <exclude domain="file" path="models" />
     <exclude domain="file" path="art-index" />
     <exclude domain="file" path="photos" />
+    <exclude domain="file" path="backups" />
     <exclude domain="file" path="ck-buylist.tsv" />
     <exclude domain="file" path="card-names.txt" />
     <exclude domain="file" path="scan-log.jsonl" />
