@@ -41,7 +41,7 @@ class MtgApp : Application(), ImageLoaderFactory {
                 .addInterceptor { chain ->
                     chain.proceed(
                         chain.request().newBuilder()
-                            .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+                            .header("User-Agent", "MTGScanner/${BuildConfig.VERSION_NAME} (personal collection app)")
                             .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
                             .build(),
                     )

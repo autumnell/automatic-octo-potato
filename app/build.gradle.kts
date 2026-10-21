@@ -14,8 +14,13 @@ android {
         applicationId = "com.mtgscanner"
         minSdk = 26
         targetSdk = 35
-        versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
-        versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+        // CI numbers each build from the workflow's run number (it only goes up, so every build installs
+        // over the last). Local builds are build 0, version "1.0".
+        val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+        versionCode = maxOf(buildNumber, 1)
+        versionName = "1.$buildNumber"
+        buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
+        buildConfigField("String", "BUILD_DATE", "\"${java.time.LocalDate.now(java.time.ZoneOffset.UTC)}\"")
         // Phones only: leaving out emulator (x86) native libraries keeps the APK smaller.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
@@ -29,6 +34,17 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // A private release key, used only when CI provides one (RELEASE_KEYSTORE_FILE plus the passwords
+        // and alias from repo secrets). Without it, release builds keep using the committed key above.
+        val releaseStore = System.getenv("RELEASE_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }?.let { file(it) }
+        if (releaseStore != null && releaseStore.exists()) {
+            create("release") {
+                storeFile = releaseStore
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -36,13 +52,15 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         // The build CI publishes. Same applicationId (no suffix on either type) and the same key as
-        // debug builds, so it installs over an existing debug install and keeps its data.
+        // debug builds, so it installs over an existing debug install and keeps its data (unless CI has a
+        // private release key; see signingConfigs). R8's mapping.txt is published with each build so
+        // crash reports can be read.
         release {
             isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 
@@ -55,6 +73,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         jniLibs {
@@ -65,9 +84,14 @@ android {
             pickFirsts += "**/libc++_shared.so"
         }
     }
-    // Debug builds never ran lint; keep a release build from failing on lint alone.
+    // Keep a release build from failing on lint alone. CI runs lintDebug separately and uploads the report;
+    // existing warnings and errors don't fail the build yet.
     lint {
         checkReleaseBuilds = false
+        abortOnError = false
+        warningsAsErrors = false
+        xmlReport = true
+        htmlReport = true
     }
 }
 
