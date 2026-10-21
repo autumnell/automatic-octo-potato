@@ -27,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,27 +46,58 @@ import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.LineChart
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.formatUsd
-import com.mtgscanner.ui.goals.GoalCard
 import com.mtgscanner.ui.theme.Palette
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.filled.CloudOff
+import com.mtgscanner.ui.theme.PriceStyle
 
 /** Up to three goals, or a button to add the first one. */
 @Composable
 internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
     if (goals.isEmpty()) {
-        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), color = Palette.Surface) {
-            Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("No goals yet", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                TextButton(onClick = onGoals) {
-                    Icon(Icons.Filled.Add, null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add a goal")
-                }
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("No goals yet", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+            TextButton(onClick = onGoals) {
+                Icon(Icons.Filled.Add, null)
+                Spacer(Modifier.width(4.dp))
+                Text("Add a goal")
             }
         }
         return
     }
-    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        goals.sortedBy { if (it.done) 1 else 0 }.take(3).forEach { GoalCard(it, onClick = onGoals) }
+    Column {
+        goals.sortedBy { if (it.done) 1 else 0 }.take(3).forEach { GoalRow(it, onGoals) }
+    }
+}
+
+/** A goal as a plain row: name and count, with a thin progress line under it. */
+@Composable
+private fun GoalRow(p: GoalProgress, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            when {
+                p.error -> Icon(Icons.Filled.CloudOff, "Offline", tint = Palette.Muted, modifier = Modifier.size(16.dp))
+                !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                else -> Text(
+                    "${p.have}/${p.total}",
+                    style = PriceStyle.copy(fontSize = MaterialTheme.typography.titleSmall.fontSize * 1.15f),
+                    color = if (p.done) Palette.Success else Palette.Muted,
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { p.fraction },
+            modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+            color = if (p.done) Palette.Success else Palette.Accent,
+            trackColor = Palette.SurfaceHigh,
+            drawStopIndicator = {},
+        )
     }
 }
 
@@ -99,27 +129,25 @@ internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
     var selected by remember { mutableLongStateOf(ranked.first().id) }
     val box = ranked.firstOrNull { it.id == selected } ?: ranked.first()
     val values = data.values[box.id].orEmpty()
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Column(Modifier.padding(vertical = 12.dp)) {
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                ranked.forEach { b -> SelectPill(b.name, b.id == box.id, { selected = b.id }) }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(formatUsd(values.lastOrNull()), style = MaterialTheme.typography.titleLarge, color = Palette.AccentText)
-                Spacer(Modifier.width(10.dp))
-                val first = values.firstOrNull() ?: 0.0
-                ChangeText((values.lastOrNull() ?: 0.0) - first, first, MaterialTheme.typography.labelMedium)
-            }
-            Spacer(Modifier.height(8.dp))
-            LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp))
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                Text(shortDay(data.days.first()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
-                Text(shortDay(data.days.last()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
-            }
+    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ranked.forEach { b -> SelectPill(b.name, b.id == box.id, { selected = b.id }) }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(formatUsd(values.lastOrNull()), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
+            Spacer(Modifier.width(10.dp))
+            val first = values.firstOrNull() ?: 0.0
+            ChangeText((values.lastOrNull() ?: 0.0) - first, first, MaterialTheme.typography.labelMedium)
+        }
+        Spacer(Modifier.height(8.dp))
+        LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Text(shortDay(data.days.first()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+            Text(shortDay(data.days.last()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }
     }
 }
@@ -129,18 +157,16 @@ internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
 internal fun BulkCard(cards: Int) {
     var editing by remember { mutableStateOf(false) }
     val rate = HomePrefs.bulkRate
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("≈ ${formatUsd(cards / 1000.0 * rate)}", style = MaterialTheme.typography.titleLarge, color = Palette.AccentText)
-                Text(
-                    "$cards commons and uncommons under 50¢",
-                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                )
-                Text("Estimate at ${formatUsd(rate)} per 1000", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            }
-            TextButton(onClick = { editing = true }) { Text("Rate") }
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("≈ ${formatUsd(cards / 1000.0 * rate)}", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
+            Text(
+                "$cards commons and uncommons under 50¢",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            Text("Estimate at ${formatUsd(rate)} per 1000", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
+        TextButton(onClick = { editing = true }) { Text("Rate") }
     }
     if (editing) {
         var text by remember { mutableStateOf(if (rate % 1.0 == 0.0) rate.toInt().toString() else rate.toString()) }

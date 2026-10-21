@@ -2,20 +2,16 @@ package com.mtgscanner.ui.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,6 +28,8 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.work.DriveBackupReminder
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.style.TextOverflow
 
 /**
  * A small card asking for a backup when the weekly one is over two weeks old, or there's never been one.
@@ -69,24 +67,22 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
     if (!DriveBackupReminder.due(now, last, snoozed, hasCards)) return
 
     val days = DriveBackupReminder.daysSince(now, last)
-    Surface(modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
-        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.CloudUpload, null, tint = Palette.Accent)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(if (days == null) "No backup yet" else "Last backup $days days ago", style = MaterialTheme.typography.titleSmall)
-                    Text("Keep your cards safe.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { DriveBackupReminder.snooze(app) }) { Text("Later", color = Palette.Muted) }
-                TextButton(
-                    onClick = { if (DriveBackup.uri != null) backUp() else pick.launch("mtg-scanner-backup.json") },
-                    enabled = busy == null,
-                ) { Text("Back up now") }
-            }
-        }
+    // A plain strip under the value card, not another card: icon, one line, two text buttons.
+    Row(
+        modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.CloudUpload, null, tint = Palette.Accent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(
+            if (days == null) "No backup yet" else "Last backup ${days}d ago",
+            style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = { DriveBackupReminder.snooze(app) }) { Text("Later", color = Palette.Muted) }
+        TextButton(
+            onClick = { if (DriveBackup.uri != null) backUp() else pick.launch("mtg-scanner-backup.json") },
+            enabled = busy == null,
+        ) { Text("Back up") }
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(4.dp))
 }

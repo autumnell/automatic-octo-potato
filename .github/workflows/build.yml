@@ -49,6 +49,7 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk mtg-scanner.apk
           gh release delete latest --yes --cleanup-tag || true
+          BUILD_DATE="$(date -u '+%b %-d')"
           gh release create latest mtg-scanner.apk \
-            --title "Grimoire (latest build)" \
-            --notes "Built from ${GITHUB_SHA::7}. Download mtg-scanner.apk on your phone and open it to install."
+            --title "Grimoire build ${GITHUB_RUN_NUMBER} · ${BUILD_DATE}" \
+            --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}, ${BUILD_DATE}. Download mtg-scanner.apk on your phone and open it to install."
