@@ -2,6 +2,7 @@ package com.mtgscanner.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SortingTest {
@@ -32,7 +33,8 @@ class SortingTest {
     @Test fun bulkFloorBeatsRules() {
         val p = SortPolicy(bulkFloor = 0.25, bulkBoxId = 5)
         assertEquals(5L, Sorting.decide(listOf(blue, bulk), card(price = 0.10), p)?.boxId)
-        assertEquals(SortReason.BULK, Sorting.decide(listOf(blue, bulk), card(price = null), p)?.reason)
+        // No price yet (a new set Scryfall hasn't priced) isn't bulk.
+        assertEquals(SortReason.RULES, Sorting.decide(listOf(blue, bulk), card(price = null), p)?.reason)
         assertEquals(1L, Sorting.decide(listOf(blue, bulk), card(price = 0.30), p)?.boxId)
     }
 
@@ -154,5 +156,129 @@ class SortingTest {
         assertEquals("after Lightning Bolt", Sorting.position(Divider.COLOR, "Shock", card(colors = "R"), contents).text())
         assertEquals("first card", Sorting.position(Divider.NONE, "x", blueRare, emptyList()).text())
         assertEquals("Box → first card", Sorting.where("Box", Sorting.position(Divider.NONE, "x", blueRare, emptyList())))
+    }
+
+    // Item 13/14: spiked cards leave Bulk; unpriced ones stay.
+    @Test fun spikedCardsLeaveBulk() {
+        data class Item(val id: Int, val box: Long, val f: CardFacts)
+        val p = SortPolicy(bulkFloor = 0.5, bulkBoxId = 5)
+        val items = listOf(Item(1, 5, card(price = 12.0)), Item(2, 5, card(price = 0.2)), Item(3, 5, card(price = null)), Item(4, 5, card(price = 0.52)))
+        val moves = Sorting.misplaced(items, { it.box }, { it.f }, listOf(blue, bulk), p, priceSlack = 0.1)
+        // 0.52 is inside the 10% buffer above the floor, so it stays too.
+        assertEquals(listOf(1), moves.map { it.item.id })
+        assertEquals(1L, moves.single().to)
+    }
+
+    @Test fun extrasOnlyLeaveForBulk() {
+        data class Item(val id: Int, val box: Long, val f: CardFacts)
+        val p = SortPolicy(playsetLimit = 4, extrasBoxId = 4, bulkFloor = 0.5, bulkBoxId = 5)
+        val extras = BoxInfo(4, BoxRules())
+        val items = listOf(Item(1, 4, card(price = 12.0)), Item(2, 4, card(price = 0.1)))
+        val moves = Sorting.misplaced(items, { it.box }, { it.f }, listOf(blue, extras, bulk), p)
+        assertEquals(listOf(2 to 5L), moves.map { it.item.id to it.to })
+    }
+
+    // Item 75: price buffer and pinned cards.
+    @Test fun priceBufferKeepsCardsNearTheLine() {
+        data class Item(val id: Int, val box: Long, val f: CardFacts)
+        val pricey = BoxInfo(7, BoxRules(minPrice = 5.0))
+        val items = listOf(Item(1, 7, card(price = 4.8)), Item(2, 7, card(price = 4.0)))
+        val noBuffer = Sorting.misplaced(items, { it.box }, { it.f }, listOf(pricey, anything))
+        assertEquals(listOf(1, 2), noBuffer.map { it.item.id })
+        val buffered = Sorting.misplaced(items, { it.box }, { it.f }, listOf(pricey, anything), priceSlack = 0.1)
+        assertEquals(listOf(2), buffered.map { it.item.id })
+        val pinned = Sorting.misplaced(items, { it.box }, { it.f }, listOf(pricey, anything), pinned = { it.id == 2 })
+        assertEquals(listOf(1), pinned.map { it.item.id })
+    }
+
+    // Item 16: planned moves count cards into boxes, so a box with room for 2 isn't sent 3.
+    @Test fun moveAllRespectsCapacity() {
+        data class Item(val id: Int, val box: Long, val f: CardFacts)
+        val smallBlue = blue.copy(capacity = 2, count = 0)
+        val blue2 = BoxInfo(8, BoxRules(colors = setOf("U")))
+        val items = (1..3).map { Item(it, 3, card(rarity = "common")) }
+        val moves = Sorting.misplaced(items, { it.box }, { it.f }, listOf(smallBlue, blue2, anything))
+        assertEquals(listOf(1L, 1L, 8L), moves.map { it.to })
+    }
+
+    // Item 15: "Sort out" keeps a card whose own box comes first.
+    @Test fun sortOutKeepsCardsThatBelong() {
+        val p = SortPolicy()
+        assertNull(Sorting.sortOutTarget(listOf(blue, rares, anything), 1, card(), p))
+        assertEquals(1L, Sorting.sortOutTarget(listOf(blue, rares, anything), 2, card(), p)?.boxId)
+        // Fits nothing else: stays in the Anything box.
+        assertNull(Sorting.sortOutTarget(listOf(blue, anything), 3, card(colors = "R"), p))
+    }
+
+    // Item 21: a split fallback box with rules keeps leftovers in the right half.
+    @Test fun splitFallbackWithRulesKeepsNameRanges() {
+        val am = BoxInfo(10, BoxRules(rarities = setOf("mythic"), nameFrom = "A", nameTo = "M"), fallback = true)
+        val nz = BoxInfo(11, BoxRules(rarities = setOf("mythic"), nameFrom = "N", nameTo = "Z"))
+        assertEquals(11L, Sorting.decide(listOf(am, nz), card(rarity = "common").copy(name = "Opt"))?.boxId)
+        assertEquals(10L, Sorting.decide(listOf(am, nz), card(rarity = "common").copy(name = "Bolt"))?.boxId)
+        // An unsplit fallback with rules still takes everything.
+        val fb = BoxInfo(12, BoxRules(rarities = setOf("mythic")), fallback = true)
+        assertEquals(12L, Sorting.decide(listOf(fb), card(rarity = "common").copy(name = "Opt"))?.boxId)
+    }
+
+    // Item 22: one name key everywhere.
+    @Test fun nameKeyFoldsAccentsAndThe() {
+        assertEquals("eowyn, lady of rohan", NameKey.of("Éowyn, Lady of Rohan"))
+        assertEquals("wandering emperor", NameKey.of("The Wandering Emperor"))
+        assertEquals("aether vial", NameKey.of("Æther Vial"))
+        assertEquals('W', NameKey.letter("The Wandering Emperor"))
+        assertEquals('E', NameKey.letter("Éowyn"))
+        assertEquals('T', NameKey.letter("Theros Beyond Death"))
+        assertEquals("W", Sorting.spot(Divider.LETTER, "The Wandering Emperor", card()))
+        assertEquals('W', BoxRules.nameLetter("The Wandering Emperor"))
+        assertTrue(BoxRules(nameFrom = "N", nameTo = "Z").inNameRange("The Wandering Emperor"))
+    }
+
+    // Item 81: two-level dividers and number order.
+    @Test fun twoLevelLayout() {
+        val l = BoxLayout.of("color>letter")
+        assertEquals(Divider.COLOR, l.first)
+        assertEquals(Divider.LETTER, l.second)
+        assertEquals("color>letter", l.key)
+        assertEquals(Divider.COLOR, Divider.of("color>letter"))
+        assertEquals("set>#", BoxLayout(Divider.SET, byNumber = true).key)
+        assertEquals("", BoxLayout().key)
+        assertEquals("Blue → C", Sorting.spot(l, "Counterspell", card()))
+        val labels = listOf("Red → A", "Blue → Z", "Blue → C", "White → M")
+        assertEquals(listOf("White → M", "Blue → C", "Blue → Z", "Red → A"), labels.sortedWith(Sorting.spotOrder(l)))
+        val contents = listOf("Brainstorm" to card(), "Counterspell" to card(), "Cryptic Command" to card(), "Opt" to card())
+        assertEquals("Rares → Blue → C → between Counterspell and Cryptic Command",
+            Sorting.where("Rares", Sorting.position(l, "Crop Rotation", card(), contents)))
+    }
+
+    @Test fun numberOrderInsideASetDivider() {
+        val l = BoxLayout.of("set>#")
+        fun n(num: String) = card().copy(number = num)
+        val contents = listOf("Zap" to n("3"), "Apple" to n("40"), "Moon" to n("12a"))
+        val p = Sorting.position(l, "Bolt", n("12"), contents)
+        assertEquals("MH3", p.spot)
+        assertEquals("between Zap and Moon", p.text())
+    }
+
+    @Test fun labelTabs() {
+        assertEquals(27, Sorting.tabs(BoxLayout(Divider.LETTER), emptyList()).size)
+        assertEquals(listOf("MH3", "ZEN"), Sorting.tabs(BoxLayout(Divider.SET), listOf("a" to card(set = "zen"), "b" to card())))
+        assertTrue(Sorting.tabs(BoxLayout(), listOf("a" to card())).isEmpty())
+    }
+
+    // Item 82: boxes that can never get a card.
+    @Test fun deadRules() {
+        val boxes = listOf(
+            Triple(1L, BoxRules(rarities = setOf("rare", "mythic")), false),
+            Triple(2L, BoxRules(rarities = setOf("rare"), colors = setOf("U")), false),
+            Triple(3L, BoxRules(colors = setOf("U")), false),
+            Triple(4L, BoxRules(), false),
+        )
+        assertEquals(mapOf(2L to 1L), RuleCheck.deadBoxes(boxes))
+        // A box with a card limit lets cards through once full.
+        assertTrue(RuleCheck.deadBoxes(boxes.map { if (it.first == 1L) it.copy(third = true) else it }).isEmpty())
+        // Color boxes for every color catch everything after them.
+        val colors = listOf("W", "U", "B", "R", "G", "M", "C").mapIndexed { i, c -> Triple(i.toLong(), BoxRules(colors = setOf(c)), false) }
+        assertEquals(mapOf(99L to null), RuleCheck.deadBoxes(colors + Triple(99L, BoxRules(rarities = setOf("rare")), false)))
     }
 }

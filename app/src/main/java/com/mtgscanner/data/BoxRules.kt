@@ -20,6 +20,8 @@ data class CardFacts(
     val reserved: Boolean = false,
     /** Formats it's legal in (Scryfall keys like "commander"). */
     val formats: Set<String> = emptySet(),
+    /** Collector number, for boxes kept in number order. */
+    val number: String = "",
 )
 
 /**
@@ -80,7 +82,11 @@ data class BoxRules(
         return true
     }
 
-    fun matches(c: CardFacts): Boolean {
+    /**
+     * Whether a card fits. [priceSlack] (0.1 = 10%) widens the price range, for cards already in the box:
+     * a $4.80 card can stay in a "$5+" box with a 10% buffer.
+     */
+    fun matches(c: CardFacts, priceSlack: Double = 0.0): Boolean {
         if (colors.isNotEmpty()) {
             val ok = colors.any { sel ->
                 when (sel) {
@@ -100,8 +106,8 @@ data class BoxRules(
         if (finish == "foil" && !c.foil) return false
         if (finish == "nonfoil" && c.foil) return false
         val p = c.price ?: 0.0
-        if (minPrice != null && p < minPrice) return false
-        if (maxPrice != null && p >= maxPrice) return false
+        if (minPrice != null && p < minPrice * (1 - priceSlack)) return false
+        if (maxPrice != null && p >= maxPrice * (1 + priceSlack)) return false
         if (sets.isNotEmpty() && c.setCode.uppercase() !in sets.map { it.uppercase() }) return false
         if (!inNameRange(c.name)) return false
         if (identity.isNotEmpty()) {
@@ -156,16 +162,49 @@ data class BoxRules(
         return parts.joinToString(" · ")
     }
 
+    /**
+     * Every card that fits [other] also fits this box, so a box with [other]'s rules placed after this one
+     * never gets a card. Only says yes when sure.
+     */
+    fun covers(other: BoxRules): Boolean {
+        fun <T> sub(mine: Set<T>, theirs: Set<T>) = mine.isEmpty() || (theirs.isNotEmpty() && mine.containsAll(theirs))
+        fun lowAtMost(mine: Double?, theirs: Double?) = mine == null || (theirs != null && theirs >= mine)
+        fun highAtLeast(mine: Double?, theirs: Double?) = mine == null || (theirs != null && theirs <= mine)
+        if (!sub(colors, other.colors)) return false
+        if (!sub(rarities, other.rarities)) return false
+        if (!sub(types.map { it.lowercase() }.toSet(), other.types.map { it.lowercase() }.toSet())) return false
+        if (!sub(treatments, other.treatments)) return false
+        if (finish != "any" && finish != other.finish) return false
+        if (!lowAtMost(minPrice, other.minPrice) || !highAtLeast(maxPrice, other.maxPrice)) return false
+        if (!sub(sets.map { it.uppercase() }.toSet(), other.sets.map { it.uppercase() }.toSet())) return false
+        val from = nameFrom?.firstOrNull()?.uppercaseChar() ?: 'A'
+        val to = nameTo?.firstOrNull()?.uppercaseChar() ?: 'Z'
+        val oFrom = other.nameFrom?.firstOrNull()?.uppercaseChar() ?: 'A'
+        val oTo = other.nameTo?.firstOrNull()?.uppercaseChar() ?: 'Z'
+        if (oFrom < from || oTo > to) return false
+        if (identity.isNotEmpty()) {
+            val same = identity == other.identity && identityMode == other.identityMode
+            val within = identityMode == "within" && other.identity.isNotEmpty() && identity.containsAll(other.identity)
+            if (!same && !within) return false
+        }
+        if (!lowAtMost(minCmc?.toDouble(), other.minCmc?.toDouble()) || !highAtLeast(maxCmc?.toDouble(), other.maxCmc?.toDouble())) return false
+        if (!lowAtMost(minPower?.toDouble(), other.minPower?.toDouble()) || !highAtLeast(maxPower?.toDouble(), other.maxPower?.toDouble())) return false
+        if (!lowAtMost(minToughness?.toDouble(), other.minToughness?.toDouble()) || !highAtLeast(maxToughness?.toDouble(), other.maxToughness?.toDouble())) return false
+        if (!sub(formats, other.formats)) return false
+        if (reserved && !other.reserved) return false
+        return true
+    }
+
     fun toJson(): String = if (this == BoxRules()) "" else json.encodeToString(serializer(), this)
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 
-        /** The letter a name files under for name ranges and splits: its first letter, or '#' for a digit or symbol. */
-        fun nameLetter(name: String): Char {
-            val first = name.trimStart().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: return '#'
-            return if (first in 'A'..'Z') first else '#'
-        }
+        /**
+         * The letter a name files under for name ranges and splits: its first letter, or '#' for a digit or symbol.
+         * Same as dividers and Browse ([NameKey]): accents and a leading "The" don't count.
+         */
+        fun nameLetter(name: String): Char = NameKey.letter(name)
 
         fun fromJson(s: String): BoxRules =
             if (s.isBlank()) BoxRules() else runCatching { json.decodeFromString(serializer(), s) }.getOrDefault(BoxRules())
@@ -228,6 +267,34 @@ data class BoxRules(
             }
             return Overlap(fits, taken.entries.sortedByDescending { it.value.size }.map { it.key to it.value.toList() })
         }
+    }
+}
+
+/** Boxes whose rules can never get a card. */
+object RuleCheck {
+    private val ALL_COLORS = setOf("W", "U", "B", "R", "G", "C", "M")
+
+    /**
+     * [boxes] in Auto-sort order as (id, rules, limited), where limited means the box has a card limit (a full
+     * box lets cards through to later boxes, so it never makes another box dead). Returns each dead box's id
+     * with the earlier box that takes all its cards, or null when several earlier color boxes together do.
+     * Open boxes (any card, or a name range) only get leftovers and are never reported.
+     */
+    fun <T> deadBoxes(boxes: List<Triple<T, BoxRules, Boolean>>): Map<T, T?> {
+        val out = LinkedHashMap<T, T?>()
+        val colorsAhead = HashSet<String>()
+        boxes.forEachIndexed { i, (id, rules, limited) ->
+            if (!rules.isOpen) {
+                val by = boxes.subList(0, i).firstOrNull { (_, r, lim) -> !lim && !r.isOpen && r.covers(rules) }
+                when {
+                    by != null -> out[id] = by.first
+                    colorsAhead.containsAll(ALL_COLORS) -> out[id] = null
+                }
+                // A box with only color rules takes every card of those colors.
+                if (!limited && rules.copy(colors = emptySet()).isCatchAll) colorsAhead += rules.colors
+            }
+        }
+        return out
     }
 }
 
