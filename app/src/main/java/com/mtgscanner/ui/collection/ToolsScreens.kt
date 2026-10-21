@@ -29,13 +29,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -80,9 +76,9 @@ import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.AddCardSheet
 import com.mtgscanner.ui.components.BoxEditorSheet
 import com.mtgscanner.ui.components.CardImage
+import com.mtgscanner.ui.components.RarityMark
 import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.PrintingsSheet
-import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
@@ -262,9 +258,9 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
         val q = filter.trim().lowercase()
         val list = progress?.let { all -> if (q.isEmpty()) all else all.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q } }
         when {
-            list != null && list.isEmpty() && q.isNotEmpty() -> EmptyState(Icons.Filled.SearchOff, "No sets found", "Try another name or code.")
+            list != null && list.isEmpty() && q.isNotEmpty() -> EmptyState("No sets found", Modifier.padding(top = 24.dp))
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
-            list.isEmpty() -> EmptyState(Icons.Filled.Inventory2, "No sets yet", "Scan or add cards and their sets show up here.")
+            list.isEmpty() -> EmptyState("No sets yet", Modifier.padding(top = 24.dp))
             else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                 items(list, key = { it.code }) { s ->
                     Row(
@@ -364,8 +360,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
             missingCost = if (missing.isEmpty()) null else missingCost,
         )
         when {
-            failed && cards == null -> EmptyState(Icons.Filled.CloudOff, "Couldn't load this set", "Check your connection.",
-                action = { TextButton(onClick = { vm.loadSet(code) }) { Text("Try again") } })
+            failed && cards == null -> EmptyState("Couldn't load this set", Modifier.padding(top = 24.dp), action = "Try again", onAction = { vm.loadSet(code) })
             cards == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
             else -> {
                 SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter this set")
@@ -389,7 +384,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                         .filter { it.third.isNotEmpty() }
                 }
                 if (groups.isEmpty()) {
-                    EmptyState(Icons.Filled.SearchOff, "No cards", if (show == "missing" && q.isEmpty()) "You own the whole set." else "Try another filter.")
+                    EmptyState(if (show == "missing" && q.isEmpty()) "You own the whole set" else "No cards", Modifier.padding(top = 24.dp))
                 } else {
                     LazyVerticalGrid(
                         GridCells.Fixed(if (grid) 3 else 1),
@@ -400,7 +395,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                             item(key = "h_$key", span = { GridItemSpan(maxLineSpan) }) {
                                 val got = list.count { it.collectorNumber.lowercase() in mine }
                                 Row(Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    RarityDot(key, 10.dp)
+                                    RarityMark(key, Modifier.size(12.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                                     Text("$got / ${list.size}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
@@ -590,7 +585,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp),
         )
         if (groups.isEmpty()) {
-            EmptyState(Icons.Filled.ContentCopy, "No extras", "You don't have more than $keep of any card outside your trade binders.")
+            EmptyState("No extras over $keep", Modifier.padding(top = 24.dp))
             return@Column
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {

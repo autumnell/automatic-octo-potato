@@ -30,12 +30,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -78,11 +75,10 @@ import com.mtgscanner.ui.components.BoxEditorSheet
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.EmptyState
-import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
-import com.mtgscanner.ui.components.RarityDot
+import com.mtgscanner.ui.components.RarityMark
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -244,17 +240,15 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                 }
             }
             ui.ranQuery == null && ui.query.isEmpty() && (ui.recent.isNotEmpty() || ui.viewed.isNotEmpty()) -> History(ui, vm)
-            ui.ranQuery == null -> EmptyState(
-                Icons.Filled.Search,
-                "Find any card",
-                "Search by name or browse a set.",
-                Modifier.align(Alignment.TopCenter).padding(top = 24.dp),
-            )
+            ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             ui.results.isEmpty() && ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
             ui.results.isEmpty() && ui.failed && ui.error != null ->
-                EmptyState(Icons.Filled.SearchOff, "Can't run this search", ui.error.orEmpty(), Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                Column(Modifier.align(Alignment.TopCenter).padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    EmptyState("Can't run this search")
+                    Text(ui.error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 32.dp))
+                }
             ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            ui.results.isEmpty() -> EmptyState(Icons.Filled.SearchOff, "No cards found", "Check the spelling, or try fewer words.", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+            ui.results.isEmpty() -> EmptyState("No cards found", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             else -> Results(ui, vm, owned)
         }
     }
@@ -312,7 +306,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
                 ManaCost(c.effectiveManaCost, size = 14.dp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RarityDot(c.rarity, 8.dp)
+                RarityMark(c.rarity)
                 Spacer(Modifier.width(6.dp))
                 Text("${c.set.uppercase()} #${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -385,10 +379,7 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
 /** Shown when Scryfall can't be reached. */
 @Composable
 private fun OfflineState(onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    EmptyState(
-        Icons.Filled.CloudOff, "Can't reach Scryfall", "Check your connection.", modifier,
-        action = { GradientButton("Retry", onRetry, icon = Icons.Filled.Refresh) },
-    )
+    EmptyState("Can't reach Scryfall", modifier, action = "Retry", onAction = onRetry)
 }
 
 @Composable
@@ -406,7 +397,7 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, In
     val q = ui.setFilter.trim().lowercase()
     val shown = if (q.isEmpty()) sets else sets.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q }
     if (shown.isEmpty()) {
-        EmptyState(Icons.Filled.SearchOff, "No sets found", "Try another name or code.", Modifier.padding(top = 24.dp))
+        EmptyState("No sets found", Modifier.padding(top = 24.dp))
         return
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
