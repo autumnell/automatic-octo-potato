@@ -168,7 +168,7 @@ internal fun BulkCard(cards: Int) {
 
 /** Show, hide and reorder Home sections. */
 @Composable
-internal fun EditHomeDialog(onDismiss: () -> Unit) {
+internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
     val shown = HomePrefs.sections
     var rows by remember { mutableStateOf(shown.map { it to true } + HomeSection.entries.filter { it !in shown }.map { it to false }) }
     fun move(i: Int, by: Int) {
@@ -184,6 +184,7 @@ internal fun EditHomeDialog(onDismiss: () -> Unit) {
         title = { Text("Home sections") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                TextButton(onClick = onTiles) { Text("Stat tiles…") }
                 rows.forEachIndexed { i, (section, on) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(

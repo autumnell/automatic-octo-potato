@@ -334,6 +334,15 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         withUndo(ids, "Tagged ${count(ids)} “${tag.trim()}”") { repo.addTag(ids, tag) }
     }
 
+    /** Lists the picked copies for sale, like "For sale" on a card's page; they show up on the Sell screen. */
+    fun sellSelected() {
+        val ids = _selected.value.toList()
+        clearSelection()
+        withUndo(ids, "${count(ids)} for sale") {
+            ids.forEach { id -> repo.cardOnce(id)?.let { if (!it.forSale) repo.update(it.copy(forSale = true)) } }
+        }
+    }
+
     fun moveOne(id: Long, boxId: Long) {
         val lines = recordMoves(listOf(id), boxId)
         withUndo(listOf(id), "Moved to ${boxName(boxId)}", { MoveList.remove(lines) }) { repo.moveToBox(id, boxId) }

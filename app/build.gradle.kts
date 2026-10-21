@@ -33,8 +33,12 @@ android {
         debug {
             signingConfig = signingConfigs.getByName("debug")
         }
+        // The build CI publishes. Same applicationId (no suffix on either type) and the same key as
+        // debug builds, so it installs over an existing debug install and keeps its data.
         release {
+            isDebuggable = false
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("debug")
         }
@@ -49,6 +53,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    // Debug builds never ran lint; keep a release build from failing on lint alone.
+    lint {
+        checkReleaseBuilds = false
     }
 }
 

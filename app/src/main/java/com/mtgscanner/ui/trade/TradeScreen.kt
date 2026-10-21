@@ -64,6 +64,7 @@ import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
@@ -83,9 +84,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** A card on one side of a trade. [owned] is set for cards you give away. */
-data class TradeItem(val key: String, val name: String, val set: String, val imageUrl: String?, val price: Double?, val qty: Int, val owned: CollectionCard? = null, val card: ScryfallCard? = null) {
+data class TradeItem(
+    val key: String, val name: String, val set: String, val imageUrl: String?, val price: Double?, val qty: Int,
+    val owned: CollectionCard? = null, val card: ScryfallCard? = null,
+    /** For cards you get: the finish, condition and language they're added with. */
+    val foil: Boolean = false, val condition: String = "NM", val lang: String = "en",
+) {
     /** What Card Kingdom pays for one copy, when known. */
-    val buyPrice: Double? get() = owned?.let { CardKingdom.buyPrice(it.scryfallId, it.foil) } ?: card?.let { CardKingdom.buyPrice(it.id, false) }
+    val buyPrice: Double? get() = owned?.let { CardKingdom.buyPrice(it.scryfallId, it.foil) } ?: card?.let { CardKingdom.buyPrice(it.id, foil) }
 }
 
 data class TradeUi(
@@ -103,6 +109,9 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val _ui = MutableStateFlow(TradeUi())
     val ui: StateFlow<TradeUi> = _ui
     private val binderId = MutableStateFlow(-1L)
+    private val _printings = MutableStateFlow<List<ScryfallCard>?>(null)
+    /** Printings of the card being edited on the get side; null while loading. */
+    val printings: StateFlow<List<ScryfallCard>?> = _printings
 
     /** The trade binder's cards: what you can give. */
     val collection: StateFlow<List<CollectionCard>> = combine(repo.observeAll(), binderId) { all, id -> all.filter { it.boxId == id } }
@@ -158,11 +167,38 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 if (card == null) u.copy(busy = false, message = "Couldn't find $name")
                 else u.copy(
                     busy = false,
-                    get = u.get + TradeItem("s${card.id}-${nextKey++}", card.name, card.set.uppercase(), card.smallImageUrl, card.prices.usd?.toDoubleOrNull(), 1, card = card),
+                    get = u.get + getItem("s${card.id}-${nextKey++}", card),
                 )
             }
         }
     }
+
+    private fun updateGet(key: String, change: (TradeItem) -> TradeItem) =
+        _ui.update { u -> u.copy(get = u.get.map { if (it.key == key) change(it) else it }) }
+
+    /** Sets foil, condition and language of a card you get. */
+    fun setDetails(key: String, foil: Boolean, condition: String, lang: String) = updateGet(key) { it.withDetails(foil, condition, lang) }
+
+    private var printingsJob: Job? = null
+
+    fun loadPrintings(item: TradeItem) {
+        val card = item.card ?: return
+        _printings.value = null
+        printingsJob?.cancel()
+        printingsJob = viewModelScope.launch {
+            val list = try {
+                repo.api.printings(card)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _ui.update { it.copy(message = "Can't load printings") }
+                listOf(card)
+            }
+            _printings.value = list
+        }
+    }
+
+    fun setPrinting(key: String, p: ScryfallCard) = updateGet(key) { it.withPrinting(p) }
 
     fun setQty(item: TradeItem, qty: Int) {
         _ui.update { u ->
@@ -187,16 +223,16 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 var unsorted = 0
                 val adds = u.get.mapNotNull { item ->
                     val c = item.card ?: return@mapNotNull null
-                    val box = repo.pickBox(c, false) ?: run {
+                    val box = repo.pickBox(c, item.foil) ?: run {
                         unsorted += item.qty
                         leftover ?: repo.anythingBox().also { leftover = it }
                     }
-                    Triple(c, item.qty, box)
+                    Triple(c, item, box)
                 }
                 val gives = u.give.mapNotNull { g -> g.owned?.let { o -> o.id to minOf(g.qty, o.quantity) } }
                 val before = repo.snapshot(gives.map { it.first })
                 gives.forEach { (id, n) -> repo.remove(id, n) }
-                val added = adds.map { (c, n, box) -> repo.add(c, false, n, box) to n }
+                val added = adds.map { (c, item, box) -> repo.add(c, item.foil, item.qty, box, item.lang, item.condition) to item.qty }
                 val where = leftover?.let { repo.box(it)?.name } ?: "a box"
                 Undo.offer(if (unsorted > 0) "Trade saved. $unsorted fit no box, put in $where" else "Trade saved") {
                     added.forEach { (id, n) -> repo.remove(id, n) }
@@ -224,6 +260,8 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
     var picking by remember { mutableStateOf<String?>(null) } // "give" or "get"
     var confirm by remember { mutableStateOf(false) }
     var wants by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<String?>(null) } // key of a get-side card
+    var showPrintings by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     Haptics.Attach()
@@ -261,7 +299,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                 item { SideHeader("You give", onAdd = { picking = "give" }) }
                 items(ui.give, key = { it.key }) { TradeRow(it, vm) }
                 item { SideHeader("You get", onAdd = { picking = "get" }) }
-                items(ui.get, key = { it.key }) { TradeRow(it, vm) }
+                items(ui.get, key = { it.key }) { g -> TradeRow(g, vm, onEdit = { editing = g.key; showPrintings = false }) }
                 if (ui.give.isEmpty() && ui.get.isEmpty()) {
                     item {
                         if (collection.isEmpty()) {
@@ -303,6 +341,19 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
             Spacer(Modifier.navigationBarsPadding().height(8.dp))
         }
     }
+    val edited = ui.get.firstOrNull { it.key == editing }
+    if (edited != null && !showPrintings) {
+        GetCardSheet(
+            edited,
+            onPrintings = { vm.loadPrintings(edited); showPrintings = true },
+            onChange = { foil, cond, lang -> vm.setDetails(edited.key, foil, cond, lang) },
+            onDismiss = { editing = null },
+        )
+    }
+    if (edited != null && showPrintings) {
+        val printings by vm.printings.collectAsStateWithLifecycle()
+        PrintingsSheet(printings, edited.card?.id, { vm.setPrinting(edited.key, it); showPrintings = false }, { showPrintings = false })
+    }
     if (wants) WantListSheet(collection, onAddAll = { vm.giveAll(it); wants = false }, onDismiss = { wants = false })
     if (confirm) {
         AlertDialog(
@@ -330,14 +381,17 @@ private fun SideHeader(title: String, onAdd: () -> Unit) {
 }
 
 @Composable
-private fun TradeRow(item: TradeItem, vm: TradeViewModel) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(item.imageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
+private fun TradeRow(item: TradeItem, vm: TradeViewModel, onEdit: (() -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth().then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(horizontal = 16.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CardImage(item.imageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true, onTap = onEdit)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val prices = if (AppSettings.showPrices) " · ${formatUsd(item.price)}" + item.buyPrice?.let { " · CK buys ${formatUsd(it)}" }.orEmpty() else ""
-            Text(item.set + prices, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text((if (item.card != null) item.getLabel() else item.set) + prices, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         QuantityStepper(item.qty, onChange = { vm.setQty(item, it.coerceAtMost(item.owned?.quantity ?: 99)) })
         IconButton(onClick = { vm.setQty(item, 0) }) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Muted) }

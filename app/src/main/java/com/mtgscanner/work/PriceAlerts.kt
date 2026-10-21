@@ -23,32 +23,47 @@ import com.mtgscanner.MtgApp
 import com.mtgscanner.R
 import com.mtgscanner.data.BackupIO
 import com.mtgscanner.data.PriceMove
+import com.mtgscanner.data.db.nearMintPrice
 import kotlinx.coroutines.CancellationException
 import com.mtgscanner.ui.theme.AppSettings
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/** Once a day: refresh prices and notify about big moves on cards you own or want. */
+/** Once a day: refresh prices, notify about big moves on cards you own or want, and check per-card price alerts. */
 class PriceAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        if (!AppSettings.alertsWanted(applicationContext)) return Result.success()
-        val repo = (applicationContext as MtgApp).repository
+        val ctx = applicationContext
+        val wantMoves = AppSettings.alertsWanted(ctx)
+        val wantCards = CardAlertStore.hasAny(ctx)
+        if (!wantMoves && !wantCards) return Result.success()
+        val repo = (ctx as MtgApp).repository
         // Without permission to notify, don't check: checking moves each card's "last alerted" price,
         // so moves found now would never be shown.
-        if (!PriceAlerts.canNotify(applicationContext)) {
+        if (!PriceAlerts.canNotify(ctx)) {
             runCatching { repo.refreshPricesIfStale() }
             BackupIO.prunePriceHistory(repo.db)
             return Result.success()
         }
-        val p = applicationContext.getSharedPreferences("app", Context.MODE_PRIVATE)
+        val p = ctx.getSharedPreferences("app", Context.MODE_PRIVATE)
         val moves = try {
-            repo.priceMoves(p.getFloat("alertPercent", 20f).toDouble(), p.getFloat("alertDollars", 1f).toDouble())
+            if (wantMoves) repo.priceMoves(p.getFloat("alertPercent", 20f).toDouble(), p.getFloat("alertDollars", 1f).toDouble())
+            else { repo.refreshPrices(maxAgeMs = 60L * 60 * 1000); emptyList<PriceMove>() }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             return Result.retry()
         }
-        if (moves.isNotEmpty()) PriceAlerts.notify(applicationContext, moves)
+        if (moves.isNotEmpty()) PriceAlerts.notify(ctx, moves)
+        // Per-card alerts, against the prices just refreshed (near-mint market price for the finish).
+        if (wantCards) {
+            val prices = HashMap<String, Double?>()
+            runCatching { repo.dao.all() }.getOrDefault(emptyList()).forEach { c ->
+                val key = CardPriceAlert.key(c.scryfallId, c.foil)
+                if (prices[key] == null) prices[key] = c.nearMintPrice()
+            }
+            val hits = CardAlertStore.check(ctx, prices)
+            if (hits.isNotEmpty()) PriceAlerts.notifyCardAlerts(ctx, hits)
+        }
         BackupIO.prunePriceHistory(repo.db)
         return Result.success()
     }
@@ -61,7 +76,7 @@ object PriceAlerts {
     /** Starts or stops the daily check to match the setting. */
     fun schedule(context: Context) {
         val wm = WorkManager.getInstance(context)
-        if (!AppSettings.alertsWanted(context)) {
+        if (!AppSettings.alertsWanted(context) && !CardAlertStore.hasAny(context)) {
             wm.cancelUniqueWork(WORK)
             return
         }
@@ -79,12 +94,43 @@ object PriceAlerts {
         return NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
+    private fun ensureChannel(context: Context) {
+        if (Build.VERSION.SDK_INT >= 26) {
+            context.getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(NotificationChannel(CHANNEL, "Price alerts", NotificationManager.IMPORTANCE_DEFAULT))
+        }
+    }
+
+    /** "Ragavan went over $50 · now $52.10", one notification for all crossings. */
+    fun notifyCardAlerts(context: Context, hits: List<AlertHit>) {
+        if (!canNotify(context) || hits.isEmpty()) return
+        ensureChannel(context)
+        fun line(h: AlertHit): String {
+            val at = if (h.up) h.alert.above else h.alert.below
+            val foil = if (h.alert.foil) " (foil)" else ""
+            return String.format(Locale.US, "%s%s %s $%.2f · now $%.2f", h.alert.name, foil, if (h.up) "over" else "under", at ?: 0.0, h.price)
+        }
+        val title = if (hits.size == 1) "Price alert: ${hits[0].alert.name}" else "${hits.size} price alerts"
+        val style = NotificationCompat.InboxStyle()
+        hits.take(6).forEach { style.addLine(line(it)) }
+        if (hits.size > 6) style.setSummaryText("and ${hits.size - 6} more")
+        val open = PendingIntent.getActivity(
+            context, 8, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val n = NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_price)
+            .setContentTitle(title)
+            .setContentText(line(hits[0]))
+            .setStyle(style)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(1002, n) }
+    }
+
     fun notify(context: Context, moves: List<PriceMove>) {
         if (!canNotify(context)) return
-        val nm = context.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Price alerts", NotificationManager.IMPORTANCE_DEFAULT))
-        }
+        ensureChannel(context)
         fun line(m: PriceMove): String {
             val pct = if (m.then > 0) (m.now - m.then) / m.then * 100 else 0.0
             val arrow = if (m.now >= m.then) "▲" else "▼"

@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Search
@@ -63,18 +64,22 @@ import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.data.observeGoalProgress
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.BrowseLaunch
+import com.mtgscanner.ui.collection.BrowseViewModel
+import com.mtgscanner.ui.collection.Filters
+import com.mtgscanner.ui.collection.GroupBy
+import com.mtgscanner.ui.collection.SavedSearchStore
 import com.mtgscanner.ui.collection.SortBy
 import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
-import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.work.CardAlertStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -93,7 +98,7 @@ data class HomeUi(
     val foils: Int = 0,
     val recent: List<CollectionCard> = emptyList(),
     val valuable: List<CollectionCard> = emptyList(),
-    /** Copies per color letter (W, U, B, R, G), plus "M" multicolor and "C" colorless. */
+    /** Copies per color (W, U, B, R, G) and "C" colorless. A multicolor card counts once for each of its colors. */
     val colors: List<Pair<String, Int>> = emptyList(),
     /** What the cards were worth when added (only cards with a known price then). */
     val valueAtAdd: Double = 0.0,
@@ -114,14 +119,10 @@ data class PriceData(
 
 class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val ui: StateFlow<HomeUi> = combine(repo.observeAll(), repo.observeSnapshots(), repo.observeBoxes()) { all, history, boxes ->
-        val colorCounts = linkedMapOf("W" to 0, "U" to 0, "B" to 0, "R" to 0, "G" to 0, "M" to 0, "C" to 0)
+        val colorCounts = linkedMapOf("W" to 0, "U" to 0, "B" to 0, "R" to 0, "G" to 0, "C" to 0)
         all.forEach { c ->
-            val key = when {
-                c.colors.isEmpty() -> "C"
-                c.colors.length > 1 -> "M"
-                else -> c.colors
-            }
-            colorCounts[key] = (colorCounts[key] ?: 0) + c.quantity
+            val keys = if (c.colors.isEmpty()) listOf("C") else c.colors.map { it.toString() }.filter { it in colorCounts }
+            keys.forEach { key -> colorCounts[key] = (colorCounts[key] ?: 0) + c.quantity }
         }
         HomeUi(
             loaded = true,
@@ -176,6 +177,31 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PriceData())
 
+    private val searches = SavedSearchStore(repo.appContext)
+
+    /** Saved search names, for the "Saved list" tile. */
+    val listNames: StateFlow<List<String>> = searches.saved.map { l -> l.map { it.name } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Numbers for the stat tiles. */
+    val tiles: StateFlow<TileData> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeWishlist(), searches.saved) { all, boxes, wish, saved ->
+        TileData(
+            values = TileMath.counts(all, boxes.size, wish.sumOf { it.wanted }, System.currentTimeMillis()),
+            lists = saved.associate { s -> s.name to all.filter { BrowseViewModel.matches(it, s.filters) }.sumOf { it.quantity } },
+        )
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TileData())
+
+    /** Per-card price alerts, with the card each one is for. */
+    val alerts: StateFlow<List<AlertRow>> = run {
+        CardAlertStore.load(repo.appContext)
+        combine(CardAlertStore.alerts, repo.observeAll()) { list, all -> alertRows(list, all) }
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }
+
+    /** A saved search's filters, by name. */
+    fun savedFilters(name: String): Filters? = searches.saved.value.firstOrNull { it.name == name }?.filters
+
     val goals: StateFlow<List<GoalProgress>> = repo.observeGoalProgress()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -224,6 +250,8 @@ fun HomeScreen(
     onBrowseAll: (() -> Unit)? = null,
     /** Opens the goals screen. */
     onGoals: () -> Unit = {},
+    /** Opens collection stats (value by set, color, rarity). */
+    onStats: () -> Unit = {},
     vm: HomeViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ctx = LocalContext.current
@@ -233,7 +261,11 @@ fun HomeScreen(
     val prices by vm.prices.collectAsStateWithLifecycle()
     val goals by vm.goals.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
+    val tiles by vm.tiles.collectAsStateWithLifecycle()
+    val alerts by vm.alerts.collectAsStateWithLifecycle()
+    val listNames by vm.listNames.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf(false) }
+    var editingTiles by remember { mutableStateOf(false) }
     var unknown by remember { mutableStateOf<PendingScan?>(null) }
 
     fun browse(sort: SortBy? = null, color: String? = null) {
@@ -245,6 +277,32 @@ fun HomeScreen(
             onCollection()
         }
     }
+
+    fun browseWith(filters: Filters, title: String? = null) {
+        BrowseLaunch.filters = filters
+        BrowseLaunch.title = title
+        if (onBrowseAll != null) onBrowseAll()
+        else {
+            BrowseLaunch.openAll = true
+            onCollection()
+        }
+    }
+
+    fun openTile(m: TileMetric) {
+        when (m) {
+            TileMetric.TOTAL, TileMetric.UNIQUE -> browse(SortBy.NAME)
+            TileMetric.SETS -> browseWith(Filters(sort = SortBy.SET, group = GroupBy.SET))
+            TileMetric.FOILS -> browseWith(Filters(foilOnly = true, sort = SortBy.PRICE))
+            TileMetric.RARES -> browseWith(Filters(rarities = setOf("rare"), sort = SortBy.PRICE))
+            TileMetric.MYTHICS -> browseWith(Filters(rarities = setOf("mythic"), sort = SortBy.PRICE))
+            TileMetric.LANDS -> browseWith(Filters(types = setOf("Land"), sort = SortBy.NAME))
+            TileMetric.WEEK -> browse(SortBy.RECENT)
+            TileMetric.VALUE, TileMetric.AVERAGE -> onStats()
+            TileMetric.BOXES -> onCollection()
+            TileMetric.CUSTOM -> HomePrefs.tileList?.let { n -> vm.savedFilters(n)?.let { browseWith(it, n) } }
+            else -> Unit
+        }
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -253,8 +311,9 @@ fun HomeScreen(
             .statusBarsPadding(),
     ) {
         Header(onSettings, onEdit = { editing = true })
-        HeroCard(ui, onScan)
+        HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
         Spacer(Modifier.height(12.dp))
+        com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
 
         if (ui.loaded && ui.totalCards == 0) {
             if (ui.boxCount == 0) {
@@ -284,11 +343,7 @@ fun HomeScreen(
                 ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it })
             }
         } else if (ui.loaded) {
-            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile("Unique", "${ui.uniqueCards}", Modifier.weight(1f))
-                StatTile("Sets", "${ui.sets}", Modifier.weight(1f))
-                StatTile("Foils", "${ui.foils}", Modifier.weight(1f))
-            }
+            StatTileRow(tiles, onTap = { openTile(it) }, onEdit = { editingTiles = true })
             val showPrices = AppSettings.showPrices
             HomePrefs.sections.forEach { section ->
                 when (section) {
@@ -328,13 +383,18 @@ fun HomeScreen(
                         SectionHeader("Colors")
                         ColorBreakdown(ui.colors, onColor = { browse(color = it) })
                     }
+                    HomeSection.ALERTS -> if (showPrices && alerts.isNotEmpty()) {
+                        SectionHeader("Price alerts")
+                        AlertsList(alerts, onOpenCard)
+                    }
                 }
             }
         }
         Spacer(Modifier.height(24.dp))
     }
 
-    if (editing) EditHomeDialog(onDismiss = { editing = false })
+    if (editing) EditHomeDialog(onDismiss = { editing = false }, onTiles = { editing = false; editingTiles = true })
+    if (editingTiles) EditTilesDialog(listNames, onDismiss = { editingTiles = false })
     unknown?.let { scan ->
         UnknownScanDialog(
             scan = scan,
@@ -357,9 +417,11 @@ private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
 }
 
 @Composable
-private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
+private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(24.dp),
         color = Color.Transparent,
     ) {
@@ -368,7 +430,16 @@ private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
         ) {
             Column(Modifier.padding(20.dp)) {
                 val prices = AppSettings.showPrices
-                Text(if (prices) "Collection value" else "Your collection", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (prices) "Collection value" else "Your collection", style = MaterialTheme.typography.labelLarge, color = Palette.Muted,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (onClick != null) {
+                        Text("Stats", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                    }
+                }
                 Text(
                     if (prices) formatUsd(ui.totalValue) else "${ui.totalCards} cards",
                     style = MaterialTheme.typography.displaySmall,
@@ -392,8 +463,6 @@ private fun HeroCard(ui: HomeUi, onScan: () -> Unit) {
                         Text(shortDay(ui.history.last().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                GradientButton("Scan cards", onScan, Modifier.fillMaxWidth(), icon = Icons.Filled.CameraAlt)
             }
         }
     }
@@ -437,7 +506,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
                                 .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (k in listOf("W", "U", "B", "R", "G", "C", "M")) ColorPip(k[0])
+                            if (k in listOf("W", "U", "B", "R", "G", "C")) ColorPip(k[0])
                             else Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(colorFor(k)))
                             Spacer(Modifier.width(6.dp))
                             Text(
@@ -455,13 +524,12 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
 }
 
 private fun colorFor(k: String): Color = when (k) {
-    "M" -> MtgColors.Multi
     "C" -> MtgColors.C
     else -> MtgColors.forLetter(k[0])
 }
 
 private fun label(k: String) = when (k) {
-    "W" -> "White"; "U" -> "Blue"; "B" -> "Black"; "R" -> "Red"; "G" -> "Green"; "M" -> "Multi"; else -> "Colorless"
+    "W" -> "White"; "U" -> "Blue"; "B" -> "Black"; "R" -> "Red"; "G" -> "Green"; else -> "Colorless"
 }
 
 /** "+$1.20 (4.0%)" in green, or red when the value went down. */

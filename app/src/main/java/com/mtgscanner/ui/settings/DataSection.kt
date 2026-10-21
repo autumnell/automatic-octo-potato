@@ -53,6 +53,7 @@ import com.mtgscanner.data.Backup
 import com.mtgscanner.data.BackupIO
 import com.mtgscanner.data.BadBackupException
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.ImportPlan
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.ui.AppViewModels
@@ -74,6 +75,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -224,36 +226,138 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         run("Reading file…") {
             val text = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }
                 ?: return@run "Couldn't open that file"
-            val rows = withContext(Dispatchers.Default) { CsvImport.parse(text) }
-            if (rows.isEmpty()) return@run "No cards found. Is it a collection CSV?"
+            val rows = withContext(Dispatchers.Default) { CsvImport.parseAny(text) }
+            if (rows.isEmpty()) return@run "No cards found. Is it a collection CSV or decklist?"
             _importRows.value = rows
             "Found ${rows.sumOf { it.quantity }} cards"
         }
     }
 
-    /** [choice] is a box id, [Box.AUTO_SORT], or 0 for a new "Imported" box. */
+    /** What an import will add, shown before anything is saved. */
+    private val _importPlan = MutableStateFlow<ImportPlan?>(null)
+    val importPlan: StateFlow<ImportPlan?> = _importPlan
+
+    /** The last lookup couldn't reach Scryfall. */
+    private val _importOffline = MutableStateFlow(false)
+    val importOffline: StateFlow<Boolean> = _importOffline
+
+    /** Box id → name and kind, for the preview. */
+    private val _importBoxes = MutableStateFlow<Map<Long, Box>>(emptyMap())
+    val importBoxes: StateFlow<Map<Long, Box>> = _importBoxes
+
+    /**
+     * Looks the cards up and works out where each goes, without adding anything.
+     * [choice] is a box id, [Box.AUTO_SORT], or 0 for a new "Imported" box.
+     */
     fun import(choice: Long) {
         val rows = _importRows.value ?: return
         // Keep the rows if something else is still running, so the import can be tried again.
-        val started = run("Importing ${rows.sumOf { it.quantity }} cards…") {
-            val newBox: suspend () -> Long = { repo.createBox("Imported", "box") }
-            val r = try {
-                // 0 sends every card to the new box, made only once a card is found.
-                repo.importRows(rows, choice, newBox)
+        val started = run("Looking up ${rows.sumOf { it.quantity }} cards…") {
+            val found = try {
+                BackupIO.lookUp(repo, rows).also { _importOffline.value = false }
             } catch (e: java.io.IOException) {
-                // Nothing was added (cards are looked up before anything is saved): offer the same rows again.
-                _importRows.value = rows
-                return@run "Couldn't reach Scryfall. Try again when online."
+                // Offline: show every card as not found, with Retry.
+                _importOffline.value = true
+                List(rows.size) { null }
             }
-            buildString {
-                append("Imported ${r.added} cards")
-                if (r.notFound.isNotEmpty()) append(". Not found: ${r.notFound.take(5).joinToString()}${if (r.notFound.size > 5) " and ${r.notFound.size - 5} more" else ""}")
-            }
+            showPlan(BackupIO.plan(repo, rows, found, choice))
+            null
         }
         if (started) _importRows.value = null
     }
 
-    fun cancelImport() { _importRows.value = null }
+    private suspend fun showPlan(plan: ImportPlan) {
+        _importBoxes.value = repo.observeBoxes().first().associateBy { it.id }
+        _importPlan.value = plan
+    }
+
+    /** Looks [index] up again, loosely (typos are fine), with [name] when the user edited it. */
+    fun retryImportRow(index: Int, name: String? = null) {
+        val plan = _importPlan.value ?: return
+        val old = plan.rows.getOrNull(index) ?: return
+        val row = if (name != null && name.isNotBlank() && name.trim() != old.name) {
+            // A new name: the old printing and id no longer apply.
+            old.copy(name = name.trim(), scryfallId = null, collectorNumber = null)
+        } else old
+        run("Looking up ${row.name}…") {
+            val card = try {
+                BackupIO.lookUpLoosely(repo, row).also { _importOffline.value = false }
+            } catch (e: java.io.IOException) {
+                _importOffline.value = true
+                return@run "Still offline"
+            }
+            val current = _importPlan.value ?: return@run null
+            if (current.rows.getOrNull(index) != old) return@run null
+            val rows = current.rows.toMutableList().also { it[index] = row }
+            val found = current.found.toMutableList().also { it[index] = card }
+            showPlan(BackupIO.plan(repo, rows, found, current.choice))
+            if (card == null) "Not found: ${row.name}" else "Found ${card.name}"
+        }
+    }
+
+    /** Looks up every card still not found: all at once, then loosely one by one (up to [LOOSE_RETRIES]). */
+    fun retryImportAll() {
+        val plan = _importPlan.value ?: return
+        val missing = plan.notFound
+        if (missing.isEmpty()) return
+        run("Looking up ${missing.size} cards…") {
+            val found = plan.found.toMutableList()
+            try {
+                BackupIO.lookUp(repo, missing.map { plan.rows[it] }).forEachIndexed { k, c -> found[missing[k]] = c }
+                missing.filter { found[it] == null }.take(LOOSE_RETRIES).forEach { i -> found[i] = BackupIO.lookUpLoosely(repo, plan.rows[i]) }
+                _importOffline.value = false
+            } catch (e: java.io.IOException) {
+                _importOffline.value = true
+            }
+            if (_importPlan.value !== plan) return@run null
+            val next = BackupIO.plan(repo, plan.rows, found, plan.choice)
+            showPlan(next)
+            val fixed = missing.size - next.notFound.size
+            when {
+                _importOffline.value -> if (fixed > 0) "Found $fixed. Still offline" else "Still offline"
+                fixed == 0 -> "None found"
+                else -> "Found $fixed of ${missing.size}"
+            }
+        }
+    }
+
+    /** Leaves a card out of the import. */
+    fun removeImportRow(index: Int) {
+        val plan = _importPlan.value ?: return
+        // Only cards not found can be left out, so every other card keeps its box.
+        if (index !in plan.rows.indices || plan.found[index] != null) return
+        fun <T> List<T>.without() = filterIndexed { i, _ -> i != index }
+        val rows = plan.rows.without()
+        if (rows.isEmpty()) { cancelImport(); return }
+        _importPlan.value = plan.copy(rows = rows, found = plan.found.without(), targets = plan.targets.without())
+    }
+
+    /** Back to picking where the cards go. */
+    fun changeImportBox() {
+        val plan = _importPlan.value ?: return
+        _importPlan.value = null
+        _importRows.value = plan.rows
+    }
+
+    /** Adds what the preview showed. */
+    fun confirmImport() {
+        val plan = _importPlan.value ?: return
+        val started = run("Importing ${plan.added} cards…") {
+            val newBox: suspend () -> Long = { repo.createBox("Imported", "box") }
+            val r = BackupIO.applyPlan(repo, plan, newBox)
+            buildString {
+                append(if (r.added == 1) "Imported 1 card" else "Imported ${r.added} cards")
+                if (r.notFound.isNotEmpty()) append(". Skipped ${r.notFound.size} not found")
+            }
+        }
+        if (started) _importPlan.value = null
+    }
+
+    fun cancelImport() {
+        _importRows.value = null
+        _importPlan.value = null
+        _importOffline.value = false
+    }
 
     fun refreshRoles() = run("Looking up card roles…") {
         repo.refreshAllRoles()
@@ -267,6 +371,9 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun messageShown() { _message.value = null }
 }
+
+/** Cards still not found that one "Retry all" looks up loosely, one request each. */
+private const val LOOSE_RETRIES = 25
 
 /** Opens [uri] to replace its contents ("wt" truncates; some providers only accept "w"). */
 private fun openForWrite(context: android.content.Context, uri: Uri): java.io.OutputStream? =
@@ -409,6 +516,23 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     }
 
     rows?.let { r -> ImportDialog(r, boxes, onCancel = vm::cancelImport, onImport = vm::import) }
+    val plan by vm.importPlan.collectAsStateWithLifecycle()
+    plan?.let { p ->
+        val planBoxes by vm.importBoxes.collectAsStateWithLifecycle()
+        val offline by vm.importOffline.collectAsStateWithLifecycle()
+        ImportPreviewDialog(
+            plan = p,
+            boxes = planBoxes,
+            offline = offline,
+            busy = busy,
+            onRetry = vm::retryImportRow,
+            onRetryAll = vm::retryImportAll,
+            onRemove = vm::removeImportRow,
+            onChangeBox = vm::changeImportBox,
+            onConfirm = vm::confirmImport,
+            onCancel = vm::cancelImport,
+        )
+    }
 
     if (choosingExport) {
         AlertDialog(
@@ -481,7 +605,7 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
         },
         confirmButton = {
             // 0 = new box. With auto-sort, cards that fit no box go to a new "Imported" box too.
-            TextButton(onClick = { onImport(choice) }) { Text("Import") }
+            TextButton(onClick = { onImport(choice) }) { Text("Next") }
         },
         dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
     )

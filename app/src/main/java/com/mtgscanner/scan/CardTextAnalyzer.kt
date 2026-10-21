@@ -34,6 +34,8 @@ class CardTextAnalyzer(
     private val onPage: (List<CardTextGuess>) -> Unit = {},
     /** Brightness of the middle of the picture, a few times a second, even while paused (low light, foil hint). */
     private val onLight: (FrameLight) -> Unit = {},
+    /** True when art indexes are downloaded, so a card with no readable text is worth hashing. */
+    private val wantsArt: () -> Boolean = { false },
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -69,7 +71,7 @@ class CardTextAnalyzer(
     private var frameBitmap: Bitmap? = null
 
     /** Where to read in the frame (sensor pixels), and whether that is a found card or just the guide. */
-    private class ReadArea(val box: OcrBox, val isCard: Boolean)
+    private class ReadArea(val box: OcrBox, val isCard: Boolean, val outline: OcrBox? = null)
 
     override fun analyze(image: ImageProxy) {
         val now = SystemClock.elapsedRealtime()
@@ -134,7 +136,13 @@ class CardTextAnalyzer(
                     } else bitmap
                     if (c !== bitmap) crop = c
                     // Cropped to a found card, everything read is on it; cropped to the guide, keep to the guide.
-                    onGuess(readBestOrientation(c, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP))
+                    val guess = readBestOrientation(c, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP)
+                    val outline = a.outline
+                    // No name or footer on a steady card: its artwork may still say which card it is.
+                    val artOnly = if (outline != null && guess.nameCandidates.isEmpty() && guess.collectorNumber == null && wantsArt()) {
+                        runCatching { hashWholeCard(bitmap, rotation, outline) }.getOrDefault(emptyList())
+                    } else emptyList()
+                    onGuess(if (artOnly.isEmpty()) guess else guess.copy(artOnly = artOnly))
                 }
             } catch (_: Throwable) {
                 // Skip this frame; the next one will try again.
@@ -202,7 +210,7 @@ class CardTextAnalyzer(
         val card = res.card ?: return res to null
         val box = OcrBox(region.left + card.left * step, region.top + card.top * step, region.left + card.right * step, region.top + card.bottom * step)
         // Grown well past the outline found, in case it was an inner frame line (art, text box) rather than the card edge.
-        return res to ReadArea(FrameGeometry.grow(box, 0.15, image.width, image.height), isCard = true)
+        return res to ReadArea(FrameGeometry.grow(box, 0.15, image.width, image.height), isCard = true, outline = box)
     }
 
     private suspend fun readBestOrientation(bitmap: Bitmap, cameraRotation: Int, frame: Double): CardTextGuess {
@@ -259,6 +267,35 @@ class CardTextAnalyzer(
             ArtHashing.hash(upright, 0, 0, upright.width, upright.height)
         } finally {
             if (upright !== bitmap) upright.recycle()
+        }
+    }
+
+    /**
+     * Hashes the art window of the card inside [box] (sensor pixels) the way the art index hashes Scryfall's
+     * pictures. With no text to say which way is up, it's hashed both ways up of the card's long side.
+     */
+    private fun hashWholeCard(bitmap: Bitmap, cameraRotation: Int, box: OcrBox): List<Long> {
+        val l = box.left.coerceIn(0, bitmap.width - 1)
+        val t = box.top.coerceIn(0, bitmap.height - 1)
+        val w = box.right.coerceAtMost(bitmap.width) - l
+        val h = box.bottom.coerceAtMost(bitmap.height) - t
+        if (w < 18 || h < 18) return emptyList()
+        val base = (cameraRotation + preferredTurn) % 360
+        val sideways = base % 180 == 90
+        val uprightW = if (sideways) h else w
+        val uprightH = if (sideways) w else h
+        // The turn that stands the card tall, then the same upside down.
+        val first = if (uprightW <= uprightH) base else (base + 90) % 360
+        // Small is plenty for a 9x8 hash and keeps it quick.
+        val scale = minOf(1f, 160f / maxOf(w, h))
+        return listOf(first, (first + 180) % 360).mapNotNull { r ->
+            val m = Matrix().apply { postScale(scale, scale); postRotate(r.toFloat()) }
+            val upright = Bitmap.createBitmap(bitmap, l, t, w, h, m, true)
+            try {
+                ArtHashing.hashCardImage(upright)
+            } finally {
+                if (upright !== bitmap) upright.recycle()
+            }
         }
     }
 

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -311,7 +312,7 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = vm::clearSelection) { Icon(Icons.Filled.Close, "Stop picking") }
-        Text("$count selected", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text("$count selected", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         IconButton(onClick = vm::selectAll) { Icon(Icons.Filled.SelectAll, "Select all") }
         Box {
             IconButton(onClick = { moveMenu = true }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "Move to box") }
@@ -326,6 +327,7 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
             }
         }
         IconButton(onClick = onTag) { Icon(Icons.AutoMirrored.Filled.Label, "Add a tag") }
+        IconButton(onClick = vm::sellSelected) { Icon(Icons.Filled.Sell, "Mark for sale") }
         IconButton(onClick = vm::deleteSelected) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
     }
 }

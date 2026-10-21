@@ -18,6 +18,7 @@ enum class HomeSection(val key: String, val label: String) {
     BOX_VALUES("boxes", "Value by box"),
     BULK("bulk", "Bulk estimate"),
     COLORS("colors", "Colors"),
+    ALERTS("alerts", "Price alerts"),
     ;
 
     companion object {
@@ -25,7 +26,7 @@ enum class HomeSection(val key: String, val label: String) {
     }
 }
 
-/** Which Home sections show, in what order, and the bulk buy rate. Saved on the phone. */
+/** Which Home sections and stat tiles show, in what order, and the bulk buy rate. Saved on the phone. */
 object HomePrefs {
     private var prefs: SharedPreferences? = null
 
@@ -35,6 +36,14 @@ object HomePrefs {
 
     /** Dollars a bulk buyer pays per 1000 commons and uncommons. */
     var bulkRate by mutableDoubleStateOf(5.0)
+        private set
+
+    /** Stat tiles under the value card, in order (2 to 4). */
+    var tiles by mutableStateOf(TileMetric.DEFAULT)
+        private set
+
+    /** The saved search the "Saved list" tile counts, by name. */
+    var tileList by mutableStateOf<String?>(null)
         private set
 
     fun load(context: Context) {
@@ -50,6 +59,23 @@ object HomePrefs {
             sections = shown + added
         }
         bulkRate = p.getFloat("bulkRate", 5f).toDouble()
+        p.getString("homeTiles", null)?.let { saved ->
+            val list = saved.split(',').mapNotNull { TileMetric.of(it.trim()) }.distinct().take(TileMetric.MAX)
+            if (list.size >= TileMetric.MIN) tiles = list
+        }
+        tileList = p.getString("homeTileList", null)
+    }
+
+    /** Saves the tiles and, for the "Saved list" tile, which search it counts. */
+    fun updateTiles(list: List<TileMetric>, listName: String?) {
+        val clean = list.distinct().take(TileMetric.MAX)
+        if (clean.size < TileMetric.MIN) return
+        tiles = clean
+        tileList = listName?.takeIf { TileMetric.CUSTOM in clean }
+        prefs?.edit()
+            ?.putString("homeTiles", clean.joinToString(",") { it.key })
+            ?.putString("homeTileList", tileList)
+            ?.apply()
     }
 
     fun updateSections(list: List<HomeSection>) {

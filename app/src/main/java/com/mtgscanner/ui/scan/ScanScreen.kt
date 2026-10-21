@@ -703,6 +703,8 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
             Text("Scan settings", style = MaterialTheme.typography.titleLarge)
             ScanSettingsEditor()
             HorizontalDivider(color = Palette.Outline)
+            ArtIndexSection(vm)
+            HorizontalDivider(color = Palette.Outline)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
             HorizontalDivider(color = Palette.Outline)
             Text(
@@ -828,6 +830,7 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             wantsPage = { vm.state.value.let { it.pageMode && it.wantPage } },
             onPage = vm::onPage,
             onLight = vm::onLight,
+            wantsArt = vm::wantsArt,
         )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
         // The camera can take a moment to start; if the screen closed meanwhile, don't bind it.
