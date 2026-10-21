@@ -191,7 +191,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val app = ctx.applicationContext
         run("Reading backup…") {
             val input = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri) } ?: return@run "Couldn't open that file"
-            _restore.value = RestorePreview(BackupIO.read(input))
+            _restore.value = RestorePreview(BackupIO.read(input, app))
             null
         }
     }
@@ -404,7 +404,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     var confirmUndo by remember { mutableStateOf(false) }
     remember { DriveBackup.load(ctx.applicationContext) }
 
-    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) vm.backup(ctx, uri)
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -420,7 +420,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         if (uri != null) vm.insuranceReport(ctx, uri, reportMin)
     }
     // Picked once; Google Drive shows up in the picker. The weekly job then overwrites this file.
-    val weeklyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    val weeklyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
             DriveBackup.enable(ctx.applicationContext, uri)
             vm.backupNow(ctx)
@@ -444,12 +444,12 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             Action(Icons.Filled.FileDownload, "Export CSV", "ManaBox, Moxfield, Archidekt") { choosingExport = true }
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Save, "Back up", "Save everything to a file") {
-                backupLauncher.launch("mtg-scanner-backup-${LocalDate.now()}.json")
+                backupLauncher.launch("grimoire-backup-${LocalDate.now()}.zip")
             }
             HorizontalDivider(color = Palette.Outline)
             val weekly = DriveBackup.uri != null
             ToggleRow("Weekly backup", if (weekly) "Last backup: ${backupDay(DriveBackup.lastBackup)}" else "To Drive or a folder", weekly) { on ->
-                if (on) weeklyLauncher.launch("mtg-scanner-backup.json") else DriveBackup.disable(ctx.applicationContext)
+                if (on) weeklyLauncher.launch("grimoire-backup.zip") else DriveBackup.disable(ctx.applicationContext)
             }
             if (weekly) {
                 Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
@@ -460,7 +460,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             Action(Icons.Filled.Shield, "Insurance report", "PDF of your valuable cards") { choosingReport = true }
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Restore, "Restore backup", "Replaces everything in the app") {
-                restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/*"))
+                restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
             }
             if (canUndoRestore) {
                 HorizontalDivider(color = Palette.Outline)

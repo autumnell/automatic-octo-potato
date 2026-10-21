@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+. Cloud backup is limited to 25 MB: big re-downloadable files and photos stay out.
+     A phone-to-phone transfer has no such limit, so it keeps the photos. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="models" />
+        <exclude domain="file" path="art-index" />
+        <exclude domain="file" path="photos" />
+        <exclude domain="file" path="ck-buylist.tsv" />
+        <exclude domain="file" path="card-names.txt" />
+        <exclude domain="file" path="scan-log.jsonl" />
+        <exclude domain="file" path="before-restore.json" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="models" />
+        <exclude domain="file" path="art-index" />
+        <exclude domain="file" path="ck-buylist.tsv" />
+        <exclude domain="file" path="card-names.txt" />
+        <exclude domain="file" path="before-restore.json" />
+    </device-transfer>
+</data-extraction-rules>
