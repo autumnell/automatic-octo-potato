@@ -603,6 +603,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 Text("${c.quantity} · ${formatUsd(c.totalPrice())}", style = MaterialTheme.typography.titleMedium)
                             }
                         }
+                        PriceAlertRow(c)
                     }
 
                     val points = history.mapNotNull { p -> (if (c.foil) p.usdFoil ?: p.usd else p.usd)?.let { p.day to it } }
