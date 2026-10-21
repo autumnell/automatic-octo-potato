@@ -35,6 +35,11 @@ data class CardTextGuess(
     val lang: String? = null,
     /** All text read, top to bottom (capped), for the unknown card queue. */
     val text: String = "",
+    /**
+     * No name or footer could be read, but a card outline was found: its art window hashed at the likely
+     * ways up, to match against downloaded art indexes. Empty otherwise.
+     */
+    val artOnly: List<Long> = emptyList(),
 ) {
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null
 

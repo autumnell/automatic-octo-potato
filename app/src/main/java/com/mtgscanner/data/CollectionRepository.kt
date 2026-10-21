@@ -63,7 +63,13 @@ data class Identification(
 )
 
 /** A card name read with no connection, good enough to look up later. */
-data class OfflineRead(val name: String, val setCode: String?, val collectorNumber: String?)
+data class OfflineRead(
+    val name: String, val setCode: String?, val collectorNumber: String?,
+    /** Language read off the card, when not English. */
+    val lang: String? = null,
+    /** The exact printing, when the artwork matched a downloaded art index. */
+    val scryfallId: String? = null,
+)
 
 /** One card in a checked decklist. */
 data class DeckCheckLine(
@@ -114,6 +120,8 @@ class CollectionRepository(
     internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val nameIndex = NameIndex(context.filesDir, api)
     private val art = ArtMatcher()
+    /** Downloaded per-set art hashes, to find cards from their artwork when no text can be read. */
+    val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api)
     val scanLog = com.mtgscanner.scan.ScanLog(context.filesDir)
 
     /** One shared read of the cards table for every screen; kept 5 s after the last screen stops watching. */
@@ -478,7 +486,7 @@ class CollectionRepository(
     suspend fun offlineRead(guess: CardTextGuess): OfflineRead? {
         val best = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }.firstOrNull() ?: return null
         if (best.score < 0.85) return null
-        return OfflineRead(best.name, guess.setCode, guess.collectorNumber)
+        return OfflineRead(best.name, guess.setCode, guess.collectorNumber, lang = guess.lang)
     }
 
     private suspend fun doIdentify(guess: CardTextGuess): Identification? {
@@ -1042,8 +1050,14 @@ class CollectionRepository(
 
     // Offline scans
 
-    suspend fun savePending(read: OfflineRead, foil: Boolean, qty: Int, boxId: Long) {
-        dao.addPending(PendingScan(name = read.name, setCode = read.setCode, collectorNumber = read.collectorNumber, foil = foil, quantity = qty, boxId = boxId))
+    /** Saves a card read offline. [skip] holds the skip rules auto-add had on, applied once it's looked up. */
+    suspend fun savePending(read: OfflineRead, foil: Boolean, qty: Int, boxId: Long, skip: com.mtgscanner.scan.SkipRules? = null) {
+        dao.addPending(
+            PendingScan(
+                name = read.name, setCode = read.setCode, collectorNumber = read.collectorNumber, foil = foil, quantity = qty, boxId = boxId,
+                lang = read.lang?.takeIf { it != "en" }, scryfallId = read.scryfallId, skip = skip?.encode().orEmpty(),
+            ),
+        )
     }
 
     private val pendingLock = Mutex()
@@ -1054,7 +1068,7 @@ class CollectionRepository(
     private suspend fun resolvePendingLocked(): Int {
         val pending = dao.allPending().filterNot { it.unknown }
         if (pending.isEmpty()) return 0
-        val cards = api.identify(pending.map { identifierFor(it.name, it.setCode, it.collectorNumber, null) })
+        val cards = api.identify(pending.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) })
         var n = 0
         val retry = mutableListOf<PendingScan>()
         pending.zip(cards).forEach { (p, c) -> if (c != null) { if (addPendingCard(p, c)) n++ } else retry += p }
@@ -1066,13 +1080,25 @@ class CollectionRepository(
         return n
     }
 
-    /** Adds a saved scan; false when no box fits it (it stays saved) or another run already added it. */
+    /**
+     * Adds a saved scan the way the scanner would have: foil only when the printing has it, the language it was
+     * read in, and the skip rules auto-add had on. False when it was skipped, no box fits it (it stays saved),
+     * or another run already added it.
+     */
     private suspend fun addPendingCard(p: PendingScan, c: ScryfallCard): Boolean {
-        val box = if (p.boxId == Box.AUTO_SORT || dao.box(p.boxId) == null) pickBox(c, p.foil) else p.boxId
+        val foil = p.foil && c.hasFoil || !c.hasNonFoil
+        val skipped = com.mtgscanner.scan.SkipRules.decode(p.skip)?.reason(c.effectiveTypeLine, c.layout, c.price(foil)?.toDoubleOrNull())
+        if (skipped != null) {
+            withContext(NonCancellable) { dao.deletePending(p.id) }
+            return false
+        }
+        val box = if (p.boxId == Box.AUTO_SORT || dao.box(p.boxId) == null) pickBox(c, foil) else p.boxId
         if (box == null) return false
+        // The printing's own language wins; an English printing keeps the language the card was read in.
+        val lang = if (c.lang != "en") c.lang else p.lang ?: "en"
         // Claim the saved scan first (only one run can), then add it even if the screen closes meanwhile.
         return withContext(NonCancellable) {
-            if (dao.deletePending(p.id) > 0) { add(c, p.foil, p.quantity, box); true } else false
+            if (dao.deletePending(p.id) > 0) { add(c, foil, p.quantity, box, lang = lang); true } else false
         }
     }
 

@@ -56,6 +56,12 @@ data class PendingScan(
     val addedAt: Long = System.currentTimeMillis(),
     /** The scanner couldn't identify it; [name] is the raw text read. Waits for you to search it by hand. */
     val unknown: Boolean = false,
+    /** Language read off the card or picked in the scan bar; null for English or not known. */
+    val lang: String? = null,
+    /** The exact printing, when the artwork was matched offline. */
+    val scryfallId: String? = null,
+    /** The skip rules in force when auto-add saved it ([com.mtgscanner.scan.SkipRules] as JSON); empty = none. */
+    val skip: String = "",
 )
 
 /** One day's price for a printing, recorded when prices refresh. Builds each card's price chart. */

@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class, CardEvent::class, Goal::class],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -153,9 +153,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 10 lets offline scans keep their language, exact printing (from an art match) and skip rules. */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pending_scans` ADD COLUMN `lang` TEXT")
+                db.execSQL("ALTER TABLE `pending_scans` ADD COLUMN `scryfallId` TEXT")
+                db.execSQL("ALTER TABLE `pending_scans` ADD COLUMN `skip` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         /** Every migration, oldest first, for the database builder. */
         val ALL_MIGRATIONS: Array<Migration>
-            get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
 
         fun seedBulk(db: SupportSQLiteDatabase) {
             db.execSQL(

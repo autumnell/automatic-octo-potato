@@ -38,6 +38,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -247,6 +248,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
         // Try saved offline scans again whenever the scanner opens, and when the network comes back.
         viewModelScope.launch { runCatching { repo.resolvePending() } }
+        // Set lock on: make sure its art index is here (a failed download is tried again each time).
+        SortPrefs.setLock?.let { repo.artIndex.enqueue(listOf(it)) }
     }
 
     // Frame-to-frame bookkeeping for the camera analyzer.
@@ -314,6 +317,13 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     private fun handleGuess(guess: CardTextGuess) {
         val key = guess.key
+        if (key == null && guess.artOnly.isNotEmpty()) {
+            // A card is there, just no readable text: not an empty frame.
+            emptyFrames = 0
+            handleArt(guess)
+            return
+        }
+        artVote.reset()
         if (key == null) {
             emptyFrames++
             // The card has left the frame: allow the same card to be auto-added again.
@@ -387,25 +397,12 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 _state.update { it.copy(lookingUp = false) }
                 return@launch
             }
-            val key = guess.key
             result.onFailure { e ->
                 // Offline: keep the set lock with the saved read.
-                val offline = if (e is java.io.IOException && e !is ScryfallException) {
+                val offline = if (isOffline(e)) {
                     repo.offlineRead(guess)?.let { r -> SortPrefs.setLock?.let { lock -> r.copy(setCode = lock) } ?: r }
                 } else null
-                val autoSaved = offline != null && _state.value.autoAdd
-                // Busy, rate limited or offline: wait a few seconds before trying this card again.
-                // Saved for later while auto-adding: it's handled until it leaves the frame.
-                if (!autoSaved) launch { delay(3_000); if (gen == trackGen && key != null) lookedUp.remove(key) }
-                if (offline != null) {
-                    _state.update { it.copy(lookingUp = false, offline = offline, status = "Offline · ${offline.name}") }
-                    if (autoSaved && offline.name != lastAutoAddedId) {
-                        lastAutoAddedId = offline.name
-                        saveOffline()
-                    }
-                } else {
-                    _state.update { it.copy(lookingUp = false, status = "Couldn't reach Scryfall", error = e.message) }
-                }
+                onLookupFailed(e, offline, guess.key, gen)
             }
             val id = result.getOrNull()
             if (result.isSuccess && id == null) {
@@ -419,6 +416,91 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 noMatchGuess = null
                 onIdentified(id, guess.lang, guess.artHash)
             }
+        }
+    }
+
+    private fun isOffline(e: Throwable) = e is java.io.IOException && e !is ScryfallException
+
+    /** A lookup that failed: offer to save the read for later when offline, else say so. [key] is retried after a pause. */
+    private fun onLookupFailed(e: Throwable, offline: OfflineRead?, key: String?, gen: Int) {
+        val autoSaved = offline != null && _state.value.autoAdd
+        // Busy, rate limited or offline: wait a few seconds before trying this card again.
+        // Saved for later while auto-adding: it's handled until it leaves the frame.
+        if (!autoSaved) viewModelScope.launch { delay(3_000); if (gen == trackGen && key != null) lookedUp.remove(key) }
+        if (offline != null) {
+            _state.update { it.copy(lookingUp = false, offline = offline, status = "Offline · ${offline.name}") }
+            if (autoSaved && offline.name != lastAutoAddedId) {
+                lastAutoAddedId = offline.name
+                saveOffline()
+            }
+        } else {
+            _state.update { it.copy(lookingUp = false, status = "Couldn't reach Scryfall", error = e.message) }
+        }
+    }
+
+    // Art match: cards with no readable text, found by their artwork in downloaded art indexes
+
+    private val artVote = com.mtgscanner.scan.ArtVote(needed = 2)
+
+    /** The analyzer hashes cards with no readable text only when there's an index to match them against. */
+    fun wantsArt(): Boolean = repo.artIndex.hasAny
+
+    private fun handleArt(guess: CardTextGuess) {
+        val hit = repo.artIndex.match(guess.artOnly.toLongArray(), SortPrefs.setLock)
+        // The same card on two frames in a row, so one lucky frame doesn't add the wrong card.
+        val agreed = artVote.offer(hit?.id) ?: return
+        if (hit == null || hit.id != agreed) return
+        val key = "art:$agreed"
+        if (key in lookedUp) return
+        if (lookedUp.none { it.startsWith("art:") }) lookedUp.clear()
+        lookedUp += key
+        lastKey = key
+        lastName = null
+        lastFooter = null
+        _state.update { it.copy(reading = hit.name) }
+        lookupArt(hit, guess.artOnly.first())
+    }
+
+    /** Fetches the printing the art matched. It's the exact printing, so it counts as sure. */
+    private fun lookupArt(hit: com.mtgscanner.scan.ArtHit, art: Long) {
+        _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null, offline = null) }
+        val gen = trackGen
+        viewModelScope.launch {
+            val started = System.currentTimeMillis()
+            val result = runCatching { repo.api.byId(hit.id) }
+            if (AppSettings.scanLogUnlocked) {
+                val outcome = when {
+                    result.exceptionOrNull()?.let { isOffline(it) } == true -> "offline"
+                    result.isFailure -> "error"
+                    result.getOrNull() == null -> "no match"
+                    else -> "art match"
+                }
+                runCatching {
+                    repo.scanLog.add(
+                        com.mtgscanner.scan.ScanLogEntry(
+                            art = true, outcome = outcome, matchName = hit.name, matchSet = hit.set, matchNumber = hit.number,
+                            ms = System.currentTimeMillis() - started, note = "art ${hit.distance} bits, next ${hit.runnerUp}",
+                        ),
+                    )
+                }
+            }
+            if (gen != trackGen || _state.value.paused) {
+                _state.update { it.copy(lookingUp = false) }
+                return@launch
+            }
+            val card = result.getOrElse { e ->
+                // Offline: the art said exactly which printing, so save that.
+                val offline = if (isOffline(e)) OfflineRead(hit.name, hit.set, hit.number, scryfallId = hit.id) else null
+                onLookupFailed(e, offline, "art:${hit.id}", gen)
+                return@launch
+            }
+            if (card == null) {
+                _state.update { it.copy(lookingUp = false, status = "No match yet · hold the card flat and well lit") }
+                return@launch
+            }
+            noMatchSince = 0L
+            noMatchGuess = null
+            onIdentified(com.mtgscanner.data.Identification(card, confident = true, exact = true), null, art)
         }
     }
 
@@ -819,8 +901,12 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         val read = s.offline ?: return
         // Cleared now, so a second tap can't save it twice.
         _state.update { it.copy(offline = null) }
+        // Keep what the live scanner would have used: the language read (or picked in the scan bar), and
+        // auto-add's skip rules, so the card is skipped the same way once it's looked up.
+        val withLang = read.copy(lang = read.lang ?: ScanBarPrefs.langOrNull)
+        val skip = if (s.autoAdd) s.settings.skipRules(AppSettings.showPrices) else null
         viewModelScope.launch {
-            repo.savePending(read, s.foil, qty, s.boxId)
+            repo.savePending(withLang, s.foil, qty, s.boxId, skip)
             _state.update { it.copy(addedPulse = it.addedPulse + 1, status = "Saved ${read.name} for later") }
             // While auto-adding, the card is still in view: don't look it up again.
             if (!s.autoAdd) resetTracking()
@@ -1024,7 +1110,23 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         SortPrefs.updateSetLock(code?.trim())
         _state.update { it.copy(showSetLock = false) }
         resetTracking()
+        // A locked set gets its art index, so cards with no readable text can still be found.
+        SortPrefs.setLock?.let { repo.artIndex.enqueue(listOf(it)) }
     }
+
+    // Art indexes
+
+    val artSets: StateFlow<List<com.mtgscanner.scan.ArtSetInfo>> get() = repo.artIndex.sets
+    val artDownload: StateFlow<com.mtgscanner.scan.ArtDownload?> get() = repo.artIndex.download
+    val artFailed: StateFlow<String?> get() = repo.artIndex.failed
+
+    fun downloadArt(codes: Collection<String>) = repo.artIndex.enqueue(codes)
+    fun deleteArt(code: String) = repo.artIndex.delete(code)
+    fun cancelArtDownloads() = repo.artIndex.cancelQueue()
+
+    /** Set codes of the cards in the collection, most cards first. */
+    suspend fun ownedSets(): List<String> =
+        repo.observeAll().first().groupBy { it.setCode.lowercase() }.entries.sortedByDescending { it.value.size }.map { it.key }
 
     // Binder page mode
 
