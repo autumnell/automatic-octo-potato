@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.data.NameKey
 import com.mtgscanner.data.db.CollectionCard
 
 /** Section headers for long card lists, and the math behind the sticky header and letter rail. */
@@ -7,17 +8,8 @@ object ListSections {
     /** Shorter lists don't need headers. */
     const val MIN_CARDS = 20
 
-    /** "A" to "Z", or "#" for names starting with a digit or symbol. Accents are dropped (É → E). */
-    fun letterOf(name: String): String {
-        val ch = name.trimStart().firstOrNull() ?: return "#"
-        val base = java.text.Normalizer.normalize(ch.toString(), java.text.Normalizer.Form.NFD).firstOrNull() ?: ch
-        val up = base.uppercaseChar()
-        return when {
-            up in 'A'..'Z' -> up.toString()
-            up == 'Æ' -> "A"
-            else -> "#"
-        }
-    }
+    /** "A" to "Z", or "#" for names starting with a digit or symbol. Same letter as dividers and name ranges ([NameKey]). */
+    fun letterOf(name: String): String = NameKey.letter(name).toString()
 
     /**
      * Splits an already-sorted, ungrouped list into sections: by first letter when sorted by name,

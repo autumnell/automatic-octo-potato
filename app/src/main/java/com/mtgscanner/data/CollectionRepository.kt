@@ -158,11 +158,12 @@ class CollectionRepository(
     /** Every box with how many cards it holds and what they're worth. */
     fun observeBoxSummaries(): Flow<List<BoxSummary>> = boxSummaries
 
-    private val boxSummaries: Flow<List<BoxSummary>> = combine(dao.observeBoxes(), allCards) { boxes, cards ->
-        val byBox = cards.groupBy { it.boxId }
+    // Totals come from the database (one small row per box), not from reading every card.
+    private val boxSummaries: Flow<List<BoxSummary>> = combine(dao.observeBoxes(), dao.observeBoxTotals()) { boxes, totals ->
+        val byBox = totals.associateBy { it.boxId }
         boxes.map { b ->
-            val inBox = byBox[b.id].orEmpty()
-            BoxSummary(b.id, b.name, b.kind, inBox.sumOf { it.quantity }, inBox.sumOf { it.totalPrice() }, b.rules, b.color, b.fallback, b.capacity, b.divider)
+            val t = byBox[b.id]
+            BoxSummary(b.id, b.name, b.kind, t?.n ?: 0, t?.value ?: 0.0, b.rules, b.color, b.fallback, b.capacity, b.divider)
         }
     }.shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
@@ -212,12 +213,17 @@ class CollectionRepository(
             } else {
                 // The box is deleted after its cards move, so their history names it.
                 val policy = SortPrefs.policy
-                val boxes = boxInfos().filter { it.id != id }
+                // Counts go up as cards move in, so boxes with a card limit fill and the rest go on to the next box.
+                val boxes = boxInfos().filter { it.id != id }.toMutableList()
                 for (c in cards) {
+                    val f = c.facts()
+                    // The deleted box's own copies don't count toward the playset limit: they're the ones moving.
                     // Cards no box's rules fit go to an Anything box rather than being lost.
-                    val target = (if (moveTo == Box.AUTO_SORT) decideIn(boxes, c.facts(), c.oracleId, policy)?.boxId else moveTo)
-                        ?: anythingBox(except = id, facts = c.facts())
+                    val target = (if (moveTo == Box.AUTO_SORT) decideIn(boxes, f, c.oracleId, policy, exclude = id)?.boxId else moveTo)
+                        ?: anythingBox(except = id, facts = f)
                     moveToBox(c.id, target)
+                    val i = boxes.indexOfFirst { it.id == target }
+                    if (i >= 0) boxes[i] = boxes[i].copy(count = boxes[i].count + c.quantity)
                 }
             }
             dao.box(id)?.let { dao.deleteBox(it) }
@@ -276,17 +282,25 @@ class CollectionRepository(
 
     /**
      * Sorts a box (usually a catch-all "Anything" box) after the fact: each card that fits another
-     * box's rules moves there, in Auto-sort order. Cards that fit nothing stay put. Returns copies moved.
+     * box's rules moves there, in Auto-sort order. Cards that fit nothing stay put, and so do cards this
+     * box's own rules take first and cards set to stay. Returns copies moved.
      */
     suspend fun sortBox(sourceId: Long): Int {
         var moved = 0
         db.withTransaction {
             // The same choice as scanning (rules, room, bulk floor), counting cards as they move in.
             val policy = SortPrefs.policy.copy(playsetLimit = 0)
-            val boxes = boxInfos().filter { it.id != sourceId }.toMutableList()
+            val boxes = boxInfos().toMutableList()
+            val src = boxes.indexOfFirst { it.id == sourceId }
             for (c in dao.inBox(sourceId)) {
-                val d = Sorting.decide(boxes, c.facts(), policy) ?: continue
-                if (d.reason != SortReason.RULES && d.reason != SortReason.BULK) continue
+                if (c.pinned) continue
+                // This box is counted without the card, so a full box doesn't push out a card already in it.
+                if (src >= 0) boxes[src] = boxes[src].copy(count = boxes[src].count - c.quantity)
+                val d = Sorting.sortOutTarget(boxes, sourceId, c.facts(), policy)
+                if (d == null) {
+                    if (src >= 0) boxes[src] = boxes[src].copy(count = boxes[src].count + c.quantity)
+                    continue
+                }
                 moveToBox(c.id, d.boxId)
                 moved += c.quantity
                 val i = boxes.indexOfFirst { it.id == d.boxId }
@@ -329,9 +343,9 @@ class CollectionRepository(
     }
 
     /** Copies of a card already in main boxes, for the keep-a-playset rule. */
-    private suspend fun ownedInMain(oracleId: String?, boxes: List<BoxInfo>, policy: SortPolicy): Int {
+    private suspend fun ownedInMain(oracleId: String?, boxes: List<BoxInfo>, policy: SortPolicy, exclude: Long? = null): Int {
         if (oracleId == null || policy.playsetLimit <= 0) return 0
-        val notMain = boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id }.ifEmpty { listOf(Long.MIN_VALUE) }
+        val notMain = (boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id } + listOfNotNull(exclude)).ifEmpty { listOf(Long.MIN_VALUE) }
         return dao.ownedOutside(oracleId, notMain)
     }
 
@@ -339,8 +353,9 @@ class CollectionRepository(
     suspend fun pickDecision(facts: CardFacts, oracleId: String? = null): SortDecision? =
         decideIn(boxInfos(), facts, oracleId, SortPrefs.policy)
 
-    private suspend fun decideIn(boxes: List<BoxInfo>, facts: CardFacts, oracleId: String?, policy: SortPolicy): SortDecision? =
-        Sorting.decide(boxes, facts, policy, ownedInMain(oracleId, boxes, policy))
+    /** [exclude] is a box whose copies don't count toward the playset limit (a box being emptied). */
+    private suspend fun decideIn(boxes: List<BoxInfo>, facts: CardFacts, oracleId: String?, policy: SortPolicy, exclude: Long? = null): SortDecision? =
+        Sorting.decide(boxes, facts, policy, ownedInMain(oracleId, boxes, policy, exclude))
 
     /** The box a card belongs in, or null when no box fits. */
     suspend fun pickBox(facts: CardFacts, oracleId: String? = null): Long? = pickDecision(facts, oracleId)?.boxId
@@ -350,14 +365,29 @@ class CollectionRepository(
     /** The divider inside [boxId] a card goes behind ("Blue", "R", "MH3"), or null when the box has none. */
     suspend fun spotFor(boxId: Long, name: String, facts: CardFacts): String? {
         val b = dao.box(boxId) ?: return null
-        return Sorting.spot(Divider.of(b.divider), name, facts)
+        return Sorting.spot(BoxLayout.of(b.divider), name, facts)
     }
 
     /** Cards that now belong in a different box, after rules changed. Pass [cards] when already loaded. */
     suspend fun misplaced(cards: List<CollectionCard>? = null): List<Sorting.Move<CollectionCard>> {
         val all = cards ?: dao.all()
         val boxes = boxInfos()
-        return withContext(Dispatchers.Default) { Sorting.misplaced(all, { it.boxId }, { it.facts() }, boxes, SortPrefs.policy) }
+        val policy = SortPrefs.policy
+        val slack = SortPrefs.priceBuffer / 100.0
+        return withContext(Dispatchers.Default) {
+            // Copies in main boxes per card, for cards leaving the bulk box under the keep-a-playset rule.
+            val owned: Map<String, Int> = if (policy.playsetLimit <= 0) emptyMap() else {
+                val main = boxes.filter { Sorting.isMainBox(it, policy) }.map { it.id }.toSet()
+                all.filter { it.boxId in main && it.oracleId != null }.groupBy { it.oracleId!! }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+            }
+            Sorting.misplaced(
+                all, { it.boxId }, { it.facts() }, boxes, policy,
+                copies = { it.quantity },
+                ownedInMain = { c -> c.oracleId?.let { owned[it] } ?: 0 },
+                priceSlack = slack,
+                pinned = { it.pinned },
+            )
+        }
     }
 
     /** Applies moves; returns what's needed to undo them (entry id → old box). */
@@ -394,9 +424,10 @@ class CollectionRepository(
         order.remove(newId); order.add(order.indexOf(id) + 1, newId)
         reorderBoxes(order)
         // Names starting with a digit or symbol fit both halves; they stay in the first, as sorting picks it first.
+        // A fallback box also holds cards its rules don't fit (leftovers); those split by name too.
         for (c in inRange) {
             val letter = BoxRules.nameLetter(c.name)
-            if (letter != '#' && letter >= at && second.matches(c.facts())) moveToBox(c.id, newId)
+            if (letter != '#' && letter >= at && (b.fallback || second.matches(c.facts()))) moveToBox(c.id, newId)
         }
         newId
     }
@@ -422,7 +453,8 @@ class CollectionRepository(
             dao.delete(c)
             other.id
         } else {
-            dao.update(c.copy(boxId = boxId, updatedAt = now))
+            // Its old binder pocket means nothing in the new box.
+            dao.update(c.copy(boxId = boxId, binderSlot = 0, updatedAt = now))
             id
         }
     }
@@ -774,7 +806,7 @@ class CollectionRepository(
         dao.update(c.copy(quantity = c.quantity - qty, updatedAt = now))
         val other = twinOf(c, boxId = boxId)
         if (other != null) dao.update(other.mergedWith(c, copies = qty, now = now, details = false))
-        else dao.insert(c.copy(id = 0, quantity = qty, boxId = boxId, updatedAt = now))
+        else dao.insert(c.copy(id = 0, quantity = qty, boxId = boxId, binderSlot = 0, updatedAt = now))
     }
 
     /** Several [moveCopies] at once, all or nothing. Moves are (row id, copies). */
@@ -1293,4 +1325,5 @@ fun ScryfallCard.facts(foil: Boolean) = CardFacts(
     toughness = toughness ?: cardFaces?.firstOrNull()?.toughness,
     reserved = reserved,
     formats = legalities.filterValues { it == "legal" || it == "restricted" }.keys,
+    number = collectorNumber,
 )

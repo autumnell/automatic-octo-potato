@@ -32,4 +32,20 @@ class PlacementTest {
         assertTrue(text.contains("Bulk → Blue\n☐ Counterspell (MH2) · U\n☑ 2× Opt (ELD)\n"))
         assertTrue(text.contains("Blue → Red\n☐ Shock (M19)\n"))
     }
+
+    // Item 85: one pocket per copy.
+    @Test fun pocketPerCopy() {
+        data class E(val id: Long, val name: String, val slot: Int, val qty: Int)
+        val items = listOf(E(1, "Bolt", 1, 3), E(2, "Opt", 2, 1), E(3, "Zap", 0, 2))
+        // Bolt takes 1–3, so Opt at 2 overlaps and gets renumbered after Bolt, by name with Zap.
+        val slots = Binder.numberSlots(items, { it.id }, { it.name }, { it.slot }, { it.qty })
+        assertEquals(mapOf(2L to 4, 3L to 5), slots)
+        val pockets = Binder.pockets(listOf(E(1, "Bolt", 8, 3)), { it.slot }, { it.qty })
+        assertEquals(setOf(8, 9, 10), pockets.keys)
+        assertEquals("Page 1 · Slots 1–3", Binder.label(1, 3))
+        assertEquals("Page 1 · Slot 8 to Page 2 · Slot 1", Binder.label(8, 3))
+        assertEquals("Page 1 · Slot 4", Binder.label(4, 1))
+        assertEquals(1, Binder.span(4, perCopy = false))
+        assertEquals(4, Binder.span(4, perCopy = true))
+    }
 }
