@@ -313,6 +313,7 @@ fun HomeScreen(
         Header(onSettings, onEdit = { editing = true })
         HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
         Spacer(Modifier.height(12.dp))
+        com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
 
         if (ui.loaded && ui.totalCards == 0) {
             if (ui.boxCount == 0) {
