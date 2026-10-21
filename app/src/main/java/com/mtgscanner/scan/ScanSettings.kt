@@ -49,14 +49,38 @@ data class ScanSettings(
     }
 
     /** Why a card should be skipped, or null to keep it. */
-    fun skipReason(typeLine: String, layout: String?, price: Double?, pricesShown: Boolean): String? = when {
-        skipBasics && typeLine.startsWith("Basic") && typeLine.contains("Land") -> "basic land"
-        skipTokens && (typeLine.contains("Token") || layout == "token" || layout == "double_faced_token" || layout == "emblem") -> "token"
+    fun skipReason(typeLine: String, layout: String?, price: Double?, pricesShown: Boolean): String? =
+        skipRules(pricesShown)?.reason(typeLine, layout, price)
+
+    /** The skip rules in force, or null when none are on. The price floor only counts while prices are shown. */
+    fun skipRules(pricesShown: Boolean): SkipRules? =
+        SkipRules(skipBasics, skipTokens, skipUnder.takeIf { pricesShown }).takeIf { it.any }
+}
+
+/** Which cards to skip. Saved with offline scans so they're skipped the same way when looked up later. */
+@Serializable
+data class SkipRules(val basics: Boolean = false, val tokens: Boolean = false, val under: Double? = null) {
+    val any: Boolean get() = basics || tokens || under != null
+
+    /** Why a card should be skipped, or null to keep it. */
+    fun reason(typeLine: String, layout: String?, price: Double?): String? = when {
+        basics && typeLine.startsWith("Basic") && typeLine.contains("Land") -> "basic land"
+        tokens && (typeLine.contains("Token") || layout == "token" || layout == "double_faced_token" || layout == "emblem") -> "token"
         // A card with no price isn't known to be cheap, so it's kept.
-        pricesShown && skipUnder != null && price != null && price < skipUnder -> "under $" + "%.2f".format(java.util.Locale.US, skipUnder)
+        under != null && price != null && price < under -> "under $" + "%.2f".format(java.util.Locale.US, under)
         else -> null
     }
+
+    fun encode(): String = skipJson.encodeToString(serializer(), this)
+
+    companion object {
+        /** The rules saved by [encode]; null for an empty or unreadable string, or when none are on. */
+        fun decode(s: String): SkipRules? =
+            if (s.isBlank()) null else runCatching { skipJson.decodeFromString(serializer(), s) }.getOrNull()?.takeIf { it.any }
+    }
 }
+
+private val skipJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
 @Serializable
 data class ScanPreset(val name: String, val settings: ScanSettings)
