@@ -52,6 +52,8 @@ data class CardTextGuess(
     val glare: Boolean = false,
     /** The name as printed in Japanese, Chinese or Korean, read by a CJK reader when no English name was read. */
     val printedName: String? = null,
+    /** The card check saw nothing in the guide: the card has left (not just unreadable). */
+    val guideEmpty: Boolean = false,
 ) {
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null && printedName == null
 
