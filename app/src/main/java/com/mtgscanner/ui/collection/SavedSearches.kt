@@ -8,9 +8,9 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
-/** A named search with its filters, like "Red rares under $5". */
+/** A named search with its filters, like "Red rares under $5". [boxId] is set when it was saved inside a box. */
 @Serializable
-data class SavedSearch(val name: String, val filters: Filters)
+data class SavedSearch(val name: String, val filters: Filters, val boxId: Long? = null)
 
 /**
  * Saved searches and recent search words for browsing the collection.
@@ -30,9 +30,9 @@ class SavedSearchStore(context: Context) {
     private fun <T> load(ser: kotlinx.serialization.KSerializer<List<T>>, key: String): List<T> =
         prefs.getString(key, null)?.let { runCatching { json.decodeFromString(ser, it) }.getOrNull() } ?: emptyList()
 
-    fun save(name: String, filters: Filters) {
+    fun save(name: String, filters: Filters, boxId: Long? = null) {
         val n = name.trim().ifEmpty { return }
-        val list = listOf(SavedSearch(n, filters)) + _saved.value.filterNot { it.name.equals(n, ignoreCase = true) }
+        val list = listOf(SavedSearch(n, filters, boxId)) + _saved.value.filterNot { it.name.equals(n, ignoreCase = true) }
         _saved.value = list
         prefs.edit().putString("saved", json.encodeToString(savedSer, list)).apply()
     }

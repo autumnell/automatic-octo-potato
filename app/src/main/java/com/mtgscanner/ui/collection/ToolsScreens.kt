@@ -62,7 +62,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.mtgscanner.data.BoxLayout
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.MoveLine
+import com.mtgscanner.data.Sorting
+import com.mtgscanner.data.db.facts
 import com.mtgscanner.data.ExtraGroup
 import com.mtgscanner.data.ExtraRow
 import com.mtgscanner.data.ExtrasFinder
@@ -197,7 +201,9 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val skip = bs.filter { it.kind == "trade" || it.kind == "deck" || it.id == policy.extrasBoxId || it.id == policy.bulkBoxId }
             .map { it.id }.toSet()
         ExtrasFinder.find(
-            all.map { ExtraRow(it.id, it.oracleId ?: it.name, it.name, it.quantity, it.boxId, it.addedAt, it.typeLine, it.unitPrice()) },
+            all.map {
+                ExtraRow(it.id, it.oracleId ?: it.name, it.name, it.quantity, it.boxId, it.addedAt, it.typeLine, it.unitPrice(), it.condition, it.lang)
+            },
             k, skip,
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -207,9 +213,22 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         if (moves.isEmpty()) return
         viewModelScope.launch {
             val before = repo.snapshot(moves.map { it.first })
+            // The physical move list: which copies to pull from which box.
+            val byBox = boxes.value.associateBy { it.id }
+            val rows = cards.value.associateBy { it.id }
+            val target = byBox[boxId]
+            val layout = BoxLayout.of(target?.divider.orEmpty())
+            val lines = moves.mapNotNull { (id, n) ->
+                val c = rows[id] ?: return@mapNotNull null
+                MoveLine(n, c.name, c.setCode, byBox[c.boxId]?.name ?: "?", target?.name ?: "?", Sorting.spot(layout, c.name, c.facts()))
+            }
+            val added = MoveList.add(lines, show = true)
             repo.moveCopiesMany(moves, boxId)
-            val name = boxes.value.firstOrNull { it.id == boxId }?.name ?: "trade binder"
-            Undo.offer("Moved ${moves.sumOf { it.second }} extra copies to $name") { repo.restore(before) }
+            val name = target?.name ?: "trade binder"
+            Undo.offer("Moved ${moves.sumOf { it.second }} extra copies to $name") {
+                repo.restore(before)
+                MoveList.remove(added)
+            }
         }
     }
 
@@ -576,12 +595,13 @@ fun ExtrasScreen(onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         TopBar("Extras", "Copies beyond what a deck can use", onBack)
+        MoveListHost()
         Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectPill("Keep 4 (60-card)", keep == 4, { vm.setKeep(4) })
             SelectPill("Keep 1 (Commander)", keep == 1, { vm.setKeep(1) })
         }
         Text(
-            "Basic lands, trade binders and decks not counted.",
+            "Basic lands, trade binders and decks not counted. Worst copies move first.",
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp),
         )
         if (groups.isEmpty()) {

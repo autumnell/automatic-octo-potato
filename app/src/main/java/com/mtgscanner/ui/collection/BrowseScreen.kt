@@ -116,6 +116,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalConfiguration
 import com.mtgscanner.data.Binder
@@ -143,6 +144,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     var preview by remember { mutableStateOf<CollectionCard?>(null) }
     var menu by remember { mutableStateOf(false) }
     val kinds = remember(ui.boxes) { ui.boxes.associate { it.id to it.kind } }
+    val perCopy = remember(ui.boxes) { ui.boxes.filter { it.pocketPerCopy }.map { it.id }.toSet() }
     fun tap(c: CollectionCard) {
         if (wide) paneId = c.id else preview = c
     }
@@ -151,6 +153,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     var showFilters by remember { mutableStateOf(false) }
     var savingSearch by remember { mutableStateOf(false) }
     var tagging by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
     /** A card swiped right, waiting for a box to move to. */
     var moving by remember { mutableStateOf<CollectionCard?>(null) }
     val picking = selecting || selected.isNotEmpty()
@@ -158,7 +161,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
-        if (picking) SelectionBar(selected.size, ui.boxes, vm, onTag = { tagging = true })
+        if (picking) SelectionBar(selected.size, ui.boxes, vm, onTag = { tagging = true }, onEdit = { editing = true })
         else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
@@ -193,6 +196,11 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                             text = { Text("Pages") },
                             trailingIcon = { if (pagesOn) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
                             onClick = { menu = false; vm.togglePages() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Pocket per copy") },
+                            trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
+                            onClick = { menu = false; vm.setPocketPerCopy(!ui.pocketPerCopy) },
                         )
                         if (ui.unslotted > 0) DropdownMenuItem(
                             text = { Text("Number slots") },
@@ -282,14 +290,14 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 "No matches", Modifier.padding(top = 24.dp),
                 action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },
             )
-            ui.binder && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, onNumber = vm::numberSlots, onOpen = { tap(it) })
+            ui.binder && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
             boxId >= 0 && stackOn && !picking -> {
                 val flat = remember(ui.groups) { ui.groups.flatMap { it.second } }
                 CardStack(flat, sparks, onOpen = { tap(it) }, modifier = Modifier.padding(bottom = 16.dp))
             }
             else -> CardGrid(
                 ui.groups, grid, selected, picking, dense, sparks,
-                slotOf = { c -> slotLabel(c, kinds[c.boxId]) },
+                slotOf = { c -> slotLabel(c, kinds[c.boxId], c.boxId in perCopy) },
                 onOpen = { c -> if (picking) vm.toggleSelect(c.id) else tap(c) },
                 onLongPress = { c -> vm.toggleSelect(c.id); if (showTip) vm.dismissTip() },
                 onSwipeMove = { c -> moving = c },
@@ -320,6 +328,10 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     if (showFilters) FilterSheet(f, ui, vm, saved, onDismiss = { showFilters = false })
     if (savingSearch) NameDialog("Save this search", "e.g. Red rares under $5", "Save", onDone = { vm.saveSearch(it); savingSearch = false }, onDismiss = { savingSearch = false })
     if (tagging) TagDialog(ui.userTags, onDone = { vm.tagSelected(it); tagging = false }, onDismiss = { tagging = false })
+    if (editing) BulkEditDialog(
+        onApply = { cond, lang, foil -> vm.editSelected(cond, lang, foil); editing = false },
+        onDismiss = { editing = false },
+    )
     moving?.let { c ->
         BoxPickerDialog("Move ${c.name} to", ui.boxes.filter { it.id != c.boxId }, onPick = { vm.moveOne(c.id, it); moving = null }, onDismiss = { moving = null })
     }
@@ -327,8 +339,9 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
 /** Top bar while picking cards: how many, and what to do with them. */
 @Composable
-private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, onTag: () -> Unit) {
+private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit) {
     var moveMenu by remember { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().background(Palette.Surface).padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -351,8 +364,61 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
         IconButton(onClick = onTag) { Icon(Icons.AutoMirrored.Filled.Label, "Add a tag") }
         IconButton(onClick = vm::sellSelected) { Icon(Icons.Filled.Sell, "Mark for sale") }
         IconButton(onClick = vm::deleteSelected) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
+        Box {
+            IconButton(onClick = { more = true }) { Icon(Icons.Filled.MoreVert, "More") }
+            DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                DropdownMenuItem(text = { Text("Condition, language, foil") }, onClick = { more = false; onEdit() })
+                DropdownMenuItem(text = { Text("Stay in this box") }, onClick = { more = false; vm.pinSelected(true) })
+                DropdownMenuItem(text = { Text("Let re-sort move") }, onClick = { more = false; vm.pinSelected(false) })
+            }
+        }
     }
 }
+
+/** Condition, language and finish for every picked card; anything left unpicked stays as it is. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BulkEditDialog(onApply: (String?, String?, Boolean?) -> Unit, onDismiss: () -> Unit) {
+    var cond by remember { mutableStateOf<String?>(null) }
+    var lang by remember { mutableStateOf<String?>(null) }
+    var foil by remember { mutableStateOf<Boolean?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Edit cards") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Condition", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                Spacer(Modifier.height(6.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("NM", "LP", "MP", "HP", "DMG").forEach { c -> SelectPill(c, cond == c, { cond = if (cond == c) null else c }) }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Language", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                Spacer(Modifier.height(6.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    BULK_LANGS.forEach { (code, label) -> SelectPill(label, lang == code, { lang = if (lang == code) null else code }) }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Finish", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SelectPill("Foil", foil == true, { foil = if (foil == true) null else true })
+                    SelectPill("Non-foil", foil == false, { foil = if (foil == false) null else false })
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onApply(cond, lang, foil) }, enabled = cond != null || lang != null || foil != null) { Text("Apply") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+private val BULK_LANGS = listOf(
+    "en" to "English", "ja" to "Japanese", "de" to "German", "fr" to "French", "it" to "Italian", "es" to "Spanish",
+    "pt" to "Portuguese", "ru" to "Russian", "ko" to "Korean", "zhs" to "Chinese (S)", "zht" to "Chinese (T)",
+)
 
 @Composable
 fun NameDialog(title: String, hint: String, confirm: String, onDone: (String) -> Unit, onDismiss: () -> Unit, initial: String = "") {
@@ -399,7 +465,8 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
         containerColor = Palette.Surface,
         title = { Text(title) },
         text = {
-            Column {
+            // Long box lists scroll instead of running off the dialog.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (boxes.isEmpty()) Text("Make another box first.", color = Palette.Muted)
                 boxes.forEach { b ->
                     Row(
@@ -656,7 +723,10 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
                 Spacer(Modifier.width(6.dp))
                 Text("${c.setCode.uppercase()} #${c.collectorNumber} · ${c.typeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (slot != null) Text(slot, style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
+            if (slot != null || c.pinned) Row(verticalAlignment = Alignment.CenterVertically) {
+                if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Muted, modifier = Modifier.size(12.dp).padding(end = 2.dp))
+                if (slot != null) Text(slot, style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
+            }
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End) {
@@ -690,7 +760,7 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
         if (c.foil) { Spacer(Modifier.width(4.dp)); FoilTag() }
         Spacer(Modifier.width(8.dp))
         Text(
-            slot?.replace("Page ", "P")?.replace(" · Slot ", "·") ?: c.setCode.uppercase(),
+            slot?.replace("Page ", "P")?.replace(" · Slots ", "·")?.replace(" · Slot ", "·") ?: c.setCode.uppercase(),
             style = MaterialTheme.typography.labelSmall, color = Palette.Muted,
         )
         Text(
@@ -711,13 +781,14 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
 
 /** A binder as its pages: 9 pockets each, in slot order. Filters don't apply, so it matches the real binder. */
 @Composable
-private fun BinderPages(cards: List<CollectionCard>, unslotted: Int, onNumber: () -> Unit, onOpen: (CollectionCard) -> Unit) {
-    val bySlot = remember(cards) { cards.filter { it.binderSlot > 0 }.associateBy { it.binderSlot } }
+private fun BinderPages(cards: List<CollectionCard>, unslotted: Int, perCopy: Boolean, onNumber: () -> Unit, onOpen: (CollectionCard) -> Unit) {
+    // With a pocket per copy, a card fills one pocket for each copy.
+    val bySlot = remember(cards, perCopy) { Binder.pockets(cards, { it.binderSlot }, { Binder.span(it.quantity, perCopy) }) }
     val pages = bySlot.keys.maxOrNull()?.let { Binder.page(it) } ?: 0
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
         if (unslotted > 0 && pages > 0) item(key = "number") {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("$unslotted without a slot", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                Text("$unslotted to number", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
                 TextButton(onClick = onNumber) { Text("Number slots") }
             }
         }

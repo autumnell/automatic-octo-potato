@@ -247,7 +247,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun deleteList(s: SavedSearch) {
         searches.delete(s.name)
-        Undo.offer("Deleted ${s.name}") { searches.save(s.name, s.filters) }
+        Undo.offer("Deleted ${s.name}") { searches.save(s.name, s.filters, s.boxId) }
     }
 
     /** Saves the Auto-sort order, first to last. */
@@ -463,9 +463,8 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             )
         }
         SmartListsSection(lists, onOpen = { s ->
-            BrowseLaunch.filters = s.filters
-            BrowseLaunch.title = s.name
-            onBrowse(-1L)
+            BrowseLaunch.open(s)
+            onBrowse(s.boxId ?: -1L)
         }, onDelete = vm::deleteList)
         Spacer(Modifier.height(24.dp))
     }

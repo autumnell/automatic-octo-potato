@@ -42,7 +42,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.Binder
-import com.mtgscanner.data.Divider
+import com.mtgscanner.data.BoxLayout
 import com.mtgscanner.data.MoveLine
 import com.mtgscanner.data.MoveLists
 import com.mtgscanner.data.Sorting
@@ -131,7 +131,7 @@ object MoveList {
     ): List<MoveLine> = moves.mapNotNull { (c, to) ->
         if (c.boxId == to) return@mapNotNull null
         val target = box(to)
-        val spot = target?.let { (_, _, divider) -> Sorting.spot(Divider.of(divider), c.name, c.facts()) }
+        val spot = target?.let { (_, _, divider) -> Sorting.spot(BoxLayout.of(divider), c.name, c.facts()) }
         MoveLine(c.quantity, c.name, c.setCode, box(c.boxId)?.first ?: "?", target?.first ?: "?", spot)
     }
 }
@@ -223,6 +223,6 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
     }
 }
 
-/** Binder slot label for a card in a binder, else null. */
-fun slotLabel(c: CollectionCard, boxKind: String?): String? =
-    if (boxKind != null && Binder.isBinder(boxKind)) Binder.label(c.binderSlot) else null
+/** Binder slot label for a card in a binder, else null. [perCopy]: the binder gives each copy a pocket. */
+fun slotLabel(c: CollectionCard, boxKind: String?, perCopy: Boolean = false): String? =
+    if (boxKind != null && Binder.isBinder(boxKind)) Binder.label(c.binderSlot, Binder.span(c.quantity, perCopy)) else null

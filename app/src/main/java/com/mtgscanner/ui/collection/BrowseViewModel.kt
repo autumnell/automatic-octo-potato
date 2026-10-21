@@ -22,7 +22,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import com.mtgscanner.data.CollectionRepository
-import com.mtgscanner.data.Divider
+import com.mtgscanner.data.BoxLayout
+import com.mtgscanner.data.NameKey
+import com.mtgscanner.data.bulkEdit
+import com.mtgscanner.data.setPinned
+import com.mtgscanner.data.setPocketPerCopy
 import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.facts
 import com.mtgscanner.data.db.CollectionCard
@@ -35,6 +39,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.catch
 import com.mtgscanner.data.db.nearMintPrice
@@ -96,8 +101,12 @@ data class BrowseUi(
     val binder: Boolean = false,
     /** The binder's cards, ignoring filters, for the page view. */
     val binderCards: List<CollectionCard> = emptyList(),
-    /** Binder cards without a slot yet. */
+    /** Binder cards without a slot yet, or sharing a pocket with another card. */
     val unslotted: Int = 0,
+    /** This binder gives each copy its own pocket. */
+    val pocketPerCopy: Boolean = false,
+    /** How the box is laid out inside. */
+    val layout: BoxLayout = BoxLayout(),
 )
 
 /** The card list for one box, or the whole collection when [boxId] is -1. */
@@ -111,17 +120,20 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     private val stickyKey = "filters-$boxId"
 
     /** Opened from Home or a smart list with its own filters, rather than plain. */
-    private val launched: Boolean = boxId < 0 && (BrowseLaunch.filters != null || BrowseLaunch.sort != null || BrowseLaunch.color != null)
+    private val launched: Boolean = BrowseLaunch.pendingFor(boxId) ||
+        (boxId < 0 && BrowseLaunch.filters == null && (BrowseLaunch.sort != null || BrowseLaunch.color != null))
 
     /** A smart list's name, when one was opened. */
-    private val listTitle: String? = if (boxId < 0) BrowseLaunch.takeTitle() else null
+    private val listTitle: String? = if (launched) BrowseLaunch.takeTitle() else null
 
     /** The last filters used on this box, so they're back next time (sticky filters). */
     private fun loadSticky(): Filters? = try {
         prefs?.getString(stickyKey, null)?.let { json.decodeFromString(Filters.serializer(), it) }
     } catch (e: Exception) { null }
 
-    private val _filters = MutableStateFlow(if (launched) BrowseLaunch.take() else loadSticky() ?: Filters())
+    private val sticky: Filters? = if (launched) null else loadSticky()
+    private val hadSticky = sticky != null
+    private val _filters = MutableStateFlow(if (launched) BrowseLaunch.take() else sticky ?: Filters())
     val filters: StateFlow<Filters> = _filters
 
     private fun pref(key: String, default: Boolean): Boolean =
@@ -192,6 +204,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         val inScope: List<CollectionCard>,
         /** Lower-case search text per card, same order as [inScope]. */
         val hay: List<String>,
+        /** Name order key per card ([NameKey]), same order as [inScope]. */
+        val nameKeys: List<String>,
         val totalCards: Int,
         val sets: List<Pair<String, String>>,
         val roles: List<String>,
@@ -199,14 +213,34 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         val userTags: List<String>,
     )
 
+    /**
+     * Search text and name key by row id, reused while the row is unchanged. Most edits bump updatedAt; tags
+     * and price refreshes don't, so those are compared too. Only touched on the scope flow's thread.
+     */
+    private class Cached(val updatedAt: Long, val tags: String, val userTags: String, val name: String, val hay: String, val key: String)
+    private val textCache = HashMap<Long, Cached>()
+
+    private fun cached(c: CollectionCard): Cached {
+        val old = textCache[c.id]
+        if (old != null && old.updatedAt == c.updatedAt && old.tags == c.tags && old.userTags == c.userTags && old.name == c.name) return old
+        return Cached(c.updatedAt, c.tags, c.userTags, c.name, searchText(c), NameKey.of(c.name)).also { textCache[c.id] = it }
+    }
+
     private val scope = combine(repo.observeAll(), repo.observeBoxes()) { all, boxes ->
         val inScope = if (boxId < 0) all else all.filter { it.boxId == boxId }
+        val texts = inScope.map(::cached)
+        // Rows that are gone don't stay in the cache.
+        if (textCache.size > inScope.size + 64) {
+            val live = inScope.mapTo(HashSet()) { it.id }
+            textCache.keys.retainAll(live)
+        }
         Scope(
             all = all,
             boxes = boxes,
             box = if (boxId < 0) null else boxes.firstOrNull { it.id == boxId },
             inScope = inScope,
-            hay = inScope.map(::searchText),
+            hay = texts.map { it.hay },
+            nameKeys = texts.map { it.key },
             totalCards = inScope.sumOf { it.quantity },
             sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
             roles = inScope.flatMap { it.roleList() }.distinct().sortedBy { r -> CollectionRepository.ROLES.indexOfFirst { it.label == r } },
@@ -214,6 +248,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             userTags = inScope.flatMap { it.userTagList() }.distinct().sortedBy { it.lowercase() },
         )
     }.flowOn(Dispatchers.Default)
+        // One pass per change, shared by the list and the sparklines.
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
     /** The filters, with typing in the search box settling for a moment before the list redoes itself. */
     private var lastQuery = _filters.value.query
@@ -222,20 +258,23 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     }
 
     val ui: StateFlow<BrowseUi> = combine(scope, applied) { sc, f ->
-        val shown = sc.inScope.indices.filter { matches(sc.inScope[it], f, sc.hay[it]) }.map { sc.inScope[it] }
-            .sortedWith(comparator(f.sort))
+        val hits = sc.inScope.indices.filter { matches(sc.inScope[it], f, sc.hay[it]) }
+        // Name order uses the keys worked out once per card, not once per comparison.
+        val shown = if (f.sort == SortBy.NAME) hits.sortedBy { sc.nameKeys[it] }.map { sc.inScope[it] }
+        else hits.map { sc.inScope[it] }.sortedWith(comparator(f.sort))
         val box = sc.box
         // A box with dividers lists its cards by divider, matching the physical box.
-        val divider = Divider.of(box?.divider.orEmpty())
+        val layout = BoxLayout.of(box?.divider.orEmpty())
         val binder = box != null && Binder.isBinder(box.kind)
+        val perCopy = box?.pocketPerCopy == true
         val shownIds = shown.map { it.id }
         // Picked cards the filters now hide are dropped from the selection.
         val shownSet = shownIds.toHashSet()
         _selected.update { sel -> if (sel.all { it in shownSet }) sel else sel.filterTo(HashSet()) { it in shownSet } }
         BrowseUi(
-            title = if (boxId < 0) listTitle ?: "All cards" else box?.name ?: "Box",
+            title = listTitle ?: if (boxId < 0) "All cards" else box?.name ?: "Box",
             groups = when {
-                f.group == GroupBy.NONE && divider != Divider.NONE -> bySpot(shown, divider)
+                f.group == GroupBy.NONE && layout.hasDividers -> bySpot(shown, layout, byNumber = layout.byNumber && f.sort == SortBy.NAME)
                 // Long plain lists get headers by letter or set.
                 f.group == GroupBy.NONE -> ListSections.sections(shown, f.sort) ?: group(shown, f.group)
                 else -> group(shown, f.group)
@@ -253,21 +292,32 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             all = sc.all,
             binder = binder,
             binderCards = if (binder) sc.inScope.sortedBy { it.binderSlot } else emptyList(),
-            unslotted = if (binder) sc.inScope.count { it.binderSlot <= 0 } else 0,
+            unslotted = if (binder) Binder.numberSlots(sc.inScope, { it.id }, { it.name }, { it.binderSlot }, { Binder.span(it.quantity, perCopy) }).size else 0,
+            pocketPerCopy = perCopy,
+            layout = layout,
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
 
     /** 30-day price lines by card row id, for the sparklines; only cards with two or more points. */
+    /** What a sparkline depends on; the line is only rebuilt when this changes. */
+    private data class SparkKey(val scryfallId: String, val foil: Boolean, val price: Double?, val day: String)
+    private val sparkCache = HashMap<Long, Pair<SparkKey, List<Double>>>()
+
     val sparks: StateFlow<Map<Long, List<Double>>> = scope.map { it.inScope }
         .distinctUntilChanged()
         .map { cards ->
-            val history = PriceTrends.history(repo, cards.mapTo(HashSet()) { it.scryfallId })
             val today = LocalDate.now().toString()
-            val out = HashMap<Long, List<Double>>()
-            for (c in cards) {
-                val pts = PriceTrends.sparkPoints(history[c.scryfallId].orEmpty(), c.foil, c.nearMintPrice(), today)
-                if (pts.size >= 2) out[c.id] = pts
+            val keys = cards.associate { it.id to SparkKey(it.scryfallId, it.foil, it.nearMintPrice(), today) }
+            val stale = cards.filter { sparkCache[it.id]?.first != keys[it.id] }
+            if (stale.isNotEmpty()) {
+                val history = PriceTrends.history(repo, stale.mapTo(HashSet()) { it.scryfallId })
+                for (c in stale) {
+                    sparkCache[c.id] = keys.getValue(c.id) to PriceTrends.sparkPoints(history[c.scryfallId].orEmpty(), c.foil, c.nearMintPrice(), today)
+                }
             }
+            sparkCache.keys.retainAll(keys.keys)
+            val out = HashMap<Long, List<Double>>()
+            for ((id, v) in sparkCache) if (v.second.size >= 2) out[id] = v.second
             out as Map<Long, List<Double>>
         }
         .catch { emit(emptyMap()) }
@@ -284,6 +334,11 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     val recent: StateFlow<List<String>> = searches.recent
 
     init {
+        // A box with dividers lists A–Z inside each divider, like the real box, until you pick another order.
+        if (!launched && boxId >= 0 && !hadSticky) viewModelScope.launch {
+            val box = runCatching { repo.box(boxId) }.getOrNull()
+            if (box != null && BoxLayout.of(box.divider).hasDividers) _filters.update { if (it.sort == SortBy.RECENT) it.copy(sort = SortBy.NAME) else it }
+        }
         // A search word is remembered once you stop typing for a moment.
         viewModelScope.launch {
             _filters.map { it.query }.distinctUntilChanged().debounce(1500).collect { searches.addRecent(it) }
@@ -318,7 +373,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         return MoveList.add(MoveList.linesFor(cards.map { it to to }) { id -> byId[id]?.let { Triple(it.name, it.kind, it.divider) } })
     }
 
-    fun saveSearch(name: String) = searches.save(name, _filters.value)
+    /** Saved inside a box, the list remembers the box and counts only its cards. */
+    fun saveSearch(name: String) = searches.save(name, _filters.value, boxId.takeIf { it >= 0 })
     fun deleteSaved(name: String) = searches.delete(name)
     fun applySaved(s: SavedSearch) { _filters.value = s.filters }
     fun clearRecent() = searches.clearRecent()
@@ -385,6 +441,30 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
     }
 
+    /** "Stay in this box" for the picked cards: re-sort and "Sort out" leave them alone. */
+    fun pinSelected(pin: Boolean) {
+        val ids = _selected.value.toList()
+        clearSelection()
+        withUndo(ids, if (pin) "${count(ids)} stay put" else "${count(ids)} can move") { repo.setPinned(ids, pin) }
+    }
+
+    /** Sets condition, language and finish on the picked cards; null leaves one alone. */
+    fun editSelected(condition: String?, lang: String?, foil: Boolean?) {
+        val ids = _selected.value.toList()
+        clearSelection()
+        if (condition == null && lang == null && foil == null) return
+        withUndo(ids, "Edited ${count(ids)}") { repo.bulkEdit(ids, condition, lang, foil) }
+    }
+
+    /** One binder pocket per copy, or one per card. */
+    fun setPocketPerCopy(on: Boolean) {
+        if (boxId < 0) return
+        viewModelScope.launch {
+            repo.setPocketPerCopy(boxId, on)
+            Undo.offer(if (on) "One pocket per copy" else "One pocket per card") { repo.setPocketPerCopy(boxId, !on) }
+        }
+    }
+
     fun moveOne(id: Long, boxId: Long) {
         val lines = recordMoves(listOf(id), boxId)
         withUndo(listOf(id), "Moved to ${boxName(boxId)}", { MoveList.remove(lines) }) { repo.moveToBox(id, boxId) }
@@ -446,7 +526,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
 
         fun comparator(sort: SortBy): Comparator<CollectionCard> = when (sort) {
             SortBy.RECENT -> compareByDescending<CollectionCard> { it.addedAt }
-            SortBy.NAME -> compareBy<CollectionCard> { it.name.lowercase() }
+            SortBy.NAME -> compareBy<CollectionCard> { NameKey.of(it.name) }
             SortBy.PRICE -> compareByDescending<CollectionCard> { it.unitPrice() ?: -1.0 }.thenBy { it.name }
             SortBy.MANA -> compareBy<CollectionCard> { it.cmc }.thenBy { it.name }
             SortBy.SET -> compareBy<CollectionCard> { it.setName }
@@ -466,11 +546,15 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             else -> mapOf('W' to "White", 'U' to "Blue", 'B' to "Black", 'R' to "Red", 'G' to "Green")[c.colors[0]] ?: "Colorless"
         }
 
-        /** Groups cards by the divider they sit behind, front of the box first. */
-        fun bySpot(cards: List<CollectionCard>, divider: Divider): List<Pair<String, List<CollectionCard>>> {
-            val order = Sorting.spotOrder(divider)
-            return cards.groupBy { Sorting.spot(divider, it.name, it.facts()) ?: "" }
+        /**
+         * Groups cards by the divider(s) they sit behind, front of the box first. With [byNumber], cards in each
+         * group go in collector number order, as in a box kept that way.
+         */
+        fun bySpot(cards: List<CollectionCard>, layout: BoxLayout, byNumber: Boolean = false): List<Pair<String, List<CollectionCard>>> {
+            val order = Sorting.spotOrder(layout)
+            return cards.groupBy { Sorting.spot(layout, it.name, it.facts()) ?: "" }
                 .toList().sortedWith(compareBy<Pair<String, List<CollectionCard>>, String>(order) { it.first })
+                .map { (spot, list) -> spot to if (byNumber) list.sortedBy { Sorting.numberKey(it.facts()) } else list }
         }
 
         fun group(cards: List<CollectionCard>, by: GroupBy): List<Pair<String, List<CollectionCard>>> = when (by) {
