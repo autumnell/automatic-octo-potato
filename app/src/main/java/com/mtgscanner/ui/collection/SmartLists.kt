@@ -28,7 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mtgscanner.data.Divider
+import com.mtgscanner.data.BoxLayout
 import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.CollectionCard
@@ -43,9 +43,10 @@ import com.mtgscanner.ui.theme.Palette
 /** A saved Browse search shown like a box: it holds no cards itself, it just counts what matches. */
 data class SmartList(val search: SavedSearch, val cards: Int, val value: Double) {
     companion object {
-        /** Uses Browse's own filter so the count matches what Browse shows. */
+        /** Uses Browse's own filter so the count matches what Browse shows; a list saved in a box counts that box only. */
         fun of(s: SavedSearch, all: List<CollectionCard>): SmartList {
-            val hits = all.filter { BrowseViewModel.matches(it, s.filters) }
+            val box = s.boxId
+            val hits = all.filter { (box == null || it.boxId == box) && BrowseViewModel.matches(it, s.filters) }
             return SmartList(s, hits.sumOf { it.quantity }, hits.sumOf { it.totalPrice() })
         }
     }
@@ -108,7 +109,7 @@ fun ResortSheet(
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
                 items(moves, key = { it.item.id }) { m ->
                     val to = byId[m.to]
-                    val spot = to?.let { Sorting.spot(Divider.of(it.divider), m.item.name, m.item.facts()) }
+                    val spot = to?.let { Sorting.spot(BoxLayout.of(it.divider), m.item.name, m.item.facts()) }
                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                         CardImage(m.item.smallImageUrl, Modifier.width(40.dp), corner = 4.dp)
                         Spacer(Modifier.width(10.dp))

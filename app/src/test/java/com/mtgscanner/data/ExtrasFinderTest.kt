@@ -35,4 +35,15 @@ class ExtrasFinderTest {
         val rows = listOf(row(1, "bolt", 4), row(2, "bolt", 4, box = 2))
         assertTrue(ExtrasFinder.find(rows, keep = 4, skipBoxIds = skipped).isEmpty())
     }
+
+    // Item 83: worst condition, then non-English, then newest copies move first.
+    @Test fun movesWorstCopiesFirst() {
+        val rows = listOf(
+            ExtraRow(1, "bolt", "Bolt", 2, 1, 9, "Instant", 1.0, condition = "NM", lang = "en"),
+            ExtraRow(2, "bolt", "Bolt", 2, 1, 1, "Instant", 1.0, condition = "HP", lang = "en"),
+            ExtraRow(3, "bolt", "Bolt", 2, 1, 2, "Instant", 1.0, condition = "NM", lang = "de"),
+        )
+        val g = ExtrasFinder.find(rows, keep = 2, skipBoxIds = emptySet()).single()
+        assertEquals(listOf(2L to 2, 3L to 2), g.moves)
+    }
 }

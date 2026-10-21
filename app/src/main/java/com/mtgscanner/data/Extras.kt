@@ -11,6 +11,10 @@ data class ExtraRow(
     val addedAt: Long,
     val typeLine: String,
     val price: Double?,
+    /** "NM", "LP", "MP", "HP" or "DMG". */
+    val condition: String = "NM",
+    /** Scryfall language code; "en" is English. */
+    val lang: String = "en",
 )
 
 /** A card you have more copies of than you need, and which rows to move to free them up. */
@@ -40,8 +44,9 @@ object ExtrasFinder {
         boxes.filterNot { (id, kind) -> Sorting.isMainBox(BoxInfo(id, BoxRules(), kind), policy) }.map { it.first }.toSet()
 
     /**
-     * Finds cards with more than [keep] copies outside [skipBoxIds] (see [skippedBoxes]). The newest
-     * copies are the ones suggested for moving, so the first ones you filed stay where they are.
+     * Finds cards with more than [keep] copies outside [skipBoxIds] (see [skippedBoxes]). The copies suggested
+     * for moving are the worst condition first, then non-English, then the newest, so the copies you keep
+     * are your best ones and the first ones you filed.
      */
     fun find(rows: List<ExtraRow>, keep: Int, skipBoxIds: Set<Long>): List<ExtraGroup> =
         rows.filter { it.boxId !in skipBoxIds && !unlimited(it.typeLine, it.name) }
@@ -52,7 +57,7 @@ object ExtrasFinder {
                 var left = owned - keep
                 val moves = mutableListOf<Pair<Long, Int>>()
                 var value = 0.0
-                for (r in group.sortedByDescending { it.addedAt }) {
+                for (r in group.sortedWith(MOVE_FIRST)) {
                     if (left == 0) break
                     val n = minOf(left, r.quantity)
                     moves += r.id to n
@@ -62,6 +67,15 @@ object ExtrasFinder {
                 ExtraGroup(key, group.first().name, owned, keep, moves, value)
             }
             .sortedWith(compareByDescending<ExtraGroup> { it.extra }.thenBy { it.name })
+
+    /** Condition from best to worst. */
+    private val CONDITIONS = listOf("NM", "LP", "MP", "HP", "DMG")
+
+    fun conditionRank(condition: String): Int = CONDITIONS.indexOf(condition.uppercase()).coerceAtLeast(0)
+
+    private val MOVE_FIRST: Comparator<ExtraRow> = compareByDescending<ExtraRow> { conditionRank(it.condition) }
+        .thenBy { it.lang.isBlank() || it.lang.equals("en", ignoreCase = true) }
+        .thenByDescending { it.addedAt }
 
     private val ANY_NUMBER = setOf(
         "Relentless Rats", "Rat Colony", "Shadowborn Apostle", "Persistent Petitioners", "Dragon's Approach",

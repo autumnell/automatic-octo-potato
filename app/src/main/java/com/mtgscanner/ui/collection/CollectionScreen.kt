@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -85,7 +86,10 @@ import com.mtgscanner.data.BoxArt
 import com.mtgscanner.data.BoxCovers
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.BoxStats
+import com.mtgscanner.data.BoxLayout
 import com.mtgscanner.data.BoxTemplate
+import com.mtgscanner.data.Divider
+import com.mtgscanner.data.RuleCheck
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.CollectionCard
@@ -116,6 +120,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -247,7 +252,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun deleteList(s: SavedSearch) {
         searches.delete(s.name)
-        Undo.offer("Deleted ${s.name}") { searches.save(s.name, s.filters) }
+        Undo.offer("Deleted ${s.name}") { searches.save(s.name, s.filters, s.boxId) }
     }
 
     /** Saves the Auto-sort order, first to last. */
@@ -323,6 +328,25 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         }
     }
 
+    /** Sets a box's dividers (one or two levels) and the order inside. */
+    fun setLayout(b: BoxSummary, key: String) = viewModelScope.launch {
+        repo.setBoxLayout(b.id, b.capacity, key)
+        Undo.offer("Dividers saved") { repo.setBoxLayout(b.id, b.capacity, b.divider) }
+    }
+
+    /** Printable box and divider labels as a PDF. */
+    fun exportLabels(resolver: ContentResolver, uri: Uri) {
+        viewModelScope.launch {
+            _message.value = runCatching {
+                val boxes = repo.observeBoxes().first()
+                val cards = repo.allCards()
+                withContext(Dispatchers.IO) {
+                    resolver.openOutputStream(uri, "wt")?.use { BoxLabels.write(boxes, cards, it) } ?: 0
+                }
+            }.fold({ "Saved $it labels" }, { "Labels failed: ${it.message}" })
+        }
+    }
+
     fun messageShown() { _message.value = null }
 }
 
@@ -348,6 +372,9 @@ fun CollectionScreen(
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) vm.export(ctx.contentResolver, uri)
+    }
+    val labelsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null) vm.exportLabels(ctx.contentResolver, uri)
     }
     // The app's own snackbar shows messages, so they don't stack on top of an Undo.
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
@@ -379,6 +406,11 @@ fun CollectionScreen(
                                 menu = false
                                 exportLauncher.launch("mtg-collection-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.csv")
                             },
+                        )
+                        if (ui.boxes.isNotEmpty()) DropdownMenuItem(
+                            text = { Text("Print box labels") },
+                            leadingIcon = { Icon(Icons.Filled.Print, null) },
+                            onClick = { menu = false; labelsLauncher.launch("box-labels.pdf") },
                         )
                     }
                 }
@@ -413,8 +445,11 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     var sorting by remember { mutableStateOf<BoxSummary?>(null) }
     var sortingNew by remember { mutableStateOf<BoxSummary?>(null) }
     var covering by remember { mutableStateOf<BoxSummary?>(null) }
+    var laying by remember { mutableStateOf<BoxSummary?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     val colors = remember(ui.boxes) { boxStripeColors(ui.boxes) }
+    // Boxes whose rules never get a card because an earlier box takes them all.
+    val dead = remember(ui.boxes) { deadBoxNotes(ui.boxes) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue)
@@ -459,13 +494,12 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             BoxCard(
                 b, ui.stats[b.id], colors[b.id] ?: boxColor(b.color),
                 onClick = { onBrowse(b.id) }, onCover = { covering = b }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
-                onSplit = { splitting = b }, onTrade = { onTrade(b.id) },
+                onSplit = { splitting = b }, onTrade = { onTrade(b.id) }, onLayout = { laying = b }, warning = dead[b.id],
             )
         }
         SmartListsSection(lists, onOpen = { s ->
-            BrowseLaunch.filters = s.filters
-            BrowseLaunch.title = s.name
-            onBrowse(-1L)
+            BrowseLaunch.open(s)
+            onBrowse(s.boxId ?: -1L)
         }, onDelete = vm::deleteList)
         Spacer(Modifier.height(24.dp))
     }
@@ -517,6 +551,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             onDismiss = { covering = null },
         )
     }
+    laying?.let { b -> LayoutDialog(b, onSave = { vm.setLayout(b, it); laying = null }, onDismiss = { laying = null }) }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
     deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id && it.kind != "trade" && it.kind != "deck" }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
@@ -545,7 +580,8 @@ private fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismiss
         containerColor = Palette.Surface,
         title = { Text("Delete ${box.name}?") },
         text = {
-            Column {
+            // Scrolls with many boxes, so every choice (and "Delete them permanently") can be reached.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (box.cards == 0) {
                     Text("It's empty.")
                 } else {
@@ -626,12 +662,11 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun BoxCard(
     b: BoxSummary, stats: BoxStats?, stripe: Color, onClick: () -> Unit, onCover: () -> Unit,
     onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit,
-    onSplit: () -> Unit, onTrade: () -> Unit,
+    onSplit: () -> Unit, onTrade: () -> Unit, onLayout: () -> Unit, warning: String?,
 ) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     val fill = BoxFillMath.state(b.cards, b.capacity)
-    val nearlyFull = fill != BoxFill.OK
     val art = if (b.cards > 0) stats?.artUrl else null
     val shape = RoundedCornerShape(20.dp)
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -665,6 +700,7 @@ private fun BoxCard(
             Column(Modifier.padding(start = 22.dp, end = 18.dp, top = if (art != null) 10.dp else 16.dp, bottom = 14.dp)) {
                 if (art == null) BoxTitle(b, stripe, onArt = false)
                 Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -703,7 +739,8 @@ private fun BoxCard(
                 DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
                 if (b.kind == "trade") DropdownMenuItem(text = { Text("Trade") }, onClick = { menu = false; onTrade() })
-                if (nearlyFull && b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
+                DropdownMenuItem(text = { Text("Dividers") }, onClick = { menu = false; onLayout() })
+                if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
@@ -876,4 +913,54 @@ private fun ToolCard(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
         }
     }
+}
+
+/** "Never gets cards · Rares first" for each box whose rules an earlier box always beats. */
+internal fun deadBoxNotes(boxes: List<BoxSummary>): Map<Long, String> {
+    val names = boxes.associate { it.id to it.name }
+    return RuleCheck.deadBoxes(boxes.map { Triple(it.id, BoxRules.fromJson(it.rules), it.capacity > 0) })
+        .mapValues { (_, by) -> if (by != null) "Never gets cards · ${names[by]} first" else "Never gets cards" }
+}
+
+/** Dividers in a box, up to two levels (Color, then Letter), and whether cards go by name or number behind them. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun LayoutDialog(box: BoxSummary, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    val start = remember(box.divider) { BoxLayout.of(box.divider) }
+    var first by remember { mutableStateOf(start.first) }
+    var second by remember { mutableStateOf(start.second) }
+    var byNumber by remember { mutableStateOf(start.byNumber) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Dividers in ${box.name}") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("First", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                Spacer(Modifier.height(6.dp))
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Divider.entries.forEach { d ->
+                        SelectPill(d.label, first == d, { first = d; if (second == d || d == Divider.NONE) second = Divider.NONE })
+                    }
+                }
+                if (first != Divider.NONE) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Then", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                    Spacer(Modifier.height(6.dp))
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Divider.entries.filter { it != first }.forEach { d -> SelectPill(d.label, second == d, { second = d }) }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Order", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SelectPill("Name", !byNumber, { byNumber = false })
+                    SelectPill("Set number", byNumber, { byNumber = true })
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(BoxLayout(first, second, byNumber).key) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

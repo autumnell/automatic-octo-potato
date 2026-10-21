@@ -35,6 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.BoxRules
+import com.mtgscanner.data.SortPrefs
+import com.mtgscanner.ui.components.SelectPill
+import androidx.compose.foundation.layout.Arrangement
 import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.boxIcon
@@ -55,6 +58,8 @@ fun AutoSortOrderSheet(
     var order by remember { mutableStateOf(boxes.map { it.id }) }
     var fallback by remember { mutableStateOf(boxes.firstOrNull { it.fallback }?.id) }
     val byId = boxes.associateBy { it.id }
+    // Re-checked as boxes move up and down.
+    val warnings = remember(order, boxes) { deadBoxNotes(order.mapNotNull { byId[it] }) }
 
     fun move(from: Int, to: Int) {
         if (to !in order.indices) return
@@ -82,6 +87,9 @@ fun AutoSortOrderSheet(
                         Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
                             Text(b.name, style = MaterialTheme.typography.titleSmall)
                             Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
+                            warnings[id]?.let {
+                                Text(it, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1)
+                            }
                         }
                         IconButton(onClick = { move(i, i - 1) }, enabled = i > 0) { Icon(Icons.Filled.KeyboardArrowUp, "Move up") }
                         IconButton(onClick = { move(i, i + 1) }, enabled = i < order.lastIndex) { Icon(Icons.Filled.KeyboardArrowDown, "Move down") }
@@ -104,6 +112,21 @@ fun AutoSortOrderSheet(
                 // Trade binders and deck boxes aren't for leftovers (still shown if one already is).
                 if ((b.kind == "trade" || b.kind == "deck") && fallback != id) return@forEach
                 FallbackChoice(b.name, fallback == id) { fallback = id; onFallback(id) }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = Palette.Outline)
+            Text("Price buffer", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
+            Text(
+                "Re-sort leaves cards near a price line where they are.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.Muted,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0, 5, 10, 20).forEach { pct ->
+                    SelectPill(if (pct == 0) "Off" else "±$pct%", SortPrefs.priceBuffer == pct, { SortPrefs.updatePriceBuffer(pct) })
+                }
             }
             Spacer(Modifier.height(24.dp))
         }
