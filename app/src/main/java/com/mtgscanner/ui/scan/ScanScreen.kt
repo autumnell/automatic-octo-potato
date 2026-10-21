@@ -52,13 +52,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FlashOff
@@ -95,9 +93,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -117,6 +115,8 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.components.Haptics
+import com.mtgscanner.ui.components.foilShimmer
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityDot
@@ -162,25 +162,50 @@ fun ScanScreen(
     val loadedBoxes by vm.boxes.collectAsStateWithLifecycle()
     val boxes = loadedBoxes.orEmpty()
     val needsBox = loadedBoxes != null && boxes.isEmpty()
-    val haptics = LocalHapticFeedback.current
+    val view = LocalView.current
     DisposableEffect(Unit) { onDispose { ScanFeedback.release() } }
+    val hintTargets = remember { mutableStateMapOf<String, Rect>() }
+    // Lines added since the screen opened slide into the pile; older ones are already there.
+    val startKey = remember { state.session.maxOfOrNull { it.key } ?: 0L }
+    var flight by remember { mutableStateOf<Flight?>(null) }
+    var lastLine by remember { mutableStateOf(state.session.firstOrNull()?.let { it.key to it.count }) }
     // Bumps once per new add on this screen; drives the frame flash and box callout without replaying them on return.
     var addTick by remember { mutableStateOf(0) }
     LaunchedEffect(state.addedPulse) {
         if (vm.freshAdded(state.addedPulse)) {
-            if (state.settings.vibrate) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            if (state.settings.vibrate) {
+                if (state.lastFull) Haptics.boxFull(view) else Haptics.added(view)
+            }
             ScanFeedback.play(ctx, state.settings.sound)
             addTick++
+            val e = state.session.firstOrNull()
+            val line = e?.let { it.key to it.count }
+            if (e != null && isNewAdd(lastLine, line)) {
+                // One frame so the pile has laid out with the new card before aiming at it.
+                withFrameNanos { }
+                val from = hintTargets["frame"]
+                val to = hintTargets["fan"] ?: hintTargets["list"]
+                if (from != null && to != null) {
+                    flight = Flight(
+                        id = addTick,
+                        imageUrl = e.card.imageUrl,
+                        from = from,
+                        to = to,
+                        label = e.where.ifEmpty { "Added" } + if (e.full) " · Full" else "",
+                        color = if (e.deckId != 0L) 0 else state.lastBoxColor,
+                    )
+                }
+            }
+            lastLine = line
         }
     }
     LaunchedEffect(state.asidePulse) {
         if (vm.freshAside(state.asidePulse)) {
-            if (state.settings.vibrate) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            if (state.settings.vibrate) Haptics.setAside(view)
             ScanFeedback.play(ctx, state.settings.asideSound)
         }
     }
 
-    val hintTargets = remember { mutableStateMapOf<String, Rect>() }
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalHintTargets provides hintTargets) {
             Column(Modifier.fillMaxSize().background(Color.Black)) {
@@ -189,32 +214,28 @@ fun ScanScreen(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     if (needsBox) {
                         EmptyState(
-                            icon = Icons.Filled.Inventory2,
-                            title = "Create a box first",
-                            body = "Scanned cards go into boxes.",
-                            modifier = Modifier.align(Alignment.Center),
-                            action = { GradientButton("Create a box", { vm.showNewBox(true) }, icon = Icons.Filled.Add) },
+                            "Create a box first",
+                            Modifier.align(Alignment.Center),
+                            action = "Create a box",
+                            onAction = { vm.showNewBox(true) },
                         )
                     } else if (hasPermission) {
                         CameraPreview(vm = vm, torch = state.torch)
                     } else {
                         EmptyState(
-                            icon = Icons.Filled.CameraAlt,
-                            title = "Camera needed",
-                            body = "Needed to read your cards.",
-                            modifier = Modifier.align(Alignment.Center),
-                            action = {
+                            "Camera needed",
+                            Modifier.align(Alignment.Center),
+                            action = if (blocked) "Open settings" else "Allow camera",
+                            onAction = {
                                 if (blocked) {
-                                    GradientButton("Open settings", {
-                                        ctx.startActivity(
-                                            android.content.Intent(
-                                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                                android.net.Uri.fromParts("package", ctx.packageName, null),
-                                            ),
-                                        )
-                                    })
+                                    ctx.startActivity(
+                                        android.content.Intent(
+                                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            android.net.Uri.fromParts("package", ctx.packageName, null),
+                                        ),
+                                    )
                                 } else {
-                                    GradientButton("Allow camera", { launcher.launch(Manifest.permission.CAMERA) })
+                                    launcher.launch(Manifest.permission.CAMERA)
                                 }
                             },
                         )
@@ -222,7 +243,10 @@ fun ScanScreen(
 
                     if (hasPermission && !needsBox) {
                         if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
-                        else FrameGuide(found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused, modifier = Modifier.align(Alignment.Center))
+                        else FrameGuide(
+                            found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused,
+                            modifier = Modifier.align(Alignment.Center).hintTarget("frame"),
+                        )
                         Column(
                             Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -286,7 +310,14 @@ fun ScanScreen(
                         state.offline?.let { if (state.current == null) OfflineCard(it.name, vm) }
                         if (state.pageMode && hasPermission && !needsBox) PageControls(state, vm)
                         else if (state.current == null && state.offline == null && !needsBox) {
-                            StatusPill(state, Modifier.align(Alignment.CenterHorizontally))
+                            // This session's cards, fanned at the left; the status beside them.
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                                if (state.session.isNotEmpty()) {
+                                    SessionFan(state.session, startKey, onClick = { vm.showList(true) }, modifier = Modifier.hintTarget("fan"))
+                                    Spacer(Modifier.width(10.dp))
+                                }
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) { StatusPill(state) }
+                            }
                         }
                         if (!needsBox) {
                             // The last card hides while a new one is on screen.
@@ -305,6 +336,8 @@ fun ScanScreen(
                 if (!needsBox) ControlsRow(state, vm)
             }
         }
+        // Drawn over everything on the screen, never catching touches.
+        AddFlightOverlay(flight)
         val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
             state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.showNewBox
         if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
@@ -336,7 +369,8 @@ fun ScanScreen(
 @Composable
 private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
     Row(
-        Modifier.fillMaxWidth().background(Color.Black).padding(horizontal = 16.dp, vertical = 8.dp),
+        // Extra room at the bottom for the raised Scan tab under it.
+        Modifier.fillMaxWidth().background(Color.Black).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
@@ -598,7 +632,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Palette.Surface.copy(alpha = 0.97f)) {
         Column(Modifier.padding(14.dp)) {
             Row {
-                CardImage(card.imageUrl, Modifier.width(92.dp), corner = 6.dp)
+                CardImage(card.imageUrl, Modifier.width(92.dp).foilShimmer(foil), corner = 6.dp)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(card.name, style = MaterialTheme.typography.titleMedium)
@@ -769,6 +803,9 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
+          if (state.session.isEmpty()) item(key = "empty") {
+              EmptyState("Nothing scanned yet", Modifier.padding(vertical = 24.dp))
+          }
           val groups = if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
             else listOf("" to state.session)
           groups.forEach { (boxName, entries) ->

@@ -53,6 +53,7 @@ import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
+import com.mtgscanner.ui.detail.sharedCard
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -175,7 +176,8 @@ fun LastCardBar(
             )
             return@Row
         }
-        CardImage(e.card.smallImageUrl, Modifier.height(40.dp), corner = 3.dp)
+        // Grows into the card page when tapped.
+        CardImage(e.card.smallImageUrl, Modifier.height(40.dp).sharedCard(if (e.deckId == 0L) e.rowId else 0L), corner = 3.dp)
         Spacer(Modifier.width(10.dp))
         SetIcon(e.card.set, size = 16.dp)
         Spacer(Modifier.width(6.dp))
@@ -247,12 +249,7 @@ fun SetPickSheet(vm: ScanViewModel) {
                 }
                 items(shown, key = { it.code }) { s -> SetRow(s, s.code == lock) { vm.setLock(s.code) } }
                 if (sets.isEmpty() && typed == null) item(key = "empty") {
-                    EmptyState(
-                        icon = Icons.Filled.Lock,
-                        title = "No sets yet",
-                        body = "Type a set code.",
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    )
+                    EmptyState("No sets. Type a code.", Modifier.fillMaxWidth().padding(vertical = 24.dp))
                 }
             }
             Spacer(Modifier.height(12.dp))
