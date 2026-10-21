@@ -584,7 +584,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
                                             Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
-                                            IconButton(onClick = { vm.removeTag(t) }, modifier = Modifier.size(36.dp)) {
+                                            IconButton(onClick = { vm.removeTag(t) }) {
                                                 Icon(Icons.Filled.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Muted)
                                             }
                                         }

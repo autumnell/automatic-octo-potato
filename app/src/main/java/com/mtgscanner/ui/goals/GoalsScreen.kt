@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -75,12 +76,23 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
-    val goals: StateFlow<List<GoalProgress>?> = repo.observeGoalProgress()
+    /** Bumped by Retry, to fetch goals that failed offline again. */
+    private val retries = MutableStateFlow(0)
+
+    val goals: StateFlow<List<GoalProgress>?> = retries
+        .flatMapLatest { repo.observeGoalProgress() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun retry() {
+        com.mtgscanner.data.GoalCache.clearFailures()
+        retries.value++
+    }
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
@@ -121,7 +133,8 @@ fun GoalsScreen(onBack: () -> Unit, vm: GoalsViewModel = viewModel(factory = Goa
     val goals by vm.goals.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     var adding by remember { mutableStateOf(false) }
-    var openId by remember { mutableLongStateOf(-1L) }
+    // Home can ask for one goal to open (tapping it there).
+    var openId by remember { mutableLongStateOf(com.mtgscanner.ui.home.GoalsLaunch.take()) }
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
     val open = goals?.firstOrNull { it.goal.id == openId }
     BackHandler(enabled = open != null) { openId = -1L }
@@ -138,14 +151,11 @@ fun GoalsScreen(onBack: () -> Unit, vm: GoalsViewModel = viewModel(factory = Goa
         }
         val list = goals
         when {
-            list == null -> Unit
-            open != null -> MissingList(open)
-            list.isEmpty() -> EmptyState(
-                icon = Icons.Filled.EmojiEvents,
-                title = "No goals yet",
-                body = "Every printing of a card, or a set.",
-                action = { GradientButton("Add goal", { adding = true }, icon = Icons.Filled.Add) },
-            )
+            list == null -> Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp, color = Palette.Accent)
+            }
+            open != null -> MissingList(open, onRetry = { vm.retry() })
+            list.isEmpty() -> EmptyState("No goals yet", action = "Add goal", onAction = { adding = true })
             else -> LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -193,13 +203,19 @@ fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun MissingList(p: GoalProgress) {
+private fun MissingList(p: GoalProgress, onRetry: () -> Unit) {
     if (p.loaded && p.missing.isEmpty()) {
-        EmptyState(Icons.Filled.EmojiEvents, "Complete", "You have them all.")
+        EmptyState("Complete", body = "You have them all.")
+        return
+    }
+    if (p.error) {
+        EmptyState("Offline", action = "Retry", onAction = onRetry)
         return
     }
     if (!p.loaded) {
-        EmptyState(Icons.Filled.CloudOff, if (p.error) "Offline" else "Loading…", "Needs Scryfall.")
+        Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp, color = Palette.Accent)
+        }
         return
     }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), modifier = Modifier.navigationBarsPadding()) {

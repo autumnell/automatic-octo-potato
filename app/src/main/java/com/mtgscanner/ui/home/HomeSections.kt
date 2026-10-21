@@ -70,7 +70,8 @@ internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
         return
     }
     Column {
-        goals.sortedBy { if (it.done) 1 else 0 }.take(3).forEach { GoalRow(it, onGoals) }
+        // Tapping a goal opens that goal, not just the list.
+        goals.sortedBy { if (it.done) 1 else 0 }.take(3).forEach { g -> GoalRow(g) { GoalsLaunch.open(g.goal.id); onGoals() } }
     }
 }
 
@@ -210,7 +211,8 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
         title = { Text("Home sections") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                TextButton(onClick = onTiles) { Text("Stat tiles…") }
+                // Keeps the section changes made so far instead of dropping them.
+                TextButton(onClick = { HomePrefs.updateSections(rows.filter { it.second }.map { it.first }); onTiles() }) { Text("Stat tiles…") }
                 rows.forEachIndexed { i, (section, on) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(

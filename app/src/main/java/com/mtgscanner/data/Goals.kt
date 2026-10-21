@@ -35,6 +35,9 @@ object GoalCache {
     private val failed = HashMap<String, Pair<Long, Throwable>>()
 
     fun get(key: String): List<ScryfallCard>? = synchronized(cards) { cards[key] }
+
+    /** Forgets recent failures, so a Retry tries the network again straight away. */
+    fun clearFailures() = synchronized(cards) { failed.clear() }
     fun put(key: String, list: List<ScryfallCard>) = synchronized(cards) { cards[key] = list }
 
     /** The cached list, or the running download, or a new one in [scope]. Throws the last failure for a while. */
