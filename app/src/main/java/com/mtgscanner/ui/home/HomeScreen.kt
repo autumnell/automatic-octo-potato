@@ -30,6 +30,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -512,40 +516,75 @@ private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
     }
 }
 
+/**
+ * One bar of the six colors, then one line of pips with their share. Tapping a slice or a pip picks that color:
+ * the others fade and a line under the bar gives its name, share and card count, with a link to Browse.
+ */
 @Composable
 private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) -> Unit) {
-    val total = colors.sumOf { it.second }.coerceAtLeast(1)
+    val total = colors.sumOf { it.second }
+    var picked by rememberSaveable { mutableStateOf<String?>(null) }
+    val toggle = { k: String -> picked = if (picked == k) null else k }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
-        Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))) {
+        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(6.dp)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             colors.filter { it.second > 0 }.forEach { (k, n) ->
-                Box(Modifier.weight(n.toFloat()).fillMaxHeight().background(colorFor(k)))
+                val alpha by animateFloatAsState(if (picked == null || picked == k) 1f else 0.3f, label = "slice")
+                Box(
+                    Modifier.weight(n.toFloat()).fillMaxHeight()
+                        .graphicsLayer { this.alpha = alpha }
+                        .background(colorFor(k))
+                        .clickable { toggle(k) },
+                )
             }
-            if (colors.all { it.second == 0 }) Box(Modifier.weight(1f).fillMaxHeight().background(Palette.SurfaceHigh))
+            if (total == 0) Box(Modifier.weight(1f).fillMaxHeight().background(Palette.SurfaceHigh))
         }
-        Spacer(Modifier.height(14.dp))
-        colors.chunked(4).forEach { row ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                row.forEach { (k, n) ->
-                    Row(
-                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                            .clickable(enabled = n > 0) { onColor(k) }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (k in listOf("W", "U", "B", "R", "G", "C")) ColorPip(k[0])
-                        else Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(colorFor(k)))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "${label(k)} ${n * 100 / total}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (n > 0) Palette.Text else Palette.Muted,
-                        )
-                    }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth()) {
+            colors.forEach { (k, n) ->
+                Row(
+                    Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = n > 0) { toggle(k) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    ColorPip(k[0])
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        sharePercent(n, total),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = when {
+                            n == 0 -> Palette.Muted
+                            picked == null || picked == k -> Palette.Text
+                            else -> Palette.Muted
+                        },
+                        maxLines = 1,
+                    )
                 }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        AnimatedVisibility(visible = picked != null) {
+            val k = picked ?: return@AnimatedVisibility
+            val n = colors.firstOrNull { it.first == k }?.second ?: 0
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(colorFor(k)))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${label(k)} · ${sharePercent(n, total)} · ${"%,d".format(n)} cards",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { onColor(k) }) { Text("Browse") }
             }
         }
     }
+}
+
+/** A color's share of the total, rounded; tiny but non-zero shares read "<1%". */
+internal fun sharePercent(n: Int, total: Int): String = when {
+    total <= 0 || n <= 0 -> "0%"
+    n * 100 < total -> "<1%"
+    else -> "${Math.round(n * 100.0 / total)}%"
 }
 
 private fun colorFor(k: String): Color = when (k) {
