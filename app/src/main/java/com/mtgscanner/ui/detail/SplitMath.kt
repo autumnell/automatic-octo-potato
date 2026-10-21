@@ -10,7 +10,7 @@ object SplitMath {
     /** True when [change] actually changes something on [row] and leaves at least one copy behind. */
     fun valid(row: CollectionCard, change: SplitChange): Boolean =
         change.qty in 1 until row.quantity &&
-            (change.condition != row.condition || change.foil != row.foil || !change.lang.equals(row.lang, ignoreCase = true))
+            (change.condition != row.condition || change.foil != row.foil || !change.lang.equals(row.lang.ifBlank { "en" }, ignoreCase = true))
 
     /** The copies split off as a new row (id 0), before any merge with an existing twin. */
     fun splitRow(row: CollectionCard, change: SplitChange, now: Long): CollectionCard = row.copy(
@@ -33,7 +33,7 @@ object SplitMath {
         val parts = buildList {
             if (change.condition != row.condition) add(change.condition)
             if (change.foil != row.foil) add(if (change.foil) "foil" else "non-foil")
-            if (!change.lang.equals(row.lang, ignoreCase = true)) add(change.lang.uppercase())
+            if (!change.lang.equals(row.lang.ifBlank { "en" }, ignoreCase = true)) add(change.lang.uppercase())
         }
         val verb = if (change.qty == 1) "is" else "are"
         return "${change.qty} of ${row.quantity} $verb ${parts.joinToString(", ")}"
