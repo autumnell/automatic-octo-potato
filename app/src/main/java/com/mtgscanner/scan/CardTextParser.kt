@@ -40,6 +40,16 @@ data class CardTextGuess(
      * ways up, to match against downloaded art indexes. Empty otherwise.
      */
     val artOnly: List<Long> = emptyList(),
+    /** Embeddings of the same pictures as [artOnly], in the same order, when the art model is ready. */
+    val artOnlyEmbeddings: List<ByteArray> = emptyList(),
+    /** The copyright year at the bottom of the card ("™ & © 1997 Wizards"), if read. */
+    val year: Int? = null,
+    /** Embedding of the straightened artwork, filled in by the analyzer when the art model is ready. */
+    val artEmbedding: ByteArray? = null,
+    /** Shape of the set symbol on the type line, from the straightened card. */
+    val symbol: SymbolPrint? = null,
+    /** Large blown-out highlights over the name or footer. */
+    val glare: Boolean = false,
 ) {
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null
 
@@ -100,10 +110,55 @@ object CardTextParser {
         val text = clean.sortedBy { it.top }.joinToString("\n") { it.text }.take(600)
         // The language code is printed in the footer only.
         val footerLang = lowerLines(clean).firstNotNullOfOrNull { findLangCode(it.text) }
+        // The copyright line is at the very bottom; look there first.
+        val year = (lowerLines(clean) + clean).firstNotNullOfOrNull { findCopyrightYear(it.text) }
         return CardTextGuess(
             names, setCode, number, score, findArtBox(clean) ?: estimateArtBox(clean),
-            lang = LanguageDetector.detect(text, footerLang), text = text,
+            lang = LanguageDetector.detect(text, footerLang), text = text, year = year,
         )
+    }
+
+    /**
+     * Combines a read of just the name bar and footer ([strips], sharper) with a read of the whole card
+     * ([full], with the rules text that tells the language). The strips' name comes first; a complete
+     * footer is taken from whichever read has one.
+     */
+    fun merge(strips: CardTextGuess, full: CardTextGuess): CardTextGuess {
+        if (strips.isEmpty) return full.copy(year = full.year ?: strips.year, glare = strips.glare || full.glare)
+        val names = (strips.nameCandidates + full.nameCandidates).distinct().take(3)
+        val stripFooter = strips.setCode != null && strips.collectorNumber != null
+        val fullFooter = full.setCode != null && full.collectorNumber != null
+        val (set, number) = when {
+            stripFooter -> strips.setCode to strips.collectorNumber
+            fullFooter -> full.setCode to full.collectorNumber
+            else -> (strips.setCode ?: full.setCode) to (strips.collectorNumber ?: full.collectorNumber)
+        }
+        // A language code read in the footer is certain; otherwise the rules text tells more than a name.
+        val lang = if (strips.setCode != null) strips.lang else full.lang ?: strips.lang
+        return full.copy(
+            nameCandidates = names, setCode = set, collectorNumber = number,
+            score = maxOf(strips.score, full.score), lang = lang,
+            text = full.text.ifEmpty { strips.text }, year = strips.year ?: full.year,
+            glare = strips.glare || full.glare,
+        )
+    }
+
+    private const val YEAR = """((?:199[3-9])|(?:20[0-4]\d))"""
+
+    // "©", "(C)", or what OCR makes of the sign: a lone C, O, o, e or @ right before the year.
+    private val COPYRIGHT = Regex("""(?:©|\(\s*[cC]\s*\)|(?<![A-Za-z0-9])[cCoOe@])\s*$YEAR(?:\s*[-–—]\s*$YEAR)?(?!\d)""")
+
+    // A year (or range) followed closely by "Wizards", when the sign itself wasn't read.
+    private val YEAR_WIZARDS = Regex("""(?<![\d/])$YEAR(?:\s*[-–—]\s*$YEAR)?(?!\d)(?=[^0-9]{0,8}(?:Wizards|WIZARDS|Wizard|WotC|WOTC))""")
+
+    /**
+     * The copyright year from a line like "™ & © 1997 Wizards of the Coast". For a range ("©1993-2024 Wizards")
+     * the last year is the printing's. Null when no copyright is on the line.
+     */
+    fun findCopyrightYear(text: String): Int? {
+        val m = COPYRIGHT.find(text) ?: YEAR_WIZARDS.find(text) ?: return null
+        val last = m.groupValues[2].ifEmpty { m.groupValues[1] }
+        return last.toIntOrNull()
     }
 
     /**

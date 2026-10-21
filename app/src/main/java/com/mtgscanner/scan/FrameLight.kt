@@ -53,6 +53,39 @@ object LightCheck {
         return swing >= 0.05 && sparkle.max() >= 0.02 && stdev(sparkle) + stdev(glare) >= 0.015
     }
 
+    /**
+     * Share (0..1) of a [w] x [h] ARGB picture covered by blown-out highlights: it's cut into [cols] x [rows]
+     * cells, and a cell counts when most of it is pure white. Glare on a sleeve gives a big white patch;
+     * a white border or white frame is paper, a little darker.
+     */
+    fun blownShare(px: IntArray, w: Int, h: Int, cols: Int = 12, rows: Int = 3): Float {
+        if (w < cols || h < rows || px.size < w * h) return 0f
+        var blown = 0
+        for (cy in 0 until rows) for (cx in 0 until cols) {
+            val x0 = cx * w / cols
+            val x1 = (cx + 1) * w / cols
+            val y0 = cy * h / rows
+            val y1 = (cy + 1) * h / rows
+            var white = 0
+            var n = 0
+            for (y in y0 until y1) for (x in x0 until x1) {
+                val p = px[y * w + x]
+                val lo = minOf((p shr 16) and 0xFF, (p shr 8) and 0xFF, p and 0xFF)
+                if (lo >= BLOWN) white++
+                n++
+            }
+            if (n > 0 && white * 10 >= n * 7) blown++
+        }
+        return blown.toFloat() / (cols * rows)
+    }
+
+    /** Whether glare covers enough of the name bar or footer to spoil reading it. */
+    fun glare(px: IntArray, w: Int, h: Int): Boolean = blownShare(px, w, h) >= GLARE_SHARE
+
+    /** Every channel at least this bright: blown out. */
+    const val BLOWN = 248
+    const val GLARE_SHARE = 0.15f
+
     private fun stdev(v: List<Double>): Double {
         val m = v.average()
         return kotlin.math.sqrt(v.sumOf { (it - m) * (it - m) } / v.size)
