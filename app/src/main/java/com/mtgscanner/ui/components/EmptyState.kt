@@ -26,7 +26,16 @@ import com.mtgscanner.ui.theme.Palette
  * [action] shows only when [onAction] is given too.
  */
 @Composable
-fun EmptyState(title: String, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
+fun EmptyState(
+    title: String,
+    modifier: Modifier = Modifier,
+    action: String? = null,
+    onAction: (() -> Unit)? = null,
+    /** One short muted line under the title. */
+    body: String? = null,
+    /** Anything else under the title, such as a button. */
+    content: (@Composable () -> Unit)? = null,
+) {
     Column(
         modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -35,11 +44,19 @@ fun EmptyState(title: String, modifier: Modifier = Modifier, action: String? = n
         Ornament()
         Spacer(Modifier.height(14.dp))
         Text(title, style = MaterialTheme.typography.headlineSmall, color = Palette.Text, textAlign = TextAlign.Center)
+        if (body != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, textAlign = TextAlign.Center)
+        }
         if (action != null && onAction != null) {
             Spacer(Modifier.height(6.dp))
             TextButton(onClick = onAction) {
                 Text(action, style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
             }
+        }
+        if (content != null) {
+            Spacer(Modifier.height(14.dp))
+            content()
         }
     }
 }

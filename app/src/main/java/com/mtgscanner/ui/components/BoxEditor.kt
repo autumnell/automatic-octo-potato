@@ -52,6 +52,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -180,7 +184,7 @@ fun BoxEditorSheet(
             if (step == 3) {
                 // A range whose low end is above its high end lets no card in.
                 rangeWarnings(rules()).forEach { w ->
-                    Text(w, style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(top = 8.dp))
+                    Text(w, style = MaterialTheme.typography.bodySmall, color = Palette.GoldText, modifier = Modifier.padding(top = 8.dp))
                 }
             }
 
@@ -222,8 +226,8 @@ private fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (In
                         .background(if (n == step) Palette.Accent else if (done) Palette.Accent.copy(alpha = 0.25f) else Palette.SurfaceHigh),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (done) Icon(Icons.Filled.Check, null, tint = Palette.Accent, modifier = Modifier.size(14.dp))
-                    else Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = if (n == step) Color.Black else Palette.Muted)
+                    if (done) Icon(Icons.Filled.Check, null, tint = Palette.AccentText, modifier = Modifier.size(14.dp))
+                    else Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = if (n == step) Palette.OnAccent else Palette.Muted)
                 }
                 Spacer(Modifier.width(6.dp))
                 Text(label, style = MaterialTheme.typography.labelLarge, color = if (n == step) Palette.Text else Palette.Muted)
@@ -315,19 +319,29 @@ private fun DetailsStep(draft: BoxDraft, onChange: (BoxDraft) -> Unit) {
     }
 
     Label("Color")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        CardBox.COLORS.forEach { c ->
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        CardBox.COLORS.forEachIndexed { i, c ->
             val selected = draft.color == c
+            val fill = boxColor(c)
+            // A 48dp tap target around the 34dp swatch.
             Box(
                 Modifier
-                    .size(34.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(boxColor(c))
-                    .border(if (selected) 3.dp else 0.dp, if (selected) Palette.Text else Color.Transparent, CircleShape)
-                    .clickable { onChange(draft.copy(color = c)) },
+                    .selectable(selected = selected, onClick = { onChange(draft.copy(color = c)) })
+                    .semantics { contentDescription = if (c == 0) "Accent color" else "Color ${i + 1}" },
                 contentAlignment = Alignment.Center,
             ) {
-                if (selected) Icon(Icons.Filled.Check, "Selected", tint = Color.Black, modifier = Modifier.size(18.dp))
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(fill)
+                        .border(if (selected) 3.dp else 0.dp, if (selected) Palette.Text else Color.Transparent, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (selected) Icon(Icons.Filled.Check, null, tint = if (fill.luminance() > 0.45f) Color(0xFF141414) else Color.White, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }
@@ -596,7 +610,7 @@ private fun LivePreview(rules: BoxRules, editingId: Long?) {
                         "$takenCount of these go to $names first, because ${if (result.takenBy.size == 1) "that box is" else "those boxes are"} checked " +
                             "earlier in Auto-sort. You can change the order under Collection › Auto-sort order.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Palette.Gold,
+                        color = Palette.GoldText,
                     )
                 }
             }

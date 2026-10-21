@@ -188,7 +188,7 @@ fun GradientButton(
             Icon(icon, null, tint = if (enabled) Palette.OnAccent else Palette.Muted, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(text.uppercase(), color = if (enabled) Palette.OnAccent else Palette.Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Text(text, color = if (enabled) Palette.OnAccent else Palette.Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -311,7 +311,7 @@ fun CardTile(
                 Box(
                     Modifier.align(Alignment.TopStart).padding(6.dp).size(24.dp).clip(CircleShape).background(Palette.Accent),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.Check, "Selected", tint = Color.Black, modifier = Modifier.size(16.dp)) }
+                ) { Icon(Icons.Filled.Check, "Selected", tint = Palette.OnAccent, modifier = Modifier.size(16.dp)) }
             }
             if (quantity != null && quantity > 1) {
                 Box(
@@ -360,20 +360,11 @@ fun boxIcon(kind: String): ImageVector = when (kind) {
     else -> Icons.Filled.Inventory2
 }
 
-/** Centered message for empty screens. */
+/**
+ * Older call shape for empty screens. Draws the same quiet [EmptyState] as everywhere else (the icon is no
+ * longer shown), with [body] as one muted line and [action] under it.
+ */
 @Composable
 fun EmptyState(icon: ImageVector, title: String, body: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
-    Column(modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(72.dp).clip(CircleShape).background(Palette.Surface), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Palette.Accent, modifier = Modifier.size(34.dp))
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(6.dp))
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, textAlign = TextAlign.Center)
-        if (action != null) {
-            Spacer(Modifier.height(20.dp))
-            action()
-        }
-    }
+    EmptyState(title, modifier, body = body, content = action)
 }
