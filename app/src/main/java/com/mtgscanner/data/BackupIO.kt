@@ -251,8 +251,9 @@ internal object BackupIO {
     ): ImportResult = applyPlan(repo, plan(repo, rows, lookUp(repo, rows), boxId), fallbackBox)
 
     /** Looks every row up on Scryfall (exact matches only). Throws IOException when offline. */
-    suspend fun lookUp(repo: CollectionRepository, rows: List<ImportRow>): List<ScryfallCard?> {
+    suspend fun lookUp(repo: CollectionRepository, given: List<ImportRow>): List<ScryfallCard?> {
         val api = repo.api
+        val rows = withSetCodes(repo, given)
         val found = api.identify(rows.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) }).toMutableList()
         val retry = rows.indices.filter { found[it] == null && (rows[it].setCode != null || rows[it].scryfallId != null) }
         if (retry.isNotEmpty()) {
@@ -262,11 +263,23 @@ internal object BackupIO {
         return found
     }
 
+    /** Fills in set codes for rows that only have a full set name (Deckbox, Cardmarket), from Scryfall's set list. */
+    private suspend fun withSetCodes(repo: CollectionRepository, rows: List<ImportRow>): List<ImportRow> {
+        if (rows.none { it.setCode == null && !it.setName.isNullOrBlank() }) return rows
+        val sets = runCatching { repo.sets() }.getOrNull() ?: return rows
+        val byName = SetNames.index(sets.map { it.name to it.code })
+        return rows.map { r ->
+            if (r.setCode != null || r.setName.isNullOrBlank()) r
+            else SetNames.codeFor(r.setName, byName)?.let { r.copy(setCode = it) } ?: r
+        }
+    }
+
     /**
      * Looks one row up again, more loosely: exact first, then Scryfall's fuzzy name match (typos,
      * partial names), with its set and then without. Null when still not found. Throws IOException when offline.
      */
-    suspend fun lookUpLoosely(repo: CollectionRepository, row: ImportRow): ScryfallCard? {
+    suspend fun lookUpLoosely(repo: CollectionRepository, given: ImportRow): ScryfallCard? {
+        val row = withSetCodes(repo, listOf(given)).first()
         lookUp(repo, listOf(row)).firstOrNull()?.let { return it }
         val name = row.name.trim().takeIf { it.isNotEmpty() } ?: return null
         val set = row.setCode
@@ -321,6 +334,9 @@ internal object BackupIO {
                         condition = r.condition ?: "NM",
                         lang = r.language ?: c.lang,
                         purchasePrice = r.purchasePrice,
+                        signed = r.signed,
+                        altered = r.altered,
+                        proxy = r.proxy,
                     )
                     // Same printing, finish, box, language, condition and flags: add to that stack.
                     val existing = dao.find(
