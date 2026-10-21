@@ -2,7 +2,7 @@
     <string name="app_name">Grimoire</string>
     <string name="widget_label">MTG collection</string>
     <string name="widget_scan">Scan</string>
-    <string name="widget_description">Your collection\'s value. Tap to open the app.</string>
+    <string name="widget_description">Your collection\'s value. Make it wider for a Scan button.</string>
     <string name="widget_movers_label">Price movers</string>
     <string name="widget_movers_description">Your cards that moved most in price.</string>
     <string name="shortcut_scan">Scan</string>
