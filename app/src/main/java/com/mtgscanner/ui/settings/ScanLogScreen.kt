@@ -91,7 +91,7 @@ private const val ScanLogEntryLimit = com.mtgscanner.scan.ScanLog.MAX
 private fun LogRow(e: ScanLogEntry) {
     val color = when (e.outcome) {
         "matched" -> Palette.Success
-        "unsure", "corrected" -> Palette.Gold
+        "unsure", "corrected" -> Palette.GoldText
         else -> Palette.Danger
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
