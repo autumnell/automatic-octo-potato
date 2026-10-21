@@ -180,7 +180,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         run("Making report…") {
             val cards = repo.allCards()
             val n = withContext(Dispatchers.IO) {
-                app.contentResolver.openOutputStream(uri)?.use { InsuranceReport.write(cards, min, it, app.filesDir) }
+                openForWrite(app, uri)?.use { InsuranceReport.write(cards, min, it, app.filesDir) }
             } ?: return@run "Couldn't save to that file"
             if (n == 1) "Report saved: 1 card" else "Report saved: $n cards"
         }
