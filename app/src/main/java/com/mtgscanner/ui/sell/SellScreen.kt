@@ -95,13 +95,13 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
         val now = repo.cardOnce(c.id) ?: return@launch
         val n = qty.coerceIn(1, now.quantity)
         val before = repo.snapshot(listOf(now.id))
-        repo.setQuantity(now.id, now.quantity - n)
         val event = CardEvent(scryfallId = now.scryfallId, name = now.name, kind = Sales.KIND, detail = Sales.detail(n, each))
         val eventId = runCatching { repo.dao.addEvent(event) }.getOrNull()
+        repo.setQuantity(now.id, now.quantity - n)
         Undo.offer("Sold ${n}× ${now.name}") {
-            repo.restore(before)
             // The history keeps a note instead of the sale, so it no longer counts toward earned.
             if (eventId != null) runCatching { repo.dao.putEvents(listOf(event.copy(id = eventId, kind = "edited", detail = "Sale undone"))) }
+            repo.restore(before)
         }
     }
 
