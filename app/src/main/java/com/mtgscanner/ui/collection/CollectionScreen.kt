@@ -223,14 +223,20 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun moveOne(m: Sorting.Move<CollectionCard>) = applyMoves(listOf(m))
     fun moveAll() = applyMoves(_moves.value.orEmpty())
 
-    /** Splits a full box in two by first letter. */
-    fun splitBox(b: BoxSummary) = viewModelScope.launch {
+    /** Splits a full box in two by first letter; the second box starts at [letter] (null picks an even split). */
+    fun splitBox(b: BoxSummary, letter: Char? = null) = viewModelScope.launch {
+        val undo = repo.boxUndo(b.id)
         val before = repo.cardsInBox(b.id)
-        val newId = repo.splitBox(b.id)
-        _message.value = if (newId == null) "Can't split ${b.name}" else "Split ${b.name}"
-        if (newId != null) {
-            val moved = repo.cardsInBox(newId).map { it.id }.toSet()
-            recordMoves(before.filter { it.id in moved }.map { it to newId }, show = true)
+        val newId = repo.splitBox(b.id, letter)
+        if (newId == null || undo == null) {
+            _message.value = "Can't split ${b.name}"
+            return@launch
+        }
+        val moved = repo.cardsInBox(newId).map { it.id }.toSet()
+        val added = recordMoves(before.filter { it.id in moved }.map { it to newId }, show = true)
+        Undo.offer("Split ${b.name}") {
+            repo.undoBox(undo)
+            MoveList.remove(added)
         }
     }
 
@@ -255,13 +261,15 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
      * [TO_ANYTHING] moves them to a box that takes any card, making one if needed.
      */
     fun deleteBox(id: Long, moveTo: Long?) = viewModelScope.launch {
+        val undo = repo.boxUndo(id)
         val target = if (moveTo == TO_ANYTHING) repo.anythingBox(except = id) else moveTo
         repo.deleteBox(id, target)
-        _message.value = when (moveTo) {
-            null -> "Box and its cards deleted"
-            TO_ANYTHING -> "Box deleted. Its cards are in your Anything box"
+        val msg = when (moveTo) {
+            null -> "Box and cards deleted"
+            TO_ANYTHING -> "Box deleted. Cards in Anything"
             else -> "Box deleted"
         }
+        if (undo == null) _message.value = msg else Undo.offer(msg) { repo.undoBox(undo) }
     }
 
     /** Sorts a catch-all box: cards that fit another box's rules move there. */
@@ -501,13 +509,11 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
         )
     }
     splitting?.let { b ->
-        AlertDialog(
-            onDismissRequest = { splitting = null },
-            containerColor = Palette.Surface,
-            title = { Text("Split ${b.name}?") },
-            text = { Text("Makes two boxes by first letter, like A–M and N–Z.") },
-            confirmButton = { TextButton(onClick = { vm.splitBox(b); splitting = null }) { Text("Split") } },
-            dismissButton = { TextButton(onClick = { splitting = null }) { Text("Cancel") } },
+        val cards by produceState<List<CollectionCard>?>(null, b.id) { value = vm.cardsIn(b.id) }
+        SplitBoxDialog(
+            b, cards,
+            onSplit = { letter -> vm.splitBox(b, letter); splitting = null },
+            onDismiss = { splitting = null },
         )
     }
     covering?.let { b ->
@@ -535,7 +541,7 @@ private fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismiss
             onDismissRequest = { confirmForever = false },
             containerColor = Palette.Surface,
             title = { Text("Permanently delete ${box.cards} cards?") },
-            text = { Text("${box.name} and every card in it will be removed from your collection. This can't be undone.") },
+            text = { Text("${box.name} and every card in it will be removed from your collection.") },
             confirmButton = { TextButton(onClick = { onDelete(null) }) { Text("Delete forever", color = Palette.Danger) } },
             dismissButton = { TextButton(onClick = { confirmForever = false }) { Text("Keep them") } },
         )
