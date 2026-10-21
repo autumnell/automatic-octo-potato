@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -106,7 +105,7 @@ import com.mtgscanner.data.db.priceWhenAdded
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
-import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.components.foilShimmer
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.RarityDot
@@ -463,11 +462,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         if (c == null) {
             if (showMissing) {
-                EmptyState(
-                    Icons.Filled.SearchOff, "Card not found", "It may have been removed.",
-                    Modifier.align(Alignment.Center),
-                    action = { GradientButton("Back", onBack, icon = Icons.AutoMirrored.Filled.ArrowBack) },
-                )
+                EmptyState("Card not found", Modifier.align(Alignment.Center), action = "Back", onAction = onBack)
             } else {
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
             }
@@ -480,7 +475,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     .graphicsLayer { translationX = dragX * 0.4f }
                     .verticalScroll(rememberScrollState()),
             ) {
-                Hero(c, onPhoto = { viewingPhoto = true })
+                // Only the card opened grows back into the picture it came from, not one swiped to.
+                Hero(c, sharedId = if (c.id == id) id else 0L, onPhoto = { viewingPhoto = true })
                 Column(Modifier.padding(horizontal = 16.dp).offset(y = (-12).dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(c.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
@@ -771,7 +767,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
 
 /** Blurred artwork backdrop with the card itself floating on top. */
 @Composable
-private fun Hero(c: CollectionCard, onPhoto: () -> Unit) {
+private fun Hero(c: CollectionCard, sharedId: Long, onPhoto: () -> Unit) {
     Box(Modifier.fillMaxWidth()) {
         AsyncImage(
             model = artCropUrl(c.imageUrl),
@@ -784,7 +780,9 @@ private fun Hero(c: CollectionCard, onPhoto: () -> Unit) {
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Palette.Background.copy(alpha = 0.6f), Palette.Background))))
         CardImage(
             c.imageUrl,
-            Modifier.align(Alignment.Center).statusBarsPadding().padding(top = 8.dp, bottom = 20.dp).height(170.dp),
+            Modifier.align(Alignment.Center).statusBarsPadding().padding(top = 8.dp, bottom = 20.dp).height(170.dp)
+                .sharedCard(sharedId)
+                .foilShimmer(c.foil),
             corner = 10.dp,
             zoom = true,
         )

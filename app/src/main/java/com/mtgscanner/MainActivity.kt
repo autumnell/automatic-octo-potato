@@ -7,11 +7,39 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.Alignment
@@ -46,7 +74,6 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
@@ -71,7 +98,10 @@ import androidx.navigation.navArgument
 import com.mtgscanner.ui.collection.BrowseScreen
 import com.mtgscanner.ui.collection.CollectionScreen
 import com.mtgscanner.ui.decks.DeckScreen
+import com.mtgscanner.ui.detail.CARD_GROW_MS
 import com.mtgscanner.ui.detail.CardDetailScreen
+import com.mtgscanner.ui.detail.LocalSharedTransition
+import com.mtgscanner.ui.detail.ScreenAnimation
 import com.mtgscanner.ui.home.HomeScreen
 import com.mtgscanner.ui.scan.ScanScreen
 import com.mtgscanner.ui.search.SearchScreen
@@ -139,6 +169,7 @@ fun NavHostController.goToTab(route: String) = navigate(route) {
     restoreState = true
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     com.mtgscanner.util.Haptics.Attach()
@@ -176,28 +207,12 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         // On Scan the bottom is busy (result card, controls, strip), so the snackbar shows at the top instead.
         snackbarHost = { if (route != "scan") SnackbarHost(snackbar) },
         bottomBar = {
-            if (tabs.any { it.route == route }) {
-                NavigationBar(containerColor = Palette.NavBar, tonalElevation = androidx.compose.ui.unit.Dp(0f)) {
-                    tabs.forEach { tab ->
-                        val selected = route == tab.route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { nav.goToTab(tab.route) },
-                            icon = { Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null) },
-                            label = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Palette.Accent,
-                                selectedTextColor = Palette.Accent,
-                                indicatorColor = Color.Transparent,
-                                unselectedIconColor = Palette.Muted,
-                                unselectedTextColor = Palette.Muted,
-                            ),
-                        )
-                    }
-                }
-            }
+            if (tabs.any { it.route == route }) AppTabBar(route) { nav.goToTab(it) }
         },
     ) { padding ->
+      // Card pictures can grow into the card page (see ui/detail/CardTransition.kt).
+      SharedTransitionLayout {
+       CompositionLocalProvider(LocalSharedTransition provides this) {
         NavHost(
             nav,
             startDestination = "home",
@@ -206,6 +221,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             exitTransition = { fadeOut() },
         ) {
             composable("home") {
+              ScreenAnimation(this) {
                 HomeScreen(
                     onScan = { nav.goToTab("scan") },
                     onSearch = { nav.goToTab("search") },
@@ -216,6 +232,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onGoals = { nav.navigate("goals") },
                     onStats = { nav.navigate("stats") },
                 )
+              }
             }
             composable(
                 "stats",
@@ -233,9 +250,10 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popFrom(it) }) }
-            composable("scan") { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) }
+            composable("scan") { ScreenAnimation(this) { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) } }
             composable("search") { SearchScreen(onOpenSet = { nav.navigate("set/$it") }) }
             composable("collection") {
+              ScreenAnimation(this) {
                 CollectionScreen(
                     onBrowse = { boxId -> nav.navigate("browse/$boxId") },
                     onSettings = { nav.navigate("settings") },
@@ -245,6 +263,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onSets = { nav.navigate("sets") },
                     onExtras = { nav.navigate("extras") },
                 )
+              }
             }
             composable("game") { GameSetupScreen(onPlay = { nav.navigate("game/play") }) }
             composable("game/play") { GamePlayScreen(onExit = { if (it.isResumed) nav.popBackStack("game", inclusive = false) }) }
@@ -283,12 +302,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) {
+              ScreenAnimation(this) {
                 BrowseScreen(
                     boxId = it.arguments?.getLong("boxId") ?: -1L,
                     onBack = { nav.popFrom(it) },
                     onOpenCard = { id -> nav.navigate("card/$id") },
                     onTrade = { binderId -> nav.navigate("trade/$binderId") },
                 )
+              }
             }
             composable(
                 "settings",
@@ -317,19 +338,93 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) { ScanLogScreen(onBack = { nav.popFrom(it) }) }
+            // The card page grows out of the picture tapped, and shrinks back into it.
             composable(
                 "card/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { scaleIn(tween(CARD_GROW_MS), initialScale = 0.9f) + fadeIn(tween(CARD_GROW_MS - 60)) },
+                popExitTransition = { scaleOut(tween(CARD_GROW_MS - 40), targetScale = 0.9f) + fadeOut(tween(CARD_GROW_MS - 80)) },
             ) {
-                CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) })
+                ScreenAnimation(this) { CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) }) }
             }
         }
+       }
+      }
     }
     if (route == "scan") SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 64.dp))
     if (showTour) FirstRunTour(onDone = { Tour.setSeen(ctx, true); showTour = false })
     // Tap and hold any card picture to see it big; drawn over everything.
     com.mtgscanner.ui.components.CardZoomHost()
+    }
+}
+
+/**
+ * The bottom tabs. Scan sits in the middle as a bigger, raised accent button: it's what the app is
+ * for. The other tabs look like a standard navigation bar.
+ */
+@Composable
+private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Palette.NavBar)
+            .windowInsetsPadding(NavigationBarDefaults.windowInsets)
+            .defaultMinSize(minHeight = 80.dp)
+            .selectableGroup(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        tabs.forEach { tab ->
+            val selected = route == tab.route
+            if (tab.route == "scan") {
+                ScanTab(selected) { onTab(tab.route) }
+            } else {
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onTab(tab.route) },
+                    icon = { Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null) },
+                    label = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Palette.Accent,
+                        selectedTextColor = Palette.Accent,
+                        indicatorColor = Color.Transparent,
+                        unselectedIconColor = Palette.Muted,
+                        unselectedTextColor = Palette.Muted,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/** The raised Scan button: a solid accent circle that sits a little above the bar. */
+@Composable
+private fun RowScope.ScanTab(selected: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .weight(1f)
+            .semantics { this.selected = selected; role = Role.Tab }
+            .clickable(onClickLabel = "Scan", onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .offset(y = (-14).dp)
+                .size(58.dp)
+                .shadow(10.dp, CircleShape, ambientColor = Palette.Accent, spotColor = Palette.Accent)
+                .clip(CircleShape)
+                .background(Palette.Accent)
+                // A ring in the bar's color sets it into the bar.
+                .border(3.dp, Palette.NavBar, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(28.dp))
+        }
+        Text(
+            "Scan",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) Palette.Accent else Palette.Muted,
+            modifier = Modifier.offset(y = (-10).dp),
+        )
     }
 }

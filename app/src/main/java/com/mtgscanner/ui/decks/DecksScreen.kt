@@ -295,12 +295,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
         }
         if (decks?.isEmpty() == true && shelf.folders.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
-                EmptyState(
-                    icon = Icons.Filled.Style,
-                    title = "Check a deck against your cards",
-                    body = "Paste a decklist to see what you own.",
-                    action = { GradientButton("Paste a decklist", { onOpenDeck(0L) }, icon = Icons.Filled.Add) },
-                )
+                EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) })
             }
         } else {
             item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
@@ -335,16 +330,11 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
             if (decks != null && shown.isEmpty() && folderTiles.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "none") {
                     if (searching) {
-                        Text("No decks found", color = Palette.Muted, modifier = Modifier.padding(vertical = 24.dp))
+                        EmptyState("No decks found")
                     } else if (folder != null) {
-                        EmptyState(icon = Icons.Filled.Folder, title = "Empty folder", body = "Move decks here from their ⋮ menu.")
+                        EmptyState("Empty folder")
                     } else {
-                        EmptyState(
-                            icon = Icons.Filled.Style,
-                            title = "No decks here",
-                            body = "Your decks are in folders.",
-                            action = { GradientButton("New deck", { onOpenDeck(0L) }, icon = Icons.Filled.Add) },
-                        )
+                        EmptyState("No decks here", action = "New deck", onAction = { onOpenDeck(0L) })
                     }
                 }
             }
