@@ -214,6 +214,18 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onSettings = { nav.navigate("settings") },
                     onBrowseAll = { nav.navigate("browse/-1") },
                     onGoals = { nav.navigate("goals") },
+                    onStats = { nav.navigate("stats") },
+                )
+            }
+            composable(
+                "stats",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) {
+                com.mtgscanner.ui.home.StatsScreen(
+                    onBack = { nav.popFrom(it) },
+                    onOpenCard = { id -> nav.navigate("card/$id") },
+                    onBrowseAll = { nav.navigate("browse/-1") },
                 )
             }
             composable(
