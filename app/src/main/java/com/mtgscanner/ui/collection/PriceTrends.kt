@@ -46,7 +46,7 @@ object PriceTrends {
         // SQLite allows 999 arguments per query.
         ids.chunked(500).forEach { chunk ->
             val marks = chunk.joinToString(",") { "?" }
-            val args: Array<Any?> = arrayOf<Any?>(since) + chunk
+            val args: Array<Any?> = arrayOf<Any?>(since, *chunk.toTypedArray())
             db.query(
                 "SELECT scryfallId, day, usd, usdFoil FROM price_history WHERE day >= ? AND scryfallId IN ($marks) ORDER BY day",
                 args,
