@@ -3,7 +3,6 @@ package com.mtgscanner.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,7 +40,8 @@ fun RollingText(value: Double, format: (Double) -> String, style: TextStyle, col
     }
 
     val shown = if (progress.value >= 1f) to else from + (to - from) * progress.value
-    Text(format(shown), style = style, color = color, modifier = modifier, maxLines = 1)
+    // Shrinks to fit rather than cutting off a large value in a wide font.
+    AutoSizeText(format(shown), style = style, color = color, modifier = modifier)
 }
 
 /** Timing for [RollingText]: longer for bigger jumps, but never slow. */

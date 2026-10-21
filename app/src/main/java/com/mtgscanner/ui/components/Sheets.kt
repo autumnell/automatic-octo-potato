@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -251,7 +252,11 @@ fun QuantityStepper(value: Int, onChange: (Int) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = { onChange(value - 1) }) { Icon(Icons.Filled.Remove, "One fewer") }
-        Text("$value", style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        IconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Filled.Add, "One more", tint = Palette.Accent) }
+        // Grows for 100 or more instead of cutting the number off.
+        Text(
+            "$value", style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false,
+            modifier = Modifier.widthIn(min = 32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        IconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Filled.Add, "One more", tint = Palette.AccentText) }
     }
 }

@@ -75,8 +75,13 @@ data class Filters(
     val userTags: Set<String> = emptySet(),
     val sort: SortBy = SortBy.RECENT,
     val group: GroupBy = GroupBy.NONE,
+    /** Home stat tile filters ([com.mtgscanner.ui.home.TileFlags]: commander, bulk, sale…); all must match. */
+    val flags: Set<String> = emptySet(),
+    /** Only cards added at or after this time in ms (Home's "This week"); 0 for any. */
+    val addedSince: Long = 0L,
 ) {
-    val activeCount: Int get() = colors.size + rarities.size + types.size + roles.size + treatments.size + userTags.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0)
+    val activeCount: Int get() = colors.size + rarities.size + types.size + roles.size + treatments.size + userTags.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0) +
+        flags.size + (if (addedSince > 0) 1 else 0)
 }
 
 data class BrowseUi(
@@ -515,6 +520,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             if (f.roles.isNotEmpty() && f.roles.none { it in c.roleList() }) return false
             if (f.treatments.isNotEmpty() && f.treatments.none { it in c.treatments.split(',') }) return false
             if (f.userTags.isNotEmpty() && f.userTags.none { it in c.userTagList() }) return false
+            if (f.flags.isNotEmpty() && !f.flags.all { com.mtgscanner.ui.home.TileFlags.matches(c, it) }) return false
+            if (f.addedSince > 0 && c.addedAt < f.addedSince) return false
             return true
         }
 

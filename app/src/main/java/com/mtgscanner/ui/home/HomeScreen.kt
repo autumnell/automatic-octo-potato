@@ -100,6 +100,10 @@ import com.mtgscanner.ui.theme.PriceStyle
 import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.AccentMath
 import com.mtgscanner.data.db.artCropUrl
+import com.mtgscanner.ui.detail.sharedCard
+import androidx.compose.foundation.border
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 data class HomeUi(
     val loaded: Boolean = false,
@@ -237,12 +241,16 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
         Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.restore(before) }
     }
 
-    suspend fun searchCards(text: String): List<ScryfallCard> {
+    /** Cards matching [text]; null when Scryfall couldn't be reached (offline), so it isn't shown as "No match". */
+    suspend fun searchCards(text: String): List<ScryfallCard>? {
         val q = text.trim()
         if (q.length < 2) return emptyList()
-        val found = runCatching { repo.api.search(q) }.getOrDefault(emptyList()).take(20)
+        val search = runCatching { repo.api.search(q) }
+        val found = search.getOrNull().orEmpty().take(20)
         if (found.isNotEmpty()) return found
-        return listOfNotNull(runCatching { repo.api.named(q) }.getOrNull())
+        val named = runCatching { repo.api.named(q) }
+        named.getOrNull()?.let { return listOf(it) }
+        return if (search.isFailure && named.isFailure) null else emptyList()
     }
 
     /** Adds the card picked for an unknown scan and clears the scan. */
@@ -289,6 +297,24 @@ fun HomeScreen(
     var editing by remember { mutableStateOf(false) }
     var editingTiles by remember { mutableStateOf(false) }
     var unknown by remember { mutableStateOf<PendingScan?>(null) }
+    // Which section's picture of a card grows into the card page: the first one showing it, so a card in two
+    // carousels doesn't have two pictures claiming the same transition.
+    val showPricesNow = AppSettings.showPrices
+    val sharedIds: Map<HomeSection, Set<Long>> = remember(HomePrefs.sections, ui, toSort, prices.movers, showPricesNow) {
+        val seen = HashSet<Long>()
+        HomePrefs.sections.associateWith { s ->
+            val ids = when (s) {
+                HomeSection.TO_SORT -> toSort.items.take(4).map { it.card.id }
+                HomeSection.RECENT -> ui.recent.map { it.id }
+                HomeSection.MOVERS -> if (showPricesNow) prices.movers.map { it.card.id } else emptyList()
+                HomeSection.VALUABLE -> if (showPricesNow) ui.valuable.map { it.id } else emptyList()
+                HomeSection.GAINERS -> if (showPricesNow) ui.gainers.map { it.id } else emptyList()
+                else -> emptyList()
+            }
+            ids.filter { seen.add(it) }.toSet()
+        }
+    }
+    fun shared(section: HomeSection): Set<Long> = sharedIds[section].orEmpty()
     // Keeps "Accent from my collection" in step with what's owned (saved, so it's right at the next start).
     LaunchedEffect(ui.loaded, ui.colorLetter) { if (ui.loaded) ThemeSettings.noteCollectionColor(ui.colorLetter) }
 
@@ -320,11 +346,14 @@ fun HomeScreen(
             TileMetric.RARES -> browseWith(Filters(rarities = setOf("rare"), sort = SortBy.PRICE))
             TileMetric.MYTHICS -> browseWith(Filters(rarities = setOf("mythic"), sort = SortBy.PRICE))
             TileMetric.LANDS -> browseWith(Filters(types = setOf("Land"), sort = SortBy.NAME))
-            TileMetric.WEEK -> browse(SortBy.RECENT)
+            TileMetric.WEEK -> browseWith(Filters(addedSince = System.currentTimeMillis() - TileMath.WEEK_MS, sort = SortBy.RECENT), m.label)
             TileMetric.VALUE, TileMetric.AVERAGE -> onStats()
             TileMetric.BOXES -> onCollection()
             TileMetric.CUSTOM -> HomePrefs.tileList?.let { n -> vm.savedFilters(n)?.let { browseWith(it, n) } }
-            else -> Unit
+            // The wishlist lives on the Collection tab.
+            TileMetric.WISHLIST -> onCollection()
+            TileMetric.COMMANDERS, TileMetric.BULK, TileMetric.FOR_SALE, TileMetric.PROXIES, TileMetric.SIGNED, TileMetric.GRADED ->
+                TileFlags.of(m)?.let { flag -> browseWith(Filters(flags = setOf(flag), sort = SortBy.PRICE), m.label) }
         }
     }
     Column(
@@ -354,7 +383,7 @@ fun HomeScreen(
                 when (section) {
                     HomeSection.TO_SORT -> if (!toSort.isEmpty) {
                         HomeHeading("To be sorted")
-                        ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it })
+                        ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it }, shared = shared(section))
                     }
                     HomeSection.GOALS -> {
                         HomeHeading("Goals", if (goals.isNotEmpty()) "See all" else null, onGoals)
@@ -362,19 +391,19 @@ fun HomeScreen(
                     }
                     HomeSection.RECENT -> if (ui.recent.isNotEmpty()) {
                         HomeHeading("Recently added", "See all") { browse(SortBy.RECENT) }
-                        CardCarousel(ui.recent, onOpenCard)
+                        CardCarousel(ui.recent, onOpenCard, shared = shared(section))
                     }
                     HomeSection.MOVERS -> if (showPrices && prices.movers.isNotEmpty()) {
                         HomeHeading("Moves this week")
-                        MoversCarousel(prices.movers, onOpenCard)
+                        MoversCarousel(prices.movers, onOpenCard, shared = shared(section))
                     }
                     HomeSection.VALUABLE -> if (showPrices && ui.valuable.isNotEmpty()) {
                         HomeHeading("Most valuable", "See all") { browse(SortBy.PRICE) }
-                        CardCarousel(ui.valuable, onOpenCard)
+                        CardCarousel(ui.valuable, onOpenCard, shared = shared(section))
                     }
                     HomeSection.GAINERS -> if (showPrices && ui.gainers.isNotEmpty()) {
                         HomeHeading("Biggest gains", "See all") { browse(SortBy.GAIN) }
-                        CardCarousel(ui.gainers, onOpenCard, showGain = true)
+                        CardCarousel(ui.gainers, onOpenCard, showGain = true, shared = shared(section))
                     }
                     HomeSection.BOX_VALUES -> if (showPrices && prices.boxValues.days.size >= 2 && boxes.isNotEmpty()) {
                         HomeHeading("Value by box")
@@ -486,8 +515,9 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                 }
             }
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
-            if (prices) RollingText(ui.totalValue, { formatUsd(it) }, big, Palette.Accent)
-            else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.Accent)
+            // AccentText: the raw accent is too faint on the light panel. It shrinks to fit in wide fonts.
+            if (prices) RollingText(ui.totalValue, { formatUsd(it) }, big, Palette.AccentText)
+            else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.AccentText)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
                 else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
@@ -510,7 +540,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
 }
 
 @Composable
-private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit, showGain: Boolean = false) {
+private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit, showGain: Boolean = false, shared: Set<Long> = emptySet()) {
     LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         items(cards, key = { it.id }) { c ->
             CardTile(
@@ -520,6 +550,7 @@ private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
                 quantity = c.quantity,
                 foil = c.foil,
                 modifier = Modifier.width(118.dp),
+                imageModifier = if (c.id in shared) Modifier.sharedCard(c.id) else Modifier,
                 onClick = { onOpenCard(c.id) },
             )
         }
@@ -539,11 +570,15 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
         Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(6.dp)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             colors.filter { it.second > 0 }.forEach { (k, n) ->
                 val alpha by animateFloatAsState(if (picked == null || picked == k) 1f else 0.3f, label = "slice")
+                val fill = colorFor(k)
                 Box(
                     Modifier.weight(n.toFloat()).fillMaxHeight()
                         .graphicsLayer { this.alpha = alpha }
-                        .background(colorFor(k))
-                        .clickable { toggle(k) },
+                        .background(fill)
+                        // White would vanish on the light background: give it an edge.
+                        .then(if (!Palette.dark && k == "W") Modifier.border(1.dp, MtgColors.SliceEdge, RoundedCornerShape(6.dp)) else Modifier)
+                        .clickable(onClickLabel = "Show ${label(k)}") { toggle(k) }
+                        .semantics { contentDescription = "${label(k)}, ${sharePercent(n, total)}" },
                 )
             }
             if (total == 0) Box(Modifier.weight(1f).fillMaxHeight().background(Palette.SurfaceHigh))
@@ -552,8 +587,9 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
         Row(Modifier.fillMaxWidth()) {
             colors.forEach { (k, n) ->
                 Row(
-                    Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = n > 0) { toggle(k) }
+                    Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = n > 0, onClickLabel = "Show ${label(k)}") { toggle(k) }
+                        .semantics(mergeDescendants = true) { contentDescription = "${label(k)}, ${sharePercent(n, total)}" }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
@@ -612,7 +648,8 @@ private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Un
                     Modifier.weight(n.toFloat()).fillMaxHeight()
                         .graphicsLayer { this.alpha = alpha }
                         .background(pairBrush(k))
-                        .clickable { toggle(k) },
+                        .clickable { toggle(k) }
+                        .semantics { contentDescription = "${ColorPairs.name(k)}, ${sharePercent(n, total)}" },
                 )
             }
         }
@@ -620,7 +657,9 @@ private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Un
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             pairs.filter { it.second > 0 }.forEach { (k, n) ->
                 Row(
-                    Modifier.clip(RoundedCornerShape(8.dp)).clickable { toggle(k) }.padding(horizontal = 6.dp, vertical = 6.dp),
+                    Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { toggle(k) }
+                        .semantics(mergeDescendants = true) { contentDescription = "${ColorPairs.name(k)}, ${sharePercent(n, total)}" }
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (k == ColorPairs.THREE_PLUS) {
@@ -671,7 +710,7 @@ internal fun sharePercent(n: Int, total: Int): String = when {
 
 private fun colorFor(k: String): Color = when (k) {
     "C" -> MtgColors.C
-    else -> MtgColors.forLetter(k[0])
+    else -> MtgColors.barFor(k[0])
 }
 
 private fun label(k: String) = when (k) {

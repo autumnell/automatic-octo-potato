@@ -75,7 +75,7 @@ fun ScanLogScreen(onBack: () -> Unit) {
         }
         val list = entries
         if (list != null && list.isEmpty()) {
-            EmptyState(Icons.AutoMirrored.Filled.Subject, "Nothing logged yet", "What the scanner read and picked.")
+            EmptyState("Nothing logged yet")
             return@Column
         }
         LazyColumn(Modifier.fillMaxSize()) {
@@ -91,7 +91,7 @@ private const val ScanLogEntryLimit = com.mtgscanner.scan.ScanLog.MAX
 private fun LogRow(e: ScanLogEntry) {
     val color = when (e.outcome) {
         "matched" -> Palette.Success
-        "unsure", "corrected" -> Palette.Gold
+        "unsure", "corrected" -> Palette.GoldText
         else -> Palette.Danger
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
