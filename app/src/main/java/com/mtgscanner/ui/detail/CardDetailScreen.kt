@@ -266,11 +266,31 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         if (c.photo.isNotBlank() && c.photo != path) CardPhotos.delete(ctx, c.photo)
     }
     fun discardTemp(uri: android.net.Uri) = viewModelScope.launch { CardPhotos.discard(repo.appContext, uri) }
+    /** Clears the photo with Undo; the file itself is deleted only once Undo has had its time. */
     fun removePhoto() = viewModelScope.launch {
         val c = card.value ?: return@launch
-        if (c.photo.isBlank()) return@launch
+        val path = c.photo
+        if (path.isBlank()) return@launch
         repo.update(c.copy(photo = ""))
-        CardPhotos.delete(repo.appContext, c.photo)
+        Undo.offer("Photo removed") {
+            val now = repo.cardOnce(currentId.value) ?: repo.cardOnce(c.id)
+            if (now != null && now.photo.isBlank()) repo.update(now.copy(photo = path))
+        }
+        // Outlives this screen, so the file never lingers once nobody points at it.
+        repo.appScope.launch {
+            kotlinx.coroutines.delay(PHOTO_UNDO_MS)
+            val inUse = runCatching { repo.dao.byScryfallIds(listOf(c.scryfallId)).any { it.photo == path } }.getOrDefault(true)
+            if (!inUse) CardPhotos.delete(repo.appContext, path)
+        }
+    }
+
+    /** Splits some copies off this row with another condition, finish or language, with Undo. */
+    fun split(change: SplitChange) = viewModelScope.launch {
+        val c = card.value ?: return@launch
+        if (!SplitMath.valid(c, change)) return@launch
+        val before = repo.snapshot(listOf(c.id))
+        repo.splitCopies(c.id, change) ?: return@launch
+        Undo.offer(SplitMath.message(c, change)) { repo.restore(before); currentId.value = c.id }
     }
     fun newCameraTarget(): android.net.Uri? = CardPhotos.cameraTarget(repo.appContext)
 
@@ -358,6 +378,9 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     }
 }
 
+/** How long a removed photo's file is kept for Undo (the snackbar is short, about 4s). */
+private const val PHOTO_UNDO_MS = 15_000L
+
 data class Neighbors(val prev: Long? = null, val next: Long? = null, val index: Int = 0, val total: Int = 0)
 
 /** Previous and next card in [c]'s box, by name (then set, number, foil). Pure, for tests. */
@@ -401,6 +424,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     var editingPaid by remember { mutableStateOf(false) }
     var editingAsk by remember { mutableStateOf(false) }
     var editingFrom by remember { mutableStateOf(false) }
+    var splitting by remember { mutableStateOf(false) }
     var viewingPhoto by remember { mutableStateOf(false) }
     var showAllEvents by remember { mutableStateOf(false) }
     val events by vm.events.collectAsStateWithLifecycle()
@@ -535,6 +559,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                     onCamera = if (CardPhotos.canUseCamera) startCamera else null,
                                     onPick = startPicker,
                                     onRemovePhoto = { vm.removePhoto() },
+                                    onSplit = if (c.quantity > 1) ({ splitting = true }) else null,
                                 )
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
@@ -751,6 +776,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
         )
     }
 
+    if (splitting && c != null && c.quantity > 1) {
+        SplitDialog(c, onSplit = { vm.split(it); splitting = false }, onDismiss = { splitting = false })
+    }
+
     if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
 
     if (confirmDelete) {
@@ -835,11 +864,17 @@ private fun MorePicker(
     onCamera: (() -> Unit)?,
     onPick: () -> Unit,
     onRemovePhoto: () -> Unit,
+    /** Change condition, finish or language for some copies; null with only one copy. */
+    onSplit: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
         DropChip("More", onClick = { open = true })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (onSplit != null) DropdownMenuItem(
+                text = { Text("Split copies…") },
+                onClick = { open = false; onSplit() },
+            )
             DropdownMenuItem(
                 text = { Text(if (c.purchasePrice == null) "Paid…" else "Paid: ${formatUsd(c.purchasePrice)}", color = if (c.purchasePrice != null) Palette.AccentText else Palette.Text) },
                 onClick = { open = false; onPaid() },
@@ -862,6 +897,42 @@ private fun MorePicker(
             )
         }
     }
+}
+
+/** Pick how many copies and what's different about them; they become their own row. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SplitDialog(c: CollectionCard, onSplit: (SplitChange) -> Unit, onDismiss: () -> Unit) {
+    var qty by remember { mutableIntStateOf(1) }
+    var condition by remember { mutableStateOf(c.condition) }
+    var foil by remember { mutableStateOf(c.foil) }
+    var lang by remember { mutableStateOf(c.lang.ifBlank { "en" }.lowercase()) }
+    val change = SplitChange(qty, condition, foil, lang)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Split copies") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    QuantityStepper(qty, onChange = { qty = it.coerceIn(1, c.quantity - 1) })
+                    Spacer(Modifier.width(12.dp))
+                    Text("of ${c.quantity}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                }
+                Spacer(Modifier.height(12.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CONDITIONS.forEach { (code, _) -> SelectPill(code, condition == code, onClick = { condition = code }) }
+                    SelectPill("Foil", foil, onClick = { foil = !foil })
+                }
+                Spacer(Modifier.height(10.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LANGUAGES.forEach { (code, _) -> SelectPill(code.uppercase(), lang == code, onClick = { lang = code }) }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSplit(change) }, enabled = SplitMath.valid(c, change)) { Text("Split") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /** Parses "$1.50", "1,50" or "1.5"; blank is null. Returns false for the outer value when not a number. */
