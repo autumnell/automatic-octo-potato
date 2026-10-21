@@ -50,10 +50,14 @@ object CardWarp {
     }
 
     /**
-     * Renders [part] at [scale] times the size it has in [src] (at least [minW] wide), the card being
-     * [cardH] pixels tall there.
+     * Renders [part] at [scale] times the size it has in the source picture (at least [minW] wide), the card being
+     * [cardH] pixels tall there. [draw] does the drawing, given the corners, part and size: [render] from a
+     * bitmap, or OpenCV's warpPerspective.
      */
-    fun renderScaled(src: Bitmap, quad: FloatArray, part: FloatArray, cardH: Float, scale: Float, minW: Int = 0): Bitmap? {
+    fun renderScaled(
+        quad: FloatArray, part: FloatArray, cardH: Float, scale: Float, minW: Int = 0,
+        draw: (FloatArray, FloatArray, Int, Int) -> Bitmap?,
+    ): Bitmap? {
         val cardW = cardH * (63f / 88f)
         var w = (cardW * (part[2] - part[0]) * scale)
         var h = (cardH * (part[3] - part[1]) * scale)
@@ -61,7 +65,7 @@ object CardWarp {
         // Keep it a sensible size for text reading.
         val cap = 2400f / maxOf(w, h)
         if (cap < 1f) { w *= cap; h *= cap }
-        return render(src, quad, part, w.roundToInt(), h.roundToInt())
+        return draw(quad, part, w.roundToInt(), h.roundToInt())
     }
 
     /** The pixels of [b], row by row. */

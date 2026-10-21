@@ -50,10 +50,11 @@ class ArtIndex(entries: List<ArtEntry>) {
      *
      * With [targetEmbeddings] (the same pictures through the art model), the [SHORTLIST] closest by hash are
      * ranked by the model instead, which tells art apart better; when the model isn't sure, the hash decides.
+     * The entries' embeddings must come from the same [model] as [targetEmbeddings] (the store drops any that don't).
      */
     fun match(
         targets: LongArray, onlySet: String? = null, maxDistance: Int = MAX_DISTANCE, minLead: Int = MIN_LEAD,
-        targetEmbeddings: List<ByteArray> = emptyList(),
+        targetEmbeddings: List<ByteArray> = emptyList(), model: ArtModel = ArtModel.STANDARD,
     ): ArtHit? {
         val usable = targets.filter { useful(it) }
         if (usable.isEmpty() || hashes.isEmpty()) return null
@@ -72,7 +73,8 @@ class ArtIndex(entries: List<ArtEntry>) {
             if (d < bestD) { bestD = d; best = i }
         }
         if (best < 0) return null
-        if (targetEmbeddings.isNotEmpty()) rerank(dist, targetEmbeddings)?.let { return it }
+        // The closest by hash has no embedding (its set isn't built with this model yet): the hash decides.
+        if (targetEmbeddings.isNotEmpty() && embeddings[best] != null) rerank(dist, targetEmbeddings, model)?.let { return it }
         if (bestD > maxDistance) return null
         val name = names[best]
         var runnerUp = Int.MAX_VALUE
@@ -82,10 +84,12 @@ class ArtIndex(entries: List<ArtEntry>) {
     }
 
     /** The art model's pick among the closest [SHORTLIST] by hash, when it's clear. */
-    private fun rerank(dist: IntArray, targets: List<ByteArray>): ArtHit? {
+    private fun rerank(dist: IntArray, targets: List<ByteArray>, model: ArtModel): ArtHit? {
         val short = shortlist(dist, SHORTLIST).filter { embeddings[it] != null }
         if (short.isEmpty()) return null
-        val pick = ArtEmbedding.pickBest(targets, short.map { it to embeddings[it]!! }, group = { names[it] }) ?: return null
+        val pick = ArtEmbedding.pickBest(
+            targets, short.map { it to embeddings[it]!! }, minCos = model.minCos, minLead = model.minLead, group = { names[it] },
+        ) ?: return null
         val name = names[pick]
         val runnerUp = short.filter { names[it] != name }.minOfOrNull { dist[it] } ?: Int.MAX_VALUE
         return ArtHit(ids[pick], name, sets[pick], numbers[pick], dist[pick], runnerUp, ArtEmbedding.best(embeddings[pick]!!, targets))
@@ -126,24 +130,35 @@ class ArtVote(private val needed: Int = 2) {
     }
 }
 
-/** What an art index file holds, from its header: the set, how many cards, and whether it has art model embeddings. */
-data class ArtIndexHeader(val set: String, val cards: Int, val embedded: Boolean)
+/**
+ * What an art index file holds, from its header: the set, how many cards, whether it has art model embeddings,
+ * and the id of the [ArtModel] that made them (null when it has none).
+ */
+data class ArtIndexHeader(val set: String, val cards: Int, val embedded: Boolean, val model: String? = null)
+
+/** A whole art index file. */
+class ArtIndexFile(val set: String, val model: String?, val entries: List<ArtEntry>)
 
 /**
  * The art index file: a header, then each card's hash, id, name and number. One file per set.
  * Version 2 adds a flag to the header and each card's art model embedding (length, then bytes; 0 for none).
- * Version 1 files are still read; they're rebuilt once the art model is here.
+ * Version 3 adds the id of the art model that made the embeddings, after the flag. Older files are still read
+ * (version 2 embeddings are the standard model's); they're rebuilt once the chosen art model is here.
  */
 object ArtIndexCodec {
     private const val MAGIC_V1 = 0x47414931 // "GAI1"
     private const val MAGIC_V2 = 0x47414932 // "GAI2"
+    private const val MAGIC_V3 = 0x47414933 // "GAI3"
 
-    fun write(set: String, entries: List<ArtEntry>, out: OutputStream) {
+    /** Writes [entries]; [model] is the id of the art model their embeddings came from. */
+    fun write(set: String, entries: List<ArtEntry>, out: OutputStream, model: String? = null) {
         val d = DataOutputStream(out.buffered())
-        d.writeInt(MAGIC_V2)
+        val embedded = entries.isNotEmpty() && entries.all { it.embedding != null }
+        d.writeInt(MAGIC_V3)
         d.writeUTF(set.lowercase())
         d.writeInt(entries.size)
-        d.writeBoolean(entries.isNotEmpty() && entries.all { it.embedding != null })
+        d.writeBoolean(embedded)
+        d.writeUTF(if (embedded) model.orEmpty() else "")
         for (e in entries) {
             d.writeLong(e.hash)
             d.writeUTF(e.id)
@@ -157,17 +172,33 @@ object ArtIndexCodec {
     }
 
     /** The set code and its cards. Throws [IOException] for a file that isn't an art index. */
-    fun read(input: InputStream): Pair<String, List<ArtEntry>> {
+    fun read(input: InputStream): Pair<String, List<ArtEntry>> = readFile(input).let { it.set to it.entries }
+
+    /** The file's version: 1, 2 or 3. */
+    private fun version(d: DataInputStream): Int = when (d.readInt()) {
+        MAGIC_V1 -> 1
+        MAGIC_V2 -> 2
+        MAGIC_V3 -> 3
+        else -> throw IOException("Not an art index")
+    }
+
+    /** The model id a header names: version 2 embeddings came from the only model there was then. */
+    private fun modelOf(version: Int, embedded: Boolean, stored: String?): String? = when {
+        !embedded -> null
+        version == 2 -> ArtModel.LEGACY.id
+        else -> stored?.takeIf { it.isNotEmpty() }
+    }
+
+    /** The set, the model its embeddings came from, and its cards. Throws [IOException] for a file that isn't an art index. */
+    fun readFile(input: InputStream): ArtIndexFile {
         val d = DataInputStream(input.buffered())
-        val v2 = when (d.readInt()) {
-            MAGIC_V1 -> false
-            MAGIC_V2 -> true
-            else -> throw IOException("Not an art index")
-        }
+        val version = version(d)
+        val v2 = version >= 2
         val set = d.readUTF()
         val n = d.readInt()
         if (n < 0 || n > 100_000) throw IOException("Bad art index")
-        if (v2) d.readBoolean()
+        val embedded = v2 && d.readBoolean()
+        val stored = if (version >= 3) d.readUTF() else null
         val list = ArrayList<ArtEntry>(n)
         repeat(n) {
             val hash = d.readLong()
@@ -181,7 +212,7 @@ object ArtIndexCodec {
             } else null
             list += ArtEntry(hash, id, name, set, number, emb)
         }
-        return set to list
+        return ArtIndexFile(set, modelOf(version, embedded, stored), list)
     }
 
     /** Just the set code and card count, without reading the cards. */
@@ -190,14 +221,11 @@ object ArtIndexCodec {
     /** The header, without reading the cards. */
     fun info(input: InputStream): ArtIndexHeader {
         val d = DataInputStream(input)
-        val v2 = when (d.readInt()) {
-            MAGIC_V1 -> false
-            MAGIC_V2 -> true
-            else -> throw IOException("Not an art index")
-        }
+        val version = version(d)
         val set = d.readUTF()
         val n = d.readInt()
-        val embedded = v2 && d.readBoolean()
-        return ArtIndexHeader(set, n, embedded)
+        val embedded = version >= 2 && d.readBoolean()
+        val stored = if (version >= 3) d.readUTF() else null
+        return ArtIndexHeader(set, n, embedded, modelOf(version, embedded, stored))
     }
 }

@@ -41,25 +41,32 @@ data class CardTextGuess(
      */
     val artOnly: List<Long> = emptyList(),
     /** Embeddings of the same pictures as [artOnly], in the same order, when the art model is ready. */
-    val artOnlyEmbeddings: List<ByteArray> = emptyList(),
+    val artOnlyEmbeddings: List<ArtVector> = emptyList(),
     /** The copyright year at the bottom of the card ("™ & © 1997 Wizards"), if read. */
     val year: Int? = null,
     /** Embedding of the straightened artwork, filled in by the analyzer when the art model is ready. */
-    val artEmbedding: ByteArray? = null,
+    val artEmbedding: ArtVector? = null,
     /** Shape of the set symbol on the type line, from the straightened card. */
     val symbol: SymbolPrint? = null,
     /** Large blown-out highlights over the name or footer. */
     val glare: Boolean = false,
+    /** The name as printed in Japanese, Chinese or Korean, read by a CJK reader when no English name was read. */
+    val printedName: String? = null,
 ) {
-    val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null
+    val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null && printedName == null
 
     /** A key that stays the same while the same card is in view. */
     val key: String?
         get() = when {
             setCode != null && collectorNumber != null -> "${setCode}#${collectorNumber}"
             nameCandidates.isNotEmpty() -> CardTextParser.normalize(nameCandidates.first())
+            printedName != null -> "p:" + CjkNames.normalize(printedName)
             else -> null
         }
+
+    /** The name read, English or as printed, to tell frames of the same card apart. */
+    val nameKey: String?
+        get() = nameCandidates.firstOrNull()?.let { CardTextParser.normalize(it) } ?: printedName?.let { "p:" + CjkNames.normalize(it) }
 }
 
 /**
@@ -125,7 +132,11 @@ object CardTextParser {
      */
     fun merge(strips: CardTextGuess, full: CardTextGuess): CardTextGuess {
         if (strips.isEmpty) return full.copy(year = full.year ?: strips.year, glare = strips.glare || full.glare)
-        val names = (strips.nameCandidates + full.nameCandidates).distinct().take(3)
+        // A CJK name from the name bar: the whole card's read can't add a name, only its footer.
+        val printed = strips.printedName ?: full.printedName
+        // With only a CJK name in the name bar, "names" the English reader made of the rest are noise.
+        val names = if (printed != null && strips.nameCandidates.isEmpty()) emptyList()
+        else (strips.nameCandidates + full.nameCandidates).distinct().take(3)
         val stripFooter = strips.setCode != null && strips.collectorNumber != null
         val fullFooter = full.setCode != null && full.collectorNumber != null
         val (set, number) = when {
@@ -133,13 +144,18 @@ object CardTextParser {
             fullFooter -> full.setCode to full.collectorNumber
             else -> (strips.setCode ?: full.setCode) to (strips.collectorNumber ?: full.collectorNumber)
         }
-        // A language code read in the footer is certain; otherwise the rules text tells more than a name.
-        val lang = if (strips.setCode != null) strips.lang else full.lang ?: strips.lang
+        // A language code read in the footer is certain, and so is the script of a CJK name; otherwise the rules
+        // text tells more than a name.
+        val lang = when {
+            strips.setCode != null -> strips.lang
+            strips.printedName != null -> strips.lang ?: full.lang
+            else -> full.lang ?: strips.lang
+        }
         return full.copy(
             nameCandidates = names, setCode = set, collectorNumber = number,
             score = maxOf(strips.score, full.score), lang = lang,
             text = full.text.ifEmpty { strips.text }, year = strips.year ?: full.year,
-            glare = strips.glare || full.glare,
+            glare = strips.glare || full.glare, printedName = printed,
         )
     }
 

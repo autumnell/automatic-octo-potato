@@ -46,6 +46,10 @@
 -dontwarn javax.lang.model.**
 -dontwarn autovalue.shaded.**
 
+# OpenCV (card corners): its native code builds Java objects (Mat, CvException) by class name.
+-keep class org.opencv.** { *; }
+-dontwarn org.opencv.**
+
 # Optional dependencies some libraries mention but don't need on Android.
 -dontwarn org.slf4j.**
 -dontwarn org.conscrypt.**

@@ -835,6 +835,7 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             onLight = vm::onLight,
             wantsArt = vm::wantsArt,
             embed = vm::embedArt,
+            scanLang = { com.mtgscanner.data.ScanBarPrefs.lang },
         )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
         // The camera can take a moment to start; if the screen closed meanwhile, don't bind it.

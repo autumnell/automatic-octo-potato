@@ -8,10 +8,10 @@ import kotlin.math.sqrt
  * and each value to -127..127, so 1024 numbers take 1 KB. Compared by cosine similarity. Pure Kotlin for tests.
  */
 object ArtEmbedding {
-    /** Least cosine similarity for two pictures to be the same art. */
-    const val MIN_COS = 0.72f
+    /** Least cosine similarity for two pictures to be the same art (the standard model's; see [ArtModel]). */
+    val MIN_COS: Float get() = ArtModel.STANDARD.minCos
     /** How far ahead of the next different art the best one must be. */
-    const val MIN_LEAD = 0.04f
+    val MIN_LEAD: Float get() = ArtModel.STANDARD.minLead
 
     fun quantize(v: FloatArray): ByteArray {
         var sum = 0.0
@@ -58,3 +58,45 @@ object ArtEmbedding {
         return if (top.second - other >= minLead) top.first else null
     }
 }
+
+/**
+ * The art models to choose from, with everything that differs between them in one place. Embeddings of
+ * different models can't be compared, so each embedding (and each art index built with one) carries its [id].
+ * Both are pinned to version 1 of MediaPipe's image embedder models.
+ */
+enum class ArtModel(
+    val id: String,
+    val label: String,
+    val fileName: String,
+    val url: String,
+    /** The file's size, to show before downloading and to spot a cut-off download. */
+    val bytes: Long,
+    /** Least cosine similarity for two pictures to be the same art. */
+    val minCos: Float,
+    /** How far ahead of the next different art the best one must be. */
+    val minLead: Float,
+) {
+    STANDARD(
+        "mnv3s-1", "Standard", "mobilenet_v3_small.tflite",
+        "https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_small/float32/1/mobilenet_v3_small.tflite",
+        4_117_670L, 0.72f, 0.04f,
+    ),
+    ADVANCED(
+        "mnv3l-1", "Advanced", "mobilenet_v3_large.tflite",
+        "https://storage.googleapis.com/mediapipe-models/image_embedder/mobilenet_v3_large/float32/1/mobilenet_v3_large.tflite",
+        10_889_458L, 0.72f, 0.04f,
+    );
+
+    /** "4 MB", "11 MB". */
+    val sizeLabel: String get() = "${(bytes + 500_000) / 1_000_000} MB"
+
+    companion object {
+        /** What index files written before models were tagged hold: only the standard model existed then. */
+        val LEGACY: ArtModel = STANDARD
+
+        fun byId(id: String?): ArtModel? = entries.firstOrNull { it.id == id }
+    }
+}
+
+/** An embedding, and the id of the [ArtModel] that made it: embeddings of different models can't be compared. */
+class ArtVector(val model: String, val values: ByteArray)

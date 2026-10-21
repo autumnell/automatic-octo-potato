@@ -22,7 +22,6 @@ import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.scan.CardTextGuess
-import com.mtgscanner.scan.CardTextParser
 import com.mtgscanner.scan.ImageHash
 import com.mtgscanner.scan.FrameLight
 import com.mtgscanner.scan.LightCheck
@@ -96,7 +95,7 @@ data class PageSlot(
 
 /** What the camera read, for the status line: the name, else the footer ("MOM #123"). */
 fun readLabel(g: CardTextGuess): String? =
-    g.nameCandidates.firstOrNull() ?: listOfNotNull(g.setCode, g.collectorNumber?.let { "#$it" }).joinToString(" ").ifEmpty { null }
+    g.nameCandidates.firstOrNull() ?: g.printedName ?: listOfNotNull(g.setCode, g.collectorNumber?.let { "#$it" }).joinToString(" ").ifEmpty { null }
 
 data class ScanUiState(
     val status: String = "Point your camera at a card",
@@ -365,7 +364,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             return
         }
         emptyFrames = 0
-        val name = guess.nameCandidates.firstOrNull()?.let { CardTextParser.normalize(it) }
+        val name = guess.nameKey
         val footer = if (guess.setCode != null && guess.collectorNumber != null) key.takeIf { '#' in it } else null
         val agrees = (name != null && name == lastName) || (footer != null && footer == lastFooter)
         if (agrees) {
@@ -464,10 +463,15 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun wantsArt(): Boolean = repo.artIndex.hasAny
 
     /** The art model's embedding of a picture of artwork; null until the model is downloaded. Camera thread. */
-    fun embedArt(art: android.graphics.Bitmap): ByteArray? = repo.artEmbedder.embed(art)
+    fun embedArt(art: android.graphics.Bitmap): com.mtgscanner.scan.ArtVector? = repo.artEmbedder.embed(art)
 
     private fun handleArt(guess: CardTextGuess) {
-        val hit = repo.artIndex.match(guess.artOnly.toLongArray(), SortPrefs.setLock, guess.artOnlyEmbeddings)
+        // All the frame's embeddings come from one model; the store uses them only if it's still the chosen one.
+        val embeddings = guess.artOnlyEmbeddings
+        val model = embeddings.firstOrNull()?.model
+        val hit = repo.artIndex.match(
+            guess.artOnly.toLongArray(), SortPrefs.setLock, embeddings.filter { it.model == model }.map { it.values }, model,
+        )
         // The same card on two frames in a row, so one lucky frame doesn't add the wrong card.
         val agreed = artVote.offer(hit?.id) ?: return
         if (hit == null || hit.id != agreed) return
@@ -599,7 +603,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         val g = noMatchGuess ?: return
         val st = _state.value
         if (st.unknownRead != null || st.target == ScanTarget.CHECK || (st.current != null && !st.autoAdd)) return
-        val name = g.nameCandidates.firstOrNull() ?: g.text.lineSequence().map { it.trim() }.firstOrNull { it.length >= 3 } ?: return
+        val name = g.nameCandidates.firstOrNull() ?: g.printedName ?: g.text.lineSequence().map { it.trim() }.firstOrNull { it.length >= 3 } ?: return
         val footer = g.setCode?.let { set -> g.collectorNumber?.let { "$set $it" } ?: set }
         val text = if (footer != null) "$name ($footer)" else name
         _state.update { it.copy(unknownRead = text, asidePulse = if (it.stack) it.asidePulse + 1 else it.asidePulse) }
@@ -742,7 +746,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             runCatching {
                 repo.scanLog.add(
                     com.mtgscanner.scan.ScanLogEntry(
-                        read = guess.nameCandidates.take(4), setCode = guess.setCode, collectorNumber = guess.collectorNumber,
+                        read = (guess.nameCandidates + listOfNotNull(guess.printedName)).take(4), setCode = guess.setCode, collectorNumber = guess.collectorNumber,
                         art = guess.artHash != null, outcome = outcome, matchName = id?.card?.name, matchSet = id?.card?.set,
                         matchNumber = id?.card?.collectorNumber, ms = ms, note = err?.message,
                     ),
@@ -1144,6 +1148,13 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun downloadArt(codes: Collection<String>) = repo.artIndex.enqueue(codes)
     fun deleteArt(code: String) = repo.artIndex.delete(code)
     fun cancelArtDownloads() = repo.artIndex.cancelQueue()
+
+    /** The art model chosen in scan settings, its download, and whether that failed. */
+    val artModel: StateFlow<com.mtgscanner.scan.ArtModel> get() = repo.artEmbedder.chosen
+    val artModelDownload: StateFlow<com.mtgscanner.scan.ModelDownload?> get() = repo.artEmbedder.download
+    val artModelFailed: StateFlow<Boolean> get() = repo.artEmbedder.failed
+    fun artModelHere(m: com.mtgscanner.scan.ArtModel): Boolean = repo.artEmbedder.has(m)
+    fun selectArtModel(m: com.mtgscanner.scan.ArtModel) = repo.artEmbedder.select(m)
 
     /** Set codes of the cards in the collection, most cards first. */
     suspend fun ownedSets(): List<String> =

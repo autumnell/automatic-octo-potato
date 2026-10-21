@@ -556,6 +556,32 @@ class CollectionRepository(
             val confident = sim >= 0.85 || card.name == knownGood
             return Identification(exact ?: card, confident = confident, exact = exact != null || inSet != null && guess.collectorNumber != null)
         }
+        guess.printedName?.let { printed -> return identifyPrinted(printed, guess) }
+        return null
+    }
+
+    /**
+     * A name read in Japanese, Chinese or Korean: searched among Scryfall's printed names in that language, the
+     * whole name first, then each half (one misread letter spoils a search), and the closest printed name taken
+     * when it's close enough. The English printing with the same set and number is used when there is one, so
+     * prices, art indexes and printing choice work as for any card; the language read is recorded with it.
+     */
+    private suspend fun identifyPrinted(printed: String, guess: CardTextGuess): Identification? {
+        val lang = guess.lang?.takeIf { it in com.mtgscanner.scan.CjkNames.LANGS }
+        for (term in com.mtgscanner.scan.CjkNames.searchTerms(printed)) {
+            val found = runCatching { api.searchPrinted(term, lang) }
+                .onFailure { if (it is IOException && it !is ScryfallException) throw it }
+                .getOrNull().orEmpty()
+            if (found.isEmpty()) continue
+            val names = found.map { c -> c to (c.printedName ?: c.cardFaces.orEmpty().firstNotNullOfOrNull { it.printedName }) }
+            val (card, score) = com.mtgscanner.scan.CjkNames.best(printed, names) ?: continue
+            val english = if (card.lang != "en") {
+                runCatching { api.bySetAndNumber(card.set, card.collectorNumber) }
+                    .onFailure { if (it is IOException && it !is ScryfallException) throw it }
+                    .getOrNull()?.takeIf { it.oracleId == null || it.oracleId == card.oracleId }
+            } else null
+            return Identification(english ?: card, confident = score >= 0.85)
+        }
         return null
     }
 
