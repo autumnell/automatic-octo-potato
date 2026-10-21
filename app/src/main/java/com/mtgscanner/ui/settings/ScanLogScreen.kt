@@ -75,7 +75,7 @@ fun ScanLogScreen(onBack: () -> Unit) {
         }
         val list = entries
         if (list != null && list.isEmpty()) {
-            EmptyState(Icons.AutoMirrored.Filled.Subject, "Nothing logged yet", "What the scanner read and picked.")
+            EmptyState("Nothing logged yet")
             return@Column
         }
         LazyColumn(Modifier.fillMaxSize()) {

@@ -78,8 +78,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
             if (records.isEmpty()) {
-                Text("No games yet.",
-                    style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 16.dp))
+                com.mtgscanner.ui.components.EmptyState("No games yet")
             } else {
                 Header("Players")
                 players.forEach { p ->
