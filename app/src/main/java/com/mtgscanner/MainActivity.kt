@@ -251,7 +251,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popFrom(it) }) }
             composable("scan") { ScreenAnimation(this) { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) } }
-            composable("search") { SearchScreen(onOpenSet = { nav.navigate("set/$it") }) }
+            composable("search") { SearchScreen(onOpenSet = { nav.navigate("set/$it") }, onOpenCard = { nav.navigate("card/$it") }) }
             composable("collection") {
               ScreenAnimation(this) {
                 CollectionScreen(

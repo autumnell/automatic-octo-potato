@@ -134,6 +134,8 @@ fun AddCardSheet(
     onWishlist: (() -> Unit)? = null,
     /** A short line such as "You own 3 · Rares", or null when the card isn't in the collection. */
     owned: String? = null,
+    /** Opens your copy when the "You own" line is tapped; null leaves the line plain. */
+    onOwned: (() -> Unit)? = null,
 ) {
     var foil by remember(card.id) { mutableStateOf(!card.hasNonFoil) }
     var qty by remember(card.id) { mutableIntStateOf(1) }
@@ -177,12 +179,15 @@ fun AddCardSheet(
             if (owned != null) {
                 Spacer(Modifier.height(12.dp))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Accent.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Accent.copy(alpha = 0.14f))
+                        .then(if (onOwned != null) Modifier.clickable(onClickLabel = "Open your copy", onClick = onOwned) else Modifier)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Filled.Check, null, tint = Palette.AccentText, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
+                    Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.AccentText, modifier = Modifier.weight(1f))
+                    if (onOwned != null) Text("Open", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
                 }
             }
             Spacer(Modifier.height(16.dp))
