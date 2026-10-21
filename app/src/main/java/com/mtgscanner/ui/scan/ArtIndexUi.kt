@@ -84,6 +84,29 @@ fun ArtIndexSection(vm: ScanViewModel) {
         }
         failed?.let { Text("Couldn't get ${it.uppercase()}", style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.padding(top = 6.dp)) }
 
+        // Indexes made without the chosen model still work by hash; updating them downloads every picture again.
+        val model by vm.artModel.collectAsStateWithLifecycle()
+        val modelDownload by vm.artModelDownload.collectAsStateWithLifecycle()
+        val stale = remember(have, model, modelDownload, download) { vm.staleArt() }
+        var askUpdate by remember { mutableStateOf(false) }
+        if (stale.isNotEmpty() && download == null) {
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (stale.size == 1) "1 index on the old model" else "${stale.size} indexes on the old model",
+                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { askUpdate = true }) { Text("Update") }
+            }
+        }
+        if (askUpdate) AlertDialog(
+            onDismissRequest = { askUpdate = false },
+            containerColor = Palette.Surface,
+            title = { Text("Update ${stale.size} art indexes?") },
+            text = { Text("Downloads their pictures again. Best on Wi-Fi.", color = Palette.Muted) },
+            confirmButton = { TextButton(onClick = { vm.rebuildArt(stale); askUpdate = false }) { Text("Update") } },
+            dismissButton = { TextButton(onClick = { askUpdate = false }) { Text("Later") } },
+        )
+
         val lock = SortPrefs.setLock
         have.forEach { s ->
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -137,7 +160,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
 
 /**
  * Standard or Advanced art model. Picking one downloads it (with progress) and deletes the other's file; art
- * indexes made with the other model are rebuilt in the background.
+ * indexes made with the other model keep matching by hash until you update them.
  */
 @Composable
 private fun ArtModelPicker(vm: ScanViewModel) {

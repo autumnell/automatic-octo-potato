@@ -118,7 +118,8 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
             SoundPills(s.asideSound) { v -> update { it.copy(asideSound = v) } }
         }
         Toggle("Vibrate", null, s.vibrate) { on -> update { it.copy(vibrate = on) } }
-        Toggle("Flash the frame", null, s.flash) { on -> update { it.copy(flash = on) } }
+        Toggle("Flash the frame", "In the box's color.", s.flash) { on -> update { it.copy(flash = on) } }
+        Toggle("Say the box", "Stack mode reads out where each card goes.", s.speakBox) { on -> update { it.copy(speakBox = on) } }
         Toggle("Auto flashlight", "On when it's too dark.", s.autoTorch) { on -> update { it.copy(autoTorch = on) } }
     }
 
@@ -208,8 +209,40 @@ object ScanFeedback {
         }
     }
 
+    /** A short soft tick, for a card skipped in stack mode. */
+    fun tick(context: android.content.Context) {
+        runCatching {
+            val t = tones ?: android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 70).also { tones = it }
+            t.startTone(ScanSound.CLICK.tone, 40)
+        }
+    }
+
+    private var tts: android.speech.tts.TextToSpeech? = null
+    private var ttsReady = false
+
+    /** Says [text] out loud, cutting off whatever was being said. The voice is made on first use. */
+    fun speak(context: android.content.Context, text: String) {
+        if (text.isBlank()) return
+        runCatching {
+            val t = tts
+            if (t == null) {
+                var made: android.speech.tts.TextToSpeech? = null
+                made = android.speech.tts.TextToSpeech(context.applicationContext) { status ->
+                    ttsReady = status == android.speech.tts.TextToSpeech.SUCCESS
+                    if (ttsReady) runCatching { made?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "box") }
+                }
+                tts = made
+            } else if (ttsReady) {
+                t.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "box")
+            }
+        }
+    }
+
     fun release() {
         runCatching { tones?.release() }
         tones = null
+        runCatching { tts?.shutdown() }
+        tts = null
+        ttsReady = false
     }
 }
