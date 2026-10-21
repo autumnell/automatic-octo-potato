@@ -235,9 +235,6 @@ private fun LookTab() {
 private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> Unit, onMessage: (String) -> Unit) {
     val ctx = LocalContext.current
     var versionTaps by remember { mutableIntStateOf(0) }
-    val version = remember {
-        runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
-    }
 
     SectionLabel("Your data")
     DataSection(vm)
@@ -263,7 +260,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
         Column {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Grimoire $version",
+                    buildLabel(com.mtgscanner.BuildConfig.BUILD_NUMBER, com.mtgscanner.BuildConfig.BUILD_DATE),
                     style = MaterialTheme.typography.titleSmall,
                     // Tapping the version seven times reveals the scan log.
                     modifier = Modifier.weight(1f).clickable {
@@ -276,6 +273,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
                 )
                 TextButton(onClick = onTour) { Text("Show tour") }
             }
+            CrashReportRow()
             HorizontalDivider(color = Palette.Outline)
             Text(
                 "Data from Scryfall. Unofficial; Magic is © Wizards of the Coast.",

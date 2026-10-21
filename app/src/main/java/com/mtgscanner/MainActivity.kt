@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.mtgscanner.ui.settings.CrashLog.install(this)
         if (savedInstanceState == null) openRequest = intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
         Palette.systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         // The window shows behind the first frame and during transitions: match the app's theme, not the XML's dark one.
