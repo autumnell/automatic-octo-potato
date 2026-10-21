@@ -196,4 +196,25 @@ object Sorting {
         }
         return byLetter.lastKey()
     }
+
+    /**
+     * Copies in each half when a box splits at [at]: the second half gets names from [at] on, the first the rest
+     * (names starting with a digit or symbol stay in the first). Pass only the cards in the box's name range.
+     */
+    fun splitCounts(names: List<Pair<String, Int>>, at: Char): Pair<Int, Int> {
+        var first = 0
+        var second = 0
+        for ((name, n) in names) {
+            val letter = BoxRules.nameLetter(name)
+            if (letter != '#' && letter >= at) second += n else first += n
+        }
+        return first to second
+    }
+
+    /** Letters a box with name range [from]–[to] can split at, so each half keeps at least one letter. */
+    fun splitLetters(from: String?, to: String?): List<Char> {
+        val lo = from?.firstOrNull()?.uppercaseChar()?.takeIf { it in 'A'..'Z' } ?: 'A'
+        val hi = to?.firstOrNull()?.uppercaseChar()?.takeIf { it in 'A'..'Z' } ?: 'Z'
+        return if (hi <= lo) emptyList() else ((lo + 1)..hi).toList()
+    }
 }

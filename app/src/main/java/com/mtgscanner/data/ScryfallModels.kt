@@ -129,6 +129,8 @@ data class ScryfallSet(
     @SerialName("set_type") val setType: String = "",
     @SerialName("released_at") val releasedAt: String? = null,
     @SerialName("card_count") val cardCount: Int = 0,
+    /** Cards in the main set, the number printed after the collector number; null when it matches [cardCount]. */
+    @SerialName("printed_size") val printedSize: Int? = null,
     @SerialName("icon_svg_uri") val iconSvgUri: String? = null,
     val digital: Boolean = false,
     @SerialName("parent_set_code") val parentSetCode: String? = null,

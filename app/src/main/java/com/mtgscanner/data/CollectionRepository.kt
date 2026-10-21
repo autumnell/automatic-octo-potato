@@ -214,6 +214,54 @@ class CollectionRepository(
         afterChange()
     }
 
+    /** What Undo needs to bring back a box after it's deleted or split: the box as it was, its cards' rows and the box order. */
+    class BoxUndo internal constructor(
+        val box: Box,
+        internal val cards: List<CollectionCard>,
+        internal val boxIds: Set<Long>,
+        internal val order: List<Long>,
+        /** Playset limit when this was the extras box, else null. */
+        internal val extrasLimit: Int?,
+        /** Bulk price floor when this was the bulk box, else null. */
+        internal val bulkFloor: Double?,
+    )
+
+    /** Takes a [BoxUndo] for [id] before it's deleted or split; null when there's no such box. */
+    suspend fun boxUndo(id: Long): BoxUndo? {
+        val b = dao.box(id) ?: return null
+        val boxes = dao.allBoxes()
+        return BoxUndo(
+            b, snapshot(dao.inBox(id).map { it.id }), boxes.map { it.id }.toSet(), boxes.map { it.id },
+            SortPrefs.playsetLimit.takeIf { SortPrefs.extrasBoxId == id },
+            SortPrefs.bulkFloor.takeIf { SortPrefs.bulkBoxId == id },
+        )
+    }
+
+    /**
+     * Undoes a delete or split: the box comes back with the same id, name, rules and place in the Auto-sort order,
+     * its cards go back exactly as they were, and boxes the change made (a split's second half, a new Anything box) go
+     * when they're empty again.
+     */
+    suspend fun undoBox(u: BoxUndo) {
+        db.withTransaction {
+            dao.putBox(u.box)
+            if (u.box.fallback) dao.setFallback(u.box.id)
+        }
+        restore(u.cards)
+        db.withTransaction {
+            for (b in dao.allBoxes()) if (b.id !in u.boxIds && dao.inBox(b.id).isEmpty()) {
+                dao.deleteBox(b)
+                SortPrefs.forgetBox(b.id)
+            }
+            val now = dao.allBoxes().map { it.id }
+            // Boxes in their old order; any added since keep their place at the end.
+            (u.order.filter { it in now } + now.filter { it !in u.order }).forEachIndexed { i, id -> dao.setBoxOrder(id, i) }
+        }
+        u.extrasLimit?.let { SortPrefs.updatePlayset(it, u.box.id) }
+        u.bulkFloor?.let { SortPrefs.updateBulk(it, u.box.id) }
+        afterChange()
+    }
+
     /**
      * Sorts a box (usually a catch-all "Anything" box) after the fact: each card that fits another
      * box's rules moves there, in Auto-sort order. Cards that fit nothing stay put. Returns copies moved.
@@ -311,15 +359,17 @@ class CollectionRepository(
 
     /**
      * Splits a full box in two by first letter: the original keeps A to the split letter, a new box
-     * takes the rest with the same rules. Returns the new box id, or null when it can't be split.
+     * takes the rest with the same rules. [letter] is where the second half starts; null picks the letter that
+     * splits the cards evenly. Returns the new box id, or null when it can't be split.
      */
-    suspend fun splitBox(id: Long): Long? = db.withTransaction {
+    suspend fun splitBox(id: Long, letter: Char? = null): Long? = db.withTransaction {
         val b = dao.box(id) ?: return@withTransaction null
         val cards = dao.inBox(id)
         val rules = b.boxRules()
         // Only cards in the box's own name range decide the split.
         val inRange = cards.filter { rules.inNameRange(it.name) }
-        val at = Sorting.splitLetter(inRange.map { it.name to it.quantity }) ?: return@withTransaction null
+        val at = (letter?.uppercaseChar()?.takeIf { it in Sorting.splitLetters(rules.nameFrom, rules.nameTo) }
+            ?: Sorting.splitLetter(inRange.map { it.name to it.quantity })) ?: return@withTransaction null
         val before = (at - 1)
         val first = rules.copy(nameFrom = rules.nameFrom ?: "A", nameTo = before.toString())
         val second = rules.copy(nameFrom = at.toString(), nameTo = rules.nameTo ?: "Z")

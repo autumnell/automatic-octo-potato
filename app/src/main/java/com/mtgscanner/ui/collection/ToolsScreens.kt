@@ -2,6 +2,8 @@ package com.mtgscanner.ui.collection
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -102,7 +104,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 
-/** How much of a set you own: different collector numbers, out of every printing in the set. */
+/** How much of a set you own: different collector numbers, out of the main set (or every printing, with variants). */
 data class SetProgress(
     val code: String,
     val name: String,
@@ -138,18 +140,23 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    val setProgress: StateFlow<List<SetProgress>?> = combine(cards, _sets, _setsFailed) { all, sets, failed ->
+    /** Count showcase, borderless, promo and other extras toward finishing a set. Off: main set only. */
+    val includeVariants: StateFlow<Boolean> = SetPrefs.includeVariants(repo.appContext)
+    fun setIncludeVariants(on: Boolean) = SetPrefs.setIncludeVariants(on)
+
+    val setProgress: StateFlow<List<SetProgress>?> = combine(cards, _sets, _setsFailed, includeVariants) { all, sets, failed, variants ->
         if (sets == null && !failed) return@combine null
         val owned = all.groupBy { it.setCode.uppercase() }
         val known = sets.orEmpty().associateBy { it.code.uppercase() }
         owned.map { (code, cs) ->
             val s = known[code]
+            val counted = if (variants) cs else cs.filter { MainSet.isMain(it.collectorNumber, MainSet.treatmentsOf(it.treatments), s?.printedSize) }
             SetProgress(
                 code = code,
                 name = s?.name ?: cs.first().setName,
                 iconUrl = s?.iconSvgUri,
-                owned = cs.map { it.collectorNumber.lowercase() }.distinct().size,
-                total = s?.cardCount ?: 0,
+                owned = counted.map { it.collectorNumber.lowercase() }.distinct().size,
+                total = s?.let { MainSet.total(it.cardCount, it.printedSize, variants) } ?: 0,
                 releasedAt = s?.releasedAt ?: cs.first().releasedAt,
             )
         }.sortedWith(compareByDescending<SetProgress> { it.fraction }.thenByDescending { it.releasedAt.orEmpty() })
@@ -238,12 +245,16 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
     val vm = toolsVm()
     val progress by vm.setProgress.collectAsStateWithLifecycle()
     val failed by vm.setsFailed.collectAsStateWithLifecycle()
+    val variants by vm.includeVariants.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.loadSets() }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         TopBar("Set tracker", "How much of each set you own", onBack)
         var filter by remember { mutableStateOf("") }
         SearchField(filter, { filter = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter sets")
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
+            SelectPill("Include variants", variants, { vm.setIncludeVariants(!variants) })
+        }
         if (failed) Text(
             "Offline: set sizes missing.",
             style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(horizontal = 20.dp),
@@ -307,6 +318,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     val owned by vm.cards.collectAsStateWithLifecycle()
     val sets by vm.sets.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
+    val variants by vm.includeVariants.collectAsStateWithLifecycle()
     var show by remember { mutableStateOf("all") }
     var query by remember { mutableStateOf("") }
     var grid by remember { mutableStateOf(true) }
@@ -320,7 +332,10 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     val mine = remember(owned, code) {
         owned.filter { it.setCode.equals(code, ignoreCase = true) }.groupBy { it.collectorNumber.lowercase() }
     }
-    val all = cards.orEmpty()
+    // Main set only unless variants count: no showcase, borderless, extended art or promos.
+    val all = remember(cards, variants, info) {
+        cards.orEmpty().let { list -> if (variants) list else list.filter { MainSet.isMain(it.collectorNumber, it.treatments, info?.printedSize) } }
+    }
     val missing = remember(all, mine) { all.filter { it.collectorNumber.lowercase() !in mine } }
     val missingCost = remember(missing) { missing.sumOf { it.prices.usd?.toDoubleOrNull() ?: 0.0 } }
     val have = all.size - missing.size
@@ -354,10 +369,14 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
             cards == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
             else -> {
                 SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter this set")
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     SelectPill("All", show == "all", { show = "all" })
                     SelectPill("Owned", show == "owned", { show = "owned" })
                     SelectPill("Missing", show == "missing", { show = "missing" })
+                    SelectPill("Include variants", variants, { vm.setIncludeVariants(!variants) })
                 }
                 val q = query.trim().lowercase()
                 val groups = remember(all, mine, show, q) {
