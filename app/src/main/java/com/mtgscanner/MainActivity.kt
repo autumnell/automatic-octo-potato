@@ -192,6 +192,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             if (result == SnackbarResult.ActionPerformed) e.undo?.let { u -> scope.launch { runCatching { u() } } }
         }
     }
+    // A message saved before a restart (restoring a backup), with its Undo.
+    com.mtgscanner.ui.settings.RestartNoticeEffect()
     LaunchedEffect(openRequest) {
         when (openRequest) {
             "scan" -> nav.goToTab("scan")

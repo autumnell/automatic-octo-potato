@@ -204,9 +204,14 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         run("Restoring…") {
             val n = BackupIO.restore(repo, preview.backup)
             _canUndoRestore.value = true
+            val message = if (n == 1) "Restored 1 card" else "Restored $n cards"
             // Deck folders and saved searches are only read at start-up, so restored ones need a fresh start.
-            if (BackupIO.needsRestart(preview.backup)) restartApp(app)
-            com.mtgscanner.ui.components.Undo.offer(if (n == 1) "Restored 1 card" else "Restored $n cards") { undoRestore(app) }
+            // The result and its Undo then show after the restart instead of being lost with it.
+            if (BackupIO.needsRestart(preview.backup)) {
+                RestartNotice.stash(app, message, undoRestore = true)
+                restartApp(app)
+            }
+            com.mtgscanner.ui.components.Undo.offer(message) { undoRestore(app) }
             null
         }
     }
@@ -216,8 +221,10 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val app = ctx.applicationContext
         run("Undoing restore…") {
             val n = BackupIO.undoRestore(repo) ?: return@run "Nothing to undo"
+            val message = if (n == 1) "Back to 1 card" else "Back to $n cards"
+            RestartNotice.stash(app, message, undoRestore = false)
             restartApp(app)
-            if (n == 1) "Back to 1 card" else "Back to $n cards"
+            message
         }
     }
 
