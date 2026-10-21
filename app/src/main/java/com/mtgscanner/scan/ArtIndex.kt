@@ -43,6 +43,14 @@ class ArtIndex(entries: List<ArtEntry>) {
     val size: Int get() = hashes.size
     fun hasSet(code: String): Boolean = sets.any { it.equals(code, ignoreCase = true) }
 
+    /** Where each printing's first picture sits, by Scryfall id. */
+    private val byId: Map<String, Int> by lazy {
+        HashMap<String, Int>(ids.size * 2).also { m -> for (i in ids.indices) m.putIfAbsent(ids[i], i) }
+    }
+
+    /** The art hash and embedding (null when the index has none) of a printing, when this index holds it. */
+    fun artOf(id: String): Pair<Long, ByteArray?>? = byId[id]?.let { hashes[it] to embeddings[it] }
+
     /**
      * The card whose art is closest to any of [targets] (the same picture hashed a few ways up), when it's a
      * clear answer: within [maxDistance] bits and at least [minLead] bits closer than any card with another name.

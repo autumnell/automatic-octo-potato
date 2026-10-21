@@ -78,8 +78,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
             if (records.isEmpty()) {
-                Text("No games yet.",
-                    style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 16.dp))
+                com.mtgscanner.ui.components.EmptyState("No games yet")
             } else {
                 Header("Players")
                 players.forEach { p ->
@@ -118,5 +117,5 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
 
 @Composable
 private fun Header(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Accent, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.AccentText, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
 }

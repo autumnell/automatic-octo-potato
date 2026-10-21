@@ -16,6 +16,8 @@ data class PullItem(
     val foil: Boolean,
     val proxy: Boolean,
     val imageUrl: String?,
+    /** The collection rows to take the copies from: (row id, copies). */
+    val rows: List<Pair<Long, Int>> = emptyList(),
 )
 
 /** What to pull from one box. [boxId] is null for cards in no known box. */
@@ -30,6 +32,11 @@ data class PullList(
     val inDeckBox: Int,
 ) {
     val toPull: Int get() = groups.sumOf { g -> g.items.sumOf { it.qty } }
+
+    /** Row moves (row id, copies) for the checked items, skipping any already in [deckBoxId]. */
+    fun movesFor(checked: Set<String>, deckBoxId: Long? = null): List<Pair<Long, Int>> =
+        groups.filter { deckBoxId == null || it.boxId != deckBoxId }
+            .flatMap { g -> g.items.filter { it.key in checked }.flatMap { it.rows } }
 }
 
 object PullListMath {
@@ -108,6 +115,7 @@ object PullListMath {
                 c.boxId to PullItem(
                     key = key, name = c.name, qty = cs.sumOf { it.second }, setCode = c.setCode,
                     collectorNumber = c.collectorNumber, foil = c.foil, proxy = c.proxy, imageUrl = c.imageUrl,
+                    rows = cs.map { (row, n) -> row.id to n },
                 )
             }
         val boxIndex = boxes.mapIndexed { i, b -> b.id to i }.toMap()

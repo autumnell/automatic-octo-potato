@@ -57,6 +57,7 @@ import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.AutoSizeText
 import com.mtgscanner.ui.components.textInfo
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -209,7 +210,11 @@ private fun LegalityCell(status: String, format: String, modifier: Modifier) {
             Modifier.width(74.dp).clip(RoundedCornerShape(6.dp)).background(bg).padding(vertical = 3.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, textAlign = TextAlign.Center, color = fg)
+            // Shrinks to fit the badge with a big font, instead of cutting "RESTRICTED" off.
+            AutoSizeText(
+                label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+                color = fg, textAlign = TextAlign.Center, minScale = 0.6f,
+            )
         }
         Spacer(Modifier.width(8.dp))
         Text(format, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -376,12 +381,12 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
 
 @Composable
 private fun PriceCell(price: String?, foil: Boolean = false) {
-    Text(
+    // "$1,234.56" shrinks to fit the column instead of being cut off.
+    AutoSizeText(
         if (price == null) "--" else formatUsd(price),
         style = MaterialTheme.typography.labelMedium,
-        color = if (price == null) Palette.Muted else if (foil) Palette.Gold else Palette.AccentText,
+        color = if (price == null) Palette.Muted else if (foil) Palette.GoldText else Palette.AccentText,
         textAlign = TextAlign.End,
-        maxLines = 1,
         modifier = Modifier.width(56.dp),
     )
 }

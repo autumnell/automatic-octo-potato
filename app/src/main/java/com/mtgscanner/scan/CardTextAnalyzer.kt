@@ -103,6 +103,11 @@ class CardTextAnalyzer(
     /** Card check before any text reading: skips frames with no card, or while the card moves. */
     private val gate = CardGate()
     private var lastGate = 0L
+    /** When the wait for a steady binder page started; 0 when not waiting. */
+    private var pageWaitSince = 0L
+
+    /** The last whole-card read, by the name read on the name bar: a card held still is read whole only once. */
+    @Volatile private var lastWhole: Pair<String, CardTextGuess>? = null
 
     /** Reused for every frame, so a 3.7 MB bitmap isn't made four times a second. */
     private var frameBitmap: Bitmap? = null
@@ -130,7 +135,10 @@ class CardTextAnalyzer(
             lastLight = now
             measureLight(image)
         }
-        if (isPaused()) gate.reset()
+        if (isPaused()) {
+            gate.reset()
+            pageWaitSince = 0L
+        }
         if (isPaused() || busy.get()) {
             image.close()
             return
@@ -138,7 +146,23 @@ class CardTextAnalyzer(
         val rotation = image.imageInfo.rotationDegrees
         val page = wantsPage()
         var area: ReadArea? = null
-        if (!page) {
+        if (page) {
+            // "Capture page": wait for the shake of the tap to settle and a steady frame (at most a few seconds).
+            if (now - lastGate < GATE_INTERVAL_MS) {
+                image.close()
+                return
+            }
+            lastGate = now
+            if (pageWaitSince == 0L) pageWaitSince = now
+            val state = runCatching { checkCard(image, rotation) }.getOrNull()?.first?.state
+            val steady = state != GateState.MOVING && state != GateState.SETTLING
+            val waited = now - pageWaitSince
+            if (waited < PAGE_MIN_WAIT_MS || (!steady && waited < PAGE_MAX_WAIT_MS)) {
+                image.close()
+                return
+            }
+            pageWaitSince = 0L
+        } else {
             // The card check is cheap; text reading only runs on a steady frame with something in the guide.
             if (now - lastGate < GATE_INTERVAL_MS) {
                 image.close()
@@ -151,7 +175,8 @@ class CardTextAnalyzer(
                     // Nothing in the guide: tell the scanner, so it knows the card has left.
                     lastRun = now
                     image.close()
-                    scope.launch { runCatching { onGuess(CardTextGuess(emptyList(), null, null, 0)) } }
+                    lastWhole = null
+                    scope.launch { runCatching { onGuess(CardTextGuess(emptyList(), null, null, 0, guideEmpty = true)) } }
                     return
                 }
                 image.close()
@@ -197,8 +222,13 @@ class CardTextAnalyzer(
                     // A found card: read just its name bar and footer, straightened and sharp.
                     val strips = if (quad != null) runCatching { readStrips(quad, rotation, draw, cjk) }.getOrNull() else null
                     val stripGuess = strips?.guess
+                    val stripName = stripGuess?.nameKey
+                    val seenWhole = lastWhole?.takeIf { stripName != null && it.first == stripName }?.second
                     var guess = if (stripGuess != null && stripGuess.setCode != null && stripGuess.collectorNumber != null) {
                         stripGuess
+                    } else if (stripGuess != null && seenWhole != null) {
+                        // Same name as the card read whole a moment ago: its rules text and footer haven't changed.
+                        CardTextParser.merge(stripGuess, seenWhole)
                     } else {
                         // No complete footer from the strips: read the whole card too, as before (its rules
                         // text also tells the language), and take the best of both.
@@ -214,6 +244,7 @@ class CardTextAnalyzer(
                         // A CJK name already read from the name bar needs no CJK read of the whole card.
                         val wholeCjk = cjk.takeIf { stripGuess?.printedName == null }
                         val full = readBestOrientation(readable, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP, wholeCjk)
+                        lastWhole = stripName?.let { it to full }
                         if (stripGuess != null) CardTextParser.merge(stripGuess, full) else full
                     }
                     if (strips != null) guess = guess.copy(glare = strips.glare)
@@ -448,7 +479,8 @@ class CardTextAnalyzer(
      * pick the printing. [stripTurn] is the way up the strips were read at.
      */
     private fun withArt(quad: FloatArray, rotation: Int, stripTurn: Int?, g: CardTextGuess, draw: Draw): CardTextGuess {
-        if (g.collectorNumber != null) return g
+        // A full footer names the printing. A number with no set code (2003-2019 cards) still needs the art.
+        if (g.collectorNumber != null && g.setCode != null) return g
         if (g.nameCandidates.isEmpty() && g.printedName == null) {
             if (!wantsArt()) return g
             val arts = CardQuad.uprightTurns(quad, rotation + preferredTurn).mapNotNull { artOf(quad, it, draw) }
@@ -519,7 +551,7 @@ class CardTextAnalyzer(
         }
         // Without a readable footer, the artwork is what tells printings apart.
         val art = guess.artBox
-        if (art != null && guess.collectorNumber == null) {
+        if (art != null && (guess.collectorNumber == null || guess.setCode == null)) {
             val hash = runCatching { hashArt(bitmap, (cameraRotation + turn) % 360, art) }.getOrNull()
             if (hash != null) return guess.copy(artHash = hash)
         }
@@ -606,6 +638,9 @@ class CardTextAnalyzer(
     private companion object {
         /** How often the card check runs. Two steady checks in a row start a read. */
         const val GATE_INTERVAL_MS = 100L
+        /** "Capture page" reads no sooner than this after the tap, and waits at most this long for a steady frame. */
+        const val PAGE_MIN_WAIT_MS = 300L
+        const val PAGE_MAX_WAIT_MS = 2_500L
         /** Grid size for the card check, along the longer side. */
         const val GRID = 160
         /** A little more than the guide's share of the guide crop ([FrameGeometry.guideCrop] adds 20%). */

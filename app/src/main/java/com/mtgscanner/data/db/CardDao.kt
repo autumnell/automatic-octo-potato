@@ -94,6 +94,21 @@ interface CardDao {
     @Query("SELECT boxId, COALESCE(SUM(quantity), 0) AS n FROM cards GROUP BY boxId")
     suspend fun boxCounts(): List<BoxCount>
 
+    /**
+     * Copies and value per box, worked out in SQL so the box list doesn't read every card. Value matches
+     * [totalPrice]: proxies count 0, else the condition price or the near-mint price for the finish.
+     */
+    @Query(
+        "SELECT boxId, COALESCE(SUM(quantity), 0) AS n, COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
+            "COALESCE(conditionPrice, CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) * quantity END), 0) AS value " +
+            "FROM cards GROUP BY boxId"
+    )
+    fun observeBoxTotals(): Flow<List<BoxTotal>>
+
+    /** Sets or clears "Stay in this box". */
+    @Query("UPDATE cards SET pinned = :pinned WHERE id IN (:ids)")
+    suspend fun setPinned(ids: List<Long>, pinned: Boolean)
+
     @Query("UPDATE cards SET conditionPrice = :price, conditionPriceAt = :at WHERE id = :id")
     suspend fun setConditionPrice(id: Long, price: Double?, at: Long)
 

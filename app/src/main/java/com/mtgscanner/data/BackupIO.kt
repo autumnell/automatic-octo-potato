@@ -53,11 +53,13 @@ data class Backup(
     val goals: List<Goal> = emptyList(),
     /** Settings that hold your organisation (deck folders, saved searches, sorting…): file name to values. Added in version 2. */
     val prefs: Map<String, Map<String, PrefValue>> = emptyMap(),
+    /** Where a zip backup's price history and photos were unpacked when read; not part of the file. */
+    @kotlinx.serialization.Transient val staged: String? = null,
 ) {
     val cardCount: Int get() = cards.sumOf { it.quantity }
 
     companion object {
-        const val CURRENT = 2
+        const val CURRENT = 3
     }
 }
 
@@ -107,14 +109,15 @@ object BackupCodec {
 
 /** Backup, restore and CSV import for [CollectionRepository]. */
 internal object BackupIO {
-    /** SharedPreferences files that hold the user's organisation, saved in backups. */
-    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan")
+    /** SharedPreferences files that hold the user's organisation and options, saved in backups. */
+    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app")
 
     /** What the app held just before the last restore, so a restore can be undone. */
     private const val SAFETY_FILE = "before-restore.json"
 
     fun safetyFile(context: Context) = File(context.filesDir, SAFETY_FILE)
 
+    /** Everything but price history, which is streamed straight from the table (see [writeArchive]). */
     private suspend fun snapshot(repo: CollectionRepository): Backup {
         prunePriceHistory(repo.db)
         val dao = repo.dao
@@ -122,11 +125,32 @@ internal object BackupIO {
             version = Backup.CURRENT, exportedAt = System.currentTimeMillis(),
             boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
-            priceHistory = dao.allPricePoints(), packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(),
+            packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(),
             prefs = BACKED_UP_PREFS.associateWith { name ->
                 BackupCodec.prefValues(repo.appContext.getSharedPreferences(name, Context.MODE_PRIVATE).all)
             }.filterValues { it.isNotEmpty() },
         )
+    }
+
+    /** Writes a full backup (zip: data, price history row by row, card photos) to [out], and closes it. Returns the card count. */
+    private suspend fun writeArchive(repo: CollectionRepository, out: OutputStream): Int {
+        val b = snapshot(repo)
+        val photoDir = CardPhotos.folder(repo.appContext)
+        val photos = b.cards.mapNotNull { c -> c.photo.takeIf { it.isNotBlank() }?.let { File(photoDir, File(it).name) } }
+        BackupArchive.write(out, b, photos) { emit ->
+            repo.db.openHelper.readableDatabase.query("SELECT scryfallId, day, usd, usdFoil FROM price_history").use { c ->
+                while (c.moveToNext()) {
+                    emit(
+                        PricePoint(
+                            c.getString(0), c.getString(1),
+                            if (c.isNull(2)) null else c.getDouble(2),
+                            if (c.isNull(3)) null else c.getDouble(3),
+                        ),
+                    )
+                }
+            }
+        }
+        return b.cardCount
     }
 
     /**
@@ -134,15 +158,21 @@ internal object BackupIO {
      * So a failure or a closed screen never leaves the target empty or half written.
      * Returns false when [open] gives no stream.
      */
-    suspend fun export(repo: CollectionRepository, open: suspend () -> OutputStream?): Boolean = withContext(Dispatchers.IO) {
-        val tmp = File.createTempFile("backup", ".json", repo.appContext.cacheDir)
+    suspend fun export(repo: CollectionRepository, open: suspend () -> OutputStream?): Boolean =
+        exportCounted(repo) { open() } != null
+
+    /**
+     * Like [export], but [open] is told how many cards the finished backup holds (it can refuse with null).
+     * Returns the cards saved, or null when [open] gives no stream.
+     */
+    suspend fun exportCounted(repo: CollectionRepository, open: suspend (cards: Int) -> OutputStream?): Int? = withContext(Dispatchers.IO) {
+        val tmp = File.createTempFile("backup", ".zip", repo.appContext.cacheDir)
         try {
-            val b = snapshot(repo)
-            tmp.outputStream().buffered().use { BackupCodec.encode(b, it) }
+            val count = writeArchive(repo, tmp.outputStream())
             withContext(NonCancellable) {
-                val out = open() ?: return@withContext false
+                val out = open(count) ?: return@withContext null
                 out.use { o -> tmp.inputStream().use { it.copyTo(o) } }
-                true
+                count
             }
         } finally {
             tmp.delete()
@@ -152,17 +182,17 @@ internal object BackupIO {
     /** Writes a backup to an app file, replacing it only once the new one is complete. */
     private suspend fun exportToFile(repo: CollectionRepository, target: File) {
         val part = File(target.parentFile, target.name + ".part")
-        val b = snapshot(repo)
-        part.outputStream().buffered().use { BackupCodec.encode(b, it) }
+        writeArchive(repo, part.outputStream())
         if (!part.renameTo(target)) {
             target.delete()
             if (!part.renameTo(target)) throw IOException("Couldn't save a safety copy")
         }
     }
 
-    /** Reads and checks a backup without changing anything. */
-    suspend fun read(input: InputStream): Backup = withContext(Dispatchers.IO) {
-        input.buffered().use { BackupCodec.decode(it) }
+    /** Reads and checks a backup without changing anything. A zip's photos and prices wait in the cache until restored. */
+    suspend fun read(input: InputStream, context: Context? = null): Backup = withContext(Dispatchers.IO) {
+        val stage = File(context?.cacheDir ?: File(System.getProperty("java.io.tmpdir") ?: "."), "restore-staging")
+        input.use { BackupArchive.read(it, stage) }
     }
 
     /**
@@ -172,14 +202,24 @@ internal object BackupIO {
     suspend fun restore(repo: CollectionRepository, b: Backup, checked: Boolean = true): Int = withContext(Dispatchers.IO + NonCancellable) {
         if (checked) BackupCodec.check(b)
         exportToFile(repo, safetyFile(repo.appContext))
+        // Photos first, so the restored cards can point at this phone's copies.
+        val photoDir = CardPhotos.folder(repo.appContext)
+        BackupArchive.stagedPhotos(b).forEach { f -> runCatching { f.copyTo(File(photoDir, f.name), overwrite = true) } }
+        val cards = b.cards.map { c ->
+            if (c.photo.isBlank()) c
+            else File(photoDir, File(c.photo).name).takeIf { it.isFile }?.let { c.copy(photo = it.absolutePath) } ?: c
+        }
         val dao = repo.dao
         repo.db.withTransaction {
             dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
             dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteEvents(); dao.deleteGoals()
-            dao.putBoxes(b.boxes); dao.putCards(b.cards); dao.putSnapshots(b.snapshots)
+            dao.putBoxes(b.boxes); dao.putCards(cards); dao.putSnapshots(b.snapshots)
             dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
-            dao.putPricePoints(b.priceHistory); dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals)
+            b.priceHistory.chunked(2000).forEach { dao.putPricePoints(it) }
+            BackupArchive.forEachPriceChunk(b) { dao.putPricePoints(it) }
+            dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals)
         }
+        b.staged?.let { runCatching { File(it).deleteRecursively() } }
         // Old backups have no settings: keep the current ones.
         if (b.prefs.isNotEmpty()) applyPrefs(repo.appContext, b.prefs)
         repo.appScope.launch { runCatching { repo.recordSnapshot() } }
@@ -191,7 +231,8 @@ internal object BackupIO {
         val f = safetyFile(repo.appContext)
         if (!f.exists()) return@withContext null
         // Read it fully first: restoring writes a new safety copy over this file.
-        val b = f.inputStream().buffered().use { BackupCodec.decode(it, checked = false) }
+        val stage = File(repo.appContext.cacheDir, "undo-staging")
+        val b = f.inputStream().use { BackupArchive.read(it, stage, checked = false) }
         // The app may have been empty before; that's still a valid state to go back to.
         restore(repo, b, checked = false)
     }
@@ -214,6 +255,8 @@ internal object BackupIO {
         }
         SortPrefs.init(context)
         com.mtgscanner.scan.ScanPrefs.init(context)
+        com.mtgscanner.ui.theme.AppSettings.init(context)
+        com.mtgscanner.work.CardAlertStore.reload(context)
     }
 
     /** Whether restoring [b] changes settings that some screens only read at start-up. */
@@ -251,8 +294,9 @@ internal object BackupIO {
     ): ImportResult = applyPlan(repo, plan(repo, rows, lookUp(repo, rows), boxId), fallbackBox)
 
     /** Looks every row up on Scryfall (exact matches only). Throws IOException when offline. */
-    suspend fun lookUp(repo: CollectionRepository, rows: List<ImportRow>): List<ScryfallCard?> {
+    suspend fun lookUp(repo: CollectionRepository, given: List<ImportRow>): List<ScryfallCard?> {
         val api = repo.api
+        val rows = withSetCodes(repo, given)
         val found = api.identify(rows.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) }).toMutableList()
         val retry = rows.indices.filter { found[it] == null && (rows[it].setCode != null || rows[it].scryfallId != null) }
         if (retry.isNotEmpty()) {
@@ -262,11 +306,23 @@ internal object BackupIO {
         return found
     }
 
+    /** Fills in set codes for rows that only have a full set name (Deckbox, Cardmarket), from Scryfall's set list. */
+    private suspend fun withSetCodes(repo: CollectionRepository, rows: List<ImportRow>): List<ImportRow> {
+        if (rows.none { it.setCode == null && !it.setName.isNullOrBlank() }) return rows
+        val sets = runCatching { repo.sets() }.getOrNull() ?: return rows
+        val byName = SetNames.index(sets.map { it.name to it.code })
+        return rows.map { r ->
+            if (r.setCode != null || r.setName.isNullOrBlank()) r
+            else SetNames.codeFor(r.setName, byName)?.let { r.copy(setCode = it) } ?: r
+        }
+    }
+
     /**
      * Looks one row up again, more loosely: exact first, then Scryfall's fuzzy name match (typos,
      * partial names), with its set and then without. Null when still not found. Throws IOException when offline.
      */
-    suspend fun lookUpLoosely(repo: CollectionRepository, row: ImportRow): ScryfallCard? {
+    suspend fun lookUpLoosely(repo: CollectionRepository, given: ImportRow): ScryfallCard? {
+        val row = withSetCodes(repo, listOf(given)).first()
         lookUp(repo, listOf(row)).firstOrNull()?.let { return it }
         val name = row.name.trim().takeIf { it.isNotEmpty() } ?: return null
         val set = row.setCode
@@ -321,6 +377,9 @@ internal object BackupIO {
                         condition = r.condition ?: "NM",
                         lang = r.language ?: c.lang,
                         purchasePrice = r.purchasePrice,
+                        signed = r.signed,
+                        altered = r.altered,
+                        proxy = r.proxy,
                     )
                     // Same printing, finish, box, language, condition and flags: add to that stack.
                     val existing = dao.find(

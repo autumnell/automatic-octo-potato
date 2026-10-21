@@ -36,9 +36,43 @@ enum class TileMetric(val key: String, val label: String, val short: String, val
     }
 }
 
+/**
+ * Browse filters behind stat tiles that have no filter of their own (see [com.mtgscanner.ui.collection.Filters.flags]).
+ * Each matches the same copies its tile counts in [TileMath.counts].
+ */
+object TileFlags {
+    const val COMMANDER = "commander"
+    const val BULK = "bulk"
+    const val FOR_SALE = "sale"
+    const val PROXY = "proxy"
+    const val SIGNED = "signed"
+    const val GRADED = "graded"
+
+    fun matches(c: CollectionCard, flag: String): Boolean = when (flag) {
+        COMMANDER -> TileMath.isCommander(c)
+        BULK -> HomeMath.bulk(listOf(c), 0.0).cards > 0
+        FOR_SALE -> c.forSale
+        PROXY -> c.proxy
+        SIGNED -> c.signed
+        GRADED -> c.graded.isNotBlank()
+        else -> true
+    }
+
+    /** The flag behind [metric]'s tile, or null when the tile opens something else. */
+    fun of(metric: TileMetric): String? = when (metric) {
+        TileMetric.COMMANDERS -> COMMANDER
+        TileMetric.BULK -> BULK
+        TileMetric.FOR_SALE -> FOR_SALE
+        TileMetric.PROXIES -> PROXY
+        TileMetric.SIGNED -> SIGNED
+        TileMetric.GRADED -> GRADED
+        else -> null
+    }
+}
+
 /** Tile numbers, kept free of Android so they can be tested. */
 object TileMath {
-    private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
+    const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
 
     /** Could lead a Commander deck: a legendary creature, or a card that says it can. */
     fun isCommander(c: CollectionCard): Boolean =

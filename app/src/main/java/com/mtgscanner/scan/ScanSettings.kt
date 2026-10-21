@@ -40,6 +40,8 @@ data class ScanSettings(
     val flash: Boolean = true,
     /** Turn the flashlight on by itself when the picture stays too dark, and off again when it's bright. */
     val autoTorch: Boolean = true,
+    /** Stack mode: say the box name out loud for each card. */
+    val speakBox: Boolean = false,
 ) {
     /** Whether a match is sure enough to add without asking. */
     fun accepts(exact: Boolean, confident: Boolean): Boolean = when (level) {

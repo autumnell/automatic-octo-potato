@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
  */
 @Entity(
     tableName = "cards",
-    indices = [Index(value = ["scryfallId", "foil", "boxId", "lang", "condition", "signed", "altered", "graded", "proxy"], unique = true), Index("name"), Index("setCode"), Index("boxId")],
+    indices = [Index(value = ["scryfallId", "foil", "boxId", "lang", "condition", "signed", "altered", "graded", "proxy"], unique = true), Index("name"), Index("setCode"), Index("boxId"), Index("oracleId"), Index("addedAt")],
 )
 @Serializable
 data class CollectionCard(
@@ -84,6 +84,8 @@ data class CollectionCard(
     val toughness: String? = null,
     /** On the Reserved List. */
     val reserved: Boolean = false,
+    /** "Stay in this box": re-sort and "Sort out" leave it where it is. */
+    val pinned: Boolean = false,
     val addedAt: Long,
     val updatedAt: Long,
 )
@@ -164,6 +166,7 @@ fun CollectionCard.facts() = com.mtgscanner.data.CardFacts(
     foil = foil, price = unitPrice(), setCode = setCode, name = name,
     colorIdentity = colorIdentity, cmc = cmc, power = power, toughness = toughness, reserved = reserved,
     formats = tagList().filter { it.startsWith("legal:") }.map { it.removePrefix("legal:") }.toSet(),
+    number = collectorNumber,
 )
 
 fun CollectionCard.roleList(): List<String> = roles.split(',').map { it.trim() }.filter { it.isNotEmpty() }

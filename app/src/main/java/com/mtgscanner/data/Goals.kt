@@ -22,6 +22,8 @@ data class GoalProgress(
 ) {
     val fraction: Float get() = if (total > 0) have.toFloat() / total else 0f
     val done: Boolean get() = loaded && total > 0 && have >= total
+    /** What the missing cards cost at market price, each at its cheapest finish. Cards with no price add nothing. */
+    val cost: Double get() = Goals.cost(missing)
 }
 
 /**
@@ -35,6 +37,9 @@ object GoalCache {
     private val failed = HashMap<String, Pair<Long, Throwable>>()
 
     fun get(key: String): List<ScryfallCard>? = synchronized(cards) { cards[key] }
+
+    /** Forgets recent failures, so a Retry tries the network again straight away. */
+    fun clearFailures() = synchronized(cards) { failed.clear() }
     fun put(key: String, list: List<ScryfallCard>) = synchronized(cards) { cards[key] = list }
 
     /** The cached list, or the running download, or a new one in [scope]. Throws the last failure for a while. */
@@ -61,6 +66,19 @@ object Goals {
     const val PRINTINGS = "printings"
     const val SET = "set"
     val RARITIES = listOf("common", "uncommon", "rare", "mythic")
+
+    /** The cheapest market price of one copy: non-foil, else foil, else etched. */
+    fun cheapest(card: ScryfallCard): Double? =
+        listOfNotNull(card.prices.usd, card.prices.usdFoil, card.prices.usdEtched).mapNotNull { it.toDoubleOrNull() }.minOrNull()
+
+    fun cost(cards: List<ScryfallCard>): Double = cards.sumOf { cheapest(it) ?: 0.0 }
+
+    /**
+     * Missing cards to put on the wishlist: one per card (oracle id), skipping cards already wished for.
+     * The wishlist counts cards, not printings, so a printings goal adds its card once.
+     */
+    fun toWishlist(missing: List<ScryfallCard>, wished: Set<String>): List<ScryfallCard> =
+        missing.filter { it.oracleId != null && it.oracleId !in wished }.distinctBy { it.oracleId }
 
     fun rarities(goal: Goal): Set<String> = goal.rarities.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
 

@@ -69,6 +69,8 @@ object Palette {
     val BoxCard: Color get() = when { black -> Color(0xFF10121A); dark -> Color(0xFF1E2233); else -> Color(0xFFE4E8F6) }
     val NavBar: Color get() = when { black -> Color.Black; dark -> Color(0xFF09090A); else -> Color(0xFFFFFFFF) }
     val Gold: Color get() = if (dark) Color(0xFFF2C14E) else Color(0xFFB07D12)
+    /** [Gold] for text: darker in light mode so it reads on light panels (about 4.6:1 or better). */
+    val GoldText: Color get() = if (dark) Gold else Color(0xFF876009)
     val Info: Color get() = if (dark) Color(0xFF5B9BE0) else Color(0xFF2F6FB8)
     val Text: Color get() = if (dark) Color(0xFFEDEDEF) else Color(0xFF17181C)
     val Muted: Color get() = if (dark) Color(0xFF9A9BA3) else Color(0xFF666873)
@@ -249,6 +251,15 @@ object MtgColors {
     fun forLetter(c: Char): Color = when (c.uppercaseChar()) {
         'W' -> W; 'U' -> U; 'B' -> B; 'R' -> R; 'G' -> G; else -> C
     }
+
+    /** White for bars and slices on the app background: a deeper cream in light mode, where [W] vanishes. */
+    val WOnSurface: Color get() = if (Palette.dark) W else Color(0xFFDCCB92)
+
+    /** [forLetter] for bars and slices drawn on the app background (see [WOnSurface]). */
+    fun barFor(c: Char): Color = if (c.uppercaseChar() == 'W') WOnSurface else forLetter(c)
+
+    /** A thin edge for light slices in light mode, so white keeps its shape next to the background. */
+    val SliceEdge: Color get() = Color.Black.copy(alpha = 0.22f)
 
     fun rarity(r: String): Color = when (r) {
         "common" -> Color(0xFFB4B4B4)

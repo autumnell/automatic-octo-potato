@@ -120,6 +120,21 @@ fun ScanToggleBar(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mo
             }
         }
         BarDivider()
+        // Condition
+        var condMenu by remember { mutableStateOf(false) }
+        BarCell("Condition", onClick = { condMenu = true }) {
+            val c = ScanBarPrefs.condition
+            Text(c, color = if (c != "NM") Palette.Gold else Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            DropdownMenu(expanded = condMenu, onDismissRequest = { condMenu = false }) {
+                ScanBarPrefs.CONDITIONS.forEach { code ->
+                    DropdownMenuItem(
+                        text = { Text(code, color = if (code == c) Palette.Accent else Palette.Text) },
+                        onClick = { ScanBarPrefs.updateCondition(code); condMenu = false },
+                    )
+                }
+            }
+        }
+        BarDivider()
         // Copies per scan
         var qtyMenu by remember { mutableStateOf(false) }
         BarCell("Copies", onClick = { qtyMenu = true }) {

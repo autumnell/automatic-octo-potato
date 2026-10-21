@@ -230,7 +230,11 @@ fun GamePlayScreen(onExit: () -> Unit) {
                         .clip(CircleShape)
                         .background(Color.Black)
                         .border(2.dp, Palette.Accent, CircleShape)
-                        .clickable { menu = true },
+                        .clickable(onClickLabel = "Open game menu") { menu = true }
+                        // Read out as what it is, not just "T3".
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = if (g.active != null) "Game menu, turn ${g.turn}" else "Game menu"
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.Bold)

@@ -10,7 +10,62 @@ enum class Divider(val key: String, val label: String) {
     RARITY("rarity", "Rarity");
 
     companion object {
-        fun of(key: String): Divider = entries.firstOrNull { it.key == key } ?: NONE
+        /** The first level of a [BoxLayout] key ("color>letter" gives COLOR). */
+        fun of(key: String): Divider {
+            val first = key.substringBefore('>')
+            if (first.isEmpty()) return NONE
+            return entries.firstOrNull { it.key == first } ?: NONE
+        }
+    }
+}
+
+/**
+ * How a box is laid out inside: up to two levels of dividers (Color, then Letter) and the order of cards
+ * behind the last one (name, or collector number). Saved in [com.mtgscanner.data.db.Box.divider] as
+ * "color", "color>letter", "set>#" ("#" = number order).
+ */
+data class BoxLayout(val first: Divider = Divider.NONE, val second: Divider = Divider.NONE, val byNumber: Boolean = false) {
+    val levels: List<Divider> get() = listOf(first, second).filter { it != Divider.NONE }.distinct()
+    val hasDividers: Boolean get() = levels.isNotEmpty()
+
+    val key: String get() = (levels.map { it.key } + (if (byNumber) listOf("#") else emptyList())).joinToString(">")
+
+    /** "Color → First letter", "Set · by number", or "None". */
+    fun label(): String {
+        val parts = levels.joinToString(" → ") { it.label }.ifEmpty { "None" }
+        return if (byNumber) "$parts · by number" else parts
+    }
+
+    companion object {
+        fun of(key: String): BoxLayout {
+            val parts = key.split('>').map { it.trim() }.filter { it.isNotEmpty() }
+            val divs = parts.filter { it != "#" }.mapNotNull { k -> Divider.entries.firstOrNull { it.key == k && it != Divider.NONE } }
+            return BoxLayout(divs.getOrElse(0) { Divider.NONE }, divs.getOrElse(1) { Divider.NONE }, "#" in parts)
+        }
+    }
+}
+
+/**
+ * One way to file names everywhere (name ranges, dividers, Browse sections, order in a box):
+ * case and accents don't matter and a leading "The" is skipped, so "Éowyn" files under E and
+ * "The Wandering Emperor" under W.
+ */
+object NameKey {
+    private val MARKS = Regex("\\p{Mn}+")
+
+    fun of(name: String): String {
+        var s = name.trim().lowercase()
+        if (s.any { it.code > 127 }) {
+            s = s.replace("æ", "ae").replace("œ", "oe").replace("ø", "o").replace("ß", "ss")
+            s = MARKS.replace(java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD), "")
+        }
+        return s.removePrefix("the ").trim()
+    }
+
+    /** 'A' to 'Z', or '#' for a name starting with a digit or symbol. */
+    fun letter(name: String): Char {
+        val first = of(name).firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: return '#'
+        return if (first in 'A'..'Z') first else '#'
     }
 }
 
@@ -48,7 +103,7 @@ data class SortDecision(val boxId: Long, val reason: SortReason, val boxFull: Bo
 object Sorting {
     /**
      * Picks the box for a card.
-     * 1. Under the bulk price floor → the bulk box.
+     * 1. Under the bulk price floor → the bulk box. A card with no price yet isn't bulk.
      * 2. Already own [SortPolicy.playsetLimit] copies in main boxes → the extras box.
      * 3. The first box whose rules fit and that has room, else the first that fits even if full.
      * 4. The fallback box, else the first open box (takes any card, or any card in its name range) that fits.
@@ -60,7 +115,8 @@ object Sorting {
         val ids = boxes.associateBy { it.id }
         val floor = policy.bulkFloor
         val bulk = policy.bulkBoxId?.let(ids::get)
-        if (floor != null && bulk != null && (card.price ?: 0.0) < floor) return SortDecision(bulk.id, SortReason.BULK, bulk.isFull)
+        val price = card.price
+        if (floor != null && bulk != null && price != null && price < floor) return SortDecision(bulk.id, SortReason.BULK, bulk.isFull)
         val extras = policy.extrasBoxId?.let(ids::get)
         if (policy.playsetLimit > 0 && extras != null && ownedInMain >= policy.playsetLimit) {
             return SortDecision(extras.id, SortReason.EXTRA, extras.isFull)
@@ -68,12 +124,24 @@ object Sorting {
         val fits = boxes.filter { !it.rules.isOpen && it.rules.matches(card) }
         (fits.firstOrNull { !it.isFull } ?: fits.firstOrNull())?.let { return SortDecision(it.id, SortReason.RULES, it.isFull) }
         val open = boxes.filter { it.rules.isOpen && it.kind != "trade" && it.kind != "deck" && it.rules.matches(card) }
-        // A fallback box that is half of a split box only takes cards in its name range.
-        val fb = boxes.firstOrNull { it.fallback && (!it.rules.isOpen || it.rules.matches(card)) }
+        val fb = fallbackFor(boxes, card)
             ?: open.firstOrNull { !it.isFull }
             ?: open.firstOrNull()
             ?: return null
         return SortDecision(fb.id, SortReason.FALLBACK, fb.isFull)
+    }
+
+    /**
+     * The fallback box for a card. A fallback box split by name only takes names in its range; the other
+     * halves (same rules and kind, another name range) take the rest.
+     */
+    private fun fallbackFor(boxes: List<BoxInfo>, card: CardFacts): BoxInfo? {
+        val fb = boxes.firstOrNull { it.fallback } ?: return null
+        if (fb.rules.inNameRange(card.name)) return fb
+        val base = fb.rules.copy(nameFrom = null, nameTo = null)
+        return boxes.firstOrNull {
+            it.id != fb.id && it.kind == fb.kind && it.rules.copy(nameFrom = null, nameTo = null) == base && it.rules.inNameRange(card.name)
+        }
     }
 
     /** Main boxes hold the copies you keep: not trade binders, decks, the extras box or the bulk box. */
@@ -88,18 +156,40 @@ object Sorting {
             card.colors.length > 1 -> "Multicolor"
             else -> BoxRules.COLOR_NAMES[card.colors] ?: card.colors
         }
-        Divider.LETTER -> name.trimStart().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.let {
-            if (it.isLetter()) it.toString() else "#"
-        } ?: "#"
+        Divider.LETTER -> NameKey.letter(name).toString()
         Divider.SET -> card.setCode.uppercase()
         Divider.TYPE -> BoxRules.TYPES.firstOrNull { card.typeLine.contains(it, ignoreCase = true) } ?: "Other"
         Divider.RARITY -> card.rarity.replaceFirstChar(Char::uppercase)
+    }
+
+    /** Where in a box a card goes with two levels: "Blue → C". Null when the box has no dividers. */
+    fun spot(layout: BoxLayout, name: String, card: CardFacts): String? =
+        layout.levels.mapNotNull { spot(it, name, card) }.joinToString(SPOT_SEP).ifEmpty { null }
+
+    /** Between the levels of a two-level divider label. */
+    const val SPOT_SEP = " → "
+
+    /** Front-to-back order of two-level labels from [spot]: by the first level, then the second. */
+    fun spotOrder(layout: BoxLayout): Comparator<String> {
+        val levels = layout.levels
+        if (levels.size <= 1) return spotOrder(levels.firstOrNull() ?: Divider.NONE)
+        return Comparator { a, b ->
+            val pa = a.split(SPOT_SEP)
+            val pb = b.split(SPOT_SEP)
+            for ((i, d) in levels.withIndex()) {
+                val c = spotOrder(d).compare(pa.getOrElse(i) { "" }, pb.getOrElse(i) { "" })
+                if (c != 0) return@Comparator c
+            }
+            0
+        }
     }
 
     /** Sort order for divider labels, so a box can be listed front to back. */
     fun spotOrder(divider: Divider): Comparator<String> = when (divider) {
         Divider.COLOR -> compareBy { listOf("White", "Blue", "Black", "Red", "Green", "Multicolor", "Colorless", "Lands").indexOf(it).let { i -> if (i < 0) 99 else i } }
         Divider.RARITY -> compareBy { listOf("Mythic", "Rare", "Uncommon", "Common").indexOf(it).let { i -> if (i < 0) 99 else i } }
+        Divider.TYPE -> compareBy { (BoxRules.TYPES + "Other").indexOf(it).let { i -> if (i < 0) 99 else i } }
+        // "#" (digits and symbols) goes in front, like a real box.
         else -> naturalOrder()
     }
 
@@ -127,18 +217,50 @@ object Sorting {
         }
     }
 
-    /** Name order inside a box: case and a leading "The" don't matter. */
-    fun nameKey(name: String): String = name.trim().lowercase().removePrefix("the ").trim()
+    /** Name order inside a box: case, accents and a leading "The" don't matter (see [NameKey]). */
+    fun nameKey(name: String): String = NameKey.of(name)
 
-    fun position(divider: Divider, name: String, card: CardFacts, contents: List<Pair<String, CardFacts>>): Position {
-        val spot = spot(divider, name, card)
+    /** Collector number order: set, then the number's digits, then the rest ("12a" after "12"). */
+    fun numberKey(card: CardFacts): String {
+        val digits = card.number.takeWhile { it.isDigit() }
+        return card.setCode.lowercase() + "|" + digits.padStart(6, '0') + "|" + card.number.drop(digits.length).lowercase()
+    }
+
+    fun position(divider: Divider, name: String, card: CardFacts, contents: List<Pair<String, CardFacts>>): Position =
+        position(BoxLayout(divider), name, card, contents)
+
+    /** Where a card goes among the cards behind the same divider(s), in name or (with [BoxLayout.byNumber]) number order. */
+    fun position(layout: BoxLayout, name: String, card: CardFacts, contents: List<Pair<String, CardFacts>>): Position {
+        val spot = spot(layout, name, card)
         val key = nameKey(name)
-        val same = contents.filter { spot(divider, it.first, it.second) == spot }.map { it.first }.distinct()
-        if (same.any { nameKey(it) == key }) return Position(spot, null, null, withSame = true)
-        val sorted = same.sortedBy(::nameKey)
+        val same = contents.filter { spot(layout, it.first, it.second) == spot }
+        if (same.any { nameKey(it.first) == key }) return Position(spot, null, null, withSame = true)
+        if (layout.byNumber) {
+            val mine = numberKey(card)
+            val sorted = same.map { it.first to numberKey(it.second) }.sortedBy { it.second }
+            return Position(spot, sorted.lastOrNull { it.second <= mine }?.first, sorted.firstOrNull { it.second > mine }?.first)
+        }
+        val sorted = same.map { it.first }.distinct().sortedBy(::nameKey)
         val after = sorted.lastOrNull { nameKey(it) < key }
         val before = sorted.firstOrNull { nameKey(it) > key }
         return Position(spot, after, before)
+    }
+
+    /**
+     * Divider labels to print for a box: every spot its cards sit behind, front to back. A box with one
+     * level and a fixed list (color, rarity, type, letter) gets the whole list, so new cards have a place.
+     */
+    fun tabs(layout: BoxLayout, cards: List<Pair<String, CardFacts>>): List<String> {
+        if (!layout.hasDividers) return emptyList()
+        val used = cards.mapNotNull { spot(layout, it.first, it.second) }.toSet()
+        val fixed: List<String> = if (layout.levels.size == 1) when (layout.first) {
+            Divider.COLOR -> listOf("White", "Blue", "Black", "Red", "Green", "Multicolor", "Colorless", "Lands")
+            Divider.RARITY -> listOf("Mythic", "Rare", "Uncommon", "Common")
+            Divider.TYPE -> BoxRules.TYPES + "Other"
+            Divider.LETTER -> listOf("#") + ('A'..'Z').map { it.toString() }
+            else -> emptyList()
+        } else emptyList()
+        return (fixed + used).distinct().sortedWith(spotOrder(layout))
     }
 
     /** "Rares → Blue → between Counterspell and Cryptic Command". */
@@ -146,34 +268,77 @@ object Sorting {
         listOfNotNull(boxName, pos.spot, pos.text()).joinToString(" → ")
 
     /**
-     * A card that should live somewhere else: its box has rules it no longer fits, or it sits in a
-     * box that takes any card while a rule box now fits it. Trade binders and decks are left alone.
+     * A card that should live somewhere else: its box has rules it no longer fits, it sits in a box that takes
+     * any card while a rule box now fits it, or it's in the bulk box and now costs more than the bulk floor.
+     * Trade binders and decks are left alone; extras only leave for the bulk box.
      */
     data class Move<T>(val item: T, val from: Long, val to: Long)
 
+    /**
+     * Plans the moves, counting cards in and out of each box as it goes so full boxes stay full.
+     * [copies] is how many cards an item is (for box capacity); [ownedInMain] counts copies already in main
+     * boxes, for cards leaving the bulk box under the keep-a-playset rule. [priceSlack] (0.1 = 10%) lets a card
+     * stay in a box whose price rule it only just misses, so cards near a price line don't bounce between
+     * boxes. [pinned] items stay where they are.
+     */
     fun <T> misplaced(
         items: List<T>,
         boxOf: (T) -> Long,
         facts: (T) -> CardFacts,
         boxes: List<BoxInfo>,
         policy: SortPolicy = SortPolicy(),
+        copies: (T) -> Int = { 1 },
+        ownedInMain: (T) -> Int = { 0 },
+        priceSlack: Double = 0.0,
+        pinned: (T) -> Boolean = { false },
     ): List<Move<T>> {
-        val ids = boxes.associateBy { it.id }
-        return items.mapNotNull { item ->
-            val from = ids[boxOf(item)] ?: return@mapNotNull null
-            if (from.kind == "trade" || from.kind == "deck") return@mapNotNull null
-            if (from.id == policy.extrasBoxId || from.id == policy.bulkBoxId) return@mapNotNull null
+        val live = boxes.toMutableList()
+        val index = HashMap<Long, Int>()
+        boxes.forEachIndexed { i, b -> index[b.id] = i }
+        val noPlayset = policy.copy(playsetLimit = 0)
+        val out = ArrayList<Move<T>>()
+        for (item in items) {
+            if (pinned(item)) continue
+            val fromAt = index[boxOf(item)] ?: continue
+            val from = live[fromAt]
+            if (from.kind == "trade" || from.kind == "deck") continue
             val f = facts(item)
-            val stillFits = !from.rules.isOpen && from.rules.matches(f)
-            if (stillFits) return@mapNotNull null
-            val target = decide(boxes, f, policy.copy(playsetLimit = 0)) ?: return@mapNotNull null
-            if (target.boxId == from.id) return@mapNotNull null
-            // A card in an open box that fits its name range only moves when a rule box fits it.
-            if (from.rules.isOpen && from.rules.matches(f) && target.reason != SortReason.RULES && target.reason != SortReason.BULK) {
-                return@mapNotNull null
+            val target: SortDecision = when (from.id) {
+                policy.extrasBoxId -> decide(live, f, noPlayset)?.takeIf { it.reason == SortReason.BULK } ?: continue
+                policy.bulkBoxId -> {
+                    // Stays while it has no price or still costs under the floor (plus the buffer).
+                    val floor = policy.bulkFloor
+                    val p = f.price
+                    if (floor == null || p == null || p < floor * (1 + priceSlack)) continue
+                    decide(live, f, policy, ownedInMain(item)) ?: continue
+                }
+                else -> {
+                    if (!from.rules.isOpen && from.rules.matches(f, priceSlack)) continue
+                    val d = decide(live, f, noPlayset) ?: continue
+                    // A card in an open box that fits its name range only moves when a rule box fits it.
+                    if (from.rules.isOpen && from.rules.matches(f) && d.reason != SortReason.RULES && d.reason != SortReason.BULK) continue
+                    d
+                }
             }
-            Move(item, from.id, target.boxId)
+            if (target.boxId == from.id) continue
+            val n = copies(item)
+            live[fromAt] = live[fromAt].let { it.copy(count = it.count - n) }
+            index[target.boxId]?.let { i -> live[i] = live[i].let { it.copy(count = it.count + n) } }
+            out += Move(item, from.id, target.boxId)
         }
+        return out
+    }
+
+    /**
+     * For "Sort out": where a card in [sourceId] should go, or null when it stays. It stays when its own box is
+     * the first that takes it in Auto-sort order (rules, room, bulk floor), or when only a fallback or open box
+     * would take it. [boxes] include the source box, counted without this card.
+     */
+    fun sortOutTarget(boxes: List<BoxInfo>, sourceId: Long, card: CardFacts, policy: SortPolicy): SortDecision? {
+        val d = decide(boxes, card, policy.copy(playsetLimit = 0)) ?: return null
+        if (d.boxId == sourceId) return null
+        if (d.reason != SortReason.RULES && d.reason != SortReason.BULK) return null
+        return d
     }
 
     /**

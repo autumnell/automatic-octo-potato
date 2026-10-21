@@ -38,6 +38,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,11 +76,12 @@ fun gameViewModel(): GameViewModel =
 fun GameSetupScreen(onPlay: () -> Unit) {
     val vm = gameViewModel()
     val current by vm.game.collectAsStateWithLifecycle()
-    var format by remember { mutableStateOf(GameFormat.COMMANDER) }
-    var players by remember { mutableIntStateOf(format.defaultPlayers) }
-    var life by remember { mutableIntStateOf(format.life) }
-    var partners by remember { mutableStateOf(false) }
-    val names = remember {
+    // Saveable, so switching tabs and coming back keeps the format, players and names picked.
+    var format by rememberSaveable { mutableStateOf(GameFormat.COMMANDER) }
+    var players by rememberSaveable { mutableIntStateOf(format.defaultPlayers) }
+    var life by rememberSaveable { mutableIntStateOf(format.life) }
+    var partners by rememberSaveable { mutableStateOf(false) }
+    val names = rememberSaveable(saver = NamesSaver) {
         mutableStateListOf<String>().apply { addAll(vm.lastNames + List(Player.MAX_PLAYERS) { "" }); while (size > Player.MAX_PLAYERS) removeAt(size - 1) }
     }
     val style by vm.style.collectAsStateWithLifecycle()
@@ -165,7 +169,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                 else { vm.start(format, players, life, names.take(players), partners); onPlay() }
             },
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            icon = Icons.Filled.Favorite,
+            icon = Icons.Filled.PlayArrow,
         )
     }
 
@@ -181,6 +185,12 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     if (showStats) StatsSheet(records, vm, onDismiss = { showStats = false })
 }
 
+/** Keeps the typed player names across tab switches. */
+private val NamesSaver = listSaver<SnapshotStateList<String>, String>(
+    save = { it.toList() },
+    restore = { mutableStateListOf<String>().apply { addAll(it) } },
+)
+
 @Composable
 private fun Label(text: String) {
     Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
@@ -192,7 +202,7 @@ private fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier,
     val shape = RoundedCornerShape(10.dp)
     Box(
         modifier
-            .height(36.dp)
+            .height(48.dp)
             .clip(shape)
             .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
             .border(1.dp, if (selected) Palette.Accent else Color.Transparent, shape)
@@ -212,7 +222,7 @@ private fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier,
 private fun NameField(i: Int, value: String, onChange: (String) -> Unit, modifier: Modifier) {
     val shape = RoundedCornerShape(10.dp)
     Row(
-        modifier.height(40.dp).clip(shape).background(Palette.SurfaceHigh).border(1.dp, Palette.Outline, shape).padding(horizontal = 10.dp),
+        modifier.height(48.dp).clip(shape).background(Palette.SurfaceHigh).border(1.dp, Palette.Outline, shape).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(14.dp).clip(CircleShape).background(PLAYER_COLORS[i]))

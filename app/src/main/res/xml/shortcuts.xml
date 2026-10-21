@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the app icon. Each opens the app at a screen ("open" extra, as the widget does). -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutId="scan"
+        android:shortcutShortLabel="@string/shortcut_scan">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.mtgscanner.MainActivity"
+            android:targetPackage="com.mtgscanner">
+            <extra android:name="open" android:value="scan" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_price"
+        android:shortcutId="check"
+        android:shortcutShortLabel="@string/shortcut_check">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.mtgscanner.MainActivity"
+            android:targetPackage="com.mtgscanner">
+            <extra android:name="open" android:value="check" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutId="search"
+        android:shortcutShortLabel="@string/shortcut_search">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.mtgscanner.MainActivity"
+            android:targetPackage="com.mtgscanner">
+            <extra android:name="open" android:value="search" />
+        </intent>
+    </shortcut>
+</shortcuts>

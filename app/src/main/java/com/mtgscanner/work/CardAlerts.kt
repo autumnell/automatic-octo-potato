@@ -94,6 +94,13 @@ object CardAlertStore {
         return _alerts.value
     }
 
+    /** Reads the list again, after a restore replaced the saved settings. */
+    @Synchronized
+    fun reload(context: Context) {
+        prefs = null
+        load(context)
+    }
+
     fun hasAny(context: Context): Boolean = load(context).isNotEmpty()
 
     fun find(context: Context, scryfallId: String, foil: Boolean): CardPriceAlert? =
@@ -110,6 +117,8 @@ object CardAlertStore {
     fun put(context: Context, alert: CardPriceAlert) {
         val rest = load(context).filterNot { it.key == alert.key }
         write(if (alert.above == null && alert.below == null) rest else listOf(alert) + rest)
+        // A new alert is set on a card on screen, so it's owned: the daily check is needed again.
+        PriceAlerts.setIdle(context, false)
         PriceAlerts.schedule(context)
     }
 

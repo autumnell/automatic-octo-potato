@@ -42,6 +42,9 @@ class ArtEmbedder(private val context: Context) {
     private val downloadLock = Mutex()
     private val lock = Any()
     private var embedder: ImageEmbedder? = null
+    /** A second copy for background work ([embedBackground]), with its own lock. */
+    private val bgLock = Any()
+    private var bgEmbedder: ImageEmbedder? = null
     /** The model wouldn't load or run this session: stop trying (until another model is picked). */
     @Volatile private var broken = false
     @Volatile private var lastTry = 0L
@@ -87,6 +90,7 @@ class ArtEmbedder(private val context: Context) {
             _model.value = m
             broken = false
         }
+        closeBackground()
         prefs.edit().putString(PREF, m.id).apply()
         _failed.value = false
         scope.launch {
@@ -179,15 +183,23 @@ class ArtEmbedder(private val context: Context) {
      * (its download is started) or fails. With [only], null unless that is still the chosen model. Runs on the
      * caller's thread; one picture at a time.
      */
-    fun embed(bitmap: Bitmap, only: ArtModel? = null): ArtVector? {
+    fun embed(bitmap: Bitmap, only: ArtModel? = null): ArtVector? = embedWith(bitmap, only, background = false)
+
+    /**
+     * The same as [embed], with a second copy of the model, for downloads and printing picks: hundreds of pictures
+     * embedded for an art index then never hold up the camera's frames.
+     */
+    fun embedBackground(bitmap: Bitmap, only: ArtModel? = null): ArtVector? = embedWith(bitmap, only, background = true)
+
+    private fun embedWith(bitmap: Bitmap, only: ArtModel?, background: Boolean): ArtVector? {
         if (broken) return null
         val m = model
         if (only != null && only != m) return null
         if (!fileOf(m).exists()) { ensure(); return null }
-        return synchronized(lock) {
+        return synchronized(if (background) bgLock else lock) {
             // The model changed while waiting for the lock.
             if (model != m) return@synchronized null
-            val e = embedder ?: create(m) ?: return@synchronized null
+            val e = (if (background) bgEmbedder else embedder) ?: create(m, background) ?: return@synchronized null
             try {
                 val result = e.embed(BitmapImageBuilder(bitmap).build())
                 val values = result.embeddingResult().embeddings().firstOrNull()?.floatEmbedding()
@@ -198,8 +210,8 @@ class ArtEmbedder(private val context: Context) {
         }
     }
 
-    /** Called holding [lock]. */
-    private fun create(m: ArtModel): ImageEmbedder? = try {
+    /** Called holding [lock], or [bgLock] for the [background] copy. */
+    private fun create(m: ArtModel, background: Boolean = false): ImageEmbedder? = try {
         val buffer = FileInputStream(fileOf(m)).use { it.channel.map(FileChannel.MapMode.READ_ONLY, 0, it.channel.size()) }
         val options = ImageEmbedder.ImageEmbedderOptions.builder()
             .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(buffer).build())
@@ -207,7 +219,7 @@ class ArtEmbedder(private val context: Context) {
             .setL2Normalize(true)
             .setQuantize(false)
             .build()
-        ImageEmbedder.createFromOptions(context, options).also { embedder = it }
+        ImageEmbedder.createFromOptions(context, options).also { if (background) bgEmbedder = it else embedder = it }
     } catch (t: Throwable) {
         // A damaged file: delete it so the next session downloads it again, and use hashes for now.
         broken = true
@@ -219,6 +231,14 @@ class ArtEmbedder(private val context: Context) {
         synchronized(lock) {
             runCatching { embedder?.close() }
             embedder = null
+        }
+        closeBackground()
+    }
+
+    private fun closeBackground() {
+        synchronized(bgLock) {
+            runCatching { bgEmbedder?.close() }
+            bgEmbedder = null
         }
     }
 

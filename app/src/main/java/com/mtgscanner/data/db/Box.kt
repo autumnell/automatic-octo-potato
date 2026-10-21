@@ -25,6 +25,8 @@ data class Box(
     val capacity: Int = 0,
     /** How the box is split inside: a [com.mtgscanner.data.Divider] key; empty means no dividers. */
     val divider: String = "",
+    /** A binder where each copy gets its own pocket, so 3 copies fill 3 pockets. */
+    val pocketPerCopy: Boolean = false,
 ) {
     companion object {
         /** The "Bulk" box made by older versions. New installs start with no boxes. */
@@ -55,6 +57,9 @@ data class BoxSummary(
     val capacity: Int = 0,
     val divider: String = "",
 )
+
+/** Cards in a box and what they're worth, added up by the database. */
+data class BoxTotal(val boxId: Long, val n: Int, val value: Double)
 
 /** Copies in a box, for capacity checks. */
 data class BoxCount(val boxId: Long, val n: Int)

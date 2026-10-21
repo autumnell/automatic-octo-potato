@@ -52,6 +52,8 @@ data class CardTextGuess(
     val glare: Boolean = false,
     /** The name as printed in Japanese, Chinese or Korean, read by a CJK reader when no English name was read. */
     val printedName: String? = null,
+    /** The card check saw nothing in the guide: the card has left (not just unreadable). */
+    val guideEmpty: Boolean = false,
 ) {
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null && printedName == null
 
@@ -383,7 +385,7 @@ object CardTextParser {
 
     /** Strips mana symbols and OCR junk from a title line. Returns null if it isn't name-like. */
     fun cleanName(raw: String): String? {
-        var s = raw
+        var s = foldAccents(raw)
             .replace('’', '\'')
             .replace(Regex("""\{[^}]*\}"""), " ")
             .replace(Regex("""[^A-Za-z0-9',\- ]"""), " ")
@@ -412,7 +414,38 @@ object CardTextParser {
     }
 
     fun normalize(name: String): String =
-        name.lowercase().filter { it.isLetterOrDigit() }
+        foldAccents(name).lowercase().filter { it.isLetterOrDigit() }
+
+    /**
+     * Latin letters with accents as plain letters, so "Æther Vial" reads as "Aether Vial" and "Séance" as
+     * "Seance" (Scryfall finds both spellings). Other scripts are left alone.
+     */
+    fun foldAccents(text: String): String {
+        if (text.all { it.code < 0x80 }) return text
+        val out = StringBuilder(text.length + 4)
+        for (c in text) {
+            when {
+                c.code < 0x80 -> out.append(c)
+                c == 'Æ' -> out.append("Ae")
+                c == 'æ' -> out.append("ae")
+                c == 'Œ' -> out.append("Oe")
+                c == 'œ' -> out.append("oe")
+                c == 'ß' -> out.append("ss")
+                c == 'Ø' -> out.append('O')
+                c == 'ø' -> out.append('o')
+                c == 'Đ' -> out.append('D')
+                c == 'đ' -> out.append('d')
+                c == 'Ł' -> out.append('L')
+                c == 'ł' -> out.append('l')
+                // An accent read as its own character.
+                c.code in 0x300..0x36F -> Unit
+                c.code in 0xC0..0x24F -> java.text.Normalizer.normalize(c.toString(), java.text.Normalizer.Form.NFD)
+                    .forEach { d -> if (d.code !in 0x300..0x36F) out.append(d) }
+                else -> out.append(c)
+            }
+        }
+        return out.toString()
+    }
 
     /** 0..1 similarity based on edit distance, case and punctuation ignored. */
     fun similarity(a: String, b: String): Double {

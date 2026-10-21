@@ -1,6 +1,10 @@
 package com.mtgscanner.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import com.mtgscanner.ui.detail.sharedCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,7 +107,13 @@ fun StatsScreen(
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Text("Stats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
         }
-        val s = stats ?: return@Column
+        val s = stats
+        if (s == null) {
+            Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp, color = Palette.Accent)
+            }
+            return@Column
+        }
         if (s.cards == 0) {
             EmptyState("No cards yet")
             return@Column
@@ -114,6 +124,11 @@ fun StatsScreen(
                 style = MaterialTheme.typography.titleLarge, color = Palette.AccentText,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
+
+            if (prices && s.paid.copies > 0) {
+                SectionHeader("Paid vs worth")
+                PaidPanel(s.paid)
+            }
 
             SectionHeader("By color")
             Breakdown(
@@ -152,7 +167,7 @@ fun StatsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.width(24.dp))
-                                CardImage(c.smallImageUrl, Modifier.width(32.dp), corner = 3.dp)
+                                CardImage(c.smallImageUrl, Modifier.width(32.dp).sharedCard(c.id), corner = 3.dp)
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -202,7 +217,14 @@ private fun Breakdown(
                     Spacer(Modifier.height(4.dp))
                     val frac = ((if (prices) r.value else r.cards.toDouble()) / max).toFloat().coerceIn(0f, 1f)
                     Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh)) {
-                        if (frac > 0f) Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(bar(r)))
+                        if (frac > 0f) {
+                            val fill = bar(r)
+                            Box(
+                                Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(fill)
+                                    // White would vanish on a light panel: give it an edge.
+                                    .then(if (!Palette.dark && fill == MtgColors.WOnSurface) Modifier.border(1.dp, MtgColors.SliceEdge, RoundedCornerShape(3.dp)) else Modifier),
+                            )
+                        }
                     }
                 }
             }
@@ -213,4 +235,25 @@ private fun Breakdown(
     }
 }
 
-private fun colorOf(k: String): Color = if (k == "C") MtgColors.C else MtgColors.forLetter(k[0])
+private fun colorOf(k: String): Color = if (k == "C") MtgColors.C else MtgColors.barFor(k[0])
+
+/** What was paid for the copies with a price paid, what they're worth now, and the difference. */
+@Composable
+private fun PaidPanel(p: PaidSummary) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Text("Paid", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                Text(formatUsd(p.paid), style = MaterialTheme.typography.titleMedium)
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Worth", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                Text(formatUsd(p.worth), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(if (p.copies == 1) "1 card" else "${p.copies} cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                ChangeText(p.change, p.paid)
+            }
+        }
+    }
+}

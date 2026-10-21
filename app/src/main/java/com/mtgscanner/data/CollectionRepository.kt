@@ -121,7 +121,8 @@ class CollectionRepository(
     val nameIndex = NameIndex(context.filesDir, api)
     /** The on-device art model, downloaded the first time art needs comparing. */
     val artEmbedder = com.mtgscanner.scan.ArtEmbedder(context.applicationContext)
-    private val art = ArtMatcher(embedder = artEmbedder)
+    /** Printings already in a downloaded art index are compared from there, without fetching their pictures. */
+    private val art by lazy { ArtMatcher(embedder = artEmbedder, known = { id -> artIndex.artOf(id) }) }
     /** Downloaded per-set art hashes, to find cards from their artwork when no text can be read. */
     val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api, artEmbedder)
     /** Set symbol shapes, drawn from Scryfall's icons as sets are needed. */
@@ -142,9 +143,14 @@ class CollectionRepository(
     fun observePending(): Flow<List<PendingScan>> = dao.observePending()
     fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>> = dao.observePriceHistory(scryfallId)
 
-    /** Starts background work: the name list, daily prices, card roles and offline scans. */
+    /**
+     * Starts background work: the name list, daily prices, card roles and offline scans, and tidies away
+     * photos of deleted cards. Called once when a screen first opens, not when a background job or the
+     * widget starts the app.
+     */
     fun startBackgroundWork() {
         appScope.launch { runCatching { nameIndex.load() } }
+        appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.all().map { it.photo }) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }
             runCatching { resolvePending() }
@@ -158,11 +164,12 @@ class CollectionRepository(
     /** Every box with how many cards it holds and what they're worth. */
     fun observeBoxSummaries(): Flow<List<BoxSummary>> = boxSummaries
 
-    private val boxSummaries: Flow<List<BoxSummary>> = combine(dao.observeBoxes(), allCards) { boxes, cards ->
-        val byBox = cards.groupBy { it.boxId }
+    // Totals come from the database (one small row per box), not from reading every card.
+    private val boxSummaries: Flow<List<BoxSummary>> = combine(dao.observeBoxes(), dao.observeBoxTotals()) { boxes, totals ->
+        val byBox = totals.associateBy { it.boxId }
         boxes.map { b ->
-            val inBox = byBox[b.id].orEmpty()
-            BoxSummary(b.id, b.name, b.kind, inBox.sumOf { it.quantity }, inBox.sumOf { it.totalPrice() }, b.rules, b.color, b.fallback, b.capacity, b.divider)
+            val t = byBox[b.id]
+            BoxSummary(b.id, b.name, b.kind, t?.n ?: 0, t?.value ?: 0.0, b.rules, b.color, b.fallback, b.capacity, b.divider)
         }
     }.shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
@@ -212,12 +219,17 @@ class CollectionRepository(
             } else {
                 // The box is deleted after its cards move, so their history names it.
                 val policy = SortPrefs.policy
-                val boxes = boxInfos().filter { it.id != id }
+                // Counts go up as cards move in, so boxes with a card limit fill and the rest go on to the next box.
+                val boxes = boxInfos().filter { it.id != id }.toMutableList()
                 for (c in cards) {
+                    val f = c.facts()
+                    // The deleted box's own copies don't count toward the playset limit: they're the ones moving.
                     // Cards no box's rules fit go to an Anything box rather than being lost.
-                    val target = (if (moveTo == Box.AUTO_SORT) decideIn(boxes, c.facts(), c.oracleId, policy)?.boxId else moveTo)
-                        ?: anythingBox(except = id, facts = c.facts())
+                    val target = (if (moveTo == Box.AUTO_SORT) decideIn(boxes, f, c.oracleId, policy, exclude = id)?.boxId else moveTo)
+                        ?: anythingBox(except = id, facts = f)
                     moveToBox(c.id, target)
+                    val i = boxes.indexOfFirst { it.id == target }
+                    if (i >= 0) boxes[i] = boxes[i].copy(count = boxes[i].count + c.quantity)
                 }
             }
             dao.box(id)?.let { dao.deleteBox(it) }
@@ -276,17 +288,25 @@ class CollectionRepository(
 
     /**
      * Sorts a box (usually a catch-all "Anything" box) after the fact: each card that fits another
-     * box's rules moves there, in Auto-sort order. Cards that fit nothing stay put. Returns copies moved.
+     * box's rules moves there, in Auto-sort order. Cards that fit nothing stay put, and so do cards this
+     * box's own rules take first and cards set to stay. Returns copies moved.
      */
     suspend fun sortBox(sourceId: Long): Int {
         var moved = 0
         db.withTransaction {
             // The same choice as scanning (rules, room, bulk floor), counting cards as they move in.
             val policy = SortPrefs.policy.copy(playsetLimit = 0)
-            val boxes = boxInfos().filter { it.id != sourceId }.toMutableList()
+            val boxes = boxInfos().toMutableList()
+            val src = boxes.indexOfFirst { it.id == sourceId }
             for (c in dao.inBox(sourceId)) {
-                val d = Sorting.decide(boxes, c.facts(), policy) ?: continue
-                if (d.reason != SortReason.RULES && d.reason != SortReason.BULK) continue
+                if (c.pinned) continue
+                // This box is counted without the card, so a full box doesn't push out a card already in it.
+                if (src >= 0) boxes[src] = boxes[src].copy(count = boxes[src].count - c.quantity)
+                val d = Sorting.sortOutTarget(boxes, sourceId, c.facts(), policy)
+                if (d == null) {
+                    if (src >= 0) boxes[src] = boxes[src].copy(count = boxes[src].count + c.quantity)
+                    continue
+                }
                 moveToBox(c.id, d.boxId)
                 moved += c.quantity
                 val i = boxes.indexOfFirst { it.id == d.boxId }
@@ -329,9 +349,9 @@ class CollectionRepository(
     }
 
     /** Copies of a card already in main boxes, for the keep-a-playset rule. */
-    private suspend fun ownedInMain(oracleId: String?, boxes: List<BoxInfo>, policy: SortPolicy): Int {
+    private suspend fun ownedInMain(oracleId: String?, boxes: List<BoxInfo>, policy: SortPolicy, exclude: Long? = null): Int {
         if (oracleId == null || policy.playsetLimit <= 0) return 0
-        val notMain = boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id }.ifEmpty { listOf(Long.MIN_VALUE) }
+        val notMain = (boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id } + listOfNotNull(exclude)).ifEmpty { listOf(Long.MIN_VALUE) }
         return dao.ownedOutside(oracleId, notMain)
     }
 
@@ -339,8 +359,9 @@ class CollectionRepository(
     suspend fun pickDecision(facts: CardFacts, oracleId: String? = null): SortDecision? =
         decideIn(boxInfos(), facts, oracleId, SortPrefs.policy)
 
-    private suspend fun decideIn(boxes: List<BoxInfo>, facts: CardFacts, oracleId: String?, policy: SortPolicy): SortDecision? =
-        Sorting.decide(boxes, facts, policy, ownedInMain(oracleId, boxes, policy))
+    /** [exclude] is a box whose copies don't count toward the playset limit (a box being emptied). */
+    private suspend fun decideIn(boxes: List<BoxInfo>, facts: CardFacts, oracleId: String?, policy: SortPolicy, exclude: Long? = null): SortDecision? =
+        Sorting.decide(boxes, facts, policy, ownedInMain(oracleId, boxes, policy, exclude))
 
     /** The box a card belongs in, or null when no box fits. */
     suspend fun pickBox(facts: CardFacts, oracleId: String? = null): Long? = pickDecision(facts, oracleId)?.boxId
@@ -350,14 +371,29 @@ class CollectionRepository(
     /** The divider inside [boxId] a card goes behind ("Blue", "R", "MH3"), or null when the box has none. */
     suspend fun spotFor(boxId: Long, name: String, facts: CardFacts): String? {
         val b = dao.box(boxId) ?: return null
-        return Sorting.spot(Divider.of(b.divider), name, facts)
+        return Sorting.spot(BoxLayout.of(b.divider), name, facts)
     }
 
     /** Cards that now belong in a different box, after rules changed. Pass [cards] when already loaded. */
     suspend fun misplaced(cards: List<CollectionCard>? = null): List<Sorting.Move<CollectionCard>> {
         val all = cards ?: dao.all()
         val boxes = boxInfos()
-        return withContext(Dispatchers.Default) { Sorting.misplaced(all, { it.boxId }, { it.facts() }, boxes, SortPrefs.policy) }
+        val policy = SortPrefs.policy
+        val slack = SortPrefs.priceBuffer / 100.0
+        return withContext(Dispatchers.Default) {
+            // Copies in main boxes per card, for cards leaving the bulk box under the keep-a-playset rule.
+            val owned: Map<String, Int> = if (policy.playsetLimit <= 0) emptyMap() else {
+                val main = boxes.filter { Sorting.isMainBox(it, policy) }.map { it.id }.toSet()
+                all.filter { it.boxId in main && it.oracleId != null }.groupBy { it.oracleId!! }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+            }
+            Sorting.misplaced(
+                all, { it.boxId }, { it.facts() }, boxes, policy,
+                copies = { it.quantity },
+                ownedInMain = { c -> c.oracleId?.let { owned[it] } ?: 0 },
+                priceSlack = slack,
+                pinned = { it.pinned },
+            )
+        }
     }
 
     /** Applies moves; returns what's needed to undo them (entry id → old box). */
@@ -394,9 +430,10 @@ class CollectionRepository(
         order.remove(newId); order.add(order.indexOf(id) + 1, newId)
         reorderBoxes(order)
         // Names starting with a digit or symbol fit both halves; they stay in the first, as sorting picks it first.
+        // A fallback box also holds cards its rules don't fit (leftovers); those split by name too.
         for (c in inRange) {
             val letter = BoxRules.nameLetter(c.name)
-            if (letter != '#' && letter >= at && second.matches(c.facts())) moveToBox(c.id, newId)
+            if (letter != '#' && letter >= at && (b.fallback || second.matches(c.facts()))) moveToBox(c.id, newId)
         }
         newId
     }
@@ -422,7 +459,8 @@ class CollectionRepository(
             dao.delete(c)
             other.id
         } else {
-            dao.update(c.copy(boxId = boxId, updatedAt = now))
+            // Its old binder pocket means nothing in the new box.
+            dao.update(c.copy(boxId = boxId, binderSlot = 0, updatedAt = now))
             id
         }
     }
@@ -443,17 +481,19 @@ class CollectionRepository(
      * then the card name (corrected against the offline name list), and uses the artwork to pick
      * the printing when the footer couldn't be read. Throws [IOException] when offline.
      */
-    suspend fun identify(raw: CardTextGuess): Identification? {
-        // With the set lock on, every read is looked up in that set first.
-        val lock = SortPrefs.setLock
+    suspend fun identify(raw: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
+        // With the set lock on, a read with no set code is looked up in that set first. A set code printed on the
+        // card wins (Special Guests and The List carry their own).
+        val lock = SortPrefs.setLock?.takeIf { raw.setCode == null }
         val guess = lock?.let { raw.copy(setCode = it) } ?: raw
-        val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "")
+        // [skip]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing.
+        val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skip != null) "|s" else "")
         val cached = synchronized(lookupCache) { if (lookupCache.containsKey(key)) lookupCache[key] else null }
         if (cached == null) {
             val missedAt = synchronized(missCache) { missCache[key] }
             if (missedAt != null && System.currentTimeMillis() - missedAt < MISS_TTL_MS) return null
         }
-        val base = cached ?: doIdentify(guess).also { r ->
+        val base = cached ?: doIdentify(guess, skip).also { r ->
             if (r != null) synchronized(lookupCache) { lookupCache[key] = r }
             else synchronized(missCache) {
                 if (missCache.size > 500) missCache.clear()
@@ -461,7 +501,7 @@ class CollectionRepository(
             }
         }
         base ?: return null
-        if (guess.collectorNumber == null) choosePrinting(base, guess)?.let { return it }
+        if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess)?.let { return it }
         return base
     }
 
@@ -477,8 +517,8 @@ class CollectionRepository(
         val embedding = guess.artEmbedding
         if (year == null && symbol == null && hash == null && embedding == null) return null
         val all = runCatching { printingsCached(base.card) }.getOrNull() ?: return null
-        // With the set lock on (or the set code read), only that set's printings are candidates.
-        val set = SortPrefs.setLock ?: guess.setCode
+        // With the set code read (or the set lock standing in for it), only that set's printings are candidates.
+        val set = guess.setCode
         var pool = set?.let { s -> all.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { all } } ?: all
         if (pool.size < 2) return null
         pool = PrintingPick.newestFirst(pool) { it.releasedAt }
@@ -505,6 +545,27 @@ class CollectionRepository(
         return base.copy(card = pick, exact = base.exact || (bySymbol && pool.size == 1))
     }
 
+    /**
+     * Printings sharing the collector number read, narrowed by the copyright year, the set symbol and the art.
+     * Returns the pick and whether it's sure (one printing left, or the art matched).
+     */
+    private suspend fun narrowSameNumber(same: List<ScryfallCard>, guess: CardTextGuess): Pair<ScryfallCard, Boolean> {
+        if (same.size == 1) return same[0] to true
+        var pool = PrintingPick.newestFirst(same) { it.releasedAt }
+        guess.year?.let { y -> PrintingPick.byYear(pool, y) { it.releasedAt }.takeIf { it.isNotEmpty() }?.let { pool = it } }
+        val symbol = guess.symbol
+        val sets = pool.map { it.set.lowercase() }.distinct()
+        if (pool.size > 1 && symbol != null && sets.size > 1) {
+            runCatching { setSymbols.pick(symbol, sets) }.getOrNull()?.let { winners ->
+                pool.filter { it.set.lowercase() in winners }.takeIf { it.isNotEmpty() }?.let { pool = it }
+            }
+        }
+        if (pool.size > 1 && (guess.artHash != null || guess.artEmbedding != null)) {
+            runCatching { art.bestPrinting(pool, guess.artHash, guess.artEmbedding) }.getOrNull()?.let { return it to true }
+        }
+        return pool.first() to (pool.size == 1)
+    }
+
     private val printingsCache = HashMap<String, List<ScryfallCard>>()
     private suspend fun printingsCached(card: ScryfallCard): List<ScryfallCard> {
         val k = card.oracleId ?: card.name
@@ -516,12 +577,15 @@ class CollectionRepository(
 
     /** What to save for later when the camera read a name but Scryfall can't be reached. */
     suspend fun offlineRead(guess: CardTextGuess): OfflineRead? {
-        val best = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }.firstOrNull() ?: return null
-        if (best.score < 0.85) return null
-        return OfflineRead(best.name, guess.setCode, guess.collectorNumber, lang = guess.lang)
+        val best = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }.firstOrNull()?.takeIf { it.score >= 0.85 }
+        if (best != null) return OfflineRead(best.name, guess.setCode, guess.collectorNumber, lang = guess.lang)
+        // No English name (only the footer, or a name in Japanese, Chinese or Korean): set and number find it later.
+        val set = guess.setCode ?: return null
+        val number = guess.collectorNumber ?: return null
+        return OfflineRead(guess.printedName ?: "${set.uppercase()} #$number", set, number, lang = guess.lang)
     }
 
-    private suspend fun doIdentify(guess: CardTextGuess): Identification? {
+    private suspend fun doIdentify(guess: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
         // Real card names close to what was read come first, then the raw text.
         // Comparing against every card name is heavy: keep it off the main thread.
         val corrected = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }
@@ -548,13 +612,21 @@ class CollectionRepository(
             val card = inSet ?: api.named(name) ?: continue
             val sim = bestSimilarity(card)
             if (sim < 0.5) continue
-            // Fuzzy search returns the newest printing; if we know the collector number, pick that one.
-            val exact = if (inSet == null && guess.collectorNumber != null) {
-                runCatching { printingsCached(card) }.getOrNull()
-                    ?.firstOrNull { it.collectorNumber.equals(guess.collectorNumber, ignoreCase = true) }
-            } else null
             val confident = sim >= 0.85 || card.name == knownGood
-            return Identification(exact ?: card, confident = confident, exact = exact != null || inSet != null && guess.collectorNumber != null)
+            // Skipped anyway (a basic land with "Skip basics" on): don't search its many printings.
+            if (skip?.invoke(card) == true) return Identification(card, confident = confident)
+            // Fuzzy search returns the newest printing; with the collector number but no set code (2003-2019 cards
+            // print "241/350"), several sets can have that number: narrow them, and it's exact only if one is left.
+            val number = guess.collectorNumber
+            if (inSet == null && number != null) {
+                val same = runCatching { printingsCached(card) }.getOrNull().orEmpty()
+                    .filter { it.collectorNumber.equals(number, ignoreCase = true) }
+                if (same.isNotEmpty()) {
+                    val (pick, sure) = narrowSameNumber(same, guess)
+                    return Identification(pick, confident = confident, exact = sure)
+                }
+            }
+            return Identification(card, confident = confident, exact = inSet != null && number != null)
         }
         guess.printedName?.let { printed -> return identifyPrinted(printed, guess) }
         return null
@@ -715,9 +787,14 @@ class CollectionRepository(
     // Unknown scans
 
     /** Saves a card the scanner couldn't identify, so it can be searched by hand later. */
-    suspend fun addUnknown(text: String, boxId: Long, foil: Boolean = false) {
+    suspend fun addUnknown(text: String, boxId: Long, foil: Boolean = false, qty: Int = 1, lang: String? = null) {
         if (text.isBlank()) return
-        dao.addPending(PendingScan(name = text.trim().take(80), setCode = null, collectorNumber = null, foil = foil, quantity = 1, boxId = boxId, unknown = true))
+        dao.addPending(
+            PendingScan(
+                name = text.trim().take(80), setCode = null, collectorNumber = null, foil = foil, quantity = qty.coerceAtLeast(1),
+                boxId = boxId, unknown = true, lang = lang?.takeIf { it != "en" },
+            ),
+        )
     }
 
     // Older Androids allow at most 999 values in one query, so long id lists go in chunks.
@@ -774,7 +851,7 @@ class CollectionRepository(
         dao.update(c.copy(quantity = c.quantity - qty, updatedAt = now))
         val other = twinOf(c, boxId = boxId)
         if (other != null) dao.update(other.mergedWith(c, copies = qty, now = now, details = false))
-        else dao.insert(c.copy(id = 0, quantity = qty, boxId = boxId, updatedAt = now))
+        else dao.insert(c.copy(id = 0, quantity = qty, boxId = boxId, binderSlot = 0, updatedAt = now))
     }
 
     /** Several [moveCopies] at once, all or nothing. Moves are (row id, copies). */
@@ -886,29 +963,33 @@ class CollectionRepository(
     }
 
     private suspend fun refreshPricesLocked(): Int {
-        val all = dao.all()
-        if (all.isEmpty()) return 0
-        val fresh = api.collection(all.map { it.scryfallId }.distinct()).associateBy { it.id }
-        // Only the price columns are written, so a quantity or box changed during the download is kept.
+        val ids = dao.all().map { it.scryfallId }.distinct()
+        if (ids.isEmpty()) return 0
+        // Fetched and saved a batch at a time: a failed request keeps what came before, and network
+        // errors and "too many requests" are tried again after a pause.
         var updated = 0
-        db.withTransaction {
-            fresh.values.forEach { f ->
-                updated += dao.setPrices(
-                    f.id, f.prices.usd?.toDoubleOrNull(),
-                    (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
-                )
-                dao.setStats(f.id, f.power ?: f.cardFaces?.firstOrNull()?.power, f.toughness ?: f.cardFaces?.firstOrNull()?.toughness, f.reserved)
-                // Bans and rarity changes reach box rules.
-                dao.setPrintingInfo(f.id, f.rarity, f.scryfallTags().joinToString(","))
+        for (chunk in ids.chunked(150)) {
+            val fresh = withBackoff { api.collection(chunk) }
+            // Only the price columns are written, so a quantity or box changed during the download is kept.
+            db.withTransaction {
+                fresh.forEach { f ->
+                    updated += dao.setPrices(
+                        f.id, f.prices.usd?.toDoubleOrNull(),
+                        (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
+                    )
+                    dao.setStats(f.id, f.power ?: f.cardFaces?.firstOrNull()?.power, f.toughness ?: f.cardFaces?.firstOrNull()?.toughness, f.reserved)
+                    // Bans and rarity changes reach box rules.
+                    dao.setPrintingInfo(f.id, f.rarity, f.scryfallTags().joinToString(","))
+                }
             }
+            dao.putPricePoints(fresh.map { it.pricePoint() })
         }
-        dao.putPricePoints(fresh.values.map { it.pricePoint() })
         // Daily points older than 90 days thin out to weekly ones.
         runCatching { dao.thinPriceHistory(LocalDate.now().minusDays(90).toString()) }
         // Wishlist prices too, so its total and alerts stay current.
         val wishes = dao.allWishlist()
         if (wishes.isNotEmpty()) {
-            val freshWish = runCatching { api.collection(wishes.map { it.scryfallId }) }.getOrDefault(emptyList()).associateBy { it.id }
+            val freshWish = runCatching { withBackoff { api.collection(wishes.map { it.scryfallId }) } }.getOrDefault(emptyList()).associateBy { it.id }
             wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.updateWish(w.copy(priceUsd = f.prices.usd?.toDoubleOrNull())) } }
         }
         prefs.edit().putLong("pricesAt", System.currentTimeMillis()).apply()
@@ -1293,4 +1374,5 @@ fun ScryfallCard.facts(foil: Boolean) = CardFacts(
     toughness = toughness ?: cardFaces?.firstOrNull()?.toughness,
     reserved = reserved,
     formats = legalities.filterValues { it == "legal" || it == "restricted" }.keys,
+    number = collectorNumber,
 )

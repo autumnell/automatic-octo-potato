@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class, CardEvent::class, Goal::class],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -162,9 +162,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Version 11 adds "Stay in this box" for cards, one binder pocket per copy for boxes, and indexes on
+         * oracle id (the keep-a-playset count while scanning) and date added (the card list's order).
+         */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `cards` ADD COLUMN `pinned` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `boxes` ADD COLUMN `pocketPerCopy` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_cards_oracleId` ON `cards` (`oracleId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_cards_addedAt` ON `cards` (`addedAt`)")
+            }
+        }
+
         /** Every migration, oldest first, for the database builder. */
         val ALL_MIGRATIONS: Array<Migration>
-            get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+            get() = arrayOf(
+                MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+            )
 
         fun seedBulk(db: SupportSQLiteDatabase) {
             db.execSQL(

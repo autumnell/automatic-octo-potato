@@ -23,6 +23,12 @@ object SortPrefs {
     /** When set, the scanner only looks for cards from this set (lower-case code). */
     var setLock by mutableStateOf<String?>(null)
         private set
+    /**
+     * Price buffer in percent (0 = off): re-sort leaves a card in a box whose price rule (or the bulk floor)
+     * it misses by less than this, so cards near $1 or $5 don't bounce between boxes as prices move.
+     */
+    var priceBuffer by mutableStateOf(0)
+        private set
 
     val policy: SortPolicy
         get() = SortPolicy(playsetLimit, extrasBoxId.takeIf { playsetLimit > 0 }, bulkFloor, bulkBoxId.takeIf { bulkFloor != null })
@@ -40,6 +46,12 @@ object SortPrefs {
         bulkFloor = fromCents(p.getInt("bulkFloorCents", -1))
         bulkBoxId = p.getLong("bulkBox", -1L).takeIf { it >= 0 }
         setLock = p.getString("setLock", null)?.takeIf { it.isNotBlank() }
+        priceBuffer = p.getInt("priceBuffer", 0).coerceIn(0, 50)
+    }
+
+    fun updatePriceBuffer(percent: Int) {
+        priceBuffer = percent.coerceIn(0, 50)
+        prefs?.edit()?.putInt("priceBuffer", priceBuffer)?.apply()
     }
 
     fun updatePlayset(limit: Int, boxId: Long?) {

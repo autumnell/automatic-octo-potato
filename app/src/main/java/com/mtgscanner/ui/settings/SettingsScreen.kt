@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -235,9 +236,6 @@ private fun LookTab() {
 private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> Unit, onMessage: (String) -> Unit) {
     val ctx = LocalContext.current
     var versionTaps by remember { mutableIntStateOf(0) }
-    val version = remember {
-        runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
-    }
 
     SectionLabel("Your data")
     DataSection(vm)
@@ -263,7 +261,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
         Column {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Grimoire $version",
+                    buildLabel(com.mtgscanner.BuildConfig.BUILD_NUMBER, com.mtgscanner.BuildConfig.BUILD_DATE),
                     style = MaterialTheme.typography.titleSmall,
                     // Tapping the version seven times reveals the scan log.
                     modifier = Modifier.weight(1f).clickable {
@@ -276,6 +274,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
                 )
                 TextButton(onClick = onTour) { Text("Show tour") }
             }
+            CrashReportRow()
             HorizontalDivider(color = Palette.Outline)
             Text(
                 "Data from Scryfall. Unofficial; Magic is © Wizards of the Coast.",
@@ -314,7 +313,7 @@ private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onC
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (selected) Palette.Accent else fg, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = if (selected) Palette.AccentText else fg, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(mode.label, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
     }
@@ -322,7 +321,11 @@ private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onC
 
 @Composable
 private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
+    // The whole swatch and its label is the tap target (48dp wide and taller), read out by its label.
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(48.dp).clip(RoundedCornerShape(10.dp)).selectable(selected = selected, onClick = onClick),
+    ) {
         Box(
             Modifier
                 .size(38.dp)
@@ -330,8 +333,7 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
                 .border(if (selected) 3.dp else 0.dp, if (selected) Palette.Text else Color.Transparent, CircleShape)
                 .padding(if (selected) 5.dp else 0.dp)
                 .clip(CircleShape)
-                .background(color)
-                .clickable(onClick = onClick),
+                .background(color),
             contentAlignment = Alignment.Center,
         ) {
             if (selected) Icon(Icons.Filled.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(16.dp))
@@ -345,9 +347,12 @@ private val rainbow = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, C
 
 @Composable
 private fun CustomSwatch(onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(48.dp).clip(RoundedCornerShape(10.dp)).clickable(onClickLabel = "Pick a custom color", onClick = onClick),
+    ) {
         Box(
-            Modifier.size(38.dp).clip(CircleShape).background(Brush.sweepGradient(rainbow)).clickable(onClick = onClick),
+            Modifier.size(38.dp).clip(CircleShape).background(Brush.sweepGradient(rainbow)),
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(20.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
@@ -398,7 +403,7 @@ private fun Preview() {
             Column(Modifier.weight(1f)) {
                 Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Accent)
+                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
             }
             SelectPill("Selected", true, onClick = {})
         }

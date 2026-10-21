@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Inventory2
@@ -110,6 +112,31 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                 leadingIcon = { Icon(Icons.Filled.Sell, null) },
                 onClick = { open = false; vm.startCheck() },
             )
+            if (state.target == ScanTarget.REMOVE) DropdownMenuItem(
+                text = { ModeText("Stop removing", "Add cards again") },
+                leadingIcon = { Icon(Icons.Filled.RemoveCircleOutline, null, tint = Palette.Gold) },
+                onClick = { open = false; vm.stopTarget() },
+            ) else DropdownMenuItem(
+                text = { ModeText("Scan to remove", "Sold or traded cards out") },
+                leadingIcon = { Icon(Icons.Filled.RemoveCircleOutline, null) },
+                onClick = { open = false; vm.startRemove() },
+            )
+            if (state.boxCheck == null) DropdownMenuItem(
+                text = { ModeText("Box check", "Scan a box, see what's missing") },
+                leadingIcon = { Icon(Icons.Filled.Checklist, null) },
+                onClick = { open = false; vm.showBoxPick(true) },
+            ) else {
+                DropdownMenuItem(
+                    text = { ModeText("Box check result", state.boxCheck.boxName) },
+                    leadingIcon = { Icon(Icons.Filled.Checklist, null, tint = Palette.Accent) },
+                    onClick = { open = false; vm.showBoxCheck(true) },
+                )
+                DropdownMenuItem(
+                    text = { ModeText("End box check", "Clears the scanned list") },
+                    leadingIcon = { Icon(Icons.Filled.Close, null) },
+                    onClick = { open = false; vm.endBoxCheck() },
+                )
+            }
             if (state.sort == null) DropdownMenuItem(
                 text = { ModeText("Sort a pile", "Scan all, then file by box") },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null) },
@@ -323,8 +350,12 @@ fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = vm::closePage) { Text("Try again") }
                 Spacer(Modifier.width(8.dp))
-                GradientButton(
-                    "Add ${picked.size}" + priceSuffix(picked.sumOf { it.card?.prices?.usd?.toDoubleOrNull() ?: 0.0 }),
+                val worth = priceSuffix(picked.sumOf { it.card?.prices?.usd?.toDoubleOrNull() ?: 0.0 })
+                // Price check adds nothing: the button just closes the page.
+                if (state.target == ScanTarget.CHECK) GradientButton("Done$worth", vm::addPage, Modifier.weight(1f))
+                else GradientButton(
+                    (if (state.target == ScanTarget.REMOVE) "Remove " else if (state.target == ScanTarget.BOX) "Count " else "Add ") +
+                        picked.size + worth,
                     vm::addPage, Modifier.weight(1f), enabled = picked.isNotEmpty(),
                 )
             }

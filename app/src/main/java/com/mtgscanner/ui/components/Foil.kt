@@ -26,6 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 /** True when the phone's animations are switched off (developer options or accessibility). */
 fun animationsOff(context: Context): Boolean =
@@ -45,6 +48,51 @@ private val FoilColors = listOf(
 )
 
 /**
+ * One tilt listener for every foil on screen. Foils [hold] it while their screen is resumed; the sensor runs
+ * only while at least one holds it, so nothing listens with the app in the background, and ten foil rows
+ * share one listener instead of ten.
+ */
+private object TiltSensor {
+    /** Where the band of light sits, roughly -1..1 across the card. */
+    val tilt = mutableFloatStateOf(0f)
+    private var holders = 0
+    private var manager: SensorManager? = null
+
+    private val listener = object : SensorEventListener {
+        override fun onSensorChanged(e: SensorEvent) {
+            // Side-to-side tilt moves it most, forward-back a little.
+            val target = ((e.values[0] / SensorManager.GRAVITY_EARTH) * 1.4f -
+                (e.values[1] / SensorManager.GRAVITY_EARTH) * 0.5f).coerceIn(-1.2f, 1.2f)
+            // Smooth out hand shake.
+            tilt.floatValue += (target - tilt.floatValue) * 0.18f
+        }
+
+        override fun onAccuracyChanged(s: Sensor?, accuracy: Int) {}
+    }
+
+    fun sensorFor(sensors: SensorManager?): Sensor? =
+        sensors?.getDefaultSensor(Sensor.TYPE_GRAVITY) ?: sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+    fun hold(sensors: SensorManager) {
+        holders++
+        if (holders == 1) {
+            val sensor = sensorFor(sensors) ?: return
+            manager = sensors
+            sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
+        }
+    }
+
+    fun release() {
+        if (holders == 0) return
+        holders--
+        if (holders == 0) {
+            manager?.unregisterListener(listener)
+            manager = null
+        }
+    }
+}
+
+/**
  * A soft rainbow sheen over a foil card's picture that slides as the phone tilts. Without a tilt
  * sensor it drifts slowly on its own; with animations off it stays still. Drawn only on the
  * picture's own pixels, so rounded corners stay clean.
@@ -52,31 +100,32 @@ private val FoilColors = listOf(
 fun Modifier.foilShimmer(enabled: Boolean = true): Modifier = if (!enabled) this else composed {
     val ctx = LocalContext.current
     val still = remember(ctx) { animationsOff(ctx) }
-    val sensors = remember(ctx) { ctx.getSystemService(Context.SENSOR_SERVICE) as? SensorManager }
-    val sensor = remember(sensors) {
-        sensors?.getDefaultSensor(Sensor.TYPE_GRAVITY) ?: sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    }
-    // Where the band of light sits, roughly -1..1 across the card.
-    val tilt = remember { mutableFloatStateOf(0f) }
+    val sensors = remember(ctx) { ctx.applicationContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager }
+    val hasSensor = remember(sensors) { TiltSensor.sensorFor(sensors) != null }
     val phase: State<Float> = if (still) {
-        tilt
-    } else if (sensor != null && sensors != null) {
-        DisposableEffect(sensors, sensor) {
-            val listener = object : SensorEventListener {
-                override fun onSensorChanged(e: SensorEvent) {
-                    // Side-to-side tilt moves it most, forward-back a little.
-                    val target = ((e.values[0] / SensorManager.GRAVITY_EARTH) * 1.4f -
-                        (e.values[1] / SensorManager.GRAVITY_EARTH) * 0.5f).coerceIn(-1.2f, 1.2f)
-                    // Smooth out hand shake.
-                    tilt.floatValue += (target - tilt.floatValue) * 0.18f
+        remember { mutableFloatStateOf(0f) }
+    } else if (hasSensor && sensors != null) {
+        // Listen only while this screen is resumed: leaving it or putting the app away stops the sensor.
+        val owner = LocalLifecycleOwner.current
+        DisposableEffect(owner, sensors) {
+            var holding = false
+            fun hold() { if (!holding) { holding = true; TiltSensor.hold(sensors) } }
+            fun drop() { if (holding) { holding = false; TiltSensor.release() } }
+            val observer = LifecycleEventObserver { _, e ->
+                when (e) {
+                    Lifecycle.Event.ON_RESUME -> hold()
+                    Lifecycle.Event.ON_PAUSE -> drop()
+                    else -> Unit
                 }
-
-                override fun onAccuracyChanged(s: Sensor?, accuracy: Int) {}
             }
-            sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
-            onDispose { sensors.unregisterListener(listener) }
+            if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) hold()
+            owner.lifecycle.addObserver(observer)
+            onDispose {
+                owner.lifecycle.removeObserver(observer)
+                drop()
+            }
         }
-        tilt
+        TiltSensor.tilt
     } else {
         rememberInfiniteTransition(label = "foil").animateFloat(
             initialValue = -1f,

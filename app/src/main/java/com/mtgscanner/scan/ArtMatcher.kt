@@ -48,7 +48,7 @@ object ArtHashing {
         val crop = Bitmap.createBitmap(bitmap, l, t, w, h)
         val argb = if (crop.config == Bitmap.Config.ARGB_8888) crop else crop.copy(Bitmap.Config.ARGB_8888, false)
         return try {
-            embedder.embed(argb, only)
+            embedder.embedBackground(argb, only)
         } finally {
             if (argb !== crop) argb.recycle()
             if (crop !== bitmap) crop.recycle()
@@ -64,6 +64,8 @@ class ArtMatcher(
     private val client: OkHttpClient = OkHttpClient.Builder().readTimeout(10, TimeUnit.SECONDS).build(),
     /** The art model; without it (or until its file is here) only hashes are compared. */
     private val embedder: ArtEmbedder? = null,
+    /** A printing's art from the downloaded art indexes (hash, embedding), by Scryfall id; null when not there. */
+    private val known: ((String) -> Pair<Long, ArtVector?>?)? = null,
 ) {
     /** A printing's art: its hash, and its embedding when the model was ready. */
     private class Seen(val hash: Long, val embedding: ArtVector?)
@@ -106,6 +108,14 @@ class ArtMatcher(
     private suspend fun seenFor(card: ScryfallCard, want: ArtModel?): Seen? {
         synchronized(cache) {
             cache[card.id]?.let { if (want == null || it.embedding?.model == want.id) return it }
+        }
+        // Already in a downloaded art index: no picture to fetch.
+        runCatching { known?.invoke(card.id) }.getOrNull()?.let { (hash, emb) ->
+            if (want == null || emb?.model == want.id) {
+                val seen = Seen(hash, emb)
+                synchronized(cache) { cache[card.id] = seen }
+                return seen
+            }
         }
         val url = card.smallImageUrl ?: return null
         val seen = gate.withPermit {

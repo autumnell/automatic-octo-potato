@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -160,6 +162,11 @@ fun ScanScreen(
 
     val state by vm.state.collectAsStateWithLifecycle()
     val loadedBoxes by vm.boxes.collectAsStateWithLifecycle()
+    // The "Price check" app shortcut.
+    val priceCheck by com.mtgscanner.util.OpenRequests.priceCheck.collectAsStateWithLifecycle()
+    LaunchedEffect(priceCheck) {
+        if (priceCheck) { com.mtgscanner.util.OpenRequests.priceCheck.value = false; vm.startCheck() }
+    }
     val boxes = loadedBoxes.orEmpty()
     val needsBox = loadedBoxes != null && boxes.isEmpty()
     val view = LocalView.current
@@ -177,6 +184,10 @@ fun ScanScreen(
                 if (state.lastFull) Haptics.boxFull(view) else Haptics.added(view)
             }
             ScanFeedback.play(ctx, state.settings.sound)
+            // Hands-free sorting: say where it goes.
+            if (state.stack && state.settings.speakBox && state.target == ScanTarget.COLLECTION) {
+                state.lastBoxName?.let { ScanFeedback.speak(ctx, it + (state.lastSpot?.let { s -> ", $s" } ?: "")) }
+            }
             addTick++
             val e = state.session.firstOrNull()
             val line = e?.let { it.key to it.count }
@@ -204,6 +215,10 @@ fun ScanScreen(
             if (state.settings.vibrate) Haptics.setAside(view)
             ScanFeedback.play(ctx, state.settings.asideSound)
         }
+    }
+    LaunchedEffect(state.skipPulse) {
+        // Stack mode: a soft tick so you know a skipped card was seen.
+        if (vm.freshSkip(state.skipPulse) && state.stack && state.settings.sound != com.mtgscanner.scan.ScanSound.NONE) ScanFeedback.tick(ctx)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -245,6 +260,9 @@ fun ScanScreen(
                         if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
                         else FrameGuide(
                             found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused,
+                            // Flashes in the color of the box the card goes to, so a pile can be sorted by color.
+                            flashColor = if (state.lastBoxName != null && state.lastBoxColor != 0) com.mtgscanner.ui.components.boxColor(state.lastBoxColor)
+                            else Palette.Accent,
                             modifier = Modifier.align(Alignment.Center).hintTarget("frame"),
                         )
                         Column(
@@ -253,6 +271,8 @@ fun ScanScreen(
                         ) {
                             PackChip(state, vm)
                             SortChip(state, vm)
+                            BoxCheckChip(state, vm)
+                            RemoveChip(state, vm)
                         }
                         BoxCallout(state, addTick, Modifier.align(Alignment.Center))
                         Column(
@@ -272,7 +292,8 @@ fun ScanScreen(
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        .clickable(onClickLabel = "Show skipped cards") { vm.showSkipped(true) }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
                             }
                             // Cards saved for later because they couldn't be identified.
@@ -282,7 +303,8 @@ fun ScanScreen(
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        .clickable(onClickLabel = "Show unknown scans") { vm.showUnknown(true) }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
                             }
                         }
@@ -339,7 +361,8 @@ fun ScanScreen(
         // Drawn over everything on the screen, never catching touches.
         AddFlightOverlay(flight)
         val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
-            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.showNewBox
+            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.showNewBox ||
+            state.showSkipped || state.showUnknown || state.showBoxPick || state.showBoxCheck
         if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
             ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.updateHintsSeen(true) })
         }
@@ -356,6 +379,10 @@ fun ScanScreen(
     if (state.showSetLock) SetPickSheet(vm)
     if (state.showDeckPick) DeckPickDialog(vm)
     if (state.page != null) PageSheet(state, vm)
+    if (state.showSkipped) SkippedSheet(state, vm)
+    if (state.showUnknown) UnknownSheet(vm)
+    if (state.showBoxPick) BoxPickDialog(boxes, vm)
+    if (state.showBoxCheck) BoxCheckSheet(state, vm, onOpenCard)
     if (state.showNewBox) {
         BoxEditorSheet(
             title = if (boxes.isEmpty()) "Your first box" else "New box",
@@ -473,6 +500,8 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Price check · not adding"
                         ScanTarget.DECK -> "Deck: ${state.deck?.name.orEmpty()}"
+                        ScanTarget.REMOVE -> "Removing from collection"
+                        ScanTarget.BOX -> "Checking ${state.boxCheck?.boxName.orEmpty()}"
                         ScanTarget.COLLECTION -> if (auto) "Auto-sorting into boxes" else "Adding to ${box!!.name}"
                     }
                     Text(
@@ -569,7 +598,7 @@ private fun RoundIconButton(
 
 /** Card-shaped frame. Turns orange when a card is recognized and flashes when one is added. */
 @Composable
-private fun FrameGuide(found: Boolean, flash: Int, paused: Boolean, modifier: Modifier) {
+private fun FrameGuide(found: Boolean, flash: Int, paused: Boolean, modifier: Modifier, flashColor: Color = Palette.Accent) {
     val color by animateColorAsState(
         when {
             paused -> Color.White.copy(alpha = 0.25f)
@@ -592,8 +621,8 @@ private fun FrameGuide(found: Boolean, flash: Int, paused: Boolean, modifier: Mo
             .fillMaxWidth(0.66f)
             .aspectRatio(63f / 88f)
             .clip(RoundedCornerShape(18.dp))
-            .background(Palette.Accent.copy(alpha = fill))
-            .border(3.dp, color, RoundedCornerShape(18.dp)),
+            .background(flashColor.copy(alpha = fill))
+            .border(3.dp, if (flashing) flashColor else color, RoundedCornerShape(18.dp)),
     )
 }
 
@@ -651,6 +680,18 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                             Spacer(Modifier.width(6.dp))
                             FoilTag()
                         }
+                        // Set lock on, and this card is from another set (it said so in its footer).
+                        val lock = com.mtgscanner.data.SortPrefs.setLock
+                        if (lock != null && !card.set.equals(lock, ignoreCase = true)) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Not in ${lock.uppercase()}",
+                                color = Color.Black,
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Palette.Gold).padding(horizontal = 6.dp, vertical = 1.dp),
+                            )
+                        }
                     }
                     // Foil for this card only, when it comes both ways.
                     if (card.hasFoil && card.hasNonFoil && state.target != ScanTarget.CHECK) {
@@ -683,6 +724,16 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                             )
                         }
                     }
+                    // Where you keep it: "Rares ×3 · Bulk ×1".
+                    if (state.keptIn.isNotEmpty()) {
+                        Text(
+                            state.keptIn.joinToString(" · ") { (box, n) -> "$box ×$n" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.Text,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     if (!state.confident) {
                         Text("Not sure about this one. Check the printing.", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
                     }
@@ -711,6 +762,20 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     Text("Printing", maxLines = 1)
                 }
                 GradientButton("Next", vm::skip, Modifier.weight(1f).heightIn(min = 48.dp))
+            } else if (state.target == ScanTarget.REMOVE || state.target == ScanTarget.BOX) Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Skip", maxLines = 1)
+                }
+                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Printing", maxLines = 1)
+                }
+                if (state.target == ScanTarget.REMOVE) {
+                    GradientButton("Remove", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = (state.owned ?: 1) > 0)
+                } else {
+                    GradientButton("Count", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp))
+                }
             } else Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Skip", maxLines = 1)
@@ -925,7 +990,82 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
         onDispose { cam?.cameraInfo?.cameraState?.removeObserver(obs) }
     }
 
-    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+    // Tap to focus there, pinch to zoom.
+    var focusAt by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    var focusTick by remember { mutableStateOf(0) }
+    var zoomLabel by remember { mutableStateOf<String?>(null) }
+    val camNow by androidx.compose.runtime.rememberUpdatedState(camera)
+    DisposableEffect(previewView) {
+        val tap = android.view.GestureDetector(ctx, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: android.view.MotionEvent): Boolean = true
+            override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                val cam = camNow ?: return false
+                val point = previewView.meteringPointFactory.createPoint(e.x, e.y)
+                val action = androidx.camera.core.FocusMeteringAction.Builder(point)
+                    .setAutoCancelDuration(4, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
+                runCatching { cam.cameraControl.startFocusAndMetering(action) }
+                focusAt = androidx.compose.ui.geometry.Offset(e.x, e.y)
+                focusTick++
+                return true
+            }
+        })
+        val pinch = android.view.ScaleGestureDetector(ctx, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
+                val cam = camNow ?: return false
+                val zoom = cam.cameraInfo.zoomState.value ?: return false
+                val ratio = (zoom.zoomRatio * detector.scaleFactor).coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio)
+                runCatching { cam.cameraControl.setZoomRatio(ratio) }
+                zoomLabel = "%.1f×".format(java.util.Locale.US, ratio)
+                return true
+            }
+        })
+        previewView.setOnTouchListener { v, ev ->
+            pinch.onTouchEvent(ev)
+            if (!pinch.isInProgress) tap.onTouchEvent(ev)
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) v.performClick()
+            true
+        }
+        onDispose { previewView.setOnTouchListener(null) }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+        FocusRing(focusAt, focusTick)
+        zoomLabel?.let { z ->
+            LaunchedEffect(z) {
+                kotlinx.coroutines.delay(1200)
+                zoomLabel = null
+            }
+            Text(
+                z, color = Color.White, style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 210.dp).clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/** A brief ring where the camera was tapped to focus. [at] is in the preview's pixels. */
+@Composable
+private fun FocusRing(at: androidx.compose.ui.geometry.Offset?, tick: Int) {
+    if (at == null || tick == 0) return
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(tick) {
+        visible = true
+        kotlinx.coroutines.delay(700)
+        visible = false
+    }
+    if (!visible) return
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val size = 64.dp
+    val half = with(density) { (size / 2).roundToPx() }
+    Box(
+        Modifier
+            .offset { androidx.compose.ui.unit.IntOffset(at.x.toInt() - half, at.y.toInt() - half) }
+            .size(size)
+            .border(2.dp, Color.White.copy(alpha = 0.9f), CircleShape),
+    )
 }
 
 /** Big label showing which box (and divider) the last card went into, so a pile can be filed as it's scanned. */
@@ -948,7 +1088,10 @@ private fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
                 .padding(horizontal = 22.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Put it in", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
+            Text(
+                if (state.target == ScanTarget.REMOVE) "Take it from" else "Put it in",
+                color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium,
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     boxName.orEmpty() + (state.lastSpot?.let { " → $it" } ?: ""),
@@ -1016,20 +1159,53 @@ private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
+        // Tap a card to see it big and pick its printing.
+        var open by remember { mutableStateOf<String?>(null) }
+        var picking by remember { mutableStateOf<ReviewItem?>(null) }
+        var printings by remember { mutableStateOf<List<ScryfallCard>?>(null) }
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
-            items(state.review, key = { it.id }) { c ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CardImage(c.smallImageUrl, Modifier.width(52.dp), corner = 4.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${c.set.uppercase()} · #${c.collectorNumber}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            if (state.review.isEmpty()) item(key = "empty") { EmptyState("All checked", Modifier.padding(vertical = 24.dp)) }
+            items(state.review, key = { it.card.id }) { item ->
+                val c = item.card
+                Column(Modifier.fillMaxWidth().clickable { open = if (open == c.id) null else c.id }.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CardImage(c.smallImageUrl, Modifier.width(52.dp), corner = 4.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "${c.set.uppercase()} · #${c.collectorNumber}" + (item.lang?.let { " · ${it.uppercase()}" } ?: ""),
+                                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                            )
+                        }
+                        TextButton(onClick = { vm.dropFromReview(item) }) { Text("Drop", color = Palette.Muted) }
+                        TextButton(onClick = { vm.addFromReview(item) }) { Text("Add") }
                     }
-                    TextButton(onClick = { vm.dropFromReview(c) }) { Text("Drop", color = Palette.Muted) }
-                    TextButton(onClick = { vm.addFromReview(c) }) { Text("Add") }
+                    if (open == c.id) {
+                        Spacer(Modifier.height(8.dp))
+                        CardImage(c.imageUrl, Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally), corner = 12.dp)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                picking = item
+                                printings = null
+                                scope.launch { printings = vm.printingsOf(c) }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp),
+                        ) { Text("Printing") }
+                    }
                 }
             }
         }
         Spacer(Modifier.navigationBarsPadding().height(12.dp))
+        picking?.let { item ->
+            PrintingsSheet(
+                printings, item.card.id,
+                { card -> vm.reviewPrinting(item, card); open = card.id; picking = null },
+                { picking = null },
+            )
+        }
     }
 }

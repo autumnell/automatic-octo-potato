@@ -1,6 +1,8 @@
 package com.mtgscanner
 
+import android.app.Activity
 import android.app.Application
+import android.os.Bundle
 import androidx.room.Room
 import coil.ImageLoader
 import coil.ImageLoaderFactory
@@ -29,9 +31,27 @@ class MtgApp : Application(), ImageLoaderFactory {
             .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .build()
         repository = CollectionRepository(this, db, ScryfallApi())
-        repository.startBackgroundWork()
+        // Price refresh, lookups and the name list only when a screen opens: a background job or the
+        // widget waking the app shouldn't spend battery, data and JustTCG requests on them.
+        registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+                if (!backgroundStarted) {
+                    backgroundStarted = true
+                    repository.startBackgroundWork()
+                }
+            }
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
         com.mtgscanner.work.PriceAlerts.schedule(this)
+        com.mtgscanner.work.Notifications.scheduleDigest(this)
     }
+
+    private var backgroundStarted = false
 
     /** Card images fade in, and set symbols (SVG) can be drawn. */
     // Scryfall's image servers expect an app name, like its API does.
@@ -41,7 +61,7 @@ class MtgApp : Application(), ImageLoaderFactory {
                 .addInterceptor { chain ->
                     chain.proceed(
                         chain.request().newBuilder()
-                            .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+                            .header("User-Agent", "MTGScanner/${BuildConfig.VERSION_NAME} (personal collection app)")
                             .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
                             .build(),
                     )
