@@ -213,7 +213,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val tiles: StateFlow<TileData> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeWishlist(), searches.saved) { all, boxes, wish, saved ->
         TileData(
             values = TileMath.counts(all, boxes.size, wish.sumOf { it.wanted }, System.currentTimeMillis()),
-            lists = saved.associate { s -> s.name to all.filter { BrowseViewModel.matches(it, s.filters) }.sumOf { it.quantity } },
+            lists = saved.associate { s -> s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters) }.sumOf { it.quantity } },
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TileData())
 
