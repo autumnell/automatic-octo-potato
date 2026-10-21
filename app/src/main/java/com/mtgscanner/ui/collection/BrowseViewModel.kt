@@ -418,7 +418,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
                     when (sel) {
                         "C" -> c.colors.isEmpty()
                         "M" -> c.colors.length > 1
-                        else -> c.colors.contains(sel)
+                        else -> if (com.mtgscanner.ui.home.ColorPairs.isPairKey(sel)) com.mtgscanner.ui.home.ColorPairs.matches(sel, c.colors)
+                        else c.colors.contains(sel)
                     }
                 }
                 if (!ok) return false

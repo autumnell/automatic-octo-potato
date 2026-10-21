@@ -764,8 +764,9 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                 if (f.activeCount > 0) TextButton(onClick = vm::clearFilters) { Text("Clear all") }
             }
             FilterGroup("Color") {
-                COLOR_FILTERS.forEach { col ->
-                    val label = mapOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless", "M" to "Multicolor")[col] ?: col
+                (COLOR_FILTERS + f.colors.filter { com.mtgscanner.ui.home.ColorPairs.isPairKey(it) }).forEach { col ->
+                    val label = mapOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless", "M" to "Multicolor")[col]
+                        ?: com.mtgscanner.ui.home.ColorPairs.name(col)
                     val pip: (@Composable () -> Unit)? = if (col in listOf("W", "U", "B", "R", "G", "C", "M")) {
                         { ColorPip(col[0]) }
                     } else null

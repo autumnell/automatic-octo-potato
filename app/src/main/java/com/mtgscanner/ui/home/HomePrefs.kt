@@ -18,6 +18,7 @@ enum class HomeSection(val key: String, val label: String) {
     BOX_VALUES("boxes", "Value by box"),
     BULK("bulk", "Bulk estimate"),
     COLORS("colors", "Colors"),
+    PAIRS("pairs", "Color pairs"),
     ALERTS("alerts", "Price alerts"),
     ;
 

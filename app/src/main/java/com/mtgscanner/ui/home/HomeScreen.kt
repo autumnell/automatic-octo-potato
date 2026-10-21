@@ -34,6 +34,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -109,6 +112,8 @@ data class HomeUi(
     val valuable: List<CollectionCard> = emptyList(),
     /** Copies per color (W, U, B, R, G) and "C" colorless. A multicolor card counts once for each of its colors. */
     val colors: List<Pair<String, Int>> = emptyList(),
+    /** Multicolor copies per color pair ("WU"…), then "3+" for three or more colors. */
+    val pairs: List<Pair<String, Int>> = emptyList(),
     /** What the cards were worth when added (only cards with a known price then). */
     val valueAtAdd: Double = 0.0,
     /** Today's value of those same cards. */
@@ -148,6 +153,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             recent = all.sortedByDescending { it.addedAt }.take(12),
             valuable = valuable,
             colors = colorCounts.toList(),
+            pairs = ColorPairs.count(all.map { it.colors to it.quantity }),
             // Proxies are worth $0 today, so leave them out of "since added" on both sides.
             valueAtAdd = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { (it.priceWhenAdded() ?: 0.0) * it.quantity },
             valueNowTracked = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { it.totalPrice() },
@@ -382,6 +388,10 @@ fun HomeScreen(
                         HomeHeading("Colors")
                         ColorBreakdown(ui.colors, onColor = { browse(color = it) })
                     }
+                    HomeSection.PAIRS -> {
+                        HomeHeading("Color pairs")
+                        PairBreakdown(ui.pairs, onPair = { browse(color = it) })
+                    }
                     HomeSection.ALERTS -> if (showPrices && alerts.isNotEmpty()) {
                         HomeHeading("Price alerts")
                         AlertsList(alerts, onOpenCard)
@@ -579,6 +589,78 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
         }
     }
 }
+
+/**
+ * Multicolor cards by color pair: one bar where each slice is split into its two colors, then the pairs owned as
+ * two pips and a share. Tap a slice or pair for its guild name and count, with a Browse link.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Unit) {
+    val total = pairs.sumOf { it.second }
+    var picked by rememberSaveable { mutableStateOf<String?>(null) }
+    val toggle = { k: String -> picked = if (picked == k) null else k }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
+        if (total == 0) {
+            Text("No multicolor cards yet", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+            return@Column
+        }
+        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(6.dp)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            pairs.filter { it.second > 0 }.forEach { (k, n) ->
+                val alpha by animateFloatAsState(if (picked == null || picked == k) 1f else 0.3f, label = "pair")
+                Box(
+                    Modifier.weight(n.toFloat()).fillMaxHeight()
+                        .graphicsLayer { this.alpha = alpha }
+                        .background(pairBrush(k))
+                        .clickable { toggle(k) },
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            pairs.filter { it.second > 0 }.forEach { (k, n) ->
+                Row(
+                    Modifier.clip(RoundedCornerShape(8.dp)).clickable { toggle(k) }.padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (k == ColorPairs.THREE_PLUS) {
+                        Text("3+", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                    } else {
+                        ColorPip(k[0]); Spacer(Modifier.width(1.dp)); ColorPip(k[1])
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        sharePercent(n, total),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (picked == null || picked == k) Palette.Text else Palette.Muted,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+        AnimatedVisibility(visible = picked != null) {
+            val k = picked ?: return@AnimatedVisibility
+            val n = pairs.firstOrNull { it.first == k }?.second ?: 0
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(pairBrush(k)))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${ColorPairs.name(k)} · ${sharePercent(n, total)} · ${"%,d".format(n)} cards",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { onPair(k) }) { Text("Browse") }
+            }
+        }
+    }
+}
+
+/** A pair's slice: its two colors top and bottom, hard-edged. Three or more colors use the multicolor gold. */
+private fun pairBrush(k: String): Brush =
+    if (k.length == 2 && k != ColorPairs.THREE_PLUS) {
+        val a = colorFor(k.substring(0, 1)); val b = colorFor(k.substring(1, 2))
+        Brush.verticalGradient(0f to a, 0.5f to a, 0.5f to b, 1f to b)
+    } else SolidColor(MtgColors.Multi)
 
 /** A color's share of the total, rounded; tiny but non-zero shares read "<1%". */
 internal fun sharePercent(n: Int, total: Int): String = when {

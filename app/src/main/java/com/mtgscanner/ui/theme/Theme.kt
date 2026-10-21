@@ -154,31 +154,36 @@ private fun scheme(): ColorScheme {
     )
 }
 
-private fun base(size: Int, weight: FontWeight, line: Int = (size * 1.35f).toInt(), spacing: Double = 0.0) =
-    TextStyle(fontFamily = Lexend, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp)
+private fun base(family: FontFamily, size: Int, weight: FontWeight, line: Int = (size * 1.35f).toInt(), spacing: Double = 0.0) =
+    TextStyle(fontFamily = family, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp)
 
-/** Cormorant runs small next to Lexend, so its sizes are a step up for the same visual weight. */
-private fun heading(size: Int, weight: FontWeight = FontWeight.Bold, spacing: Double = 0.4) =
-    TextStyle(
-        fontFamily = Cormorant, fontWeight = weight, fontSize = size.sp, lineHeight = (size * 1.2f).toInt().sp,
-        letterSpacing = spacing.sp, fontFeatureSettings = HEADING_FIGURES,
+/** Heading sizes are set for Cormorant, which runs small; other fonts come down by their [AppFont.scale]. */
+private fun heading(font: AppFont, size: Int, weight: FontWeight = FontWeight.Bold): TextStyle {
+    val s = size * font.scale
+    return TextStyle(
+        fontFamily = font.family(), fontWeight = weight, fontSize = s.sp, lineHeight = (s * 1.2f).sp,
+        letterSpacing = font.spacing.sp, fontFeatureSettings = HEADING_FIGURES,
     )
+}
 
-private val typography = Typography(
-    displaySmall = heading(40),
-    headlineLarge = heading(34),
-    headlineMedium = heading(30),
-    headlineSmall = heading(26),
-    titleLarge = heading(23),
-    titleMedium = base(16, FontWeight.SemiBold),
-    titleSmall = base(14, FontWeight.Medium),
-    bodyLarge = base(16, FontWeight.Normal),
-    bodyMedium = base(14, FontWeight.Normal),
-    bodySmall = base(12, FontWeight.Normal),
-    labelLarge = base(14, FontWeight.Medium, spacing = 0.3),
-    labelMedium = base(12, FontWeight.Medium, spacing = 0.4),
-    labelSmall = base(11, FontWeight.Medium, spacing = 0.5),
-)
+private fun typography(headingFont: AppFont, bodyFont: AppFont): Typography {
+    val f = bodyFont.family()
+    return Typography(
+        displaySmall = heading(headingFont, 40),
+        headlineLarge = heading(headingFont, 34),
+        headlineMedium = heading(headingFont, 30),
+        headlineSmall = heading(headingFont, 26),
+        titleLarge = heading(headingFont, 23),
+        titleMedium = base(f, 16, FontWeight.SemiBold),
+        titleSmall = base(f, 14, FontWeight.Medium),
+        bodyLarge = base(f, 16, FontWeight.Normal),
+        bodyMedium = base(f, 14, FontWeight.Normal),
+        bodySmall = base(f, 12, FontWeight.Normal),
+        labelLarge = base(f, 14, FontWeight.Medium, spacing = 0.3),
+        labelMedium = base(f, 12, FontWeight.Medium, spacing = 0.4),
+        labelSmall = base(f, 11, FontWeight.Medium, spacing = 0.5),
+    )
+}
 
 /** Every style made [factor] times larger, for big-text mode. */
 private fun Typography.scaled(factor: Float): Typography {
@@ -191,19 +196,32 @@ private fun Typography.scaled(factor: Float): Typography {
     )
 }
 
-private val bigTypography = typography.scaled(1.2f)
+private fun priceStyle(font: AppFont, big: Boolean): TextStyle {
+    val k = font.scale * (if (big) 1.2f else 1f)
+    return TextStyle(
+        fontFamily = font.family(), fontWeight = FontWeight.Bold, fontSize = (18 * k).sp, lineHeight = (22 * k).sp,
+        letterSpacing = 0.2.sp, fontFeatureSettings = PRICE_FIGURES,
+    )
+}
 
-private val priceStyle = TextStyle(
-    fontFamily = Cormorant, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 22.sp,
-    letterSpacing = 0.2.sp, fontFeatureSettings = PRICE_FIGURES,
-)
-private val bigPriceStyle = priceStyle.copy(fontSize = priceStyle.fontSize * 1.2f, lineHeight = priceStyle.lineHeight * 1.2f)
+/** Built styles, kept so switching screens doesn't rebuild them. Keyed by font choices and big text. */
+private val typographyCache = HashMap<Triple<AppFont, AppFont, Boolean>, Typography>()
+private val priceCache = HashMap<Pair<AppFont, Boolean>, TextStyle>()
+
+private fun currentTypography(): Typography {
+    val key = Triple(FontSettings.heading, FontSettings.body, AppSettings.bigText)
+    return typographyCache.getOrPut(key) {
+        val t = typography(key.first, key.second)
+        if (key.third) t.scaled(1.2f) else t
+    }
+}
 
 /**
- * For prices and other numbers: the heading serif with tabular lining figures. 18sp; change the size with
- * `PriceStyle.copy(fontSize = …)`. Bigger in big-text mode. No color: pass one (usually [Palette.AccentText]).
+ * For prices and other numbers: the chosen price font with tabular lining figures. 18sp (for Cormorant); change
+ * the size with `PriceStyle.copy(fontSize = …)`. Bigger in big-text mode. No color: pass one (usually [Palette.AccentText]).
  */
-val PriceStyle: TextStyle get() = if (AppSettings.bigText) bigPriceStyle else priceStyle
+val PriceStyle: TextStyle
+    get() = priceCache.getOrPut(FontSettings.price to AppSettings.bigText) { priceStyle(FontSettings.price, AppSettings.bigText) }
 
 private val shapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -215,7 +233,7 @@ private val shapes = Shapes(
 
 @Composable
 fun MtgTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme(), typography = if (AppSettings.bigText) bigTypography else typography, shapes = shapes, content = content)
+    MaterialTheme(colorScheme = scheme(), typography = currentTypography(), shapes = shapes, content = content)
 }
 
 /** Colors for the five Magic colors plus colorless/multicolor, used for chips and mana symbols. */
