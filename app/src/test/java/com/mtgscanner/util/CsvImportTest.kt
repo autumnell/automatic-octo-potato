@@ -53,4 +53,18 @@ class CsvImportTest {
         val tcg = CsvImport.parse("Quantity,Name,Set,Set Code\n1,Shock,Core Set 2019,\n")
         assertEquals(null, tcg[0].setCode)
     }
+
+    @Test fun decklistTextImports() {
+        val rows = CsvImport.parseAny("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n2x Lightning Bolt\n\nMaybeboard\n1 Duress\n")
+        assertEquals(2, rows.size)
+        assertEquals(6, rows.first { it.name == "Lightning Bolt" }.quantity)
+        val ring = rows.first { it.name == "Sol Ring" }
+        assertEquals("cmr", ring.setCode)
+        assertEquals("263", ring.collectorNumber)
+    }
+
+    @Test fun csvStillWinsAndRandomTextIsNotCards() {
+        assertEquals("Shock", CsvImport.parseAny("Quantity,Name\n2,Shock\n").single().name)
+        assertTrue(CsvImport.parseAny("Hello there\nThis is a note\n1 thing").isEmpty())
+    }
 }

@@ -234,6 +234,7 @@ internal object BackupIO {
         }
     }
 
+
     // CSV import
 
     /**
@@ -247,7 +248,10 @@ internal object BackupIO {
         rows: List<ImportRow>,
         boxId: Long,
         fallbackBox: (suspend () -> Long)? = null,
-    ): ImportResult {
+    ): ImportResult = applyPlan(repo, plan(repo, rows, lookUp(repo, rows), boxId), fallbackBox)
+
+    /** Looks every row up on Scryfall (exact matches only). Throws IOException when offline. */
+    suspend fun lookUp(repo: CollectionRepository, rows: List<ImportRow>): List<ScryfallCard?> {
         val api = repo.api
         val found = api.identify(rows.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) }).toMutableList()
         val retry = rows.indices.filter { found[it] == null && (rows[it].setCode != null || rows[it].scryfallId != null) }
@@ -255,6 +259,43 @@ internal object BackupIO {
             val byName = api.identify(retry.map { buildJsonObject { put("name", rows[it].name) } })
             retry.zip(byName).forEach { (i, c) -> found[i] = c }
         }
+        return found
+    }
+
+    /**
+     * Looks one row up again, more loosely: exact first, then Scryfall's fuzzy name match (typos,
+     * partial names), with its set and then without. Null when still not found. Throws IOException when offline.
+     */
+    suspend fun lookUpLoosely(repo: CollectionRepository, row: ImportRow): ScryfallCard? {
+        lookUp(repo, listOf(row)).firstOrNull()?.let { return it }
+        val name = row.name.trim().takeIf { it.isNotEmpty() } ?: return null
+        val set = row.setCode
+        return (if (set != null) repo.api.named(name, set) else null) ?: repo.api.named(name)
+    }
+
+    /** Works out which box each found card goes to, without changing anything. Same rules as adding them. */
+    suspend fun plan(repo: CollectionRepository, rows: List<ImportRow>, found: List<ScryfallCard?>, choice: Long): ImportPlan {
+        val boxes = repo.boxInfos()
+        val policy = SortPrefs.policy
+        val items = rows.zip(found).map { (r, c) -> c?.let { ImportPlanner.Item(it.facts(r.foil), it.oracleId, r.quantity) } }
+        // A box deleted since it was picked: send the cards to a new box instead.
+        val pick = if (choice == Box.AUTO_SORT || choice == ImportPlan.NEW_BOX || boxes.any { it.id == choice }) choice else ImportPlan.NEW_BOX
+        // Copies already kept in main boxes, for the playset limit. Read up front: the planner doesn't suspend.
+        val owned = HashMap<String, Int>()
+        if (pick == Box.AUTO_SORT && policy.playsetLimit > 0) {
+            val notMain = boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id }.ifEmpty { listOf(Long.MIN_VALUE) }
+            items.mapNotNull { it?.oracleId }.distinct().forEach { owned[it] = repo.dao.ownedOutside(it, notMain) }
+        }
+        val targets = ImportPlanner.targets(items, pick, boxes, policy) { owned[it] ?: 0 }
+        return ImportPlan(rows, found, targets, choice)
+    }
+
+    /**
+     * Adds a planned import in one transaction. Rows marked [ImportPlan.NEW_BOX], or whose box was deleted
+     * since, go to the box [fallbackBox] makes (made once, only when needed). Copies merged into an existing
+     * entry keep that entry's condition, language and price paid.
+     */
+    suspend fun applyPlan(repo: CollectionRepository, plan: ImportPlan, fallbackBox: (suspend () -> Long)? = null): ImportResult {
         val dao = repo.dao
         var added = 0
         val notFound = mutableListOf<String>()
@@ -262,19 +303,19 @@ internal object BackupIO {
         withContext(NonCancellable) {
             repo.db.withTransaction {
                 var fallbackBoxId: Long? = null
-                val boxNames = HashMap<Long, String>()
+                val boxNames = dao.allBoxes().associate { it.id to it.name }.toMutableMap()
                 val now = System.currentTimeMillis()
-                rows.zip(found).forEach { (r, c) ->
-                    if (c == null) { notFound += r.name; return@forEach }
-                    val chosen = when (boxId) {
-                        Box.AUTO_SORT -> repo.pickBox(c, r.foil)
-                        0L -> null // everything to the fallback box
-                        else -> boxId
-                    }
+                plan.rows.forEachIndexed { i, r ->
+                    val c = plan.found.getOrNull(i)
+                    if (c == null) { notFound += r.name; return@forEachIndexed }
+                    val chosen = plan.targets.getOrNull(i)?.takeIf { it != ImportPlan.NEW_BOX && it in boxNames }
                     val target = chosen
                         ?: fallbackBoxId
-                        ?: fallbackBox?.invoke()?.also { fallbackBoxId = it }
-                    if (target == null) { notFound += r.name; return@forEach }
+                        ?: fallbackBox?.invoke()?.also { id ->
+                            fallbackBoxId = id
+                            boxNames[id] = dao.box(id)?.name ?: "?"
+                        }
+                    if (target == null) { notFound += r.name; return@forEachIndexed }
                     val row = c.toEntity(r.foil, r.quantity, now).copy(
                         boxId = target,
                         condition = r.condition ?: "NM",
@@ -291,11 +332,11 @@ internal object BackupIO {
                     } else {
                         dao.insert(row)
                     }
-                    val boxName = boxNames.getOrPut(target) { dao.box(target)?.name ?: "?" }
+                    val boxName = boxNames[target] ?: "?"
                     dao.addEvent(CardEvent(scryfallId = c.id, name = c.name, kind = "added", detail = "×${r.quantity} → $boxName"))
                     added += r.quantity
                 }
-                val points = found.filterNotNull().distinctBy { it.id }.map { it.pricePoint() }
+                val points = plan.found.filterNotNull().distinctBy { it.id }.map { it.pricePoint() }
                 if (points.isNotEmpty()) dao.putPricePoints(points)
             }
         }

@@ -20,6 +20,24 @@ data class ImportRow(
  * by recognizing their column names.
  */
 object CsvImport {
+    private val COUNTED_LINE = Regex("""^\s*(?:SB:\s*|CMDR:\s*)?\d+\s*[xX]?\s+\S.*$""")
+
+    /**
+     * A collection CSV, or else a plain decklist ("4 Lightning Bolt", "1 Sol Ring (CMR) 263").
+     * A decklist counts only when most lines start with a count, so random text isn't read as cards.
+     * Maybeboard and token lines are left out.
+     */
+    fun parseAny(text: String): List<ImportRow> {
+        parse(text).takeIf { it.isNotEmpty() }?.let { return it }
+        val lines = text.removePrefix("﻿").lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") && !it.startsWith("//") }
+        val counted = lines.count { COUNTED_LINE.matches(it) }
+        if (counted == 0 || counted * 2 < lines.size) return emptyList()
+        return DecklistParser.parse(text)
+            .filter { it.section != "Maybeboard" && it.section != "Tokens" }
+            .groupBy { Triple(it.name.lowercase(), it.setCode, it.collectorNumber) }
+            .map { (_, v) -> v.first().let { ImportRow(v.sumOf { l -> l.quantity }, it.name, it.setCode, it.collectorNumber) } }
+    }
+
     fun parse(text: String): List<ImportRow> {
         val rows = readCsv(text.removePrefix("﻿"))
         if (rows.isEmpty()) return emptyList()
