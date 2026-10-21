@@ -53,7 +53,12 @@ import com.mtgscanner.data.Backup
 import com.mtgscanner.data.BackupIO
 import com.mtgscanner.data.BadBackupException
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.DeckLinks
 import com.mtgscanner.data.ImportPlan
+import com.mtgscanner.data.db.Deck
+import com.mtgscanner.util.BuyList
+import com.mtgscanner.util.BuyStore
+import com.mtgscanner.work.Notifications
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.ui.AppViewModels
@@ -67,6 +72,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableDoubleStateOf
 import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.util.ImportRow
@@ -233,6 +241,58 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
+    /** Reads pasted or shared text: a collection CSV or a decklist. */
+    fun readText(text: String) {
+        run("Reading…") {
+            val rows = withContext(Dispatchers.Default) { CsvImport.parseAny(text) }
+            if (rows.isEmpty()) return@run "No cards found"
+            _importRows.value = rows
+            "Found ${rows.sumOf { it.quantity }} cards"
+        }
+    }
+
+    /** Saves the deck behind a public Moxfield or Archidekt link as a deck list. */
+    fun importDeckLink(url: String) {
+        run("Getting deck…") {
+            val deck = try {
+                DeckLinks.fetch(url.trim())
+            } catch (e: java.io.IOException) {
+                return@run e.message ?: "Couldn't get that deck"
+            }
+            val id = repo.saveDeck(0L, deck.name, deck.text)
+            com.mtgscanner.ui.components.Undo.offer("Saved deck: ${deck.name}") { repo.deleteDeck(id) }
+            null
+        }
+    }
+
+    val decks: StateFlow<List<Deck>> = repo.observeDecks().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Shares what's needed to buy: the wishlist ([deckId] null) or a deck's missing cards, for [store]'s cart. */
+    fun shareBuyList(ctx: android.content.Context, deckId: Long?, store: BuyStore) {
+        val app = ctx.applicationContext
+        run("Making list…") {
+            val cards: List<Pair<String, Int>> = if (deckId == null) {
+                repo.observeWishlist().first().map { it.name to it.wanted }
+            } else {
+                val deck = repo.observeDeck(deckId).first() ?: return@run "Deck not found"
+                repo.checkDeck(deck.text, repo.allCards(), repo.observeBoxes().first()).missingLines.map { it.name to it.missing }
+            }
+            if (cards.isEmpty()) return@run "Nothing to buy"
+            val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                .setType("text/plain")
+                .putExtra(android.content.Intent.EXTRA_TEXT, BuyList.text(cards, store))
+            withContext(Dispatchers.Main) {
+                app.startActivity(
+                    android.content.Intent.createChooser(send, "${store.label} list").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            null
+        }
+    }
+
+    /** The app holds no cards and no boxes (a new install). */
+    suspend fun isEmpty(): Boolean = repo.allCards().isEmpty() && repo.observeBoxes().first().isEmpty()
+
     /** What an import will add, shown before anything is saved. */
     private val _importPlan = MutableStateFlow<ImportPlan?>(null)
     val importPlan: StateFlow<ImportPlan?> = _importPlan
@@ -392,10 +452,12 @@ private fun restartApp(context: android.content.Context) {
 fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory)) {
     val ctx = LocalContext.current
     val busy by vm.busy.collectAsStateWithLifecycle()
-    val rows by vm.importRows.collectAsStateWithLifecycle()
-    val boxes by vm.boxes.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
-    val restorePreview by vm.restorePreview.collectAsStateWithLifecycle()
+    val decks by vm.decks.collectAsStateWithLifecycle()
+    var linkDialog by remember { mutableStateOf(false) }
+    var buyDialog by remember { mutableStateOf(false) }
+    var quietNights by remember { mutableStateOf(Notifications.quietNights(ctx)) }
+    var weeklyDigest by remember { mutableStateOf(Notifications.weeklyDigest(ctx)) }
     val canUndoRestore by vm.canUndoRestore.collectAsStateWithLifecycle()
     var choosingExport by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf(CsvFormat.FULL) }
@@ -443,6 +505,10 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.FileDownload, "Export CSV", "ManaBox, Moxfield, Archidekt") { choosingExport = true }
             HorizontalDivider(color = Palette.Outline)
+            Action(Icons.Filled.Link, "Deck from link", "Moxfield or Archidekt") { linkDialog = true }
+            HorizontalDivider(color = Palette.Outline)
+            Action(Icons.Filled.ShoppingCart, "Buy list", "Wishlist or a deck's missing cards") { buyDialog = true }
+            HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Save, "Back up", "Save everything to a file") {
                 backupLauncher.launch("grimoire-backup-${LocalDate.now()}.zip")
             }
@@ -455,6 +521,16 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
                     TextButton(onClick = { vm.backupNow(ctx) }) { Text("Back up now") }
                 }
+            }
+            HorizontalDivider(color = Palette.Outline)
+            ToggleRow("Weekly summary", "Value and new cards", weeklyDigest) { on ->
+                weeklyDigest = on
+                Notifications.setWeeklyDigest(ctx.applicationContext, on)
+            }
+            HorizontalDivider(color = Palette.Outline)
+            ToggleRow("Quiet at night", "No sound 10 pm to 8 am", quietNights) { on ->
+                quietNights = on
+                Notifications.setQuietNights(ctx.applicationContext, on)
             }
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Shield, "Insurance report", "PDF of your valuable cards") { choosingReport = true }
@@ -475,22 +551,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         }
     }
 
-    restorePreview?.let { p ->
-        AlertDialog(
-            onDismissRequest = vm::cancelRestore,
-            containerColor = Palette.Surface,
-            title = { Text("Restore this backup?") },
-            text = {
-                Text(
-                    "${p.cards} cards, ${p.boxes} boxes" + (if (p.savedAt > 0) ", saved ${backupDay(p.savedAt, withYear = true)}" else "") +
-                        ".\n\nIt replaces everything in the app" + (if (p.restarts) ", which then restarts" else "") +
-                        ". A copy of what's here now is kept, so you can undo.",
-                )
-            },
-            confirmButton = { TextButton(onClick = { vm.restore(ctx, p) }) { Text("Restore", color = Palette.Danger) } },
-            dismissButton = { TextButton(onClick = vm::cancelRestore) { Text("Cancel") } },
-        )
-    }
+    RestorePreviewDialog(vm)
 
     if (confirmUndo) {
         AlertDialog(
@@ -501,6 +562,11 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             confirmButton = { TextButton(onClick = { confirmUndo = false; vm.undoRestore(ctx) }) { Text("Undo restore", color = Palette.Danger) } },
             dismissButton = { TextButton(onClick = { confirmUndo = false }) { Text("Cancel") } },
         )
+    }
+
+    if (linkDialog) DeckLinkDialog(onDismiss = { linkDialog = false }) { url -> linkDialog = false; vm.importDeckLink(url) }
+    if (buyDialog) {
+        BuyListDialog(decks, onDismiss = { buyDialog = false }) { deckId, store -> buyDialog = false; vm.shareBuyList(ctx, deckId, store) }
     }
 
     if (choosingReport) {
@@ -515,24 +581,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         )
     }
 
-    rows?.let { r -> ImportDialog(r, boxes, onCancel = vm::cancelImport, onImport = vm::import) }
-    val plan by vm.importPlan.collectAsStateWithLifecycle()
-    plan?.let { p ->
-        val planBoxes by vm.importBoxes.collectAsStateWithLifecycle()
-        val offline by vm.importOffline.collectAsStateWithLifecycle()
-        ImportPreviewDialog(
-            plan = p,
-            boxes = planBoxes,
-            offline = offline,
-            busy = busy,
-            onRetry = vm::retryImportRow,
-            onRetryAll = vm::retryImportAll,
-            onRemove = vm::removeImportRow,
-            onChangeBox = vm::changeImportBox,
-            onConfirm = vm::confirmImport,
-            onCancel = vm::cancelImport,
-        )
-    }
+    ImportDialogs(vm)
 
     if (choosingExport) {
         AlertDialog(
@@ -553,6 +602,57 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             dismissButton = { TextButton(onClick = { choosingExport = false }) { Text("Cancel") } },
         )
     }
+}
+
+/** "Restore this backup?" once a backup has been read. */
+@Composable
+internal fun RestorePreviewDialog(vm: SettingsViewModel) {
+    val ctx = LocalContext.current
+    val restorePreview by vm.restorePreview.collectAsStateWithLifecycle()
+    restorePreview?.let { p ->
+        AlertDialog(
+            onDismissRequest = vm::cancelRestore,
+            containerColor = Palette.Surface,
+            title = { Text("Restore this backup?") },
+            text = {
+                Text(
+                    "${p.cards} cards, ${p.boxes} boxes" + (if (p.savedAt > 0) ", saved ${backupDay(p.savedAt, withYear = true)}" else "") +
+                        ".\n\nIt replaces everything in the app" + (if (p.restarts) ", which then restarts" else "") +
+                        ". A copy of what's here now is kept, so you can undo.",
+                )
+            },
+            confirmButton = { TextButton(onClick = { vm.restore(ctx, p) }) { Text("Restore", color = Palette.Danger) } },
+            dismissButton = { TextButton(onClick = vm::cancelRestore) { Text("Cancel") } },
+        )
+    }
+
+}
+
+/** Picking where imported cards go, then the preview of what will be added. */
+@Composable
+internal fun ImportDialogs(vm: SettingsViewModel) {
+    val rows by vm.importRows.collectAsStateWithLifecycle()
+    val boxes by vm.boxes.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
+    rows?.let { r -> ImportDialog(r, boxes, onCancel = vm::cancelImport, onImport = vm::import) }
+    val plan by vm.importPlan.collectAsStateWithLifecycle()
+    plan?.let { p ->
+        val planBoxes by vm.importBoxes.collectAsStateWithLifecycle()
+        val offline by vm.importOffline.collectAsStateWithLifecycle()
+        ImportPreviewDialog(
+            plan = p,
+            boxes = planBoxes,
+            offline = offline,
+            busy = busy,
+            onRetry = vm::retryImportRow,
+            onRetryAll = vm::retryImportAll,
+            onRemove = vm::removeImportRow,
+            onChangeBox = vm::changeImportBox,
+            onConfirm = vm::confirmImport,
+            onCancel = vm::cancelImport,
+        )
+    }
+
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -633,4 +733,49 @@ private fun Action(icon: ImageVector, title: String, body: String, onClick: () -
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
+}
+
+@Composable
+private fun DeckLinkDialog(onDismiss: () -> Unit, onGet: (String) -> Unit) {
+    var url by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Deck from link") },
+        text = {
+            OutlinedTextField(
+                value = url, onValueChange = { url = it }, singleLine = true,
+                placeholder = { Text("moxfield.com/decks/…") }, modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            val link = DeckLinks.find(url.trim().let { if (it.startsWith("http")) it else "https://$it" })
+            TextButton(onClick = { link?.let(onGet) }, enabled = link != null) { Text("Get deck") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BuyListDialog(decks: List<Deck>, onDismiss: () -> Unit, onShare: (deckId: Long?, store: BuyStore) -> Unit) {
+    var deckId by remember { mutableStateOf<Long?>(null) }
+    var store by remember { mutableStateOf(BuyStore.TCGPLAYER) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Buy list") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BuyStore.entries.forEach { s -> SelectPill(s.label, store == s, { store = s }) }
+                }
+                Spacer(Modifier.padding(top = 8.dp))
+                Choice("Wishlist", deckId == null, null) { deckId = null }
+                decks.forEach { d -> Choice(d.name, deckId == d.id, null) { deckId = d.id } }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onShare(deckId, store) }) { Text("Share") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
