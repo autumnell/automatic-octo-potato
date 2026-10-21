@@ -135,7 +135,10 @@ private fun parsed(d: Deck): List<DeckLine> =
         ?: DecklistParser.parse(d.text).also { parsedDecks[d.id] = d.text to it }
 
 class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
-    init { DeckShelfStore.init(repo.appContext) }
+    init {
+        DeckShelfStore.init(repo.appContext)
+        PullChecksStore.init(repo.appContext)
+    }
 
     val shelf: StateFlow<DeckShelf> = DeckShelfStore.state
 
@@ -186,6 +189,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Works out color identity and cover art for decks whose tile data is out of date. */
     private suspend fun refreshMeta(decks: List<Deck>, cover: Map<Long, String>) {
         DeckShelfStore.prune(decks.map { it.id }.toSet())
+        PullChecksStore.prune(decks.map { it.id }.toSet())
         val saved = DeckShelfStore.state.value.meta
         val stale = decks.filter { d -> val st = stamp(d, cover[d.id]); saved[d.id]?.stamp != st && st !in tried }
         if (stale.isEmpty()) return
@@ -500,12 +504,27 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 
     init {
         DeckShelfStore.init(repo.appContext)
+        PullChecksStore.init(repo.appContext)
         viewModelScope.launch {
             val deck = if (deckId != 0L) repo.observeDeck(deckId).first() else null
             _ui.update { it.copy(loaded = true, name = deck?.name ?: "", text = deck?.text ?: "", editing = deck == null) }
             if (deck != null) check()
         }
     }
+
+    /** Owned copies to take out of boxes for the saved list, kept up to date with the collection. */
+    val pull: StateFlow<PullList?> = combine(
+        _ui.map { it.text to it.name }.distinctUntilChanged(), repo.observeAll(), repo.observeBoxes(),
+    ) { (text, name), cards, boxes ->
+        PullListMath.build(DecklistParser.parse(text), cards, boxes, name)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Pull list checkmarks for this deck. */
+    val pullChecks: StateFlow<Set<String>> = combine(_ui.map { it.id }.distinctUntilChanged(), PullChecksStore.state) { id, m -> m[id].orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    fun togglePulled(key: String) { _ui.value.id.takeIf { it != 0L }?.let { PullChecksStore.toggle(it, key) } }
+    fun clearPulled() = PullChecksStore.clear(_ui.value.id)
 
     fun setName(v: String) = _ui.update { it.copy(name = v) }
     fun setText(v: String) = _ui.update { it.copy(text = v) }
@@ -635,8 +654,17 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Cards", view == 0, { view = 0 })
                     SelectPill("Stats", view == 1, { view = 1 })
+                    SelectPill("Pull list", view == 2, { view = 2 })
                 }
-                if (view == 1) DeckStatsView(ui.stats, ui.statsFailed) else Results(ui, vm)
+                when (view) {
+                    1 -> DeckStatsView(ui.stats, ui.statsFailed)
+                    2 -> {
+                        val pull by vm.pull.collectAsStateWithLifecycle()
+                        val checks by vm.pullChecks.collectAsStateWithLifecycle()
+                        PullListView(pull, checks, vm::togglePulled, vm::clearPulled)
+                    }
+                    else -> Results(ui, vm)
+                }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))

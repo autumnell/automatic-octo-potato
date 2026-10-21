@@ -18,7 +18,7 @@ data class DeckCardInfo(
 /** Chart groups, in display order. */
 enum class StatColor(val label: String, val letter: Char) {
     White("White", 'W'), Blue("Blue", 'U'), Black("Black", 'B'), Red("Red", 'R'), Green("Green", 'G'),
-    Multi("Multicolor", 'M'), Colorless("Colorless", 'C');
+    Colorless("Colorless", 'C');
 
     companion object {
         val Five = listOf(White, Blue, Black, Red, Green)
@@ -27,10 +27,15 @@ enum class StatColor(val label: String, val letter: Char) {
 }
 
 data class DeckStats(
-    /** Mana value 0..7 (7 = 7+): count of nonland cards per color group. */
+    /**
+     * Mana value 0..7 (7 = 7+): count of nonland cards per color group. A multicolor card counts once for
+     * each of its colors, so use [curveCounts] for the number of cards.
+     */
     val curve: List<Map<StatColor, Int>>,
-    /** Nonland cards per color group. */
+    /** Nonland cards per color group. A multicolor card counts once for each of its colors. */
     val byColor: Map<StatColor, Int>,
+    /** Mana value 0..7 (7 = 7+): number of nonland cards. */
+    val curveCounts: List<Int>,
     val averageMv: Double,
     val nonland: Int,
     val lands: Int,
@@ -54,13 +59,10 @@ object DeckStatsMath {
 
     fun isLand(typeLine: String): Boolean = typeLine.substringBefore(" // ").contains("Land")
 
-    fun group(colors: String): StatColor {
-        val cs = colors.uppercase().filter { it in "WUBRG" }.toSet()
-        return when {
-            cs.isEmpty() -> StatColor.Colorless
-            cs.size > 1 -> StatColor.Multi
-            else -> StatColor.of(cs.first()) ?: StatColor.Colorless
-        }
+    /** The color groups a card counts toward: each of its colors, or Colorless. */
+    fun groups(colors: String): List<StatColor> {
+        val up = colors.uppercase()
+        return StatColor.Five.filter { it.letter in up }.ifEmpty { listOf(StatColor.Colorless) }
     }
 
     /** Pips in a mana cost like "{2}{W}{U/B}". Hybrid counts each color. Only the front face. */
@@ -102,6 +104,7 @@ object DeckStatsMath {
 
     fun compute(lines: List<DeckLine>, info: Map<String, DeckCardInfo>): DeckStats {
         val curve = List(8) { mutableMapOf<StatColor, Int>() }
+        val curveCounts = IntArray(8)
         val byColor = mutableMapOf<StatColor, Int>()
         val pips = mutableMapOf<StatColor, Int>()
         val production = mutableMapOf<StatColor, Int>()
@@ -118,9 +121,12 @@ object DeckStatsMath {
             if (land) lands += q else {
                 nonland += q
                 mvSum += c.cmc * q
-                val g = group(c.colors)
-                curve[c.cmc.toInt().coerceIn(0, 7)].merge(g, q, Int::plus)
-                byColor.merge(g, q, Int::plus)
+                val mv = c.cmc.toInt().coerceIn(0, 7)
+                curveCounts[mv] += q
+                for (g in groups(c.colors)) {
+                    curve[mv].merge(g, q, Int::plus)
+                    byColor.merge(g, q, Int::plus)
+                }
                 pips(c.manaCost).forEach { (k, v) -> pips.merge(k, v * q, Int::plus) }
             }
             // Lands and other mana sources (rocks, dorks).
@@ -129,7 +135,7 @@ object DeckStatsMath {
             }
         }
         return DeckStats(
-            curve = curve, byColor = byColor,
+            curve = curve, byColor = byColor, curveCounts = curveCounts.toList(),
             averageMv = if (nonland == 0) 0.0 else mvSum / nonland,
             nonland = nonland, lands = lands, pips = pips, production = production, unknown = unknown,
         )

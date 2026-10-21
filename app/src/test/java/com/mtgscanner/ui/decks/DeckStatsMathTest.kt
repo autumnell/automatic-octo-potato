@@ -29,6 +29,13 @@ class DeckStatsMathTest {
     }
 
     @Test
+    fun groupsHaveNoMulticolor() {
+        assertEquals(listOf(StatColor.White, StatColor.Red), DeckStatsMath.groups("RW"))
+        assertEquals(listOf(StatColor.Colorless), DeckStatsMath.groups(""))
+        assertEquals(listOf(StatColor.Blue), DeckStatsMath.groups("U"))
+    }
+
+    @Test
     fun computeSkipsSideboardAndLands() {
         val info = listOf(
             card("Lightning Bolt", 1.0, "{R}", "Instant", "R"),
@@ -45,7 +52,12 @@ class DeckStatsMathTest {
         assertEquals(10, s.lands)
         assertEquals(1, s.unknown)
         assertEquals(4, s.curve[1][StatColor.Red])
-        assertEquals(2, s.curve[2][StatColor.Multi])
+        // A multicolor card counts toward each of its colors, but once in the card count.
+        assertEquals(2, s.curve[2][StatColor.Red])
+        assertEquals(2, s.curve[2][StatColor.White])
+        assertEquals(2, s.curveCounts[2])
+        assertEquals(6, s.byColor[StatColor.Red])
+        assertEquals(2, s.byColor[StatColor.White])
         assertEquals(10, s.production[StatColor.Red])
         assertEquals(8.0 / 6, s.averageMv, 0.001)
         assertEquals(6, s.pips[StatColor.Red])
