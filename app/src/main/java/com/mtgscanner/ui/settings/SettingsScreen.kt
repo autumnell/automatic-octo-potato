@@ -78,6 +78,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.AppSettings
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import com.mtgscanner.ui.theme.FontSettings
+import com.mtgscanner.ui.theme.AppFont
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.ThemeMode
 import com.mtgscanner.ui.theme.ThemeSettings
@@ -199,6 +204,17 @@ private fun LookTab() {
             }
         }
     }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        SectionLabel("Fonts")
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = { FontSettings.reset() }, modifier = Modifier.padding(end = 8.dp, top = 6.dp)) {
+            Text("Reset", color = Palette.Muted)
+        }
+    }
+    FontRow("Headings", AppFont.headings, FontSettings.heading) { FontSettings.updateHeading(it) }
+    FontRow("Text", AppFont.body, FontSettings.body) { FontSettings.updateBody(it) }
+    FontRow("Prices", AppFont.prices, FontSettings.price) { FontSettings.updatePrice(it) }
 
     SectionLabel("Text")
     Card { ToggleRow("Big text", "Larger names and prices", AppSettings.bigText) { AppSettings.updateBigText(it) } }
@@ -343,12 +359,44 @@ private fun CustomSwatch(onClick: () -> Unit) {
     }
 }
 
-/** A one-line mock-up so the chosen colors can be judged at a glance. */
+/** One font slot: a sideways row of samples, each drawn in its own font. */
+@Composable
+private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPick: (AppFont) -> Unit) {
+    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 6.dp, bottom = 4.dp))
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        fonts.forEach { f ->
+            val on = f == selected
+            Column(
+                Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(if (on) 2.dp else 1.dp, if (on) Palette.Accent else Palette.Outline, RoundedCornerShape(12.dp))
+                    .background(if (on) Palette.SurfaceHigh else Palette.Surface)
+                    .clickable { onPick(f) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "Aa 12",
+                    style = TextStyle(fontFamily = f.family(), fontWeight = FontWeight.SemiBold, fontSize = (24 * f.scale / 0.86f).sp),
+                    color = if (on) Palette.AccentText else Palette.Text,
+                    maxLines = 1,
+                )
+                Text(f.label, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1)
+            }
+        }
+    }
+}
+
+/** A one-line mock-up so the chosen colors and fonts can be judged at a glance. */
 @Composable
 private fun Preview() {
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Color.Transparent) {
         Row(Modifier.background(Palette.HeroGradient).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
+                Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                 Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Accent)
             }

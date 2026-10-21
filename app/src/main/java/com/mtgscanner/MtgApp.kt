@@ -10,6 +10,7 @@ import com.mtgscanner.data.ScryfallApi
 import com.mtgscanner.data.db.AppDatabase
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.ThemeSettings
+import com.mtgscanner.ui.theme.FontSettings
 
 class MtgApp : Application(), ImageLoaderFactory {
     lateinit var repository: CollectionRepository
@@ -18,6 +19,7 @@ class MtgApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         ThemeSettings.init(this)
+        FontSettings.init(this)
         AppSettings.init(this)
         com.mtgscanner.data.JustTcg.init(this)
         com.mtgscanner.data.SortPrefs.init(this)
