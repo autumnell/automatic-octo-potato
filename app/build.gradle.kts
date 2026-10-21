@@ -56,6 +56,15 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        jniLibs {
+            // Native libraries (OpenCV is about 20 MB per ABI) are stored compressed: a much smaller APK to
+            // download, unpacked once at install.
+            useLegacyPackaging = true
+            // OpenCV brings its own copy of the C++ runtime; if another library does too, keep one.
+            pickFirsts += "**/libc++_shared.so"
+        }
+    }
     // Debug builds never ran lint; keep a release build from failing on lint alone.
     lint {
         checkReleaseBuilds = false
@@ -88,8 +97,15 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
 
-    // On-device text recognition (model bundled in the APK, works offline)
+    // On-device text recognition (models bundled in the APK, work offline). Latin reads every frame; the
+    // Japanese, Chinese and Korean readers only read the name bar when needed.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+
+    // OpenCV: finds the card's corners and straightens it. Falls back to the app's own code if it won't load.
+    implementation("org.opencv:opencv:4.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     // Daily price alerts in the background

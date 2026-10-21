@@ -105,6 +105,22 @@ class ScryfallApi(
         return decode(CardList.serializer(), body)
     }
 
+    /**
+     * Printings in other languages whose printed name contains [text] ("稲妻"), newest first: a search with
+     * include_multilingual, kept to [lang] (a Scryfall code such as "ja") when it's known. Empty when none match.
+     */
+    suspend fun searchPrinted(text: String, lang: String? = null): List<ScryfallCard> {
+        val quoted = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+        val url = base.newBuilder().addPathSegments("cards/search")
+            .addQueryParameter("q", "lang:${lang ?: "any"} $quoted")
+            .addQueryParameter("unique", "prints")
+            .addQueryParameter("order", "released")
+            .addQueryParameter("include_multilingual", "true")
+            .build()
+        val body = request(Request.Builder().url(url).build()) ?: return emptyList()
+        return decode(CardList.serializer(), body).data
+    }
+
     /** Paper sets, newest first. */
     suspend fun sets(): List<ScryfallSet> {
         val body = request(Request.Builder().url(base.newBuilder().addPathSegment("sets").build()).build())

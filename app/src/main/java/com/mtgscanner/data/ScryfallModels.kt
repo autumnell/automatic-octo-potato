@@ -43,6 +43,8 @@ data class ScryfallCard(
     val frame: String? = null,
     /** The same picture reprinted keeps its illustration id, so printings sharing art don't compete. */
     @SerialName("illustration_id") val illustrationId: String? = null,
+    /** The name as printed on a non-English printing ("稲妻"); null on English ones. */
+    @SerialName("printed_name") val printedName: String? = null,
 ) {
     /** Special printings, used by box rules: borderless, showcase, extended art, full art, etched, promo. */
     val treatments: List<String>
@@ -111,6 +113,7 @@ data class CardFace(
     val loyalty: String? = null,
     val colors: List<String>? = null,
     @SerialName("image_uris") val imageUris: ImageUris? = null,
+    @SerialName("printed_name") val printedName: String? = null,
 )
 
 @Serializable

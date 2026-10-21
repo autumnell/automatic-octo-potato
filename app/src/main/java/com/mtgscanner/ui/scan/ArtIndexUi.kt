@@ -25,6 +25,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mtgscanner.data.SortPrefs
+import com.mtgscanner.scan.ArtModel
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
@@ -62,6 +65,8 @@ fun ArtIndexSection(vm: ScanViewModel) {
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
         Text("Art match", style = MaterialTheme.typography.labelLarge, color = Palette.Accent, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
         Text("Finds cards by their art when no text reads.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+
+        ArtModelPicker(vm)
 
         download?.let { d ->
             Spacer(Modifier.height(10.dp))
@@ -127,6 +132,57 @@ fun ArtIndexSection(vm: ScanViewModel) {
             },
             dismissButton = { TextButton(onClick = { owned = null }) { Text("Cancel") } },
         )
+    }
+}
+
+/**
+ * Standard or Advanced art model. Picking one downloads it (with progress) and deletes the other's file; art
+ * indexes made with the other model are rebuilt in the background.
+ */
+@Composable
+private fun ArtModelPicker(vm: ScanViewModel) {
+    val chosen by vm.artModel.collectAsStateWithLifecycle()
+    val download by vm.artModelDownload.collectAsStateWithLifecycle()
+    val failed by vm.artModelFailed.collectAsStateWithLifecycle()
+    Text("Art model", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 10.dp))
+    ArtModel.entries.forEach { m ->
+        val note = when (m) {
+            ArtModel.STANDARD -> "Quick and small"
+            ArtModel.ADVANCED -> "Better with look-alike art"
+        }
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { vm.selectArtModel(m) }.padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RadioButton(selected = chosen == m, onClick = { vm.selectArtModel(m) }, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
+            Column(Modifier.weight(1f)) {
+                Text("${m.label} · ${m.sizeLabel}", style = MaterialTheme.typography.titleSmall)
+                Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            }
+        }
+    }
+    val d = download
+    if (d != null) {
+        val mb = { b: Long -> "%.1f".format(java.util.Locale.US, b / 1_000_000.0) }
+        Text(
+            "Getting ${d.model.label} · ${mb(d.done)}/${mb(d.total)} MB · best on Wi-Fi",
+            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+        )
+        LinearProgressIndicator(
+            progress = { if (d.total > 0) (d.done.toFloat() / d.total).coerceIn(0f, 1f) else 0f },
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+            color = Palette.Accent,
+        )
+    } else if (failed) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Couldn't get the model", style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.weight(1f))
+            TextButton(onClick = { vm.selectArtModel(chosen) }) { Text("Retry") }
+        }
+    } else if (!vm.artModelHere(chosen)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Not downloaded yet. Best on Wi-Fi.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+            TextButton(onClick = { vm.selectArtModel(chosen) }) { Text("Get it") }
+        }
     }
 }
 

@@ -38,8 +38,8 @@ object ArtHashing {
         (bitmap.width * 0.92).toInt(), (bitmap.height * 0.55).toInt(),
     )
 
-    /** The art model's embedding of the same art window as [hashCardImage]. */
-    fun embedCardImage(bitmap: Bitmap, embedder: ArtEmbedder): ByteArray? {
+    /** The art model's embedding of the same art window as [hashCardImage]; with [only], null unless that's the chosen model. */
+    fun embedCardImage(bitmap: Bitmap, embedder: ArtEmbedder, only: ArtModel? = null): ArtVector? {
         val l = (bitmap.width * 0.08).toInt()
         val t = (bitmap.height * 0.11).toInt()
         val w = (bitmap.width * 0.92).toInt() - l
@@ -48,7 +48,7 @@ object ArtHashing {
         val crop = Bitmap.createBitmap(bitmap, l, t, w, h)
         val argb = if (crop.config == Bitmap.Config.ARGB_8888) crop else crop.copy(Bitmap.Config.ARGB_8888, false)
         return try {
-            embedder.embed(argb)
+            embedder.embed(argb, only)
         } finally {
             if (argb !== crop) argb.recycle()
             if (crop !== bitmap) crop.recycle()
@@ -66,7 +66,7 @@ class ArtMatcher(
     private val embedder: ArtEmbedder? = null,
 ) {
     /** A printing's art: its hash, and its embedding when the model was ready. */
-    private class Seen(val hash: Long, val embedding: ByteArray?)
+    private class Seen(val hash: Long, val embedding: ArtVector?)
 
     private val cache = object : LinkedHashMap<String, Seen>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Seen>?) = size > 600
@@ -76,18 +76,24 @@ class ArtMatcher(
     /**
      * The printing whose art clearly matches the camera's: by the art model when [embedding] is given and it's
      * sure, else by the [hash]. Printings sharing a picture don't compete; the first of them in [printings] wins.
+     * An [embedding] from a model other than the chosen one is left out.
      */
-    suspend fun bestPrinting(printings: List<ScryfallCard>, hash: Long?, embedding: ByteArray?): ScryfallCard? = coroutineScope {
-        if (hash == null && embedding == null) return@coroutineScope null
-        val wantEmbedding = embedding != null && embedder?.ready == true
+    suspend fun bestPrinting(printings: List<ScryfallCard>, hash: Long?, embedding: ArtVector?): ScryfallCard? = coroutineScope {
+        val model = embedder?.model
+        val target = embedding?.takeIf { model != null && it.model == model.id && embedder?.ready == true }
+        if (hash == null && target == null) return@coroutineScope null
+        val wantModel = if (target != null) model else null
         val seen = printings.take(MAX_PRINTINGS).map { card ->
-            async { seenFor(card, wantEmbedding)?.let { card to it } }
+            async { seenFor(card, wantModel)?.let { card to it } }
         }.awaitAll().filterNotNull()
-        if (embedding != null) {
-            val withEmb = seen.mapNotNull { (card, s) -> s.embedding?.let { card to it } }
+        if (target != null && wantModel != null) {
+            val withEmb = seen.mapNotNull { (card, s) -> s.embedding?.takeIf { it.model == wantModel.id }?.let { card to it.values } }
             // Only when every printing could be embedded, so one missing picture can't win by default.
             if (withEmb.size == seen.size && withEmb.size >= 2) {
-                ArtEmbedding.pickBest(listOf(embedding), withEmb, group = { it.illustrationId ?: it.id })?.let { return@coroutineScope it }
+                ArtEmbedding.pickBest(
+                    listOf(target.values), withEmb, minCos = wantModel.minCos, minLead = wantModel.minLead,
+                    group = { it.illustrationId ?: it.id },
+                )?.let { return@coroutineScope it }
             }
         }
         if (hash == null) return@coroutineScope null
@@ -96,9 +102,10 @@ class ArtMatcher(
         ImageHash.pickBest(hash, distinct)
     }
 
-    private suspend fun seenFor(card: ScryfallCard, wantEmbedding: Boolean): Seen? {
+    /** [card]'s art; with [want], also its embedding by that model (a cached one from another model is redone). */
+    private suspend fun seenFor(card: ScryfallCard, want: ArtModel?): Seen? {
         synchronized(cache) {
-            cache[card.id]?.let { if (!wantEmbedding || it.embedding != null) return it }
+            cache[card.id]?.let { if (want == null || it.embedding?.model == want.id) return it }
         }
         val url = card.smallImageUrl ?: return null
         val seen = gate.withPermit {
@@ -109,7 +116,7 @@ class ArtMatcher(
                         val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@use null
                         try {
                             val hash = ArtHashing.hashCardImage(bmp) ?: return@use null
-                            Seen(hash, if (wantEmbedding) embedder?.let { ArtHashing.embedCardImage(bmp, it) } else null)
+                            Seen(hash, if (want != null) embedder?.let { ArtHashing.embedCardImage(bmp, it, want) } else null)
                         } finally {
                             bmp.recycle()
                         }

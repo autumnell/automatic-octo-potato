@@ -9,6 +9,10 @@ import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
+import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +20,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import org.opencv.core.Mat
 import java.util.concurrent.atomic.AtomicBoolean
+
+/** Draws a part of the card straightened: (corners in the card's order, part, width, height) to a new bitmap. */
+internal typealias Draw = (FloatArray, FloatArray, Int, Int) -> Bitmap?
 
 /**
  * Reads text from camera frames and works out which way up the card is.
@@ -24,6 +32,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * The camera's own rotation only tells us how the phone is held, not how the card lies on the
  * table, so each frame is read at the orientation that worked last time first. If that doesn't
  * give a confident read, the other three quarter turns are tried and the most readable one wins.
+ *
+ * Once the cheap card check finds a steady frame, OpenCV (when it loads) finds the card's four corners and
+ * straightens its parts; otherwise the hand-written [CardQuad] and [CardWarp] do. Names are read with the Latin
+ * reader; a Japanese, Chinese or Korean reader reads the name bar only when the scan bar's language is one of
+ * those (that reader then goes first) or when the Latin reader found no name there.
  */
 class CardTextAnalyzer(
     private val onGuess: (CardTextGuess) -> Unit,
@@ -37,10 +50,32 @@ class CardTextAnalyzer(
     /** True when art indexes are downloaded, so a card with no readable text is worth hashing. */
     private val wantsArt: () -> Boolean = { false },
     /** The art model: an embedding of a picture of artwork, or null when it isn't ready. */
-    private val embed: (Bitmap) -> ByteArray? = { null },
+    private val embed: (Bitmap) -> ArtVector? = { null },
+    /** The language picked in the scan bar (a Scryfall code); a CJK one has its reader go first. */
+    private val scanLang: () -> String? = { null },
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+    /** The CJK readers, each made the first time it's needed (each loads its own model). Analysis thread only. */
+    private val cjkReaders = HashMap<CjkScript, TextRecognizer>()
+
+    private fun reader(script: CjkScript): TextRecognizer = cjkReaders.getOrPut(script) {
+        when (script) {
+            CjkScript.JAPANESE -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
+            CjkScript.CHINESE -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+            CjkScript.KOREAN -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+        }
+    }
+
+    /**
+     * The CJK reader to try next when the Latin one finds no name and no language is picked: the one that last
+     * found a name, else they take turns, one per frame.
+     */
+    @Volatile private var nextCjk = CjkScript.JAPANESE
+
+    /** Kept between frames for OpenCV, so a new frame-sized buffer isn't made each time. Analysis thread only. */
+    private var cvMat: Mat? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val busy = AtomicBoolean(false)
     private var lastRun = 0L
@@ -87,7 +122,7 @@ class CardTextAnalyzer(
     )
 
     /** The last art embeddings worked out, by the art hash they came with: a card held still isn't embedded again. */
-    private val embedCache = ArrayDeque<Pair<Long, ByteArray>>()
+    private val embedCache = ArrayDeque<Pair<Long, ArtVector>>()
 
     override fun analyze(image: ImageProxy) {
         val now = SystemClock.elapsedRealtime()
@@ -143,13 +178,24 @@ class CardTextAnalyzer(
         scope.launch {
             var crop: Bitmap? = null
             var small: Bitmap? = null
+            var cv: CvCards.Frame? = null
             try {
                 if (page) onPage(readPage(bitmap, rotation))
                 else {
-                    val a = area ?: ReadArea(guideArea(bitmap.width, bitmap.height, rotation), isCard = false)
+                    val guide = guideArea(bitmap.width, bitmap.height, rotation)
+                    var a = area ?: ReadArea(guide, isCard = false)
+                    // OpenCV finds the card's corners more exactly, and even where the card check saw no clear outline.
+                    cv = cvFrame(bitmap)
+                    val found = cv?.let { f -> cvSafe { f.findQuad(guide) } }
+                    if (found != null) {
+                        val bounds = CvCards.boundsOf(found)
+                        a = ReadArea(FrameGeometry.grow(bounds, 0.15, bitmap.width, bitmap.height), isCard = true, outline = bounds, quad = found)
+                    }
+                    val draw = drawer(bitmap, cv)
                     val quad = a.quad
+                    val cjk = CjkNames.scriptFor(scanLang())
                     // A found card: read just its name bar and footer, straightened and sharp.
-                    val strips = if (quad != null) runCatching { readStrips(bitmap, quad, rotation) }.getOrNull() else null
+                    val strips = if (quad != null) runCatching { readStrips(quad, rotation, draw, cjk) }.getOrNull() else null
                     val stripGuess = strips?.guess
                     var guess = if (stripGuess != null && stripGuess.setCode != null && stripGuess.collectorNumber != null) {
                         stripGuess
@@ -165,17 +211,20 @@ class CardTextAnalyzer(
                         val readable = shrunk(c)
                         if (readable !== c) small = readable
                         // Cropped to a found card, everything read is on it; cropped to the guide, keep to the guide.
-                        val full = readBestOrientation(readable, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP)
+                        // A CJK name already read from the name bar needs no CJK read of the whole card.
+                        val wholeCjk = cjk.takeIf { stripGuess?.printedName == null }
+                        val full = readBestOrientation(readable, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP, wholeCjk)
                         if (stripGuess != null) CardTextParser.merge(stripGuess, full) else full
                     }
                     if (strips != null) guess = guess.copy(glare = strips.glare)
                     // The straightened card's art, and its set symbol, tell printings (or a textless card) apart.
-                    if (quad != null) guess = runCatching { withArt(bitmap, quad, rotation, strips?.turn, guess) }.getOrDefault(guess)
+                    if (quad != null) guess = runCatching { withArt(quad, rotation, strips?.turn, guess, draw) }.getOrDefault(guess)
                     onGuess(guess)
                 }
             } catch (_: Throwable) {
                 // Skip this frame; the next one will try again.
             } finally {
+                cv?.let { runCatching { it.release() } }
                 small?.recycle()
                 crop?.recycle()
                 if (!reused) bitmap.recycle()
@@ -197,6 +246,31 @@ class CardTextAnalyzer(
             return bmp
         }
         return image.toBitmap()
+    }
+
+    /** The frame copied into OpenCV, or null when OpenCV isn't loaded or fails. */
+    private fun cvFrame(bitmap: Bitmap): CvCards.Frame? {
+        if (!CvCards.ready) return null
+        return cvSafe {
+            val m = cvMat ?: Mat().also { cvMat = it }
+            CvCards.Frame(bitmap, m)
+        }
+    }
+
+    /** Runs an OpenCV step; null when it fails. A missing native piece turns OpenCV off for good. */
+    private inline fun <T> cvSafe(block: () -> T): T? = try {
+        block()
+    } catch (e: LinkageError) {
+        CvCards.disable()
+        null
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Draws card parts with OpenCV's warpPerspective when [cv] is there, else with [CardWarp] (a Canvas). */
+    private fun drawer(src: Bitmap, cv: CvCards.Frame?): Draw {
+        if (cv == null) return { q, p, w, h -> CardWarp.render(src, q, p, w, h) }
+        return { q, p, w, h -> cvSafe { cv.render(q, p, w, h) } ?: CardWarp.render(src, q, p, w, h) }
     }
 
     /** The guide area in sensor pixels. */
@@ -260,51 +334,88 @@ class CardTextAnalyzer(
      * Reads the name bar and the footer of the card straightened from [quad], each drawn from the full frame:
      * the footer at twice its size, so its small print is sharp. Tries the way up that worked last, then the other
      * the outline allows. Also checks the two strips for glare.
+     *
+     * With [cjk] (the scan bar's language is Japanese, Chinese or Korean) the name bar is read by that reader,
+     * which reads Latin letters too. Otherwise, when the Latin reader finds no name and no complete footer, one
+     * CJK reader reads the name bar (see [nextCjk]).
      */
-    private suspend fun readStrips(src: Bitmap, quad: FloatArray, rotation: Int): StripRead {
+    private suspend fun readStrips(quad: FloatArray, rotation: Int, draw: Draw, cjk: CjkScript?): StripRead {
         val cardH = CardWarp.cardHeight(quad)
         if (cardH < 120f) return StripRead(CardTextGuess(emptyList(), null, null, 0), null, false)
         val nameScale = (NAME_TARGET_H / cardH).coerceIn(1f, 2f)
         var glare = false
         var year: Int? = null
-        for ((i, turn) in CardQuad.uprightTurns(quad, rotation + preferredTurn).withIndex()) {
+        val turns = CardQuad.uprightTurns(quad, rotation + preferredTurn)
+        // What each way up gave, for the CJK try after the loop.
+        val tried = ArrayList<Pair<Int, CardTextGuess>>()
+        for ((i, turn) in turns.withIndex()) {
             val q = CardQuad.ordered(quad, turn)
-            val name = CardWarp.renderScaled(src, q, CardWarp.NAME, cardH, nameScale) ?: continue
-            val footer = CardWarp.renderScaled(src, q, CardWarp.FOOTER, cardH, FOOTER_SCALE)
+            val name = CardWarp.renderScaled(q, CardWarp.NAME, cardH, nameScale, draw = draw) ?: continue
+            val footer = CardWarp.renderScaled(q, CardWarp.FOOTER, cardH, FOOTER_SCALE, draw = draw)
             try {
                 if (i == 0) {
                     glare = glareIn(name, CardWarp.NAME, CardWarp.NAME_GLARE) ||
                         (footer != null && glareIn(footer, CardWarp.FOOTER, CardWarp.FOOTER_GLARE))
                 }
-                val nameLines = stripLines(name, CardWarp.NAME, cardH)
+                val nameLines = stripLines(name, CardWarp.NAME, cardH, if (cjk != null) reader(cjk) else recognizer)
                 val footerLines = if (footer != null) stripLines(footer, CardWarp.FOOTER, cardH) else emptyList()
                 if (nameLines.isEmpty() && footerLines.isEmpty()) continue
                 // Names only from the name bar: the footer's artist line is not a card name.
                 val names = CardTextParser.parse(nameLines).nameCandidates
-                val g = CardTextParser.parse(nameLines + footerLines).copy(nameCandidates = names)
+                var g = CardTextParser.parse(nameLines + footerLines).copy(nameCandidates = names)
                 if (year == null) year = g.year
                 val footerRead = g.setCode != null && g.collectorNumber != null
                 val nameRead = names.firstOrNull()?.let { CardTextParser.readableScore(it) >= 4 } == true
-                if (footerRead || nameRead) {
+                val printed = if (cjk != null && !nameRead) CjkNames.names(nameLines).firstOrNull() else null
+                if (printed != null) g = withPrinted(g, printed, cjk!!, footerLines)
+                if (footerRead || nameRead || printed != null) {
                     preferredTurn = norm(turn - rotation)
                     return StripRead(g, turn, glare)
                 }
+                tried += turn to g
             } finally {
                 name.recycle()
                 footer?.recycle()
             }
         }
+        // No name in Latin letters either way up: maybe it's printed in Japanese, Chinese or Korean.
+        if (cjk == null) {
+            val script = nextCjk
+            for ((turn, latin) in tried) {
+                val q = CardQuad.ordered(quad, turn)
+                val name = CardWarp.renderScaled(q, CardWarp.NAME, cardH, nameScale, draw = draw) ?: continue
+                val lines = try {
+                    stripLines(name, CardWarp.NAME, cardH, reader(script))
+                } finally {
+                    name.recycle()
+                }
+                val printed = CjkNames.names(lines).firstOrNull() ?: continue
+                preferredTurn = norm(turn - rotation)
+                // The footer was read in Latin letters this way up; its language code still counts.
+                val footerLang = latin.text.lineSequence().firstNotNullOfOrNull { CardTextParser.findLangCode(it) }
+                    ?.let { LanguageDetector.fromFooter(it) }
+                val lang = CjkNames.langOf(script, printed, footerLang, scanLang())
+                return StripRead(latin.copy(nameCandidates = emptyList(), printedName = printed, lang = lang), turn, glare)
+            }
+            if (tried.isNotEmpty()) nextCjk = CjkNames.next(script)
+        }
         return StripRead(CardTextGuess(emptyList(), null, null, 0, year = year), null, glare)
     }
 
+    /** [g] with the CJK name [printed] read by [script], and the language that tells. */
+    private fun withPrinted(g: CardTextGuess, printed: String, script: CjkScript, footerLines: List<OcrLine>): CardTextGuess {
+        val footerLang = footerLines.firstNotNullOfOrNull { CardTextParser.findLangCode(it.text) }?.let { LanguageDetector.fromFooter(it) }
+        return g.copy(nameCandidates = emptyList(), printedName = printed, lang = CjkNames.langOf(script, printed, footerLang, scanLang()))
+    }
+
     /** OCR lines of a strip drawn from [part] of the card, placed on a card [cardH] pixels tall. */
-    private suspend fun stripLines(strip: Bitmap, part: FloatArray, cardH: Float): List<OcrLine> {
+    private suspend fun stripLines(strip: Bitmap, part: FloatArray, cardH: Float, reader: TextRecognizer = recognizer): List<OcrLine> {
         val cardW = cardH * (63f / 88f)
         val sx = strip.width / ((part[2] - part[0]) * cardW)
         val sy = strip.height / ((part[3] - part[1]) * cardH)
         val ox = part[0] * cardW
         val oy = part[1] * cardH
-        val text: Text = recognizer.process(InputImage.fromBitmap(strip, 0)).await()
+        val text: Text = reader.process(InputImage.fromBitmap(strip, 0)).await()
         return text.textBlocks.flatMap { block ->
             block.lines.mapNotNull { line ->
                 val box = line.boundingBox ?: return@mapNotNull null
@@ -336,24 +447,24 @@ class CardTextAnalyzer(
      * up the outline allows, for the art indexes; with a name but no footer number, its art and set symbol, to
      * pick the printing. [stripTurn] is the way up the strips were read at.
      */
-    private fun withArt(src: Bitmap, quad: FloatArray, rotation: Int, stripTurn: Int?, g: CardTextGuess): CardTextGuess {
+    private fun withArt(quad: FloatArray, rotation: Int, stripTurn: Int?, g: CardTextGuess, draw: Draw): CardTextGuess {
         if (g.collectorNumber != null) return g
-        if (g.nameCandidates.isEmpty()) {
+        if (g.nameCandidates.isEmpty() && g.printedName == null) {
             if (!wantsArt()) return g
-            val arts = CardQuad.uprightTurns(quad, rotation + preferredTurn).mapNotNull { artOf(src, quad, it) }
+            val arts = CardQuad.uprightTurns(quad, rotation + preferredTurn).mapNotNull { artOf(quad, it, draw) }
             if (arts.isEmpty()) return g
             return g.copy(artOnly = arts.map { it.first }, artOnlyEmbeddings = arts.mapNotNull { it.second })
         }
         // Which way up the card is: as the strips were read, or as the whole-card read settled, if the outline agrees.
         val turn = stripTurn ?: norm(rotation + preferredTurn).takeIf { CardQuad.uprightTurns(quad, it).first() == it } ?: return g
-        val art = artOf(src, quad, turn)
-        val symbol = symbolOf(src, quad, turn)
+        val art = artOf(quad, turn, draw)
+        val symbol = symbolOf(quad, turn, draw)
         return g.copy(artHash = art?.first ?: g.artHash, artEmbedding = art?.second, symbol = symbol)
     }
 
     /** The art window of the straightened card: its hash, and its embedding when the art model is ready. */
-    private fun artOf(src: Bitmap, quad: FloatArray, turn: Int): Pair<Long, ByteArray?>? {
-        val art = CardWarp.render(src, CardQuad.ordered(quad, turn), CardWarp.ART, ART_W, ART_H) ?: return null
+    private fun artOf(quad: FloatArray, turn: Int, draw: Draw): Pair<Long, ArtVector?>? {
+        val art = draw(CardQuad.ordered(quad, turn), CardWarp.ART, ART_W, ART_H) ?: return null
         return try {
             val hash = ArtHashing.hash(art, 0, 0, art.width, art.height) ?: return null
             hash to embedCached(hash, art)
@@ -363,8 +474,8 @@ class CardTextAnalyzer(
     }
 
     /** The set symbol's shape, from the right end of the type line. */
-    private fun symbolOf(src: Bitmap, quad: FloatArray, turn: Int): SymbolPrint? {
-        val b = CardWarp.render(src, CardQuad.ordered(quad, turn), CardWarp.SYMBOL, SYMBOL_PX, SYMBOL_PX) ?: return null
+    private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? {
+        val b = draw(CardQuad.ordered(quad, turn), CardWarp.SYMBOL, SYMBOL_PX, SYMBOL_PX) ?: return null
         return try {
             SetSymbol.fingerprint(CardWarp.luma(b), b.width, b.height)
         } finally {
@@ -373,7 +484,7 @@ class CardTextAnalyzer(
     }
 
     /** An embedding of [art], reused while the same art (by its [hash]) stays in view. */
-    private fun embedCached(hash: Long, art: Bitmap): ByteArray? {
+    private fun embedCached(hash: Long, art: Bitmap): ArtVector? {
         embedCache.firstOrNull { ImageHash.distance(it.first, hash) <= SAME_ART_BITS }?.let { return it.second }
         val e = embed(art) ?: return null
         embedCache.addFirst(hash to e)
@@ -381,7 +492,11 @@ class CardTextAnalyzer(
         return e
     }
 
-    private suspend fun readBestOrientation(bitmap: Bitmap, cameraRotation: Int, frame: Double): CardTextGuess {
+    /**
+     * The whole card read at each quarter turn until one is confident. With [cjk] (a CJK language picked in the
+     * scan bar) and no name or number read, that reader reads the top of the card at the best turn for a name.
+     */
+    private suspend fun readBestOrientation(bitmap: Bitmap, cameraRotation: Int, frame: Double, cjk: CjkScript? = null): CardTextGuess {
         val order = listOf(preferredTurn) + listOf(0, 90, 180, 270).filter { it != preferredTurn }
         var best: Pair<Int, CardTextGuess>? = null
         for (turn in order) {
@@ -392,8 +507,16 @@ class CardTextAnalyzer(
             // No text at all: other turns won't find any either.
             if (guess.text.isEmpty()) break
         }
-        val (turn, guess) = best!!
+        var (turn, guess) = best!!
         if (guess.score > 0) preferredTurn = turn
+        if (cjk != null && guess.collectorNumber == null && guess.nameCandidates.none { CardTextParser.readableScore(it) >= 4 }) {
+            readCjkName(bitmap, (cameraRotation + turn) % 360, frame, cjk)?.let { printed ->
+                guess = guess.copy(
+                    nameCandidates = emptyList(), printedName = printed,
+                    lang = CjkNames.langOf(cjk, printed, guess.lang?.takeIf { it in CjkNames.LANGS && it != "zhs" }, scanLang()),
+                )
+            }
+        }
         // Without a readable footer, the artwork is what tells printings apart.
         val art = guess.artBox
         if (art != null && guess.collectorNumber == null) {
@@ -438,6 +561,16 @@ class CardTextAnalyzer(
         }
     }
 
+    /** A CJK name from the top quarter of the card's text, read by [script]'s reader at [rotation]. */
+    private suspend fun readCjkName(bitmap: Bitmap, rotation: Int, frame: Double, script: CjkScript): String? {
+        val (size, all) = readLines(bitmap, rotation, reader(script))
+        val lines = CardTextParser.insideFrame(all, size.first, size.second, frame)
+        if (lines.isEmpty()) return null
+        val top = lines.minOf { it.top }
+        val span = (lines.maxOf { it.bottom } - top).coerceAtLeast(1)
+        return CjkNames.names(lines.filter { it.top - top <= span * 0.25 }).firstOrNull()
+    }
+
     private fun isConfident(g: CardTextGuess): Boolean =
         (g.setCode != null && g.collectorNumber != null) ||
             (g.nameCandidates.isNotEmpty() && g.score >= 25)
@@ -449,8 +582,8 @@ class CardTextAnalyzer(
     }
 
     /** OCR lines at [rotation], with the upright image's width and height. */
-    private suspend fun readLines(bitmap: Bitmap, rotation: Int): Pair<Pair<Int, Int>, List<OcrLine>> {
-        val text: Text = recognizer.process(InputImage.fromBitmap(bitmap, rotation)).await()
+    private suspend fun readLines(bitmap: Bitmap, rotation: Int, reader: TextRecognizer = recognizer): Pair<Pair<Int, Int>, List<OcrLine>> {
+        val text: Text = reader.process(InputImage.fromBitmap(bitmap, rotation)).await()
         val sideways = rotation == 90 || rotation == 270
         val w = if (sideways) bitmap.height else bitmap.width
         val h = if (sideways) bitmap.width else bitmap.height
@@ -466,6 +599,8 @@ class CardTextAnalyzer(
     fun close() {
         scope.cancel()
         recognizer.close()
+        cjkReaders.values.forEach { runCatching { it.close() } }
+        // The OpenCV buffer is left to the garbage collector: a frame still being read may be using it.
     }
 
     private companion object {

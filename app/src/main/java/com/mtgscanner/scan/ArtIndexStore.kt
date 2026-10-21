@@ -24,9 +24,11 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** A downloaded art index: the set and how many pictures it holds. */
-/** [embedded]: built with the art model; older files are rebuilt once the model is here. */
-data class ArtSetInfo(val set: String, val cards: Int, val embedded: Boolean = false)
+/**
+ * A downloaded art index: the set and how many pictures it holds. [embedded]: built with an art model, [model]
+ * the id of which one; files built without the chosen model are rebuilt once it's here.
+ */
+data class ArtSetInfo(val set: String, val cards: Int, val embedded: Boolean = false, val model: String? = null)
 
 /** A download under way: [done] of [total] pictures for [set], and how many sets wait after it. */
 data class ArtDownload(val set: String, val done: Int, val total: Int, val queued: Int)
@@ -62,7 +64,15 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
 
     init {
         scope.launch { refreshList() }
+        // Another art model picked: embeddings already loaded can't be compared with the new one's.
+        embedder?.onModelChanged = {
+            rebuildAsked.set(false)
+            changed()
+        }
     }
+
+    /** The id of the art model whose embeddings count now. */
+    private val modelId: String? get() = embedder?.model?.id
 
     /** Any index downloaded: worth hashing the art of cards with no readable text. */
     val hasAny: Boolean get() = _sets.value.isNotEmpty()
@@ -73,16 +83,18 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
 
     private fun refreshList() {
         val list = dir.listFiles { f -> f.name.endsWith(".bin") }.orEmpty().mapNotNull { f ->
-            runCatching { f.inputStream().use { ArtIndexCodec.info(it) } }.getOrNull()?.let { ArtSetInfo(it.set, it.cards, it.embedded) }
+            runCatching { f.inputStream().use { ArtIndexCodec.info(it) } }.getOrNull()
+                ?.let { ArtSetInfo(it.set, it.cards, it.embedded, it.model) }
         }.sortedBy { it.set }
         _sets.value = list
     }
 
     /**
      * Matches art against the loaded indexes. Not loaded yet: starts loading and returns null, so the camera never
-     * waits on the disk. With [setLock], only that set counts when its index is here.
+     * waits on the disk. With [setLock], only that set counts when its index is here. [embeddings] count only
+     * when they came from the chosen art model ([model] is the id of the one that made them).
      */
-    fun match(targets: LongArray, setLock: String?, embeddings: List<ByteArray> = emptyList()): ArtHit? {
+    fun match(targets: LongArray, setLock: String?, embeddings: List<ByteArray> = emptyList(), model: String? = null): ArtHit? {
         val idx = index
         if (idx == null) {
             if (hasAny && loading.compareAndSet(false, true)) scope.launch { load() }
@@ -90,29 +102,38 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
         }
         rebuildOld()
         val only = setLock?.lowercase()?.takeIf { idx.hasSet(it) }
-        return idx.match(targets, only, targetEmbeddings = embeddings)
+        val chosen = embedder?.model ?: ArtModel.STANDARD
+        val usable = if (model != null && model == chosen.id) embeddings else emptyList()
+        return idx.match(targets, only, targetEmbeddings = usable, model = chosen)
     }
 
     /** Asked to rebuild the old indexes this session already. */
     private val rebuildAsked = AtomicBoolean(false)
 
     /**
-     * Indexes built before the art model have hashes only. Once the model is here they're downloaded again in
-     * the background, one after another, the first time art is matched.
+     * Indexes built before the art model, or with the other model, have no embeddings that count. Once the chosen
+     * model is here they're downloaded again in the background, one after another, the first time art is matched.
+     * Until then those sets are matched by their hashes.
      */
     private fun rebuildOld() {
         val e = embedder ?: return
         if (!e.ready) { e.ensure(); return }
-        val old = _sets.value.filter { !it.embedded }.map { it.set }
+        val current = e.model.id
+        val old = _sets.value.filter { !it.embedded || it.model != current }.map { it.set }
         if (old.isEmpty() || !rebuildAsked.compareAndSet(false, true)) return
         enqueue(old, rebuild = true)
     }
 
     private fun load() {
         val gen = generation
+        val current = modelId
         try {
             val all = dir.listFiles { f -> f.name.endsWith(".bin") }.orEmpty().flatMap { f ->
-                runCatching { f.inputStream().use { ArtIndexCodec.read(it) }.second }.getOrDefault(emptyList())
+                runCatching {
+                    val file = f.inputStream().use { ArtIndexCodec.readFile(it) }
+                    // Embeddings from another model can't be compared: that set is matched by hash until it's rebuilt.
+                    if (file.model == current) file.entries else file.entries.map { it.copy(embedding = null) }
+                }.getOrDefault(emptyList())
             }
             if (gen == generation) index = ArtIndex(all)
         } finally {
@@ -168,13 +189,13 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
         val cards = api.searchAll("e:$set", unique = "prints", maxPages = 20, order = "set")
         if (cards.isEmpty()) throw IOException("No cards in $set")
         _download.update { it?.copy(total = cards.size) }
-        // The art model first (downloaded once), so the index gets embeddings too.
-        embedder?.awaitReady()
+        // The art model first (downloaded once), so the index gets embeddings too; all of them from this one model.
+        val model = embedder?.let { if (it.awaitReady()) it.model else null }
         val gate = Semaphore(PARALLEL)
         val entries = coroutineScope {
             cards.map { card ->
                 async {
-                    gate.withPermit { entriesFor(card) }.also { _download.update { d -> d?.copy(done = d.done + 1) } }
+                    gate.withPermit { entriesFor(card, model) }.also { _download.update { d -> d?.copy(done = d.done + 1) } }
                 }
             }.awaitAll().flatten()
         }
@@ -183,7 +204,7 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
         dir.mkdirs()
         val target = fileFor(set)
         val part = File(dir, target.name + ".part")
-        part.outputStream().use { ArtIndexCodec.write(set, entries, it) }
+        part.outputStream().use { ArtIndexCodec.write(set, entries, it, model = model?.id) }
         if (!part.renameTo(target)) {
             target.delete()
             if (!part.renameTo(target)) { part.delete(); throw IOException("Couldn't save") }
@@ -192,22 +213,22 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
     }
 
     /** One entry per face picture (double-faced cards have two). */
-    private fun entriesFor(card: ScryfallCard): List<ArtEntry> {
+    private fun entriesFor(card: ScryfallCard, model: ArtModel?): List<ArtEntry> {
         val urls = card.cardFaces.orEmpty().mapNotNull { it.imageUris?.small }.ifEmpty { listOfNotNull(card.smallImageUrl) }
         return urls.mapNotNull { url ->
-            hashUrl(url)?.let { (hash, emb) -> ArtEntry(hash, card.id, card.name, card.set.lowercase(), card.collectorNumber, emb) }
+            hashUrl(url, model)?.let { (hash, emb) -> ArtEntry(hash, card.id, card.name, card.set.lowercase(), card.collectorNumber, emb) }
         }
     }
 
-    /** The picture's art hash, and its embedding when the art model is here. */
-    private fun hashUrl(url: String): Pair<Long, ByteArray?>? = runCatching {
+    /** The picture's art hash, and its embedding by [model] when that's still the chosen one. */
+    private fun hashUrl(url: String, model: ArtModel?): Pair<Long, ByteArray?>? = runCatching {
         client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
             if (!resp.isSuccessful) return@use null
             val bytes = resp.body?.bytes() ?: return@use null
             val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@use null
             try {
                 val hash = ArtHashing.hashCardImage(bmp) ?: return@use null
-                val emb = embedder?.takeIf { it.ready }?.let { ArtHashing.embedCardImage(bmp, it) }
+                val emb = if (model == null) null else embedder?.let { ArtHashing.embedCardImage(bmp, it, model)?.values }
                 hash to emb
             } finally {
                 bmp.recycle()

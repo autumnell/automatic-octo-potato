@@ -119,9 +119,15 @@ lookups go exact printing first, then the corrected name in that set, then anywh
 (`data/CollectionRepository.kt`). Without a footer, a small "difference hash" of the artwork
 (`scan/ImageHash.kt`, `scan/ArtMatcher.kt`) is compared with every printing's art to pick the right one.
 
+On a steady frame, OpenCV (`scan/CvCards.kt`) finds the card's four corners and straightens the name bar,
+footer and art; if OpenCV won't load, the app's own corner fit (`scan/CardQuad.kt`) does. Names printed in
+Japanese, Chinese or Korean are read by ML Kit's CJK readers (only when the Latin reader finds no name, or
+that language is picked in the scan bar) and matched against Scryfall's printed names (`scan/CjkNames.kt`).
+The art model (Standard or Advanced, picked in scan settings) is downloaded on first use.
+
 ## Building
 
-Kotlin, Jetpack Compose, CameraX, ML Kit, Room, OkHttp. Open the project in Android Studio,
+Kotlin, Jetpack Compose, CameraX, ML Kit, OpenCV, MediaPipe, Room, OkHttp. Open the project in Android Studio,
 or run `./gradlew assembleDebug`. GitHub Actions builds and tests every push.
 
 The repo includes a debug signing key (`keystore/debug.keystore`) so every build can update
