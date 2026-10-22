@@ -436,6 +436,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     val events by vm.events.collectAsStateWithLifecycle()
     val nb by vm.neighbors.collectAsStateWithLifecycle()
     val c = card
+    // For the "Recently opened" strip on Browse.
+    LaunchedEffect(c?.id) { c?.id?.let { com.mtgscanner.ui.collection.RecentCards.opened(ctx, it) } }
 
     // Photo of this copy: camera (Android 10+) or the photo picker; both are copied into app storage.
     var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }

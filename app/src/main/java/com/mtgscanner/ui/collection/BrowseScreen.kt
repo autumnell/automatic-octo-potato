@@ -263,6 +263,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
             }
         }
+        // Card pages opened last, hidden while searching or filtering.
+        if (f.query.isEmpty() && f.activeCount == 0 && !picking) RecentCardsStrip(ui.totalCards, onOpen = { tap(it) })
 
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
