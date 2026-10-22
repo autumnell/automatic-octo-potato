@@ -42,6 +42,9 @@ object SetPrintings {
 /** Normal printing per "oracleId|set", kept for the app's lifetime. */
 private val regularCache = ConcurrentHashMap<String, ScryfallCard>()
 
+/** Keys already searched for, found or not, so a check doesn't search again for the same card. */
+private val regularAsked: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
 /**
  * For lines that name a set but no collector number: that set's normal printing of each found card, instead of
  * whichever printing the lookup returned (it may be a borderless or showcase one). Others, and anything a failed
@@ -55,8 +58,9 @@ suspend fun ScryfallApi.preferRegular(wants: List<PrintingLookup.Wanted>, found:
     }.toSet()
     if (todo.isEmpty()) return found
     val ask = todo.map { found[it]!!.oracleId!! to found[it]!!.set.lowercase() }.distinct()
-        .filter { (o, s) -> !regularCache.containsKey(key(o, s)) }
-    for (q in SetPrintings.queries(ask)) {
+        .filter { (o, s) -> key(o, s) !in regularAsked }
+    for (chunk in ask.chunked(12)) {
+        val q = SetPrintings.queries(chunk, perQuery = 12).single()
         val cards = try {
             searchAll(q, unique = "prints", maxPages = 3)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -66,6 +70,7 @@ suspend fun ScryfallApi.preferRegular(wants: List<PrintingLookup.Wanted>, found:
         }
         cards.filter { it.oracleId != null }.groupBy { key(it.oracleId!!, it.set) }
             .forEach { (k, cs) -> SetPrintings.regular(cs)?.let { regularCache[k] = it } }
+        chunk.forEach { (o, s) -> regularAsked += key(o, s) }
     }
     return found.mapIndexed { i, c -> if (c != null && i in todo) regularCache[key(c.oracleId!!, c.set)] ?: c else c }
 }
