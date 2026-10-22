@@ -90,6 +90,7 @@ import com.mtgscanner.ui.theme.ThemeMode
 import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.PriceStyle
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlainGroup
 
 private val settingsTabs = listOf("Look", "Prices", "Data")
 
@@ -162,14 +163,14 @@ private fun LookTab() {
 
     SectionLabel("Accent color")
     val fromCollection = ThemeSettings.accentFromCollection
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
         Column {
             ToggleRow(
                 "From my collection",
                 if (fromCollection) "Now ${colorName(ThemeSettings.collectionColor)}" else "Your most-owned color",
                 fromCollection,
             ) { ThemeSettings.updateAccentFromCollection(it) }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -227,7 +228,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
 
     if (AppSettings.scanLogUnlocked) {
         SectionLabel("Troubleshooting")
-        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+        PlainGroup(Modifier.padding(horizontal = 4.dp)) {
             Row(
                 Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -242,7 +243,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
     }
 
     SectionLabel("About")
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
         Column {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -260,7 +261,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
                 TextButton(onClick = onTour) { Text("Show tour") }
             }
             CrashReportRow()
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text(
                 "Data from Scryfall. Unofficial; Magic is © Wizards of the Coast.",
                 style = MaterialTheme.typography.bodySmall,

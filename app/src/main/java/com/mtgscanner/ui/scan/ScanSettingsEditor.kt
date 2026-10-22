@@ -74,7 +74,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
                     }
                 }
             }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
         }
 
         Heading("When a card is added")

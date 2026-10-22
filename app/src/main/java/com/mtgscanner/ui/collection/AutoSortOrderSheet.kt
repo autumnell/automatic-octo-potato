@@ -112,7 +112,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("When nothing fits", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text(
                 "Box for cards that fit nothing.",
@@ -129,7 +129,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Keep a playset", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text("Extras go to another box.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Spacer(Modifier.height(8.dp))
@@ -144,7 +144,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Bulk floor", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text("Cheaper cards go to bulk.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Spacer(Modifier.height(8.dp))
@@ -164,7 +164,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Price buffer", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text(
                 "Re-sort leaves cards near a price line where they are.",
@@ -179,7 +179,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Box check reminder", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Spacer(Modifier.height(8.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

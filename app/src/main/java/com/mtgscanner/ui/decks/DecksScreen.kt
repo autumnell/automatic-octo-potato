@@ -1223,7 +1223,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
         if (leads.isNotEmpty()) {
             item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
             itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
-            item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
+            item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Rule) }
         }
         // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {

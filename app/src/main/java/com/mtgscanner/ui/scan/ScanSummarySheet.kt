@@ -59,7 +59,7 @@ fun ScanSummarySheet(summary: ScanSummary, onDismiss: () -> Unit) {
             }
             Spacer(Modifier.height(16.dp))
             summary.boxes.forEachIndexed { i, (box, n) ->
-                if (i > 0) HorizontalDivider(color = Palette.Outline)
+                if (i > 0) HorizontalDivider(color = Palette.Rule)
                 Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(box, style = MaterialTheme.typography.bodyMedium, color = Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text("$n", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Muted)

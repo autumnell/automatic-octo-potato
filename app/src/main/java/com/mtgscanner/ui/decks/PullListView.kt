@@ -138,7 +138,7 @@ fun PullListView(
             item(key = "leads") { SectionHeader("Commander") }
             items(first.items, key = { "l" + it.second.key }) { (box, p) -> PullRow(p, p.key in checked, where = box) { onToggle(p.key) } }
             items(first.missing, key = { "lm" + it.name }) { m -> MissingRow(m, note = "Missing") }
-            item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
+            item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Rule) }
         }
         for (g in rest.groups) {
             item(key = "b${g.boxId}") { SectionHeader("${g.boxName} (${g.items.sumOf { it.qty }})") }

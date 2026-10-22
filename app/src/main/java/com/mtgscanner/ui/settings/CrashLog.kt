@@ -109,7 +109,7 @@ fun buildLabel(number: Int, isoDate: String): String {
 fun CrashReportRow() {
     val ctx = LocalContext.current
     val report = CrashLog.current(ctx) ?: return
-    HorizontalDivider(color = Palette.Outline)
+    HorizontalDivider(color = Palette.Rule)
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

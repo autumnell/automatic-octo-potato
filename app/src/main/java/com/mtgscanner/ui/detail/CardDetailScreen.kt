@@ -1283,7 +1283,7 @@ private fun BoxPicker(boxes: List<CardBox>, decks: List<Deck>, places: List<Card
                 )
             }
             if (decks.isNotEmpty()) {
-                HorizontalDivider(color = Palette.Outline)
+                HorizontalDivider(color = Palette.Rule)
                 Text(
                     "Decks", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
                     modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),

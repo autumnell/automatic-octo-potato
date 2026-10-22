@@ -150,7 +150,7 @@ internal fun ToSortSection(
             }
             GradientButton("Sort", onSort, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
         }
-        if (ui.items.isNotEmpty() && ui.unknown.isNotEmpty()) HorizontalDivider(color = Palette.Outline)
+        if (ui.items.isNotEmpty() && ui.unknown.isNotEmpty()) HorizontalDivider(color = Palette.Rule)
         if (ui.unknown.isNotEmpty()) {
             Text(
                 if (ui.unknown.size == 1) "1 unknown scan" else "${ui.unknown.size} unknown scans",

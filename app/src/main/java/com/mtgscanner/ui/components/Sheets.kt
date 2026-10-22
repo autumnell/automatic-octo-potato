@@ -80,11 +80,11 @@ fun PrintingsSheet(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 3.dp)
-                            .clip(RoundedCornerShape(Corners.Medium))
-                            .background(if (selected) Palette.Accent.copy(alpha = 0.14f) else Color.Transparent)
+                            .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
                             .clickable { onPick(p) }
-                            .padding(8.dp),
+                            .padding(horizontal = 20.dp)
+                            .ruleBelow()
+                            .padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         CardImage(p.smallImageUrl, Modifier.width(52.dp))
@@ -177,14 +177,14 @@ fun AddCardSheet(
             if (owned != null) {
                 Spacer(Modifier.height(12.dp))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Accent.copy(alpha = 0.14f))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh)
                         .then(if (onOwned != null) Modifier.clickable(onClickLabel = "Open your copy", onClick = onOwned) else Modifier)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.Check, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.AccentText, modifier = Modifier.weight(1f))
+                    Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.weight(1f))
                     if (onOwned != null) Text("Open", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
                 }
             }
@@ -260,6 +260,6 @@ fun QuantityStepper(value: Int, onChange: (Int) -> Unit) {
             "$value", style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false,
             modifier = Modifier.widthIn(min = 32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        RepeatIconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.AccentText) }
+        RepeatIconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.Text) }
     }
 }

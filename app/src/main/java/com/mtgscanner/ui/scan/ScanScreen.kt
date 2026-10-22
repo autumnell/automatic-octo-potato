@@ -573,7 +573,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                         leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null) },
                         onClick = { vm.setBox(CardBox.AUTO_SORT); boxMenu = false },
                     )
-                    HorizontalDivider(color = Palette.Outline)
+                    HorizontalDivider(color = Palette.Rule)
                     boxes.forEach { b ->
                         DropdownMenuItem(
                             text = {
@@ -586,7 +586,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                             onClick = { vm.setBox(b.id); boxMenu = false },
                         )
                     }
-                    HorizontalDivider(color = Palette.Outline)
+                    HorizontalDivider(color = Palette.Rule)
                     DropdownMenuItem(
                         text = { Text("New box…") },
                         leadingIcon = { Icon(Icons.Outlined.Add, null, tint = Palette.Icon) },
@@ -824,13 +824,13 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
         Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Scan settings", style = MaterialTheme.typography.titleLarge)
             ScanSettingsEditor()
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             ArtIndexSection(vm)
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             SettingRow("Volume buttons scan", "Up adds, down skips.", VolumeKeys.enabled, VolumeKeys::update)
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text(
                 "Show hints",
                 style = MaterialTheme.typography.titleSmall,
@@ -839,7 +839,7 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
                     .padding(vertical = 14.dp),
             )
             if (state.pendingCount > 0) {
-                HorizontalDivider(color = Palette.Outline)
+                HorizontalDivider(color = Palette.Rule)
                 Text(
                     "${state.pendingCount} cards saved while offline. They're added automatically when you're back online.",
                     style = MaterialTheme.typography.bodySmall,

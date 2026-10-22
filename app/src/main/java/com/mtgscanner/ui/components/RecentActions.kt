@@ -73,7 +73,7 @@ fun RecentActionsSheet(onUndo: (Long) -> Unit, onDismiss: () -> Unit) {
                             if (newer == 0) onUndo(e.id) else confirm = e.id to newer
                         }) { Text("Undo", color = Palette.AccentText) }
                     }
-                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = Palette.Outline)
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = Palette.Rule)
                 }
             }
         }

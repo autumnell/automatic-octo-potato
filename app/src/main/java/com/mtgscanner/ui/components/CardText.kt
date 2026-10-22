@@ -148,7 +148,7 @@ fun CardTextBlock(info: CardTextInfo, modifier: Modifier = Modifier) {
 
 @Composable
 private fun Divider(thick: Boolean = false) =
-    HorizontalDivider(color = Palette.Outline, thickness = if (thick) 2.dp else 1.dp)
+    HorizontalDivider(color = Palette.Rule, thickness = if (thick) 2.dp else 1.dp)
 
 @Composable
 private fun Line(label: String, value: String) {

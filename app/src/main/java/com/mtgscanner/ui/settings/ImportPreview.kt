@@ -134,7 +134,7 @@ internal fun ImportPreviewDialog(
 
                 val other = plan.otherPrinting
                 if (other.isNotEmpty()) {
-                    HorizontalDivider(color = Palette.Outline, modifier = Modifier.padding(vertical = 6.dp))
+                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = 6.dp))
                     Text("Other printing (${other.sumOf { plan.rows[it].quantity }})", style = MaterialTheme.typography.titleSmall, color = Palette.GoldText)
                     other.forEach { i ->
                         val r = plan.rows[i]
@@ -149,7 +149,7 @@ internal fun ImportPreviewDialog(
                 }
 
                 if (missing.isNotEmpty()) {
-                    HorizontalDivider(color = Palette.Outline, modifier = Modifier.padding(vertical = 6.dp))
+                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = 6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "Not found (${missing.sumOf { plan.rows[it].quantity }})",
