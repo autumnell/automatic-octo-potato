@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -412,6 +413,7 @@ fun CollectionScreen(
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var scanningLabel by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) vm.export(ctx.contentResolver, uri)
@@ -433,6 +435,7 @@ fun CollectionScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Filled.QrCodeScanner, "Scan a box label") }
                 IconButton(onClick = vm::refreshPrices) { Icon(Icons.Filled.Refresh, "Refresh prices") }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
@@ -475,6 +478,13 @@ fun CollectionScreen(
     moves?.let { list ->
         ResortSheet(list, ui.boxes, onMove = vm::moveOne, onMoveAll = vm::moveAll, onDismiss = vm::closeMoves)
     }
+    if (scanningLabel) BoxQrScanSheet(
+        onBox = { id ->
+            scanningLabel = false
+            if (ui.boxes.any { it.id == id }) onBrowse(id) else Undo.offer("That box is gone")
+        },
+        onDismiss = { scanningLabel = false },
+    )
     val plan by vm.plan.collectAsStateWithLifecycle()
     plan?.let { p -> BoxPlanSheet(p, onApply = { vm.applyPlan() }, onDiscard = vm::discardPlan) }
 }
@@ -491,6 +501,8 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     var sortingNew by remember { mutableStateOf<BoxSummary?>(null) }
     var covering by remember { mutableStateOf<BoxSummary?>(null) }
     var laying by remember { mutableStateOf<BoxSummary?>(null) }
+    var tagging by remember { mutableStateOf<BoxSummary?>(null) }
+    val nfc = LocalContext.current.let { c -> remember { hasNfc(c) } }
     var query by rememberSaveable { mutableStateOf("") }
     val colors = remember(ui.boxes) { boxStripeColors(ui.boxes) }
     // Boxes whose rules never get a card because an earlier box takes them all.
@@ -540,6 +552,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                 b, ui.stats[b.id], colors[b.id] ?: boxColor(b.color),
                 onClick = { onBrowse(b.id) }, onCover = { covering = b }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
                 onSplit = { splitting = b }, onTrade = { onTrade(b.id) }, onLayout = { laying = b }, warning = dead[b.id],
+                onNfc = if (nfc) ({ tagging = b }) else null,
             )
         }
         SmartListsSection(lists, onOpen = { s ->
@@ -599,6 +612,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
         )
     }
     laying?.let { b -> LayoutDialog(b, onSave = { vm.setLayout(b, it); laying = null }, onDismiss = { laying = null }) }
+    tagging?.let { b -> NfcWriteDialog(b.id, b.name, onDismiss = { tagging = null }) }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
     deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id && it.kind != "trade" && it.kind != "deck" }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
@@ -710,6 +724,8 @@ private fun BoxCard(
     b: BoxSummary, stats: BoxStats?, stripe: Color, onClick: () -> Unit, onCover: () -> Unit,
     onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit,
     onSplit: () -> Unit, onTrade: () -> Unit, onLayout: () -> Unit, warning: String?,
+    /** Writes the box's link to an NFC tag; null on phones without NFC. */
+    onNfc: (() -> Unit)? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
@@ -789,6 +805,7 @@ private fun BoxCard(
                 DropdownMenuItem(text = { Text("Dividers") }, onClick = { menu = false; onLayout() })
                 if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
+                if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { menu = false; onNfc() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
         }

@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        openRequest = intent.getStringExtra(CollectionWidget.EXTRA_OPEN)
+        openRequest = com.mtgscanner.data.BoxLinks.route(intent.dataString) ?: intent.getStringExtra(CollectionWidget.EXTRA_OPEN)
         com.mtgscanner.util.IncomingShare.accept(intent)
     }
 
@@ -125,7 +125,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         com.mtgscanner.ui.settings.CrashLog.install(this)
         if (savedInstanceState == null) {
-            openRequest = intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
+            // A box's QR code or NFC tag (grimoire://box/12) opens that box.
+            openRequest = com.mtgscanner.data.BoxLinks.route(intent?.dataString) ?: intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
             // A CSV, decklist or deck link shared to the app or opened with it.
             com.mtgscanner.util.IncomingShare.accept(intent)
         }
@@ -208,7 +209,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             "search" -> nav.goToTab("search")
             "check" -> { com.mtgscanner.util.OpenRequests.priceCheck.value = true; nav.goToTab("scan") }
             "settings" -> nav.navigate("settings") { launchSingleTop = true }
-            else -> openRequest?.takeIf { it.startsWith("card/") && it.removePrefix("card/").toLongOrNull() != null }?.let { nav.navigate(it) }
+            else -> openRequest?.takeIf { (it.startsWith("card/") || it.startsWith("browse/")) && it.substringAfter('/').toLongOrNull() != null }?.let { nav.navigate(it) }
         }
         if (openRequest != null) onOpened()
     }

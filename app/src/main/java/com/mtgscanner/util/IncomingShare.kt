@@ -18,7 +18,8 @@ object IncomingShare {
     /** Takes a VIEW or SEND intent. Returns true when it carried a file or text. */
     fun accept(intent: Intent?): Boolean {
         val found: Incoming? = when (intent?.action) {
-            Intent.ACTION_VIEW -> intent.data?.let { Incoming.File(it) }
+            // Box links (grimoire://box/12) open a box instead; see MainActivity.
+            Intent.ACTION_VIEW -> intent.data?.takeIf { it.scheme != com.mtgscanner.data.BoxLinks.SCHEME }?.let { Incoming.File(it) }
             Intent.ACTION_SEND ->
                 IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)?.let { Incoming.File(it) }
                     ?: intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }?.let { Incoming.Text(it) }
@@ -33,4 +34,6 @@ object IncomingShare {
 object OpenRequests {
     /** Start the scanner in price check mode. */
     val priceCheck = MutableStateFlow(false)
+    /** Start a Box check of this box (from a "not checked in 3 months" nudge). */
+    val boxCheck = MutableStateFlow<Long?>(null)
 }
