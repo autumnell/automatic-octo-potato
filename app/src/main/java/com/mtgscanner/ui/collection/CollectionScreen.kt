@@ -1062,9 +1062,9 @@ private fun WantedDialog(item: WishlistItem, onSave: (Int) -> Unit, onDismiss: (
         title = { Text(item.name) },
         text = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (n > 1) n-- }, enabled = n > 1) { Icon(Icons.Filled.Remove, "Fewer") }
+                com.mtgscanner.ui.components.RepeatIconButton(onClick = { if (n > 1) n-- }, enabled = n > 1, repeat = n > 1) { Icon(Icons.Filled.Remove, "Fewer") }
                 Text("Want $n", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp))
-                IconButton(onClick = { n++ }) { Icon(Icons.Filled.Add, "More") }
+                com.mtgscanner.ui.components.RepeatIconButton(onClick = { n++ }) { Icon(Icons.Filled.Add, "More") }
             }
         },
         confirmButton = { TextButton(onClick = { onSave(n) }) { Text("Save") } },

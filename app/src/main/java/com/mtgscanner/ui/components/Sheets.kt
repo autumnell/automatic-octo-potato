@@ -32,7 +32,6 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
@@ -257,12 +256,13 @@ fun QuantityStepper(value: Int, onChange: (Int) -> Unit) {
         Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { onChange(value - 1) }) { Icon(Icons.Filled.Remove, "One fewer") }
+        // Hold either button to keep counting; holding − stops at 1.
+        RepeatIconButton(onClick = { onChange(value - 1) }, repeat = value > 1) { Icon(Icons.Filled.Remove, "One fewer") }
         // Grows for 100 or more instead of cutting the number off.
         Text(
             "$value", style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false,
             modifier = Modifier.widthIn(min = 32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        IconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Filled.Add, "One more", tint = Palette.AccentText) }
+        RepeatIconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Filled.Add, "One more", tint = Palette.AccentText) }
     }
 }
