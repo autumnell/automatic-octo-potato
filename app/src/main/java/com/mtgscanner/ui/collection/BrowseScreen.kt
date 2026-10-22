@@ -92,6 +92,7 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.RarityMark
+import com.mtgscanner.ui.components.SetMark
 import com.mtgscanner.ui.components.PriceSparkline
 import com.mtgscanner.ui.components.foilShimmer
 import androidx.compose.material.icons.filled.ViewAgenda
@@ -820,7 +821,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
             }
             Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RarityMark(c.rarity)
+                SetMark(c.setCode, c.rarity)
                 Spacer(Modifier.width(6.dp))
                 Text("${c.setCode.uppercase()} #${c.collectorNumber} · ${c.typeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -855,7 +856,7 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
             .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RarityMark(c.rarity)
+        SetMark(c.setCode, c.rarity)
         Spacer(Modifier.width(8.dp))
         Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (c.foil) { Spacer(Modifier.width(4.dp)); FoilTag() }

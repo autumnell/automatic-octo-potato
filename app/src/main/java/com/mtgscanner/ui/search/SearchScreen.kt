@@ -78,7 +78,7 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
-import com.mtgscanner.ui.components.RarityMark
+import com.mtgscanner.ui.components.SetMark
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.ui.components.scryfallPriceShort
@@ -302,7 +302,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
                 ManaCost(c.effectiveManaCost, size = 14.dp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RarityMark(c.rarity)
+                SetMark(c.set, c.rarity)
                 Spacer(Modifier.width(6.dp))
                 Text("${c.set.uppercase()} #${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

@@ -95,7 +95,7 @@ fun PrintingsSheet(
                         Column(Modifier.weight(1f)) {
                             Text(p.setName, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                RarityDot(p.rarity, 8.dp)
+                                SetMark(p.set, p.rarity)
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     "${p.set.uppercase()} · #${p.collectorNumber} · ${p.releasedAt.orEmpty().take(4)}",

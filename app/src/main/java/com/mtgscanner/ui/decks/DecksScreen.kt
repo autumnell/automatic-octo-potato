@@ -102,6 +102,7 @@ import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.scan.DeckText
 import com.mtgscanner.ui.components.PrintingsSheet
+import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
@@ -1289,12 +1290,16 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> U
                     if (l.ownedOtherPrinting) "Other printing" else l.printing.takeIf { link == null },
                 ).joinToString(" · ")
             }
+            // The set symbol sits next to the printing: before the link, or at the start when the printing is plain text.
+            val symbolCode = l.setCode?.takeIf { !l.otherPrinting && l.printing != null && (missingView || !l.ownedOtherPrinting) }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (symbolCode != null && link == null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
                 if (where.isNotEmpty()) Text(
                     if (link != null) "$where · " else where,
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                if (symbolCode != null && link != null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
                 if (link != null && set != null && onOpenSet != null) Text(
                     link, style = MaterialTheme.typography.bodySmall, color = Palette.AccentText, maxLines = 1,
                     modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { onOpenSet(set.lowercase()) },

@@ -119,6 +119,7 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.cardTotal
@@ -557,6 +558,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         // Tap the set to open it in the set tracker.
                         InfoChip(onClick = onOpenSet?.let { open -> { open(c.setCode.lowercase()) } }) {
+                            SetSymbol(c.setCode, c.rarity, modifier = Modifier.padding(end = 6.dp))
                             Text(
                                 "${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium,
                                 color = if (onOpenSet != null) Palette.AccentText else Palette.Text,
