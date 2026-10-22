@@ -189,7 +189,7 @@ private fun RulingRow(r: ScryfallRuling) {
     Column {
         Text(
             rulingDate(r.publishedAt) + if (r.source == "wotc") " · WotC" else "",
-            style = MaterialTheme.typography.labelSmall, color = Palette.AccentText,
+            style = MaterialTheme.typography.labelSmall, color = Palette.Muted,
         )
         Spacer(Modifier.height(2.dp))
         Text(r.comment, style = MaterialTheme.typography.bodySmall)
@@ -306,7 +306,7 @@ private fun SetHeader(code: String, name: String, icon: String?) {
         AsyncImage(
             model = icon ?: "https://svgs.scryfall.io/sets/${code.lowercase()}.svg",
             contentDescription = null,
-            colorFilter = ColorFilter.tint(Palette.AccentText),
+            colorFilter = ColorFilter.tint(Palette.Text),
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(8.dp))
@@ -342,7 +342,7 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
                     Text("#${p.collectorNumber}", style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                     if (current) {
                         Spacer(Modifier.width(6.dp))
-                        Text("This", style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
+                        Text("This", style = MaterialTheme.typography.labelSmall, color = Palette.Text)
                     }
                 }
                 val extra = listOfNotNull(p.lang.takeIf { !it.equals("en", true) }?.uppercase(), p.releasedAt?.take(4)) +
@@ -384,7 +384,7 @@ private fun PriceCell(price: String?, foil: Boolean = false) {
     AutoSizeText(
         if (price == null) "--" else formatUsd(price),
         style = MaterialTheme.typography.labelMedium,
-        color = if (price == null) Palette.Muted else if (foil) Palette.GoldText else Palette.AccentText,
+        color = if (price == null) Palette.Muted else if (foil) Palette.GoldText else Palette.Text,
         textAlign = TextAlign.End,
         modifier = Modifier.width(56.dp),
     )

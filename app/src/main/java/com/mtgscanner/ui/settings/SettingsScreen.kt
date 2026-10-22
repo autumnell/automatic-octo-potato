@@ -392,7 +392,7 @@ private fun Preview() {
             Column(Modifier.weight(1f)) {
                 Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
+                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             }
             SelectPill("Selected", true, onClick = {})
         }

@@ -102,7 +102,7 @@ fun PrintingsSheet(
                             }
                         }
                         if (AppSettings.showPrices) Column(horizontalAlignment = Alignment.End) {
-                            Text(formatMoneyShort(p.prices.usd?.toDoubleOrNull(), p.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                            Text(formatMoneyShort(p.prices.usd?.toDoubleOrNull(), p.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.Text)
                             if (p.prices.usdFoil != null) {
                                 Text("Foil ${formatMoneyShort(p.prices.usdFoil?.toDoubleOrNull(), p.prices.eurFoil?.toDoubleOrNull())}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                             }
@@ -165,7 +165,7 @@ fun AddCardSheet(
                     if (AppSettings.showPrices) Text(
                         scryfallPrice(card, foil),
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Palette.AccentText,
+                        color = Palette.Text,
                     )
                     TextButton(onClick = onChangePrinting, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                         Icon(Icons.Outlined.SwapHoriz, null, modifier = Modifier.size(18.dp))

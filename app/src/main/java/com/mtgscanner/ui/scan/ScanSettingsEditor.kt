@@ -107,7 +107,7 @@ private fun SoundPills(selected: ScanSound, onPick: (ScanSound) -> Unit) {
 
 @Composable
 private fun Heading(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Accent, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
+    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
 }
 
 @Composable

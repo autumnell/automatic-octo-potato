@@ -258,7 +258,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                 Column(Modifier.weight(1f)) {
                     Text("Missing ${p.missing.size}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
                     if (AppSettings.showPrices && p.cost > 0) {
-                        Text("${formatUsd(p.cost)} to complete", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.AccentText)
+                        Text("${formatUsd(p.cost)} to complete", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Text)
                     }
                 }
                 TextButton(onClick = { vm.wishlistAll(p.missing) }) {

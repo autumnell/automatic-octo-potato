@@ -118,5 +118,5 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
 
 @Composable
 private fun Header(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.AccentText, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Text, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
 }

@@ -1312,7 +1312,7 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> U
         if (missingView) {
             // A fixed right-aligned slot so prices line up down the list.
             if (AppSettings.showPrices) Text(
-                formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText,
+                formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp).widthIn(min = 64.dp),
             )
         }

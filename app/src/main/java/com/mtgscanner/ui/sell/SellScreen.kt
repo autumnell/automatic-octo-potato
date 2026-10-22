@@ -183,7 +183,7 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
                 Column(Modifier.padding(14.dp)) {
                     if (list.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${list.sumOf { it.quantity }} cards", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
+                        Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text)
                     }
                     if (earned > 0) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Earned", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -231,7 +231,7 @@ private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatUsd(c.salePrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+                Text(formatUsd(c.salePrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                 Text(if (c.askPrice != null) "Ask" else "Market", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             }
         }

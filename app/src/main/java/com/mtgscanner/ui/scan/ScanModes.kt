@@ -168,8 +168,8 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             INTO.forEach { t ->
                 val on = state.target == t.target
                 DropdownMenuItem(
-                    text = { Text(if (t.target == ScanTarget.DECK && on) "Deck: ${state.deck?.name.orEmpty()}" else t.label, color = if (on) Palette.Accent else Palette.Text) },
-                    leadingIcon = { Icon(t.icon, null, tint = if (on) Palette.Accent else Palette.Icon) },
+                    text = { Text(if (t.target == ScanTarget.DECK && on) "Deck: ${state.deck?.name.orEmpty()}" else t.label, color = if (on) Palette.AccentText else Palette.Text) },
+                    leadingIcon = { Icon(t.icon, null, tint = if (on) Palette.AccentText else Palette.Icon) },
                     onClick = {
                         when {
                             t.target == ScanTarget.DECK -> vm.showDeckPick(true)

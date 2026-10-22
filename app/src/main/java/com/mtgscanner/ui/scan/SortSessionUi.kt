@@ -148,7 +148,7 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             e.spot ?: "",
-                            style = MaterialTheme.typography.labelMedium, color = Palette.Accent,
+                            style = MaterialTheme.typography.labelMedium, color = Palette.Text,
                             modifier = Modifier.width(72.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text(

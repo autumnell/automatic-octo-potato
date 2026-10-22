@@ -166,7 +166,7 @@ fun FilterSheet(
 
 @Composable
 private fun Heading(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.AccentText, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Text, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
 }
 
 @Composable

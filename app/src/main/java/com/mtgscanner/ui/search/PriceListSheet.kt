@@ -152,7 +152,7 @@ private fun PriceResult(rows: List<PriceRow>, wished: Boolean, note: String?, on
     val prices = AppSettings.showPrices
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(if (t.cards == 1) "1 card" else "${t.cards} cards", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-        if (prices) Text(formatUsd(t.total), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
+        if (prices) Text(formatUsd(t.total), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text)
     }
     val extras = buildList {
         if (t.notFound > 0) add("${t.notFound} not found")
@@ -189,7 +189,7 @@ private fun PriceLineRow(r: PriceRow, prices: Boolean) {
             )
             when {
                 !l.found -> Text("Not found", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
-                l.owned > 0 -> Text("Own ${l.owned}", style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
+                l.owned > 0 -> Text("Own ${l.owned}", style = MaterialTheme.typography.labelSmall, color = Palette.Text)
             }
         }
         if (prices && l.found) Text(

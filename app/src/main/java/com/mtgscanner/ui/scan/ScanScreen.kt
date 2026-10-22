@@ -734,7 +734,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge.merge(TabularNums), color = Palette.Accent)
+                        if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge.merge(TabularNums), color = Palette.Text)
                         state.owned?.let { n ->
                             if (AppSettings.showPrices) Spacer(Modifier.width(10.dp))
                             Text(
@@ -871,7 +871,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
-                Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Gold)
+                Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
             }
             if (state.sessionCount >= 2) {
                 val n = minOf(5, state.sessionCount)
@@ -900,7 +900,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                 Text(
                     "$boxName · ${entries.sumOf { it.count }} cards",
                     style = MaterialTheme.typography.titleSmall,
-                    color = Palette.Accent,
+                    color = Palette.Text,
                     modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
                 )
             }
@@ -932,7 +932,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Accent)
+                    if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                     IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
                 }
             }

@@ -112,7 +112,7 @@ internal fun ImportPreviewDialog(
                             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.AccentText)
+                        Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.Text)
                         Icon(if (isOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Icon)
                     }
                     if (isOpen) {

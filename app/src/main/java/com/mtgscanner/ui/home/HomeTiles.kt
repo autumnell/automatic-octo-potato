@@ -91,7 +91,7 @@ private fun FlatTile(label: String, value: Double, format: (Double) -> String, c
         RollingText(
             value, format,
             PriceStyle.copy(fontSize = PriceStyle.fontSize * (if (compact) 1.2f else 1.4f), lineHeight = PriceStyle.lineHeight * 1.3f),
-            Palette.AccentText,
+            Palette.Text,
         )
         Spacer(Modifier.height(2.dp))
         Text(

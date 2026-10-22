@@ -39,7 +39,7 @@ internal fun FoundRow(c: CollectionCard, where: String, onClick: () -> Unit) {
                 Spacer(Modifier.width(6.dp))
                 Text(c.setCode, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             }
-            Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.AccentText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

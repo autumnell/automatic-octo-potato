@@ -544,7 +544,7 @@ private fun SetHeader(
                 Text(
                     "You own $have of $total",
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (have >= total) Palette.Success else Palette.AccentText,
+                    color = if (have >= total) Palette.Success else Palette.Text,
                     modifier = Modifier.weight(1f),
                 )
                 if (missingCost != null && AppSettings.showPrices) {
@@ -612,7 +612,7 @@ private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
         }
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
-            Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+            Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
         }
     }
 }
@@ -657,7 +657,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
                         Text(g.name, style = MaterialTheme.typography.titleSmall)
                         Text("You have ${g.owned} · keep ${g.keep} · ${g.extra} extra", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(g.extraValue), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Accent)
+                    if (AppSettings.showPrices) Text(formatUsd(g.extraValue), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                 }
             }
         }

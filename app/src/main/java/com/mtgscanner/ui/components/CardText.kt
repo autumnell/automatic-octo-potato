@@ -155,7 +155,7 @@ private fun Line(label: String, value: String) {
     Text(
         buildAnnotatedString {
             append(label)
-            pushStyle(androidx.compose.ui.text.SpanStyle(color = Palette.AccentText))
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = Palette.Text))
             append(value)
             pop()
         },

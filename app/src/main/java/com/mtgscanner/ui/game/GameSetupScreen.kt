@@ -193,7 +193,7 @@ private val NamesSaver = listSaver<SnapshotStateList<String>, String>(
 
 @Composable
 private fun Label(text: String) {
-    Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+    Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.Text, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
 }
 
 /** A small selectable chip for the setup rows. */

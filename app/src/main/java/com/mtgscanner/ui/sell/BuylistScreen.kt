@@ -168,7 +168,7 @@ private fun PullRow(p: BuyPull, box: String?, on: Boolean, onToggle: () -> Unit,
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End) {
-            Text(formatUsd(p.total), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+            Text(formatUsd(p.total), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
             if (p.copies > 1) Text("${formatUsd(p.each)} each", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }
     }

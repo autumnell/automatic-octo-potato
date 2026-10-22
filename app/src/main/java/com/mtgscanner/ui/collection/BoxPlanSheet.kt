@@ -114,7 +114,7 @@ private fun PlanLine(row: PlanRow, boxSize: Int) {
                 Text(row.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (row.isNew || row.changed) {
                     Spacer(Modifier.size(8.dp))
-                    Text(if (row.isNew) "New" else "Changed", style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
+                    Text(if (row.isNew) "New" else "Changed", style = MaterialTheme.typography.labelSmall, color = Palette.Text)
                 }
             }
             val need = row.boxesNeeded(boxSize)

@@ -219,7 +219,7 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: S
                 Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
             }
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.AccentText, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text, maxLines = 1)
             if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
     }
@@ -344,7 +344,7 @@ fun CardTile(
         }
         Spacer(Modifier.height(4.dp))
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.AccentText)
+        if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.Text)
     }
 }
 

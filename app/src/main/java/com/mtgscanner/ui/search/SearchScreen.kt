@@ -262,7 +262,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.Text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${ui.results.size}${if (ui.hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
                 IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
             }
@@ -317,7 +317,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatMoney(c.prices.usd?.toDoubleOrNull(), c.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                Text(formatMoney(c.prices.usd?.toDoubleOrNull(), c.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.Text)
                 CardKingdom.buyPrice(c.id, foil = c.prices.usd == null && c.prices.usdFoil != null)?.let {
                     Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                 }
@@ -432,7 +432,7 @@ private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
         Text(
             if (owned > 0) "$owned / ${s.cardCount}" else "${s.cardCount}",
             style = MaterialTheme.typography.labelLarge,
-            color = if (owned > 0) Palette.AccentText else Palette.Muted,
+            color = if (owned > 0) Palette.Text else Palette.Muted,
         )
     }
 }
