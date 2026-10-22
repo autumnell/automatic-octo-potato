@@ -30,7 +30,7 @@ class PriceListMathTest {
         assertEquals(0, PricedLine("X", 1, 1.0, owned = 5).short)
     }
 
-    @Test fun emptyList() {
+    @Test fun emptyListTotalsZero() {
         val t = PriceListMath.totals(emptyList())
         assertEquals(0, t.cards)
         assertEquals(0.0, t.total, 0.0)

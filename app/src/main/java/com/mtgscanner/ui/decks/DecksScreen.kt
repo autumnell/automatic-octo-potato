@@ -565,6 +565,8 @@ data class DeckUi(
     /** The line whose printing is being picked, and its printings (null while loading). */
     val printingLine: DeckCheckLine? = null,
     val printings: List<ScryfallCard>? = null,
+    /** Mana curve and color split of the played cards; null until looked up. */
+    val shape: DeckShape? = null,
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -672,7 +674,13 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val issues = CommanderRules.issues(lines, s.format, s.commanders) { n -> rulesOf(n) }
             val leadNames = if (DeckFormats.isCommander(s.format)) s.commanders.commanders else emptyList()
             val edhrec = Edhrec.linkFor(leadNames, leadNames.singleOrNull()?.let { info[DeckNames.key(it)]?.edhrec })
-            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec) }
+            // Curve and colors: played lines, plus commanders the list itself doesn't name.
+            val played = lines.filter { it.section in PLAYED }
+            val playedKeys = played.map { DeckNames.key(it.name) }.toSet()
+            val shapeCards = (played.map { it.name to it.quantity } + s.commanders.all.filter { DeckNames.key(it) !in playedKeys }.map { it to 1 })
+                .mapNotNull { (n, q) -> info[DeckNames.key(n)]?.let { ShapeCard(q, it.cmc, it.typeLine, it.manaCost) } }
+            val shape = DeckShapeMath.of(shapeCards)
+            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec, shape = shape) }
         }
     }
 
@@ -1169,6 +1177,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
     val inDeck = played.sumOf { minOf(it.inDeck, it.needed) }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
+            ui.shape?.let { DeckShapeView(it) }
             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("Owned", "$have / $needed", Modifier.weight(1f))
                 if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
