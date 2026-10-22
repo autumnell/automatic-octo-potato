@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -847,6 +848,8 @@ private fun ToolsTab(
     val scope = rememberCoroutineScope()
     var finding by remember { mutableStateOf(false) }
     var dupes by remember { mutableStateOf(false) }
+    var shelf by remember { mutableStateOf(false) }
+    if (shelf) ShelfSheet(onDismiss = { shelf = false })
     if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
     if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
     LazyColumn(Modifier.fillMaxSize()) {
@@ -854,6 +857,7 @@ private fun ToolsTab(
             ToolCard(Icons.Filled.FindInPage, "Find a card", "Which box, which spot", { finding = true })
             ToolCard(Icons.Filled.AutoFixHigh, "Re-sort", "Cards in the wrong box", { vm.findMisplaced() })
             ToolCard(Icons.Filled.Layers, "Duplicates", "Cards in 2+ printings", { dupes = true })
+            ToolCard(Icons.Filled.ViewModule, "Shelf", "Where your boxes sit", { shelf = true })
             ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
             ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
             SectionHeader("Trade binders")
