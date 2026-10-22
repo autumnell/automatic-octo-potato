@@ -1099,7 +1099,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
     val missingCostText = when {
         !check.missingCostPartial -> formatUsd(missingCost)
         missingCost > 0 -> formatUsd(missingCost) + " + ?"
-        else -> formatUsd(null)
+        else -> formatUsd(null as Double?)
     }
     // A commander deck lists its commanders (and companion, signature spell) first.
     val (leads, rest) = PullListMath.leadsFirst(check.lines, leadsOf(ui), { it.name }, DeckNames::key)
