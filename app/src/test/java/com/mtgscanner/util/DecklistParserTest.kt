@@ -151,4 +151,27 @@ class DecklistParserTest {
         assertEquals("Commander", deck[0].section)
         assertEquals("Atraxa, Praetors' Voice", deck[0].name)
     }
+
+    @Test fun commanderSections() {
+        // Archidekt and Moxfield plain text mark the commander inline.
+        val marked = DecklistParser.parse("1x Atraxa, Praetors' Voice (ONE) 196 *CMDR*\n1x Sol Ring (CMR) 263 *F*\n1 Thrasios, Triton Hero *CMDR* *F*")
+        assertEquals("Commander", marked[0].section)
+        assertEquals("Atraxa, Praetors' Voice", marked[0].name)
+        assertEquals("one", marked[0].setCode)
+        assertEquals("196", marked[0].collectorNumber)
+        assertEquals("Main", marked[1].section)
+        assertTrue(marked[1].foil)
+        assertEquals("Commander", marked[2].section)
+        assertEquals("Thrasios, Triton Hero", marked[2].name)
+        assertTrue(marked[2].foil)
+        // Arena: Commander and Companion headers, then Deck.
+        val arena = DecklistParser.parse("Commander\n1 Kenrith, the Returned King (ELD) 303\n\nCompanion\n1 Jegantha, the Wellspring (IKO) 222\n\nDeck\n1 Sol Ring (CMR) 263")
+        assertEquals(listOf("Commander", "Companion", "Main"), arena.map { it.section })
+        // Oathbreaker
+        val oath = DecklistParser.parse("Oathbreaker\n1 Chandra, Torch of Defiance\n\nSignature Spell\n1 Fireball\n\nDeck\n1 Shock")
+        assertEquals(listOf("Commander", "Signature", "Main"), oath.map { it.section })
+        // Moxfield's "CMDR:" prefix still works, and a card named like a header stays in the main deck.
+        assertEquals("Commander", DecklistParser.parse("CMDR: 1 Atraxa, Praetors' Voice").single().section)
+        assertEquals("Main", DecklistParser.parse("1 Commander's Sphere").single().section)
+    }
 }

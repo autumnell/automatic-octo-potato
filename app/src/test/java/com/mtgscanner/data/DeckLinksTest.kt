@@ -47,4 +47,22 @@ class DeckLinksTest {
         assertEquals(listOf("Commander", "Main", "Sideboard"), lines.map { it.section })
         assertTrue(lines[1].foil)
     }
+
+    @Test fun formatsAndOathbreaker() {
+        val mox = """{"name":"Oath","format":"oathbreaker","boards":{
+            "commanders":{"cards":{"a":{"quantity":1,"card":{"name":"Chandra, Torch of Defiance","set":"kld","cn":"110"}}}},
+            "signatureSpells":{"cards":{"s":{"quantity":1,"card":{"name":"Fireball","set":"m10","cn":"136"}}}},
+            "companions":{"cards":{"c":{"quantity":1,"card":{"name":"Lurrus of the Dream-Den","set":"iko","cn":"226"}}}},
+            "mainboard":{"cards":{"b":{"quantity":1,"card":{"name":"Shock","set":"m19","cn":"156"}}}}}}"""
+        val d = DeckLinks.parseMoxfield(Json.parseToJsonElement(mox))!!
+        assertEquals("oathbreaker", d.format)
+        val c = DeckCommanders.fromLines(DecklistParser.parse(d.text))
+        assertEquals(listOf("Chandra, Torch of Defiance"), c.commanders)
+        assertEquals("Fireball", c.signature)
+        assertEquals("Lurrus of the Dream-Den", c.companion)
+        assertEquals("paupercommander", DeckFormats.fromMoxfield("pauperEdh"))
+        assertEquals("", DeckFormats.fromMoxfield("gladiator"))
+        val arch = """{"name":"A","deckFormat":3,"cards":[{"quantity":1,"categories":["Commander"],"card":{"oracleCard":{"name":"Atraxa, Praetors' Voice"}}}]}"""
+        assertEquals("commander", DeckLinks.parseArchidekt(Json.parseToJsonElement(arch))!!.format)
+    }
 }

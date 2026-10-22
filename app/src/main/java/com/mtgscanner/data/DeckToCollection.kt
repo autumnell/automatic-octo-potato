@@ -29,11 +29,9 @@ suspend fun CollectionRepository.addDeckRows(rows: List<ImportRow>, boxId: Long)
     val after = ids.chunked(500).flatMap { dao.byScryfallIds(it) }
     val added = after.mapNotNull { c -> (c.quantity - (before[c.id] ?: 0)).takeIf { it > 0 }?.let { c.id to it } }
     val newBoxes = dao.allBoxes().map { it.id }.filter { it !in boxesBefore }
-    val undo: (suspend () -> Unit)? = if (added.isEmpty()) null else {
-        {
-            db.withTransaction { added.forEach { (id, n) -> remove(id, n) } }
-            newBoxes.forEach { b -> if (dao.inBox(b).isEmpty()) deleteBox(b, null) }
-        }
+    val undo: suspend () -> Unit = {
+        db.withTransaction { added.forEach { (id, n) -> remove(id, n) } }
+        newBoxes.forEach { b -> if (dao.inBox(b).isEmpty()) deleteBox(b, null) }
     }
-    return DeckAddResult(r.added, r.notFound.size, undo)
+    return DeckAddResult(r.added, r.notFound.size, if (added.isEmpty()) null else undo)
 }
