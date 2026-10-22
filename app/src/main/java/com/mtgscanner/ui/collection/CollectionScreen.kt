@@ -1011,6 +1011,12 @@ private fun WishlistTab(vm: CollectionViewModel) {
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<WishlistItem?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var sortName by rememberSaveable { mutableStateOf(WishlistSort.ADDED.name) }
+    val sort = WishlistSort.entries.firstOrNull { it.name == sortName && (AppSettings.showPrices || it != WishlistSort.PRICE) } ?: WishlistSort.ADDED
+    val shown = remember(wishlist, query, sort) {
+        WishlistSorting.apply(wishlist, query, sort, { it.name }, { it.priceUsd }, { it.addedAt })
+    }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             if (wishlist.isEmpty()) {
@@ -1027,9 +1033,16 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     }
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share wishlist", tint = Palette.Icon) }
                 }
+                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search wishlist")
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WishlistSort.entries.filter { AppSettings.showPrices || it != WishlistSort.PRICE }.forEach { s ->
+                        SelectPill(s.label, sort == s, { sortName = s.name })
+                    }
+                }
+                if (shown.isEmpty()) EmptyState("No matches", Modifier.padding(top = 16.dp))
             }
         }
-        items(wishlist, key = { "w${it.id}" }) { w ->
+        items(shown, key = { "w${it.id}" }) { w ->
             Row(
                 Modifier.fillMaxWidth().clickable { editing = w }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
