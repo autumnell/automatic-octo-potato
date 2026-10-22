@@ -131,6 +131,8 @@ fun StatsScreen(
                 PaidPanel(s.paid)
             }
 
+            if (prices) MoneySection()
+
             SectionHeader("By color")
             Breakdown(
                 s.byColor.filter { it.cards > 0 }, prices,
