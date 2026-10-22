@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -59,6 +60,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -82,6 +84,8 @@ import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.ui.AppViewModels
+import com.mtgscanner.ui.collection.ShareDialog
+import com.mtgscanner.ui.collection.shareLine
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
@@ -212,12 +216,12 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
             val (played, coverName) = pc
             val st = stamp(d, cover[d.id])
             tried += st
-            val found = played.mapNotNull { info[DeckStatsMath.key(it.name)] }
+            val found = played.mapNotNull { info[DeckNames.key(it.name)] }
             val identity = "WUBRG".filter { c -> found.any { c in it.colorIdentity.uppercase() } }
-            val art = coverName?.let { info[DeckStatsMath.key(it)]?.imageUrl }?.let { artCropUrl(it) }
+            val art = coverName?.let { info[DeckNames.key(it)]?.imageUrl }?.let { artCropUrl(it) }
             val meta = DeckMeta(st, identity, art)
             // Names Scryfall says don't exist (typos) won't turn up later, so they don't keep the tile from being saved.
-            fun settled(n: String) = info.containsKey(DeckStatsMath.key(n)) || deckCardUnknown(n)
+            fun settled(n: String) = info.containsKey(DeckNames.key(n)) || deckCardUnknown(n)
             val complete = played.all { settled(it.name) } && (coverName == null || art != null || deckCardUnknown(coverName))
             if (complete) done[d.id] = meta else partial[d.id] = meta
         }
@@ -229,6 +233,12 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun renameFolder(id: Long, name: String) = DeckShelfStore.renameFolder(id, name)
     fun moveDeck(deckId: Long, folderId: Long?) = DeckShelfStore.moveDeck(deckId, folderId)
     fun setCover(deckId: Long, name: String?) = DeckShelfStore.setCover(deckId, name)
+
+    /** Decks › New › From a link. */
+    fun importLink(url: String) = viewModelScope.launch {
+        Undo.offer("Getting deck…")
+        repo.saveDeckFromLink(url)
+    }
 
     fun deleteFolder(folder: DeckFolder) {
         val ids = DeckShelfStore.state.value.folderOf.filterValues { it == folder.id }.keys.toList()
@@ -249,6 +259,8 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     var moving by remember { mutableStateOf<DeckRow?>(null) }
     var newFolderFor by remember { mutableStateOf<DeckRow?>(null) }
     var covering by remember { mutableStateOf<DeckRow?>(null) }
+    var newMenu by remember { mutableStateOf(false) }
+    var linking by remember { mutableStateOf(false) }
 
     val folder = shelf.folders.firstOrNull { it.id == folderId }
     BackHandler(enabled = folder != null) { folderId = null }
@@ -288,10 +300,16 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                 } else {
                     Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
                     IconButton(onClick = { naming = true }) { Icon(Icons.Filled.CreateNewFolder, "New folder", tint = Palette.AccentText) }
-                    TextButton(onClick = { onOpenDeck(0L) }) {
-                        Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("New")
+                    Box {
+                        TextButton(onClick = { newMenu = true }) {
+                            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("New")
+                        }
+                        DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
+                            DropdownMenuItem(text = { Text("Paste a list") }, onClick = { newMenu = false; onOpenDeck(0L) })
+                            DropdownMenuItem(text = { Text("From a link") }, onClick = { newMenu = false; linking = true })
+                        }
                     }
                 }
             }
@@ -344,6 +362,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
         }
     }
 
+    if (linking) DeckLinkDialog(onDismiss = { linking = false }) { url -> linking = false; vm.importLink(url) }
     if (naming) {
         FolderNameDialog("New folder", "", onSave = { vm.createFolder(it); naming = false }, onDismiss = { naming = false })
     }
@@ -483,9 +502,6 @@ data class DeckUi(
     val checking: Boolean = false,
     val check: DeckCheck? = null,
     val message: String? = null,
-    val stats: DeckStats? = null,
-    /** Stats couldn't be worked out (offline and no card data). */
-    val statsFailed: Boolean = false,
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -598,7 +614,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         viewModelScope.launch {
             try {
                 val missing = check.lines.filter { it.section in PLAYED && it.missing > 0 }
-                    .groupBy { DeckStatsMath.key(it.name) }.values
+                    .groupBy { DeckNames.key(it.name) }.values
                     .map { ls -> ls.first() to ls.sumOf { it.missing } }
                 val msg = runCatching {
                     // The printing the list names, when it has one.
@@ -636,25 +652,6 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }
-
-    private var statsFor: String? = null
-
-    /** Works out mana stats for the saved list; cards come from the collection, then Scryfall. */
-    fun loadStats() {
-        val text = _ui.value.text
-        if (statsFor == text) return
-        statsFor = text
-        _ui.update { it.copy(statsFailed = false, stats = null) }
-        viewModelScope.launch {
-            val lines = DecklistParser.parse(text)
-            // Stats only use played cards, so the sideboard, maybeboard and tokens aren't looked up.
-            val info = runCatching { repo.deckCardInfo(lines.filter { it.section in PLAYED }.map { it.name }) }.getOrDefault(emptyMap())
-            val stats = if (info.isEmpty()) null else DeckStatsMath.compute(lines, info)
-            if (statsFor != text) return@launch
-            if (stats == null) statsFor = null // retry next time
-            _ui.update { it.copy(stats = stats, statsFailed = stats == null) }
-        }
-    }
 }
 
 /** One deck: paste or edit the list, then see what you own, where it is, and what's missing. */
@@ -664,7 +661,6 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var view by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(view, ui.editing, ui.text) { if (view == 1 && !ui.editing) vm.loadStats() }
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -688,12 +684,10 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
             else {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Cards", view == 0, { view = 0 })
-                    SelectPill("Stats", view == 1, { view = 1 })
-                    SelectPill("Pull list", view == 2, { view = 2 })
+                    SelectPill("Pull list", view == 1, { view = 1 })
                 }
                 when (view) {
-                    1 -> DeckStatsView(ui.stats, ui.statsFailed)
-                    2 -> {
+                    1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
                         val checks by vm.pullChecks.collectAsStateWithLifecycle()
                         PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeckBox)
@@ -730,6 +724,8 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
 
 @Composable
 private fun Results(ui: DeckUi, vm: DeckViewModel) {
+    val scope = rememberCoroutineScope()
+    var sharing by remember { mutableStateOf(false) }
     val check = ui.check
     if (ui.checking || check == null) {
         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
@@ -751,14 +747,17 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
             }
             if (missing.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = vm::wishlistMissing,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(Corners.Medium),
-                ) {
-                    Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add missing cards to wishlist")
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(
+                        onClick = vm::wishlistMissing,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(Corners.Medium),
+                    ) {
+                        Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Wishlist missing")
+                    }
+                    IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share missing cards", tint = Palette.Icon) }
                 }
             }
         }
@@ -776,6 +775,9 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
             itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false) }
         }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+    if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {
+        missing.map { it.shareLine() }
     }
 }
 
