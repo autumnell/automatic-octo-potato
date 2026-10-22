@@ -58,6 +58,7 @@ import com.mtgscanner.ui.components.scryfallPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Scryfall's set symbol for a set code. */
 fun setIconUrl(code: String): String = "https://svgs.scryfall.io/sets/${code.lowercase()}.svg"
@@ -82,9 +83,9 @@ fun ScanToggleBar(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mo
         modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Corners.Medium))
             .background(Color.Black.copy(alpha = 0.78f))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(50)),
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(Corners.Medium)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Finish
@@ -177,7 +178,7 @@ fun LastCardBar(
         modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(Corners.Medium))
             .background(Color.Black.copy(alpha = 0.78f))
             .clickable(enabled = e != null) { if (e != null && e.deckId == 0L && e.rowId != 0L) onOpenCard(e.rowId) else onOpenList() }
             .padding(horizontal = 8.dp, vertical = 6.dp),
@@ -193,7 +194,7 @@ fun LastCardBar(
             return@Row
         }
         // Grows into the card page when tapped.
-        CardImage(e.card.smallImageUrl, Modifier.height(40.dp).sharedCard(if (e.deckId == 0L) e.rowId else 0L), corner = 3.dp)
+        CardImage(e.card.smallImageUrl, Modifier.height(40.dp).sharedCard(if (e.deckId == 0L) e.rowId else 0L))
         Spacer(Modifier.width(10.dp))
         SetIcon(e.card.set, size = 16.dp)
         Spacer(Modifier.width(6.dp))
@@ -219,7 +220,7 @@ fun LastCardBar(
             Box(
                 Modifier
                     .heightIn(min = 40.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(RoundedCornerShape(Corners.Small))
                     .background(Palette.Gold)
                     .clickable(onClickLabel = "Add another copy", onClick = onSameAgain)
                     .padding(horizontal = 14.dp),
@@ -285,7 +286,7 @@ private fun SetRow(s: ScryfallSet, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun SetRowItem(title: String, sub: String, selected: Boolean, icon: @Composable () -> Unit, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) { icon() }

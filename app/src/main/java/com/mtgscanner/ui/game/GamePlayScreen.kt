@@ -98,6 +98,7 @@ import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlin.random.Random
+import com.mtgscanner.ui.theme.Corners
 
 /** The table color during the day: a warm light cream. */
 private val DAY_TABLE = Color(0xFFEFE8D8)
@@ -245,8 +246,8 @@ fun GamePlayScreen(onExit: () -> Unit) {
             if (g.dayNight != null) {
                 Spacer(Modifier.height(6.dp))
                 Row(
-                    Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.85f))
-                        .border(1.dp, Palette.Gold, RoundedCornerShape(50))
+                    Modifier.clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.85f))
+                        .border(1.dp, Palette.Gold, RoundedCornerShape(Corners.Small))
                         .clickable { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -317,7 +318,7 @@ private fun PlayerPanel(
         if (runVisible) 1f else 0f, animationSpec = tween(if (runVisible) 120 else 600), label = "run",
     )
 
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(Corners.Medium)
     val back = when (style) {
         TableStyle.BOLD -> Modifier.background(color)
         TableStyle.GRADIENT -> Modifier.background(Brush.linearGradient(listOf(color, lerp(color, Color.Black, 0.65f))))
@@ -336,7 +337,7 @@ private fun PlayerPanel(
             // Smaller panels (5 or 6 players) get a smaller number.
             val lifeSize = (minOf(maxHeight.value * 0.36f, maxWidth.value * 0.3f)).coerceIn(34f, 72f).sp
             val active = g.active == i
-            if (active) Box(Modifier.fillMaxSize().border(4.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(22.dp)))
+            if (active) Box(Modifier.fillMaxSize().border(4.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(Corners.Medium)))
             // Left half loses, right half gains. Hold for ten. Swipe up or down to count one by one;
             // the panel is turned to face its player, so "up" is up for them.
             Row(
@@ -387,7 +388,7 @@ private fun PlayerPanel(
                             layout(pl.width, 0) { pl.place(0, -pl.height) }
                         }
                         .graphicsLayer { alpha = runAlpha }
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(Corners.Medium))
                         .background(Color.Black.copy(alpha = 0.45f))
                         .padding(horizontal = 12.dp),
                 ) {
@@ -500,7 +501,7 @@ private fun QuickButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 @Composable
 private fun Badge(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, gold: Boolean = false) {
     Row(
-        Modifier.clip(RoundedCornerShape(10.dp)).background(if (gold) Palette.Gold.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.35f))
+        Modifier.clip(RoundedCornerShape(Corners.Small)).background(if (gold) Palette.Gold.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.35f))
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -514,7 +515,7 @@ private fun Badge(text: String, icon: androidx.compose.ui.graphics.vector.ImageV
 
 @Composable
 private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit, onDone: () -> Unit) {
-    Surface(modifier, shape = RoundedCornerShape(18.dp), color = Color.Black.copy(alpha = 0.85f)) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.85f)) {
         Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
             Text("Tap Done or Play again to save.",
@@ -547,9 +548,9 @@ internal fun ArtPicker(current: String?, vm: GameViewModel, onPick: (String?) ->
         if (choices.isEmpty()) Text("No cards with art found. Scan some cards first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             choices.take(24).forEach { c ->
-                Column(Modifier.width(96.dp).clip(RoundedCornerShape(8.dp)).clickable { onPick(c.art); open = false }) {
+                Column(Modifier.width(96.dp).clip(RoundedCornerShape(Corners.Small)).clickable { onPick(c.art); open = false }) {
                     AsyncImage(c.art, c.name, Modifier.fillMaxWidth().height(70.dp)
-                        .border(if (c.art == current) 2.dp else 0.dp, Palette.Accent, RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+                        .border(if (c.art == current) 2.dp else 0.dp, Palette.Accent, RoundedCornerShape(Corners.Small)), contentScale = ContentScale.Crop)
                     Text(c.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = Palette.Muted)
                 }
             }
@@ -571,12 +572,12 @@ fun EndGameDialog(g: GameState, onDismiss: () -> Unit, onEnd: (save: Boolean, wi
                 else {
                     Text("Pick the winner to save the game to your stats.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     g.players.forEachIndexed { i, p ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { winner = i }, verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { winner = i }, verticalAlignment = Alignment.CenterVertically) {
                             androidx.compose.material3.RadioButton(winner == i, { winner = i })
                             Text(p.name)
                         }
                     }
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { winner = null }, verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { winner = null }, verticalAlignment = Alignment.CenterVertically) {
                         androidx.compose.material3.RadioButton(winner == null, { winner = null })
                         Text("No winner (draw)")
                     }

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,6 +48,7 @@ import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.CardShape
 
 /** The cards read from a photo: each with its match, to fix the printing or take off, then add them all. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,8 +125,8 @@ private fun PhotoRow(item: PhotoItem, onPrinting: () -> Unit, onRemove: () -> Un
     val c = item.card
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         val thumb = item.thumb
-        val mod = Modifier.width(52.dp).aspectRatio(63f / 88f).clip(RoundedCornerShape(4.dp))
-        if (c != null) CardImage(c.smallImageUrl, Modifier.width(52.dp), corner = 4.dp)
+        val mod = Modifier.width(52.dp).aspectRatio(63f / 88f).clip(CardShape)
+        if (c != null) CardImage(c.smallImageUrl, Modifier.width(52.dp))
         else if (thumb != null && !thumb.isRecycled) {
             val img = remember(thumb) { thumb.asImageBitmap() }
             Image(img, null, mod, contentScale = ContentScale.Crop)

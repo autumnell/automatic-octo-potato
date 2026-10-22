@@ -63,7 +63,7 @@ internal fun CardOfDaySection(day: DayCard, onOpenCard: (Long) -> Unit, shared: 
         CardImage(
             c.imageUrl,
             Modifier.width(112.dp).then(if (shared) Modifier.sharedCard(c.id) else Modifier),
-            corner = 7.dp, zoom = true, onTap = open,
+            zoom = true, onTap = open,
         )
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {

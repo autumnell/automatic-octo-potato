@@ -125,6 +125,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import com.mtgscanner.data.Binder
 import com.mtgscanner.ui.components.CardPreviewSheet
 import com.mtgscanner.ui.detail.CardDetailScreen
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.CardShape
 
 @Composable
 fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, onTrade: (binderId: Long) -> Unit = {}) {
@@ -234,7 +236,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
         if (showTip && ui.totalCards > 0 && !picking) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(12.dp)).background(Palette.Surface).padding(start = 14.dp),
+                    .clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(start = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -494,7 +496,7 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
                 if (boxes.isEmpty()) Text("Make another box first.", color = Palette.Muted)
                 boxes.forEach { b ->
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onPick(b.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPick(b.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))
@@ -513,7 +515,7 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
 @Composable
 private fun SyntaxHelp(modifier: Modifier = Modifier) {
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Surface).padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         listOf(
             "t:elf  c:rg  id<=esper  mv>=4",
@@ -536,7 +538,7 @@ fun SearchField(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Palette.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.Search, null, tint = Palette.Muted, modifier = Modifier.size(20.dp))
@@ -634,7 +636,7 @@ private fun CardGrid(
         }
         railLetter?.let { letter ->
             Box(
-                Modifier.align(Alignment.Center).size(72.dp).clip(RoundedCornerShape(18.dp)).background(Palette.SurfaceHigh),
+                Modifier.align(Alignment.Center).size(72.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh),
                 contentAlignment = Alignment.Center,
             ) { Text(letter, style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText) }
         }
@@ -720,7 +722,7 @@ private fun SwipeRow(onMove: () -> Unit, onSell: () -> Unit, content: @Composabl
         backgroundContent = {
             val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
             Row(
-                Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp))
+                Modifier.fillMaxSize().clip(RoundedCornerShape(Corners.Medium))
                     .background(if (toEnd) Palette.Accent.copy(alpha = 0.25f) else Palette.Gold.copy(alpha = 0.22f))
                     .padding(horizontal = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -744,8 +746,8 @@ private fun SwipeRow(onMove: () -> Unit, onSell: () -> Unit, content: @Composabl
 @Composable
 private fun Thumb(c: CollectionCard, width: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     // Holding the picture shows it big; holding the rest of the row still starts picking.
-    Box(Modifier.width(width).clip(RoundedCornerShape(4.dp)).foilShimmer(c.foil)) {
-        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 4.dp, zoom = true, onTap = onClick)
+    Box(Modifier.width(width).clip(CardShape).foilShimmer(c.foil)) {
+        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), zoom = true, onTap = onClick)
     }
 }
 
@@ -753,7 +755,7 @@ private fun Thumb(c: CollectionCard, width: androidx.compose.ui.unit.Dp, onClick
 @Composable
 private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: List<Double>?, onClick: () -> Unit, onLongClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium))
             .background(if (selected) Palette.Accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -798,7 +800,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
 @Composable
 private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark: List<Double>?, onClick: () -> Unit, onLongClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small))
             .background(if (selected) Palette.Accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -855,13 +857,13 @@ private fun BinderPages(cards: List<CollectionCard>, unslotted: Int, perCopy: Bo
                             val c = bySlot[slot]
                             Box(Modifier.weight(1f)) {
                                 if (c != null) {
-                                    Box(Modifier.clip(RoundedCornerShape(6.dp)).clickable { onOpen(c) }) {
-                                        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), corner = 6.dp, zoom = true)
+                                    Box(Modifier.clip(CardShape).clickable { onOpen(c) }) {
+                                        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth(), zoom = true)
                                     }
                                 } else {
                                     Box(
-                                        Modifier.fillMaxWidth().aspectRatio(63f / 88f).clip(RoundedCornerShape(6.dp))
-                                            .border(1.dp, Palette.Outline, RoundedCornerShape(6.dp)),
+                                        Modifier.fillMaxWidth().aspectRatio(63f / 88f).clip(CardShape)
+                                            .border(1.dp, Palette.Outline, CardShape),
                                         contentAlignment = Alignment.Center,
                                     ) { Text("${Binder.pocket(slot)}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted) }
                                 }

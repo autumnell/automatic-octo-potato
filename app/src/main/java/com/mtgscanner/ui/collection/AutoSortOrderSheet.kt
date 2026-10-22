@@ -42,6 +42,7 @@ import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /**
  * The order Auto-sort checks boxes in, and the fallback box for cards nothing fits.
@@ -79,7 +80,7 @@ fun AutoSortOrderSheet(
             order.forEachIndexed { i, id ->
                 val b = byId[id] ?: return@forEachIndexed
                 val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
-                Surface(Modifier.fillMaxWidth().padding(vertical = 3.dp), shape = RoundedCornerShape(14.dp), color = Palette.SurfaceHigh) {
+                Surface(Modifier.fillMaxWidth().padding(vertical = 3.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh) {
                     Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("${i + 1}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.width(22.dp))
                         Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))

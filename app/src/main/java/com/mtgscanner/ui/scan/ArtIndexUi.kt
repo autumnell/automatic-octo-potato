@@ -46,6 +46,7 @@ import com.mtgscanner.scan.ArtModel
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
 
 /**
  * Art match settings in the scanner's settings sheet: which sets have an art index, the download under way,
@@ -78,7 +79,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
             }
             LinearProgressIndicator(
                 progress = { if (d.total > 0) d.done.toFloat() / d.total else 0f },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
                 color = Palette.Accent,
             )
         }
@@ -174,7 +175,7 @@ private fun ArtModelPicker(vm: ScanViewModel) {
             ArtModel.ADVANCED -> "Better with look-alike art"
         }
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { vm.selectArtModel(m) }.padding(vertical = 2.dp),
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { vm.selectArtModel(m) }.padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             RadioButton(selected = chosen == m, onClick = { vm.selectArtModel(m) }, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
@@ -193,7 +194,7 @@ private fun ArtModelPicker(vm: ScanViewModel) {
         )
         LinearProgressIndicator(
             progress = { if (d.total > 0) (d.done.toFloat() / d.total).coerceIn(0f, 1f) else 0f },
-            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
             color = Palette.Accent,
         )
     } else if (failed) {
@@ -246,7 +247,7 @@ private fun ArtSetPicker(vm: ScanViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun PickRow(code: String, title: String, sub: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SetIcon(code, size = 20.dp, tint = Palette.Text)

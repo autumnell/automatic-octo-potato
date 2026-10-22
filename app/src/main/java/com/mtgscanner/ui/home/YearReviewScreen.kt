@@ -62,6 +62,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
+import com.mtgscanner.ui.theme.Corners
 
 /** Year in review, full screen over Stats: cards added, best pull, biggest gain, top set, value. */
 @Composable
@@ -130,7 +131,7 @@ private fun YearReviewScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                 }
                 if (prices && r.valueStart != null && r.valueEnd != null) {
                     Spacer(Modifier.height(10.dp))
-                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
                                 Text("Value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
@@ -156,7 +157,7 @@ private fun YearReviewScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
 
 @Composable
 private fun Tile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null) {
-    Surface(modifier, shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(16.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             Text(value, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -167,9 +168,9 @@ private fun Tile(label: String, value: String, modifier: Modifier = Modifier, su
 
 @Composable
 private fun CardTile(label: String, c: YearCard, amount: String?, onClick: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Row(Modifier.clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            CardImage(c.imageUrl, Modifier.width(64.dp), corner = 4.dp)
+            CardImage(c.imageUrl, Modifier.width(64.dp))
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)

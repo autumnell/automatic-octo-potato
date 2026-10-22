@@ -128,7 +128,7 @@ internal fun ToSortSection(
                     CardImage(
                         item.card.smallImageUrl ?: item.card.imageUrl,
                         Modifier.width(28.dp).then(if (item.card.id in shared) Modifier.sharedCard(item.card.id) else Modifier),
-                        corner = 3.dp, zoom = true,
+                        zoom = true,
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
@@ -224,7 +224,7 @@ internal fun UnknownScanDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                CardImage(c.smallImageUrl, Modifier.width(32.dp), corner = 3.dp)
+                                CardImage(c.smallImageUrl, Modifier.width(32.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text("${c.set.uppercase()} #${c.collectorNumber}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

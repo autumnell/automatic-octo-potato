@@ -41,6 +41,7 @@ import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 private val bulkFloors = listOf(0.10, 0.25, 0.50, 1.00)
 
@@ -111,7 +112,7 @@ private fun BoxChoice(label: String, boxes: List<CardBox>, current: Long?, onPic
         Row(
             Modifier
                 .heightIn(min = 40.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(RoundedCornerShape(Corners.Small))
                 .background(Palette.SurfaceHigh)
                 .clickable { open = true }
                 .padding(horizontal = 12.dp, vertical = 6.dp),

@@ -88,6 +88,7 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.ThemeMode
 import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.PriceStyle
+import com.mtgscanner.ui.theme.Corners
 
 private val settingsTabs = listOf("Look", "Prices", "Scanning", "Sorting", "Data")
 
@@ -177,7 +178,7 @@ private fun LookTab() {
 
     SectionLabel("Accent color")
     val fromCollection = ThemeSettings.accentFromCollection
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column {
             ToggleRow(
                 "From my collection",
@@ -242,7 +243,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
 
     if (AppSettings.scanLogUnlocked) {
         SectionLabel("Troubleshooting")
-        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
             Row(
                 Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -257,7 +258,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
     }
 
     SectionLabel("About")
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -305,8 +306,8 @@ private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onC
     }
     Row(
         modifier
-            .clip(RoundedCornerShape(14.dp))
-            .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Accent else Palette.Outline, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(Corners.Medium))
+            .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Accent else Palette.Outline, RoundedCornerShape(Corners.Medium))
             .clickable(onClick = onClick)
             .background(bg)
             .padding(vertical = 10.dp),
@@ -324,7 +325,7 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
     // The whole swatch and its label is the tap target (48dp wide and taller), read out by its label.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(48.dp).clip(RoundedCornerShape(10.dp)).selectable(selected = selected, onClick = onClick),
+        modifier = Modifier.width(48.dp).clip(RoundedCornerShape(Corners.Small)).selectable(selected = selected, onClick = onClick),
     ) {
         Box(
             Modifier
@@ -349,7 +350,7 @@ private val rainbow = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, C
 private fun CustomSwatch(onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(48.dp).clip(RoundedCornerShape(10.dp)).clickable(onClickLabel = "Pick a custom color", onClick = onClick),
+        modifier = Modifier.width(48.dp).clip(RoundedCornerShape(Corners.Small)).clickable(onClickLabel = "Pick a custom color", onClick = onClick),
     ) {
         Box(
             Modifier.size(38.dp).clip(CircleShape).background(Brush.sweepGradient(rainbow)),
@@ -376,8 +377,8 @@ private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPi
             val on = f == selected
             Column(
                 Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(if (on) 2.dp else 1.dp, if (on) Palette.Accent else Palette.Outline, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(Corners.Medium))
+                    .border(if (on) 2.dp else 1.dp, if (on) Palette.Accent else Palette.Outline, RoundedCornerShape(Corners.Medium))
                     .background(if (on) Palette.SurfaceHigh else Palette.Surface)
                     .clickable { onPick(f) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -398,7 +399,7 @@ private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPi
 /** A one-line mock-up so the chosen colors and fonts can be judged at a glance. */
 @Composable
 private fun Preview() {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Color.Transparent) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Color.Transparent) {
         Row(Modifier.background(Palette.HeroGradient).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
@@ -435,10 +436,10 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onPick: (Co
                 HueBar(hue) { hue = it; editingHex = false }
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(color))
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(Corners.Medium)).background(color))
                     Spacer(Modifier.width(12.dp))
                     Row(
-                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
+                        Modifier.weight(1f).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("#", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
@@ -469,7 +470,7 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onPick: (Co
 
 @Composable
 private fun SatValSquare(hue: Float, sat: Float, value: Float, onChange: (Float, Float) -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1.4f).clip(RoundedCornerShape(14.dp))) {
+    BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1.4f).clip(RoundedCornerShape(Corners.Medium))) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
         fun update(o: Offset) = onChange((o.x / w).coerceIn(0f, 1f), 1f - (o.y / h).coerceIn(0f, 1f))
@@ -490,7 +491,7 @@ private fun SatValSquare(hue: Float, sat: Float, value: Float, onChange: (Float,
 
 @Composable
 private fun HueBar(hue: Float, onChange: (Float) -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(14.dp))) {
+    BoxWithConstraints(Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(Corners.Medium))) {
         val w = constraints.maxWidth.toFloat()
         fun update(x: Float) = onChange((x / w).coerceIn(0f, 1f) * 359.9f)
         Canvas(

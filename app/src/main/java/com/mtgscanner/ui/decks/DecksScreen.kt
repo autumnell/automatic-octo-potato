@@ -109,6 +109,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -309,7 +310,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                         if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear") }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(Corners.Medium),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent,
                     ),
@@ -374,7 +375,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     }
 }
 
-private val TileShape = RoundedCornerShape(18.dp)
+private val TileShape = RoundedCornerShape(Corners.Medium)
 
 /** Art, or a soft gradient when there's no art yet. */
 @Composable
@@ -398,7 +399,7 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                 if (row.identity.isNotEmpty()) {
                     Row(
                         Modifier.align(Alignment.TopEnd).padding(6.dp)
-                            .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
+                            .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.45f))
                             .padding(horizontal = 4.dp, vertical = 3.dp),
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
@@ -710,14 +711,14 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
     Column(Modifier.padding(horizontal = 16.dp)) {
         OutlinedTextField(
             value = ui.name, onValueChange = vm::setName, label = { Text("Deck name") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = colors,
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
             value = ui.text, onValueChange = vm::setText,
             placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
             modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 420.dp),
-            shape = RoundedCornerShape(14.dp), colors = colors,
+            shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
         Spacer(Modifier.height(6.dp))
         Text("One card per line.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -752,7 +753,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                 OutlinedButton(
                     onClick = vm::wishlistMissing,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(Corners.Medium),
                 ) {
                     Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
@@ -779,7 +780,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
 
 @Composable
 private fun Stat(label: String, value: String, modifier: Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(18.dp), color = Palette.Surface) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(14.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
             Text(value, style = MaterialTheme.typography.titleLarge)
@@ -790,7 +791,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 @Composable
 private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(l.imageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
+        CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(

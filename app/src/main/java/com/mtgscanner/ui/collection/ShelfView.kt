@@ -51,6 +51,7 @@ import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /**
  * The shelves as a picture: one row of spots per shelf, each spot showing the box that sits there. [highlight]
@@ -73,7 +74,7 @@ fun ShelfPicture(
                     val spot = row * layout.cols + col
                     val id = layout.boxAt(spot)
                     val lit = id != null && id in highlight
-                    val shape = RoundedCornerShape(6.dp)
+                    val shape = RoundedCornerShape(Corners.Small)
                     Box(
                         Modifier
                             .weight(1f)
@@ -109,7 +110,7 @@ fun ShelfPicture(
                 }
             }
             // The shelf board under each row.
-            Box(Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 6.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Palette.Outline))
+            Box(Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 6.dp).height(3.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Outline))
         }
     }
 }

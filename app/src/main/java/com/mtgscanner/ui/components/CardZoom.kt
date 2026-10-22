@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,6 +49,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
 import kotlin.math.max
+import com.mtgscanner.ui.theme.CardShape
 
 /**
  * App-wide "hold to zoom" for card images. A long press on a card shows it big over a dimmed
@@ -255,7 +255,7 @@ fun CardZoomHost() {
                     translationY = o.y
                     rotationZ = (o.x / max(size.width, 1f)) * 12f
                 }
-                .clip(RoundedCornerShape(w * 0.045f))
+                .clip(CardShape)
                 .background(Palette.SurfaceHigh)
                 // Taps on the card itself don't close it; drags still move it.
                 .pointerInput(shown.key) { detectTapGestures { } },

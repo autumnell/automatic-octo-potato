@@ -39,6 +39,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** A saved Browse search shown like a box: it holds no cards itself, it just counts what matches. */
 data class SmartList(val search: SavedSearch, val cards: Int, val value: Double) {
@@ -69,7 +70,7 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
         Surface(
             onClick = { onOpen(l.search) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(Corners.Medium),
             color = Palette.Surface,
         ) {
             Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -111,7 +112,7 @@ fun ResortSheet(
                     val to = byId[m.to]
                     val spot = to?.let { Sorting.spot(BoxLayout.of(it.divider), m.item.name, m.item.facts()) }
                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CardImage(m.item.smallImageUrl, Modifier.width(40.dp), corner = 4.dp)
+                        CardImage(m.item.smallImageUrl, Modifier.width(40.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(

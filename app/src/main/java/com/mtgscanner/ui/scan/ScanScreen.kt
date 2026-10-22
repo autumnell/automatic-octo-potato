@@ -130,6 +130,8 @@ import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import java.util.concurrent.Executors
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.CardShape
 
 @Composable
 fun ScanScreen(
@@ -290,7 +292,7 @@ fun ScanScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             if (state.review.isNotEmpty()) {
-                                Surface(onClick = { vm.showReview(true) }, shape = RoundedCornerShape(14.dp), color = Palette.Gold) {
+                                Surface(onClick = { vm.showReview(true) }, shape = RoundedCornerShape(Corners.Medium), color = Palette.Gold) {
                                     Text("Check ${state.review.size}", color = Color.Black, style = MaterialTheme.typography.labelLarge,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
                                 }
@@ -300,7 +302,7 @@ fun ScanScreen(
                                     "Skipped ${state.skipped}",
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
+                                    modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
                                         .clickable(onClickLabel = "Show skipped cards") { vm.showSkipped(true) }
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
@@ -311,7 +313,7 @@ fun ScanScreen(
                                     "Unknown ${state.unknownCount}",
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f))
+                                    modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
                                         .clickable(onClickLabel = "Show unknown scans") { vm.showUnknown(true) }
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
@@ -455,9 +457,9 @@ private fun FoilChip(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modi
     Box(
         modifier
             .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(if (on) Palette.Gold else Color.Black.copy(alpha = 0.6f))
-            .border(1.dp, if (on) Palette.Gold else Color.White.copy(alpha = 0.35f), RoundedCornerShape(50))
+            .border(1.dp, if (on) Palette.Gold else Color.White.copy(alpha = 0.35f), RoundedCornerShape(Corners.Small))
             .clickable(onClickLabel = if (on) "Turn foil off" else "Turn foil on", onClick = onClick)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
@@ -468,7 +470,7 @@ private fun FoilChip(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modi
 
 @Composable
 private fun OfflineCard(name: String, vm: ScanViewModel) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Palette.Surface.copy(alpha = 0.97f)) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface.copy(alpha = 0.97f)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
@@ -482,7 +484,7 @@ private fun OfflineCard(name: String, vm: ScanViewModel) {
             )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text("Skip") }
+                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(Corners.Medium), modifier = Modifier.heightIn(min = 48.dp)) { Text("Skip") }
                 GradientButton("Save for later", { vm.saveOffline() }, Modifier.weight(1f).heightIn(min = 48.dp), icon = Icons.Filled.Schedule)
             }
         }
@@ -501,7 +503,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
             Text("Scan", style = MaterialTheme.typography.titleLarge)
             Box {
                 Row(
-                    Modifier.clip(RoundedCornerShape(8.dp)).clickable { boxMenu = true }.padding(vertical = 2.dp),
+                    Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { boxMenu = true }.padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
@@ -577,7 +579,7 @@ private fun PresetSwitcher() {
     var open by remember { mutableStateOf(false) }
     Box {
         Row(
-            Modifier.clip(RoundedCornerShape(50)).background(Palette.SurfaceHigh).clickable { open = true }
+            Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).clickable { open = true }
                 .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -630,9 +632,9 @@ private fun FrameGuide(found: Boolean, flash: Int, paused: Boolean, modifier: Mo
         modifier
             .fillMaxWidth(0.66f)
             .aspectRatio(63f / 88f)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(CardShape)
             .background(flashColor.copy(alpha = fill))
-            .border(3.dp, if (flashing) flashColor else color, RoundedCornerShape(18.dp)),
+            .border(3.dp, if (flashing) flashColor else color, CardShape),
     )
 }
 
@@ -640,9 +642,9 @@ private fun FrameGuide(found: Boolean, flash: Int, paused: Boolean, modifier: Mo
 private fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(Corners.Medium))
             .background(Color.Black.copy(alpha = 0.8f))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(16.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(Corners.Medium))
             .padding(horizontal = 22.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -668,10 +670,10 @@ private fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
 @Composable
 private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel) {
     val foil = state.isFoil(card)
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = Palette.Surface.copy(alpha = 0.97f)) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface.copy(alpha = 0.97f)) {
         Column(Modifier.padding(14.dp)) {
             Row {
-                CardImage(card.imageUrl, Modifier.width(92.dp).foilShimmer(foil), corner = 6.dp)
+                CardImage(card.imageUrl, Modifier.width(92.dp).foilShimmer(foil))
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(card.name, style = MaterialTheme.typography.titleMedium)
@@ -699,7 +701,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                                 color = Color.Black,
                                 style = MaterialTheme.typography.labelSmall,
                                 maxLines = 1,
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Palette.Gold).padding(horizontal = 6.dp, vertical = 1.dp),
+                                modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold).padding(horizontal = 6.dp, vertical = 1.dp),
                             )
                         }
                     }
@@ -715,7 +717,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                                     "Looks foil",
                                     color = Color.Black,
                                     style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Palette.Gold.copy(alpha = 0.85f))
+                                    modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold.copy(alpha = 0.85f))
                                         .clickable(onClickLabel = "Mark foil", onClick = vm::acceptFoilHint)
                                         .padding(horizontal = 10.dp, vertical = 6.dp),
                                 )
@@ -750,7 +752,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     state.wish?.let { w ->
                         Spacer(Modifier.height(4.dp))
                         Row(
-                            Modifier.clip(RoundedCornerShape(8.dp)).background(Palette.Success.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 3.dp),
+                            Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Success.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Filled.Favorite, null, tint = Palette.Success, modifier = Modifier.size(14.dp))
@@ -768,17 +770,17 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
             val tight = PaddingValues(horizontal = 12.dp)
             // Price check: look, then move on. Nothing is added.
             if (state.target == ScanTarget.CHECK) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Printing", maxLines = 1)
                 }
                 GradientButton("Next", vm::skip, Modifier.weight(1f).heightIn(min = 48.dp))
             } else if (state.target == ScanTarget.REMOVE || state.target == ScanTarget.BOX) Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Skip", maxLines = 1)
                 }
-                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Printing", maxLines = 1)
                 }
                 if (state.target == ScanTarget.REMOVE) {
@@ -787,15 +789,15 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     GradientButton("Count", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp))
                 }
             } else Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Skip", maxLines = 1)
                 }
-                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("Printing", maxLines = 1)
                 }
                 // Copies come from the scan bar; +4 stays as a shortcut while it's at one.
                 val qty = ScanBarPrefs.quantity
-                if (qty == 1) OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(14.dp), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
+                if (qty == 1) OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text("+4", maxLines = 1)
                 }
                 // Auto-add already added it: the button adds one more copy, same finish and language.
@@ -900,7 +902,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                         .padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CardImage(e.card.smallImageUrl, Modifier.width(44.dp), corner = 4.dp)
+                    CardImage(e.card.smallImageUrl, Modifier.width(44.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1049,7 +1051,7 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             }
             Text(
                 z, color = Color.White, style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 210.dp).clip(RoundedCornerShape(12.dp))
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 210.dp).clip(RoundedCornerShape(Corners.Medium))
                     .background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }
@@ -1093,7 +1095,7 @@ private fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
     AnimatedVisibility(visible = visible && boxName != null, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Column(
             Modifier
-                .clip(RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(Corners.Medium))
                 .background(Color.Black.copy(alpha = 0.78f))
                 .padding(horizontal = 22.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1136,9 +1138,9 @@ private fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = Mo
     Row(
         modifier
             .padding(bottom = 8.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(Corners.Medium))
             .background(Color.Black.copy(alpha = 0.8f))
-            .border(1.dp, Palette.Gold.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+            .border(1.dp, Palette.Gold.copy(alpha = 0.6f), RoundedCornerShape(Corners.Medium))
             .padding(start = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1180,7 +1182,7 @@ private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
                 val c = item.card
                 Column(Modifier.fillMaxWidth().clickable { open = if (open == c.id) null else c.id }.padding(horizontal = 16.dp, vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CardImage(c.smallImageUrl, Modifier.width(52.dp), corner = 4.dp)
+                        CardImage(c.smallImageUrl, Modifier.width(52.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1194,7 +1196,7 @@ private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
                     }
                     if (open == c.id) {
                         Spacer(Modifier.height(8.dp))
-                        CardImage(c.imageUrl, Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally), corner = 12.dp)
+                        CardImage(c.imageUrl, Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally))
                         Spacer(Modifier.height(8.dp))
                         OutlinedButton(
                             onClick = {
@@ -1202,7 +1204,7 @@ private fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
                                 printings = null
                                 scope.launch { printings = vm.printingsOf(c) }
                             },
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(Corners.Medium),
                             modifier = Modifier.align(Alignment.CenterHorizontally).heightIn(min = 48.dp),
                         ) { Text("Printing") }
                     }

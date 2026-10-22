@@ -44,6 +44,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import com.mtgscanner.ui.theme.Corners
 
 /** Card data looked up for decks, kept for the app's lifetime. */
 private val cardCache = ConcurrentHashMap<String, DeckCardInfo>()
@@ -180,7 +181,7 @@ private fun StatCard(
 ) {
     Surface(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         color = Palette.Surface,
     ) {
         Column(Modifier.padding(16.dp)) {

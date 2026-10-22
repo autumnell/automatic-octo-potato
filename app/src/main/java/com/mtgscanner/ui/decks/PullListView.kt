@@ -43,6 +43,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import com.mtgscanner.ui.theme.Corners
 
 /** Pull list checkmarks per deck (deck id to [PullItem.key]s), kept in SharedPreferences. */
 object PullChecksStore {
@@ -120,7 +121,7 @@ fun PullListView(
                 OutlinedButton(
                     onClick = onMoveChecked,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(Corners.Medium),
                 ) {
                     Icon(Icons.Filled.Style, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
@@ -156,7 +157,7 @@ private fun PullRow(p: PullItem, ticked: Boolean, onToggle: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(ticked, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
-        CardImage(p.imageUrl, Modifier.width(34.dp), corner = 4.dp, zoom = true)
+        CardImage(p.imageUrl, Modifier.width(34.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(

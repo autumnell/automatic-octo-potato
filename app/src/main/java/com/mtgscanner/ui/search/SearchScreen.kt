@@ -85,6 +85,7 @@ import com.mtgscanner.ui.components.scryfallPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 @Composable
 fun SearchScreen(
@@ -168,7 +169,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
     Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp)).background(Palette.SurfaceHigh).padding(start = 16.dp),
+                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(start = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f)) {
@@ -193,7 +194,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
             Spacer(Modifier.width(10.dp))
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(Corners.Medium))
                     .background(Palette.AccentGradient)
                     .clickable { focus.clearFocus(); vm.submit() }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -301,10 +302,10 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
 @Composable
 private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(6.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick).padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl, Modifier.width(46.dp), corner = 4.dp, zoom = true)
+        CardImage(c.smallImageUrl, Modifier.width(46.dp), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -346,8 +347,8 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 14.dp)) {
                     items(ui.viewed, key = { it.id }) { v ->
-                        Column(Modifier.width(84.dp).clip(RoundedCornerShape(10.dp)).clickable { vm.openViewed(v) }.padding(4.dp)) {
-                            CardImage(v.image, Modifier.fillMaxWidth(), corner = 6.dp, zoom = true)
+                        Column(Modifier.width(84.dp).clip(RoundedCornerShape(Corners.Small)).clickable { vm.openViewed(v) }.padding(4.dp)) {
+                            CardImage(v.image, Modifier.fillMaxWidth(), zoom = true)
                             Text(v.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                         }
                     }
@@ -420,7 +421,7 @@ private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Palette.Surface), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {
             AsyncImage(
                 model = s.iconSvgUri,
                 contentDescription = null,

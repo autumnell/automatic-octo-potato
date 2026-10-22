@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.PriceAlerts
+import com.mtgscanner.ui.theme.Corners
 
 /** Show or hide prices everywhere, and daily price alerts. */
 @Composable
@@ -207,7 +208,7 @@ fun ScanningSection() {
 
 @Composable
 internal fun Card(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column { content() }
     }
 }

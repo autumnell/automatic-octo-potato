@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
 
 /** Asking price per copy: your own, or the market price. */
 fun CollectionCard.salePrice(): Double? = askPrice ?: unitPrice()
@@ -154,7 +155,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
         }
         val list = cards ?: return@Column
         if (AppSettings.showPrices && (list.isNotEmpty() || earned > 0)) {
-            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(18.dp), color = Palette.Surface) {
+            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                 Column(Modifier.padding(14.dp)) {
                     if (list.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${list.sumOf { it.quantity }} cards", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
@@ -193,7 +194,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
 @Composable
 private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(c.smallImageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
+        CardImage(c.smallImageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

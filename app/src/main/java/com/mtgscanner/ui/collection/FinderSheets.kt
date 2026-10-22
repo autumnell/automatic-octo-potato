@@ -104,7 +104,7 @@ private fun FoundRow(c: CollectionCard, where: String, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(40.dp), corner = 4.dp)
+        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(40.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -159,7 +159,7 @@ fun DuplicatesSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                             Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.padding(horizontal = 20.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(32.dp), corner = 3.dp)
+                            CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(32.dp))
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("${c.setCode} #${c.collectorNumber}" + if (c.foil) " · Foil" else "", style = MaterialTheme.typography.bodyMedium)

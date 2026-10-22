@@ -35,6 +35,7 @@ import com.mtgscanner.MtgApp
 import com.mtgscanner.data.sync.HouseSync
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
 
 /** Settings › Data: "Shared collection" (beta), two phones keeping one collection through a shared file. */
 @Composable
@@ -86,7 +87,7 @@ internal fun SharedCollectionRow() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Shared collection", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.width(8.dp))
-                    Surface(shape = RoundedCornerShape(6.dp), color = Palette.SurfaceHigh) {
+                    Surface(shape = RoundedCornerShape(Corners.Small), color = Palette.SurfaceHigh) {
                         Text("Beta", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                     }
                 }

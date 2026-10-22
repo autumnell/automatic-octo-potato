@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** One coach mark: the control it points at ([id]), a title and one short sentence. */
 data class ScanHint(val id: String, val title: String, val body: String)
@@ -116,7 +117,7 @@ fun ScanHintsOverlay(targets: Map<String, Rect>, onDone: () -> Unit) {
         }
         Surface(
             cardModifier.padding(horizontal = 24.dp).widthIn(max = 360.dp).fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(Corners.Medium),
             color = Palette.Surface,
         ) {
             Column(Modifier.padding(16.dp)) {

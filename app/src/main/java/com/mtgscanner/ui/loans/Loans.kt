@@ -143,7 +143,7 @@ private fun LoanItem(r: LoanRow, onOpen: () -> Unit, onReturned: () -> Unit) {
         Modifier.fillMaxWidth().clickable(enabled = c != null, onClick = onOpen).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c?.smallImageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = c != null)
+        CardImage(c?.smallImageUrl, Modifier.width(40.dp), zoom = c != null)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(r.loan.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

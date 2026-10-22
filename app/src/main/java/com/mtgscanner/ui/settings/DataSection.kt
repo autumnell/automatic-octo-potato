@@ -93,6 +93,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.mtgscanner.ui.theme.Corners
 
 /** Settings jobs (backup, import, restore…) run one at a time, in the app's scope, so leaving Settings doesn't stop them. */
 object DataJobs {
@@ -498,7 +499,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         }
     }
 
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column {
             busy?.let {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {

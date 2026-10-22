@@ -87,6 +87,7 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import com.mtgscanner.ui.theme.Corners
 
 /** Which way each seat faces, matching the table layout. */
 fun seatRotation(players: Int, i: Int): Int = when (players) {
@@ -148,9 +149,9 @@ private fun TableOverlay(
 @Composable
 private fun TabPill(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.height(54.dp).clip(RoundedCornerShape(16.dp))
+        modifier.height(54.dp).clip(RoundedCornerShape(Corners.Medium))
             .background(if (selected) Palette.Accent else Color.White.copy(alpha = 0.16f))
-            .border(2.dp, if (selected) Color.White else Color.White.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .border(2.dp, if (selected) Color.White else Color.White.copy(alpha = 0.25f), RoundedCornerShape(Corners.Medium))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -187,9 +188,9 @@ private fun ScrollPage(state: ScrollableState, modifier: Modifier = Modifier, co
 @Composable
 private fun PageButton(icon: ImageVector, label: String, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Box(
-        modifier.width(64.dp).clip(RoundedCornerShape(18.dp))
+        modifier.width(64.dp).clip(RoundedCornerShape(Corners.Medium))
             .background(Color.White.copy(alpha = if (enabled) 0.2f else 0.06f))
-            .border(2.dp, Color.White.copy(alpha = if (enabled) 0.5f else 0.12f), RoundedCornerShape(18.dp))
+            .border(2.dp, Color.White.copy(alpha = if (enabled) 0.5f else 0.12f), RoundedCornerShape(Corners.Medium))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -221,7 +222,7 @@ private fun CounterTile(
     icon: ImageVector? = null,
 ) {
     Surface(
-        modifier, shape = RoundedCornerShape(18.dp), color = Color(0xFF22242B),
+        modifier, shape = RoundedCornerShape(Corners.Medium), color = Color(0xFF22242B),
         border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
     ) {
         Column(Modifier.padding(vertical = 10.dp, horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -263,7 +264,7 @@ private fun ActionTile(
 ) {
     Surface(
         onClick = onClick, enabled = enabled, modifier = modifier.height(124.dp).alpha(if (enabled) 1f else 0.4f),
-        shape = RoundedCornerShape(20.dp), color = Color(0xFF22242B),
+        shape = RoundedCornerShape(Corners.Medium), color = Color(0xFF22242B),
         border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
     ) {
         Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -289,14 +290,14 @@ private fun PlayerPicker(g: GameState, question: String, current: Int?, onPick: 
             if (k < g.players.size) {
                 val p = g.players[k]
                 Box(
-                    mod.height(84.dp).clip(RoundedCornerShape(18.dp)).background(PLAYER_COLORS[p.color % PLAYER_COLORS.size])
-                        .border(if (current == k) 4.dp else 0.dp, Color.White, RoundedCornerShape(18.dp))
+                    mod.height(84.dp).clip(RoundedCornerShape(Corners.Medium)).background(PLAYER_COLORS[p.color % PLAYER_COLORS.size])
+                        .border(if (current == k) 4.dp else 0.dp, Color.White, RoundedCornerShape(Corners.Medium))
                         .clickable { onPick(k) },
                     contentAlignment = Alignment.Center,
                 ) { Text(p.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             } else Box(
-                mod.height(84.dp).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.1f))
-                    .border(if (current == null) 4.dp else 0.dp, Color.White, RoundedCornerShape(18.dp))
+                mod.height(84.dp).clip(RoundedCornerShape(Corners.Medium)).background(Color.White.copy(alpha = 0.1f))
+                    .border(if (current == null) 4.dp else 0.dp, Color.White, RoundedCornerShape(Corners.Medium))
                     .clickable { onPick(null) },
                 contentAlignment = Alignment.Center,
             ) { Text("Nobody", color = Color.White, fontSize = 20.sp) }

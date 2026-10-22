@@ -59,6 +59,8 @@ import com.mtgscanner.ui.components.animationsOff
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.theme.Palette
 import kotlin.math.roundToInt
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.CardShape
 
 private val Fan = FanLayout()
 
@@ -115,7 +117,7 @@ fun SessionFan(session: List<ScanEntry>, startKey: Long, onClick: () -> Unit, mo
 
 @Composable
 private fun FanCard(e: ScanEntry, modifier: Modifier) {
-    val shape = RoundedCornerShape(5.dp)
+    val shape = CardShape
     Box(
         modifier
             .size(Fan.cardWidth.dp, (Fan.cardWidth * 88f / 63f).dp)
@@ -209,7 +211,6 @@ private fun FlightOf(f: Flight, origin: Offset) {
                     rotationZ = -8f * p
                     alpha = if (p < 0.65f) 1f else 1f - (p - 0.65f) / 0.35f
                 },
-            corner = 10.dp,
         )
     }
 
@@ -231,9 +232,9 @@ private fun FlightOf(f: Flight, origin: Offset) {
                 scaleY = s
             }
             .widthIn(max = 220.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(Color.Black.copy(alpha = 0.85f))
-            .border(1.dp, boxColor(f.color).copy(alpha = 0.8f), RoundedCornerShape(50))
+            .border(1.dp, boxColor(f.color).copy(alpha = 0.8f), RoundedCornerShape(Corners.Small))
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

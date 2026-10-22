@@ -52,6 +52,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import com.mtgscanner.ui.theme.Corners
 
 @Serializable
 private data class SavedLine(val qty: Int, val name: String, val set: String, val from: String, val to: String, val spot: String? = null)
@@ -165,7 +166,7 @@ fun MoveListHost(modifier: Modifier = Modifier) {
     Surface(
         onClick = { MoveList.open = true },
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         color = Palette.BoxCard,
     ) {
         Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

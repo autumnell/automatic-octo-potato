@@ -58,6 +58,7 @@ import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Player colors for the life counter panels. */
 val PLAYER_COLORS = listOf(
@@ -99,7 +100,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
 
             current?.let { g ->
                 Spacer(Modifier.height(8.dp))
-                Surface(shape = RoundedCornerShape(16.dp), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
+                Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                         Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
                         Text(
@@ -199,7 +200,7 @@ private fun Label(text: String) {
 /** A small selectable chip for the setup rows. */
 @Composable
 private fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(Corners.Small)
     Box(
         modifier
             .height(48.dp)
@@ -220,7 +221,7 @@ private fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier,
 /** A short one-line name box with the player's color dot. */
 @Composable
 private fun NameField(i: Int, value: String, onChange: (String) -> Unit, modifier: Modifier) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(Corners.Small)
     Row(
         modifier.height(48.dp).clip(shape).background(Palette.SurfaceHigh).border(1.dp, Palette.Outline, shape).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

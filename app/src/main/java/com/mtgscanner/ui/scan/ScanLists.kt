@@ -46,6 +46,7 @@ import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.home.UnknownScanDialog
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Cards the skip rules skipped this session, each with "Add anyway". */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,7 +58,7 @@ fun SkippedSheet(state: ScanUiState, vm: ScanViewModel) {
             if (state.skippedCards.isEmpty()) item(key = "empty") { EmptyState("Nothing skipped", Modifier.padding(vertical = 24.dp)) }
             items(state.skippedCards, key = { it.key }) { s ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CardImage(s.card.smallImageUrl, Modifier.width(44.dp), corner = 4.dp)
+                    CardImage(s.card.smallImageUrl, Modifier.width(44.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(s.card.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -127,7 +128,7 @@ fun BoxPickDialog(boxes: List<CardBox>, vm: ScanViewModel) {
                         color = boxColor(b.color),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { vm.startBoxCheck(b) }
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { vm.startBoxCheck(b) }
                             .padding(vertical = 12.dp, horizontal = 4.dp),
                     )
                 }
@@ -141,7 +142,7 @@ fun BoxPickDialog(boxes: List<CardBox>, vm: ScanViewModel) {
 @Composable
 fun BoxCheckChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val run = state.boxCheck ?: return
-    Surface(modifier, shape = RoundedCornerShape(14.dp), color = Color.Black.copy(alpha = 0.75f)) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
         Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text(run.boxName, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -156,7 +157,7 @@ fun BoxCheckChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
 @Composable
 fun RemoveChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     if (state.target != ScanTarget.REMOVE) return
-    Surface(modifier, shape = RoundedCornerShape(14.dp), color = Color.Black.copy(alpha = 0.75f)) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
         Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Removing", color = Color.White, style = MaterialTheme.typography.labelLarge)
@@ -254,7 +255,7 @@ private fun CheckRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (imageUrl != null) {
-            CardImage(imageUrl, Modifier.width(36.dp), corner = 3.dp)
+            CardImage(imageUrl, Modifier.width(36.dp))
             Spacer(Modifier.width(10.dp))
         }
         Column(Modifier.weight(1f)) {

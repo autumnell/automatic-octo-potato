@@ -50,6 +50,7 @@ import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** One box's stack in a sorting session. */
 private data class SortStack(val boxId: Long, val name: String, val color: Int, val entries: List<ScanEntry>) {
@@ -82,7 +83,7 @@ private fun stacks(session: SortSession, boxes: List<CardBox>): List<SortStack> 
 @Composable
 fun SortChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val s = state.sort ?: return
-    Surface(modifier, shape = RoundedCornerShape(14.dp), color = Color.Black.copy(alpha = 0.75f)) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
         Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Sorting", color = Color.White, style = MaterialTheme.typography.labelLarge)
@@ -132,7 +133,7 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
                         }
                         Spacer(Modifier.weight(1f))
                         Row(
-                            Modifier.clip(RoundedCornerShape(50)).clickable { vm.toggleSortDone(st.boxId) }.padding(horizontal = 10.dp, vertical = 6.dp),
+                            Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { vm.toggleSortDone(st.boxId) }.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
@@ -182,6 +183,6 @@ fun FullTag(modifier: Modifier = Modifier) {
         "Full",
         color = Color.Black,
         style = MaterialTheme.typography.labelSmall,
-        modifier = modifier.clip(RoundedCornerShape(6.dp)).background(Palette.Gold).padding(horizontal = 6.dp, vertical = 1.dp),
+        modifier = modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold).padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }

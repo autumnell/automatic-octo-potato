@@ -103,6 +103,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import com.mtgscanner.ui.theme.Corners
 
 /** How much of a set you own: different collector numbers, out of the main set (or every printing, with variants). */
 data class SetProgress(
@@ -305,7 +306,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
                                 Spacer(Modifier.height(6.dp))
                                 LinearProgressIndicator(
                                     progress = { s.fraction },
-                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
                                     color = Palette.Accent,
                                     trackColor = Palette.SurfaceHigh,
                                     drawStopIndicator = {},
@@ -488,7 +489,7 @@ private fun SetHeader(
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(Palette.Surface), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {
                 if (iconUrl != null) AsyncImage(iconUrl, null, Modifier.size(32.dp), colorFilter = ColorFilter.tint(Palette.Accent))
                 else Text(code.uppercase().take(4), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             }
@@ -517,7 +518,7 @@ private fun SetHeader(
             Spacer(Modifier.height(6.dp))
             LinearProgressIndicator(
                 progress = { (have.toFloat() / total).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
                 color = Palette.Accent,
                 trackColor = Palette.SurfaceHigh,
                 drawStopIndicator = {},
@@ -528,9 +529,9 @@ private fun SetHeader(
 
 @Composable
 private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
-    Column(Modifier.padding(4.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick)) {
+    Column(Modifier.padding(4.dp).clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick)) {
         Box {
-            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.45f), corner = 8.dp, zoom = true)
+            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.45f), zoom = true)
             if (qty > 0) OwnedBadge(qty, Modifier.align(Alignment.TopStart).padding(5.dp))
             val price = c.anyPrice()
             if (AppSettings.showPrices && price != null) Text(
@@ -538,7 +539,7 @@ private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.White,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
-                    .clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = 5.dp, vertical = 1.dp),
+                    .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = 5.dp, vertical = 1.dp),
             )
         }
         Text(
@@ -554,10 +555,10 @@ private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
 @Composable
 private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(6.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick).padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), corner = 4.dp, zoom = true)
+        CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(

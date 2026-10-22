@@ -57,7 +57,7 @@ fun CardPreviewContent(
 ) {
     Column(modifier) {
         Row(verticalAlignment = Alignment.Top) {
-            CardImage(card.imageUrl ?: card.smallImageUrl, Modifier.width(150.dp), corner = 9.dp)
+            CardImage(card.imageUrl ?: card.smallImageUrl, Modifier.width(150.dp))
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(card.name, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)

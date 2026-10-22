@@ -161,7 +161,7 @@ private fun PullRow(p: BuyPull, box: String?, on: Boolean, onToggle: () -> Unit,
     val c = p.card
     Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Checkbox(on, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
-        CardImage(c.smallImageUrl, Modifier.width(36.dp), corner = 4.dp, zoom = true)
+        CardImage(c.smallImageUrl, Modifier.width(36.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -40,6 +40,7 @@ import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Details of a card you get: printing, foil, condition and language. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -58,7 +59,7 @@ internal fun GetCardSheet(
     ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
             Row {
-                CardImage(card.imageUrl, Modifier.width(110.dp), corner = 7.dp)
+                CardImage(card.imageUrl, Modifier.width(110.dp))
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(card.name, style = MaterialTheme.typography.titleLarge)
@@ -114,7 +115,7 @@ private fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
         style = MaterialTheme.typography.labelLarge,
         color = if (selected) Palette.AccentText else Palette.Text,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),

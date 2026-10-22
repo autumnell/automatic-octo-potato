@@ -49,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.mtgscanner.ui.theme.Corners
 
 /** "Rares: not checked in 3 months" with a button that starts a Box check of it. One box at a time. */
 @Composable
@@ -119,7 +120,7 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
 
     Surface(
         modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         color = Palette.Surface,
     ) {
         Column(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp)) {

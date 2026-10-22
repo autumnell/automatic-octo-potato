@@ -70,6 +70,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import com.mtgscanner.ui.theme.Corners
 
 class StatsViewModel(repo: CollectionRepository) : ViewModel() {
     /** Null until the collection has loaded. */
@@ -165,7 +166,7 @@ fun StatsScreen(
 
             if (prices && s.top.isNotEmpty()) {
                 SectionHeader("Most valuable")
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                     Column(Modifier.padding(vertical = 6.dp)) {
                         s.top.forEachIndexed { i, c ->
                             Row(
@@ -173,7 +174,7 @@ fun StatsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.width(24.dp))
-                                CardImage(c.smallImageUrl, Modifier.width(32.dp).sharedCard(c.id), corner = 3.dp)
+                                CardImage(c.smallImageUrl, Modifier.width(32.dp).sharedCard(c.id))
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -204,7 +205,7 @@ private fun Breakdown(
     onRow: (StatRow) -> Unit,
 ) {
     val max = rows.maxOfOrNull { if (prices) it.value else it.cards.toDouble() }?.takeIf { it > 0 } ?: 1.0
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(vertical = 8.dp)) {
             rows.forEach { r ->
                 Column(Modifier.fillMaxWidth().clickable { onRow(r) }.padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -222,13 +223,13 @@ private fun Breakdown(
                     }
                     Spacer(Modifier.height(4.dp))
                     val frac = ((if (prices) r.value else r.cards.toDouble()) / max).toFloat().coerceIn(0f, 1f)
-                    Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh)) {
+                    Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)) {
                         if (frac > 0f) {
                             val fill = bar(r)
                             Box(
-                                Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(3.dp)).background(fill)
+                                Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(Corners.Small)).background(fill)
                                     // White would vanish on a light panel: give it an edge.
-                                    .then(if (!Palette.dark && fill == MtgColors.WOnSurface) Modifier.border(1.dp, MtgColors.SliceEdge, RoundedCornerShape(3.dp)) else Modifier),
+                                    .then(if (!Palette.dark && fill == MtgColors.WOnSurface) Modifier.border(1.dp, MtgColors.SliceEdge, RoundedCornerShape(Corners.Small)) else Modifier),
                             )
                         }
                     }
@@ -246,7 +247,7 @@ private fun colorOf(k: String): Color = if (k == "C") MtgColors.C else MtgColors
 /** What was paid for the copies with a price paid, what they're worth now, and the difference. */
 @Composable
 private fun PaidPanel(p: PaidSummary) {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Text("Paid", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)

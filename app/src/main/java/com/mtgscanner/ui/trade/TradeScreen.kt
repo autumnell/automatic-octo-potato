@@ -85,6 +85,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
 
 /** A card on one side of a trade. [owned] is set for cards you give away. */
 @kotlinx.serialization.Serializable
@@ -311,7 +312,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                 if (ui.give.isNotEmpty() || ui.get.isNotEmpty()) TextButton(onClick = vm::clear) { Text("Clear") }
             }
             if (AppSettings.showPrices && (ui.give.isNotEmpty() || ui.get.isNotEmpty())) {
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(18.dp), color = Palette.Surface) {
+                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                     Column(Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
@@ -426,7 +427,7 @@ private fun TradeRow(item: TradeItem, vm: TradeViewModel, onEdit: (() -> Unit)? 
         Modifier.fillMaxWidth().then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(horizontal = 16.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(item.imageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true, onTap = onEdit)
+        CardImage(item.imageUrl, Modifier.width(40.dp), zoom = true, onTap = onEdit)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -449,7 +450,7 @@ private fun FairnessMeter(give: Double, get: Double) {
         else -> (if (get > give) "Uneven, you gain" else "Uneven, you lose") to Palette.Danger
     }
     Column {
-        Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(Palette.SurfaceHigh)) {
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)) {
             Row(Modifier.fillMaxSize()) {
                 if (give > 0) Box(Modifier.weight((give / total).toFloat().coerceAtLeast(0.001f)).fillMaxHeight().background(Palette.Info))
                 if (get > 0) Box(Modifier.weight((get / total).toFloat().coerceAtLeast(0.001f)).fillMaxHeight().background(color))
@@ -510,7 +511,7 @@ private fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Col
 @Composable
 private fun PickRow(title: String, sub: String?, image: String?, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (image != null) { CardImage(image, Modifier.width(36.dp), corner = 3.dp); Spacer(Modifier.width(10.dp)) }
+        if (image != null) { CardImage(image, Modifier.width(36.dp)); Spacer(Modifier.width(10.dp)) }
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall)
             sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
