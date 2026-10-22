@@ -19,7 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -34,10 +34,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,11 +55,9 @@ import com.mtgscanner.data.DeckFormats
 import com.mtgscanner.data.PairKind
 import com.mtgscanner.data.RulesCard
 import com.mtgscanner.data.ScryfallCard
-import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
-import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
 
@@ -216,9 +214,12 @@ fun CommanderPickerSheet(
     }
 }
 
-/** Under the deck's name: commander art, the format and commanders, and what breaks the format's rules. */
+/**
+ * Under the deck's name: commander art, the format and commanders, and what breaks the format's rules.
+ * [onEdhrec] opens the commander's EDHREC page; null hides the button.
+ */
 @Composable
-fun DeckHeader(format: String, commanders: DeckCommanders, art: List<String>, issues: CommanderRules.Issues) {
+fun DeckHeader(format: String, commanders: DeckCommanders, art: List<String>, issues: CommanderRules.Issues, onEdhrec: (() -> Unit)? = null) {
     val f = DeckFormats.of(format)
     if (f.id.isEmpty() && commanders.isEmpty) return
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -248,22 +249,26 @@ fun DeckHeader(format: String, commanders: DeckCommanders, art: List<String>, is
                 )
             }
         }
+        if (onEdhrec != null && f.commander) {
+            TextButton(onClick = onEdhrec) {
+                Text("EDHREC")
+                Spacer(Modifier.width(2.dp))
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(14.dp))
+            }
+        }
     }
 }
 
-/** Confirms "Add to collection": which cards, and where they go. */
+/** Confirms "Add to collection": which cards. They're kept in the deck, not in a box. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddDeckSheet(
     counts: Pair<Int, Int>?,
-    boxes: List<CardBox>,
     busy: Boolean,
-    onAdd: (onlyMissing: Boolean, boxId: Long) -> Unit,
+    onAdd: (onlyMissing: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var onlyMissing by remember { mutableStateOf(true) }
-    var boxId by remember { mutableLongStateOf(CardBox.AUTO_SORT) }
-    if (boxId != CardBox.AUTO_SORT && boxes.none { it.id == boxId }) boxId = CardBox.AUTO_SORT
     val n = counts?.let { if (onlyMissing) it.second else it.first }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -279,19 +284,8 @@ fun AddDeckSheet(
                 SelectPill("Only missing" + (counts?.let { " (${it.second})" } ?: ""), onlyMissing, { onlyMissing = true })
                 SelectPill("All" + (counts?.let { " (${it.first})" } ?: ""), !onlyMissing, { onlyMissing = false })
             }
-            Spacer(Modifier.height(14.dp))
-            Text("Add to", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
-                    Icon(Icons.AutoMirrored.Filled.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Icon)
-                })
-                boxes.forEach { b ->
-                    SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {
-                        Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.AccentText else Palette.Icon)
-                    })
-                }
-            }
+            Spacer(Modifier.height(10.dp))
+            Text("Kept in this deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Spacer(Modifier.height(20.dp))
             if (busy) {
                 Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
@@ -299,7 +293,7 @@ fun AddDeckSheet(
                 GradientButton(
                     text = when (n) { null -> "Add"; 1 -> "Add 1 card"; else -> "Add $n cards" },
                     icon = Icons.Filled.Add,
-                    onClick = { onAdd(onlyMissing, boxId) },
+                    onClick = { onAdd(onlyMissing) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = n != null && n > 0,
                 )

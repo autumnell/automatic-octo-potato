@@ -3,6 +3,8 @@ package com.mtgscanner.ui.decks
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.isDeckSlot
+import com.mtgscanner.data.db.placeName
 import com.mtgscanner.util.DeckLine
 
 /** Copies of one printing to take out of one box. */
@@ -25,26 +27,64 @@ data class PullGroup(val boxId: Long?, val boxName: String, val items: List<Pull
 
 data class PullMissing(val name: String, val qty: Int)
 
+/** A commander-style deck's leads (commanders, companion, signature spell) in the pull list, shown first. */
+data class PullLeads(
+    /** (box name, item) to pull, in lead order. */
+    val items: List<Pair<String, PullItem>> = emptyList(),
+    val missing: List<PullMissing> = emptyList(),
+) {
+    val isEmpty: Boolean get() = items.isEmpty() && missing.isEmpty()
+}
+
 data class PullList(
     val groups: List<PullGroup>,
     val missing: List<PullMissing>,
-    /** Copies already in this deck's own deck box, so not pulled. */
+    /** Copies already kept in this deck, so not pulled. */
     val inDeckBox: Int,
 ) {
     val toPull: Int get() = groups.sumOf { g -> g.items.sumOf { it.qty } }
 
-    /** Row moves (row id, copies) for the checked items, skipping any already in [deckBoxId]. */
+    /** Row moves (row id, copies) for the checked items, skipping any already in [deckBoxId] (the deck's own cards). */
     fun movesFor(checked: Set<String>, deckBoxId: Long? = null): List<Pair<Long, Int>> =
         groups.filter { deckBoxId == null || it.boxId != deckBoxId }
             .flatMap { g -> g.items.filter { it.key in checked }.flatMap { it.rows } }
 }
 
 object PullListMath {
+    /**
+     * [items] with the deck's leads ([leads] in order, matched by [key] on [name]) taken out and put first:
+     * returns (leads, the rest), each keeping its order otherwise.
+     */
+    fun <T> leadsFirst(items: List<T>, leads: List<String>, name: (T) -> String, key: (String) -> String): Pair<List<T>, List<T>> {
+        if (leads.isEmpty()) return emptyList<T>() to items
+        val order = leads.map(key).distinct()
+        val (first, rest) = items.partition { key(name(it)) in order }
+        return first.sortedBy { order.indexOf(key(name(it))) } to rest
+    }
+
+    /**
+     * Takes the deck's leads ([leads] in order, matched by [key]) out of [list] so they can be shown first.
+     * Returns them and the list without them; boxes left empty are dropped. Totals stay with the whole list.
+     */
+    fun splitLeads(list: PullList, leads: List<String>, key: (String) -> String): Pair<PullLeads, PullList> {
+        if (leads.isEmpty()) return PullLeads() to list
+        val order = leads.map(key).distinct()
+        fun rank(name: String) = order.indexOf(key(name))
+        val items = list.groups.flatMap { g -> g.items.filter { rank(it.name) >= 0 }.map { g.boxName to it } }
+            .sortedBy { rank(it.second.name) }
+        val missing = list.missing.filter { rank(it.name) >= 0 }.sortedBy { rank(it.name) }
+        val rest = list.copy(
+            groups = list.groups.map { g -> g.copy(items = g.items.filter { rank(it.name) < 0 }) }.filter { it.items.isNotEmpty() },
+            missing = list.missing.filter { rank(it.name) < 0 },
+        )
+        return PullLeads(items, missing) to rest
+    }
+
     fun itemKey(c: CollectionCard): String = "${c.boxId}|${c.scryfallId}|${c.foil}|${c.proxy}"
 
-    /** Deck boxes named like the deck hold its cards already. */
+    /** Deck boxes named like the deck (made before decks held cards) hold its cards already. */
     fun isDeckBoxFor(box: Box, deckName: String): Boolean =
-        box.kind == "deck" && deckName.isNotBlank() && box.name.trim().equals(deckName.trim(), ignoreCase = true)
+        !box.isDeckSlot && box.kind == "deck" && deckName.isNotBlank() && box.name.trim().equals(deckName.trim(), ignoreCase = true)
 
     private fun matchesPrinting(c: CollectionCard, l: DeckLine): Boolean {
         val set = l.setCode ?: return false
@@ -58,14 +98,14 @@ object PullListMath {
 
     /**
      * Which owned copies to pull for the played sections (main deck, commander, companion), by box.
-     * Copies already in this deck's deck box count first and aren't pulled. Lines naming a printing take that
-     * printing when owned; otherwise real cards come before proxies, cards in other decks' boxes last,
-     * non-foil before foil, cheapest first. What's left over is missing.
-     * [boxes] are in the Collection's order.
+     * Copies already kept in this deck ([deckSlotId], or an old deck box named like it) count first and aren't
+     * pulled. Lines naming a printing take that printing when owned; otherwise real cards come before proxies,
+     * cards in other decks last, non-foil before foil, cheapest first. What's left over is missing.
+     * [boxes] are the places cards can be (boxes in the Collection's order, then decks' card rows).
      */
-    fun build(lines: List<DeckLine>, cards: List<CollectionCard>, boxes: List<Box>, deckName: String): PullList {
+    fun build(lines: List<DeckLine>, cards: List<CollectionCard>, boxes: List<Box>, deckName: String, deckSlotId: Long? = null): PullList {
         val boxById = boxes.associateBy { it.id }
-        val ownBox = boxes.filter { isDeckBoxFor(it, deckName) }.map { it.id }.toSet()
+        val ownBox = boxes.filter { isDeckBoxFor(it, deckName) }.map { it.id }.toSet() + listOfNotNull(deckSlotId)
         val left = cards.associate { it.id to it.quantity }.toMutableMap()
         val byName = cards.groupBy { DeckNames.key(it.name) }
         val played = lines.filter { it.section in DeckCheck.PLAYED }
@@ -124,7 +164,7 @@ object PullListMath {
                 val box = boxId?.let { boxById[it] }
                 PullGroup(
                     boxId = box?.id,
-                    boxName = box?.name ?: "Unsorted",
+                    boxName = box?.placeName() ?: "Unsorted",
                     items = its.sortedWith(compareBy<PullItem>({ it.name.lowercase() }, { it.setCode }, { it.collectorNumber }, { it.foil })),
                 )
             }
