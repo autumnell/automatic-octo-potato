@@ -77,7 +77,7 @@ class BuylistViewModel(private val repo: CollectionRepository) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Moves the pulled copies to the Sold list at the buylist price, with one Undo for all. */
-    fun markSold(items: List<PullItem>) = viewModelScope.launch {
+    fun markSold(items: List<BuyPull>) = viewModelScope.launch {
         if (items.isEmpty()) return@launch
         val (n, undo) = repo.sellCopies(items.map { Triple(it.card.id, it.copies, it.each) })
         if (n > 0) Undo.offer(if (n == 1) "Sold 1 card" else "Sold $n cards") { undo() }
@@ -119,7 +119,7 @@ fun BuylistScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
         // Reading CardKingdom.version redraws once the list has loaded.
         val listVersion = CardKingdom.version
         val boxNames = data.boxes.associate { it.id to it.name }
-        val items = remember(data, min, listVersion) {
+        val pulls = remember(data, min, listVersion) {
             val out = LoanMath.outByRow(data.loans, data.cards)
             BuylistMath.pullList(
                 data.cards, min, data.boxes.map { it.id },
@@ -127,7 +127,7 @@ fun BuylistScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                 outOf = { out[it.id] ?: 0 },
             )
         }
-        if (items.isEmpty()) {
+        if (pulls.isEmpty()) {
             EmptyState(
                 if (listVersion == 0) "No buylist yet" else "Nothing at ${minLabel(min)}+",
                 Modifier.padding(top = 24.dp),
@@ -135,9 +135,9 @@ fun BuylistScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
             )
             return@Column
         }
-        val chosen = items.filter { it.card.id !in skipped }
+        val chosen = pulls.filter { it.card.id !in skipped }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
-            items(items, key = { it.card.id }) { p ->
+            items(pulls, key = { it.card.id }) { p ->
                 val on = p.card.id !in skipped
                 PullRow(p, boxNames[p.card.boxId], on, onToggle = { skipped = if (on) skipped + p.card.id else skipped - p.card.id }, onOpen = { onOpenCard(p.card.id) })
             }
@@ -157,7 +157,7 @@ fun BuylistScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
 }
 
 @Composable
-private fun PullRow(p: PullItem, box: String?, on: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
+private fun PullRow(p: BuyPull, box: String?, on: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
     val c = p.card
     Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Checkbox(on, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
