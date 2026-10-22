@@ -998,6 +998,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var addingAll by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var sampling by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     val dirty = ui.editing && ui.text.trim() != vm.savedText.trim()
@@ -1026,6 +1027,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
                             DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
+                            if (ui.check != null) DropdownMenuItem(text = { Text("Sample hand") }, onClick = { menu = false; sampling = true })
                             DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
                         }
                     }
@@ -1075,6 +1077,13 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
             counts = counts, busy = ui.adding,
             onAdd = { onlyMissing -> vm.addToCollection(onlyMissing) { addingAll = false } },
             onDismiss = { addingAll = false },
+        )
+    }
+    if (sampling) ui.check?.let { check ->
+        SampleHandSheet(
+            check.lines,
+            leads = if (DeckFormats.isCommander(ui.format)) ui.commanders.commanders else emptyList(),
+            onDismiss = { sampling = false },
         )
     }
     if (confirmDelete) {
