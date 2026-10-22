@@ -102,7 +102,7 @@ data class DeckCheck(val lines: List<DeckCheckLine>) {
     val missingLines: List<DeckCheckLine> get() = lines.filter { it.played && it.missing > 0 }
 
     companion object {
-        val PLAYED = setOf("Main", "Commander", "Companion")
+        val PLAYED = setOf("Main", "Commander", "Companion", "Signature")
     }
 }
 
@@ -1043,10 +1043,14 @@ class CollectionRepository(
 
     // Decks
 
-    suspend fun saveDeck(id: Long, name: String, text: String): Long {
+    /** Saves a deck. A null [format] or [commanders] keeps what the deck has (none for a new deck). */
+    suspend fun saveDeck(id: Long, name: String, text: String, format: String? = null, commanders: String? = null): Long {
         val now = System.currentTimeMillis()
         val existing = if (id != 0L) dao.deck(id) else null
-        val deck = existing?.copy(name = name.trim(), text = text, updatedAt = now) ?: Deck(name = name.trim(), text = text)
+        val deck = existing?.copy(
+            name = name.trim(), text = text, updatedAt = now,
+            format = format ?: existing.format, commanders = commanders ?: existing.commanders,
+        ) ?: Deck(name = name.trim(), text = text, format = format.orEmpty(), commanders = commanders.orEmpty())
         val r = dao.putDeck(deck)
         return if (existing != null) existing.id else r
     }

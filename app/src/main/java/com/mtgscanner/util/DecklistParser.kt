@@ -13,12 +13,13 @@ data class DeckLine(
 
 /**
  * Reads pasted decklists in the common formats: "4 Lightning Bolt", "4x Lightning Bolt",
- * "1 Sol Ring (CMR) 263", "SB: 2 Duress", plus section headers like "Sideboard" or "Commander".
+ * "1 Sol Ring (CMR) 263", "SB: 2 Duress", "1 Atraxa *CMDR*", plus section headers like "Sideboard",
+ * "Commander", "Companion" or "Signature Spell" (Oathbreaker; read as the "Signature" section).
  * Also skips Arena's "About"/"Name" preamble, strips Archidekt tags, and reads an MTGO list's
  * last blank-line-separated block as the sideboard when the list has no headers.
  */
 object DecklistParser {
-    private val SECTION = Regex("""^(?://\s*)?(main\s*deck|maindeck|deck|mainboard|sideboard|side|commander|commanders|companion|maybeboard|considering|tokens?)\s*:?\s*(\(\d+\))?$""", RegexOption.IGNORE_CASE)
+    private val SECTION = Regex("""^(?://\s*)?(main\s*deck|maindeck|deck|mainboard|sideboard|side|commander|commanders|companions?|oathbreaker|signature\s*spells?|maybeboard|considering|tokens?)\s*:?\s*(\(\d+\))?$""", RegexOption.IGNORE_CASE)
     private val LINE = Regex("""^(?:(SB|CMDR):\s*)?(\d+)\s*[xX]?\s+(.+?)\s*$""")
     private val PRINTING = Regex("""^(.+?)\s+[\(\[]([A-Za-z0-9]{2,6})[\)\]](?:\s+([A-Za-z0-9\-★†]+))?(?:\s+\*[A-Z]\*)?$""")
     // Deckstats puts the printing first: "[CMR#263] Sol Ring", "[CMR] Sol Ring".
@@ -38,6 +39,8 @@ object DecklistParser {
     private val SET_IN_BRACKETS = Regex("""[A-Z0-9]{2,6}|[a-z0-9]{2,6}""")
     private val ARENA_NAME = Regex("""^name\s+.+$""", RegexOption.IGNORE_CASE)
     private val FOIL_MARK = Regex("""\s\*(F|E|FOIL|ETCHED)\*(\s|$)""", RegexOption.IGNORE_CASE)
+    // Archidekt and Moxfield mark the commander in a plain list: "1x Atraxa (ONE) 196 *CMDR*".
+    private val CMDR_MARK = Regex("""\s\*CMDR\*(?=\s|$)""", RegexOption.IGNORE_CASE)
     // Group headers in exported lists: "Creatures (24)", "Lands", "Ramp (10)".
     private val TYPE_HEADER = Regex(
         """^(creatures?|instants?|sorcery|sorceries|artifacts?|enchantments?|planeswalkers?|lands?|battles?|spells?|others?|non-?lands?|main|mainboard)\s*:?\s*(\(\d+\))?$""",
@@ -84,6 +87,10 @@ object DecklistParser {
                 if (TYPE_HEADER.matches(line) || COUNTED_HEADER.matches(line)) { section = "Main"; continue }
                 qty = 1
                 rest = line
+            }
+            if (CMDR_MARK.containsMatchIn(" $rest")) {
+                lineSection = "Commander"
+                rest = " $rest".replace(CMDR_MARK, "").trim()
             }
             val foil = FOIL_MARK.containsMatchIn(" $rest")
             rest = stripTags(rest.replace(FOIL_ANYWHERE, ""))
@@ -139,8 +146,9 @@ object DecklistParser {
 
     private fun sectionName(s: String): String = when (s.lowercase().replace(" ", "")) {
         "sideboard", "side" -> "Sideboard"
-        "commander", "commanders" -> "Commander"
-        "companion" -> "Companion"
+        "commander", "commanders", "oathbreaker" -> "Commander"
+        "companion", "companions" -> "Companion"
+        "signaturespell", "signaturespells" -> "Signature"
         "maybeboard", "considering" -> "Maybeboard"
         "token", "tokens" -> "Tokens"
         else -> "Main"

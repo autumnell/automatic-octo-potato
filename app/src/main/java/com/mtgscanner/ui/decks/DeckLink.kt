@@ -24,7 +24,10 @@ suspend fun CollectionRepository.saveDeckFromLink(url: String) {
         Undo.offer(e.message ?: "Couldn't get that deck")
         return
     }
-    val id = saveDeck(0L, deck.name, deck.text)
+    // The format the site has, and the commanders from the list's Commander and Companion sections.
+    val lines = com.mtgscanner.util.DecklistParser.parse(deck.text)
+    val format = deck.format.ifEmpty { com.mtgscanner.data.DeckFormats.guess(lines) }
+    val id = saveDeck(0L, deck.name, deck.text, format, com.mtgscanner.data.DeckCommanders.fromLines(lines).encode())
     Undo.offer("Saved deck: ${deck.name}") { deleteDeck(id) }
 }
 

@@ -90,6 +90,8 @@ fun ValueRing(
     modifier: Modifier = Modifier,
     /** [totalValue] in euros. */
     totalEur: Double = 0.0,
+    /** The biggest boxes beside the ring. */
+    legend: Boolean = true,
 ) {
     val prices = AppSettings.showPrices
     val weights = boxes.map { b -> b to if (prices) b.value else b.cards.toDouble() }.filter { it.second > 0 }
@@ -97,7 +99,11 @@ fun ValueRing(
     val then = stats.values.sumOf { it.valueThen }
     val change = stats.values.sumOf { it.change }
     val track = Palette.SurfaceHigh
-    Row(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = if (legend) Arrangement.Start else Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(Modifier.size(156.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(156.dp)) {
                 val stroke = 14.dp.toPx()
@@ -136,9 +142,9 @@ fun ValueRing(
                 }
             }
         }
-        Spacer(Modifier.width(16.dp))
+        if (legend) Spacer(Modifier.width(16.dp))
         // The biggest few boxes, as a legend.
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (legend) Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val top = weights.sortedByDescending { it.second }.take(5)
             if (top.isEmpty()) Text("No cards yet", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             top.forEach { (b, w) ->
