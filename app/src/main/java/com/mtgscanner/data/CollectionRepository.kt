@@ -374,10 +374,13 @@ class CollectionRepository(
         return Sorting.spot(BoxLayout.of(b.divider), name, facts)
     }
 
-    /** Cards that now belong in a different box, after rules changed. Pass [cards] when already loaded. */
-    suspend fun misplaced(cards: List<CollectionCard>? = null): List<Sorting.Move<CollectionCard>> {
+    /**
+     * Cards that now belong in a different box, after rules changed. Pass [cards] when already loaded. [planned]
+     * swaps in boxes as they would be, for a box plan (see BoxPlanRepo.kt).
+     */
+    suspend fun misplaced(cards: List<CollectionCard>? = null, planned: List<BoxInfo>? = null): List<Sorting.Move<CollectionCard>> {
         val all = cards ?: dao.all()
-        val boxes = boxInfos()
+        val boxes = planned ?: boxInfos()
         val policy = SortPrefs.policy
         val slack = SortPrefs.priceBuffer / 100.0
         return withContext(Dispatchers.Default) {

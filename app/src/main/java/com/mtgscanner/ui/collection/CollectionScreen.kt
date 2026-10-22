@@ -83,6 +83,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.mtgscanner.data.BoxArt
+import com.mtgscanner.data.BoxChange
+import com.mtgscanner.data.planBoxes
+import com.mtgscanner.data.saveBoxChanges
+import com.mtgscanner.data.undoBoxChanges
 import com.mtgscanner.data.BoxCovers
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.BoxStats
@@ -192,20 +196,59 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         return MoveList.add(MoveList.linesFor(moves) { info[it] }, show)
     }
 
-    /** Makes a whole system of boxes in one go; "Set boxes" is built from the sets you own. */
-    fun applyTemplate(t: BoxTemplate) = viewModelScope.launch {
+    /** A whole system of boxes, tried as a plan first; "Set boxes" is built from the sets you own. */
+    fun tryTemplate(t: BoxTemplate) = viewModelScope.launch {
         val tpl = if (t.boxes.isEmpty()) {
             BoxTemplate.setBoxes(repo.allCards().groupBy { it.setCode }.map { (code, cs) -> code to cs.sumOf { it.quantity } })
         } else t
-        val hasFallback = repo.boxInfos().any { it.fallback }
-        val ids = tpl.boxes.map { p ->
-            val id = repo.createBox(p.name, p.kind, p.rules)
-            if (p.divider.isNotEmpty()) repo.setBoxLayout(id, 0, p.divider)
-            if (p.fallback && !hasFallback) repo.setFallbackBox(id)
-            id
+        tryPlan(tpl.name, tpl.boxes.map { p -> BoxChange(null, p.name, p.kind, p.rules, divider = p.divider, fallback = p.fallback) })
+    }
+
+    // Box plans: see where every card would go before boxes change
+
+    private val _plan = MutableStateFlow<PlanUi?>(null)
+    /** The plan being tried; null hides its sheet. */
+    val plan: StateFlow<PlanUi?> = _plan
+
+    fun tryPlan(title: String, changes: List<BoxChange>) {
+        val start = PlanUi(title, changes, null)
+        _plan.value = start
+        viewModelScope.launch {
+            val r = runCatching { repo.planBoxes(changes) }.getOrNull()
+            // Discarded (or replaced) while it was worked out.
+            if (_plan.value !== start) return@launch
+            if (r == null) {
+                _plan.value = null
+                _message.value = "Couldn't work out the plan"
+            } else {
+                _plan.value = start.copy(result = r)
+            }
         }
-        Undo.offer("Made ${ids.size} boxes") { ids.forEach { repo.deleteBox(it, CardBox.AUTO_SORT) } }
-        findMisplaced(quiet = true)
+    }
+
+    fun discardPlan() { _plan.value = null }
+
+    /** Saves the plan's boxes and moves every card that now belongs elsewhere, with one Undo for all of it. */
+    fun applyPlan() = viewModelScope.launch {
+        val p = _plan.value ?: return@launch
+        _plan.value = null
+        val undo = repo.saveBoxChanges(p.changes)
+        val moves = repo.misplaced()
+        val before = repo.snapshot(moves.map { it.item.id })
+        val added = if (moves.isEmpty()) emptyList() else recordMoves(moves.map { it.item to it.to }, show = true)
+        if (moves.isNotEmpty()) repo.applyMoves(moves.map { it.item.id to it.to })
+        val n = moves.sumOf { it.item.quantity }
+        Undo.offer(
+            when (n) {
+                0 -> "Boxes saved"
+                1 -> "Plan applied · 1 card moved"
+                else -> "Plan applied · $n cards moved"
+            },
+        ) {
+            repo.restore(before)
+            MoveList.remove(added)
+            repo.undoBoxChanges(undo)
+        }
     }
 
     private fun applyMoves(list: List<Sorting.Move<CollectionCard>>) = viewModelScope.launch {
@@ -432,6 +475,8 @@ fun CollectionScreen(
     moves?.let { list ->
         ResortSheet(list, ui.boxes, onMove = vm::moveOne, onMoveAll = vm::moveAll, onDismiss = vm::closeMoves)
     }
+    val plan by vm.plan.collectAsStateWithLifecycle()
+    plan?.let { p -> BoxPlanSheet(p, onApply = { vm.applyPlan() }, onDiscard = vm::discardPlan) }
 }
 
 @Composable
@@ -507,7 +552,8 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     if (creating) {
         BoxEditorSheet(
             title = "New box", onSave = { vm.createBox(it); creating = false }, onDismiss = { creating = false }, layout = true,
-            onTemplate = { vm.applyTemplate(it); creating = false },
+            onTemplate = { vm.tryTemplate(it); creating = false },
+            onTry = { vm.tryPlan(it.name, listOf(it.toChange(null))); creating = false },
         )
     }
     editing?.let { b ->
@@ -518,6 +564,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             onSave = { vm.updateBox(b.id, it); editing = null },
             onDismiss = { editing = null },
             layout = true,
+            onTry = { vm.tryPlan(it.name, listOf(it.toChange(b.id))); editing = null },
         )
     }
     sorting?.let { b ->
