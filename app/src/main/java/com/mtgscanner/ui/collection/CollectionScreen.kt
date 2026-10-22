@@ -110,6 +110,7 @@ import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.totalPrice
+import com.mtgscanner.data.db.nearMintPrice
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.BoxDraft
 import com.mtgscanner.ui.components.BoxEditorSheet
@@ -135,6 +136,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -158,6 +160,23 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     val ui: StateFlow<OverviewUi> = combine(repo.observeAll(), repo.observeBoxSummaries(), covers.covers) { all, boxes, cv ->
         OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, all.sumOf { it.totalEur() }, boxes, BoxArt.stats(all, cv))
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OverviewUi())
+
+    /**
+     * The collection's value change over the last week from price history, or null without a week of it.
+     * A price refresh writes a snapshot, so it's worked out again then too.
+     */
+    val weekChange: StateFlow<Double?> = combine(repo.observeAll(), repo.observeSnapshots()) { all, _ -> all }
+        .map { all ->
+            val weekAgo = java.time.LocalDate.now().minusDays(WeekChange.DAYS)
+            val oldest = weekAgo.minusDays(WeekChange.SLACK_DAYS)
+            val points = runCatching { repo.dao.pricePointsSince(oldest.toString()) }.getOrDefault(emptyList()).groupBy { it.scryfallId }
+            val rows = all.filter { !it.proxy }.map { c ->
+                WeekChange.Row(c.nearMintPrice(), c.quantity, historyPairs(points[c.scryfallId].orEmpty(), c.foil))
+            }
+            WeekChange.total(rows, weekAgo.toString(), oldest.toString())
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** [cardId] null goes back to the box's most valuable card. */
     fun setCover(boxId: Long, cardId: Long?) = covers.set(boxId, cardId)
@@ -402,6 +421,7 @@ fun CollectionScreen(
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val weekChange by vm.weekChange.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
@@ -461,6 +481,16 @@ fun CollectionScreen(
                 }
             }
             if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
+            if (layout.shows(CollectionPart.STATS)) {
+                val prices = AppSettings.showPrices
+                StatsStrip(
+                    cards = "%,d".format(ui.totalCards),
+                    value = if (prices) formatMoneyShort(ui.totalValue, ui.totalEur) else null,
+                    // History is in dollars, so there's no week change to show in euros.
+                    week = if (prices) WeekChange.label(weekChange.takeIf { AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR }) else null,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+            }
             // Above the tabs, so it's there on every one.
             if (layout.shows(CollectionPart.BROWSE)) BrowseAllButton { onBrowse(-1L) }
             // A hidden tab still shows while it's open (Home's wishlist link lands on it).
