@@ -349,6 +349,7 @@ fun HomeScreen(
         HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
         Spacer(Modifier.height(12.dp))
         com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
+        WhatsNewLine()
         if (ui.loaded && ui.totalCards > 0) {
             BoxCheckNudge(onCheck = { id -> com.mtgscanner.util.OpenRequests.boxCheck.value = id; onScan() })
             NewSetOffer(onOpenSet)
