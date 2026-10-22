@@ -12,6 +12,11 @@ class SearchHistory(context: Context) {
 
     private val recentSerializer = ListSerializer(RecentSearch.serializer())
 
+    init {
+        // Saved searches are gone from the Search tab: drop what older versions kept.
+        if (prefs.contains("saved")) prefs.edit().remove("saved").apply()
+    }
+
     /** Recent searches with their filters. Older plain-text entries come back as typed searches with no filters. */
     fun recent(): List<RecentSearch> {
         prefs.getString("recent2", null)?.let { raw ->
@@ -40,25 +45,6 @@ class SearchHistory(context: Context) {
     }
 
     fun clear() = prefs.edit().remove("recent").remove("recent2").remove("viewed").apply()
-
-    private val savedSerializer = ListSerializer(SavedScryfallSearch.serializer())
-
-    /** Named searches with their filters; not removed by [clear]. */
-    fun saved(): List<SavedScryfallSearch> =
-        runCatching { json.decodeFromString(savedSerializer, prefs.getString("saved", "[]") ?: "[]") }.getOrDefault(emptyList())
-
-    /** Saves [s] first, replacing one with the same name, and returns the new list. */
-    fun save(s: SavedScryfallSearch): List<SavedScryfallSearch> {
-        val list = listOf(s) + saved().filterNot { it.name.equals(s.name, ignoreCase = true) }
-        prefs.edit().putString("saved", json.encodeToString(savedSerializer, list)).apply()
-        return list
-    }
-
-    fun deleteSaved(name: String): List<SavedScryfallSearch> {
-        val list = saved().filterNot { it.name == name }
-        prefs.edit().putString("saved", json.encodeToString(savedSerializer, list)).apply()
-        return list
-    }
 
     private companion object {
         const val MAX_RECENT = 8

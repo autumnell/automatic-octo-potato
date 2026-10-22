@@ -48,8 +48,6 @@ data class SearchUi(
     val viewed: List<Viewed> = emptyList(),
     /** Extra Scryfall filters from the filter sheet. */
     val filters: SearchFilters = SearchFilters(),
-    /** Saved searches, newest first. */
-    val saved: List<SavedScryfallSearch> = emptyList(),
 )
 
 /** A card opened from Search, kept for "Recently viewed". */
@@ -81,7 +79,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     init {
         com.mtgscanner.data.CardKingdom.loadSaved(repo.appContext)
-        _ui.update { it.copy(recent = history.recent(), viewed = history.viewed(), saved = history.saved()) }
+        _ui.update { it.copy(recent = history.recent(), viewed = history.viewed()) }
     }
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -136,25 +134,6 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun setFilters(f: SearchFilters) = _ui.update { it.copy(filters = f) }
-
-    /** Saves the current words and filters under [name]. */
-    fun saveSearch(name: String) {
-        val n = name.trim()
-        if (n.isEmpty()) return
-        val s = _ui.value
-        val list = history.save(SavedScryfallSearch(n, s.query.trim(), s.filters))
-        _ui.update { it.copy(saved = list, message = "Saved \"$n\"") }
-    }
-
-    fun loadSaved(s: SavedScryfallSearch) {
-        _ui.update { it.copy(query = s.text, filters = s.filters, suggestions = emptyList()) }
-        submit(s.text)
-    }
-
-    fun deleteSaved(name: String) {
-        val list = history.deleteSaved(name)
-        _ui.update { it.copy(saved = list) }
-    }
 
     fun pickSuggestion(name: String) {
         _ui.update { it.copy(query = name, suggestions = emptyList(), recent = history.addRecent(RecentSearch(name, exactName = true))) }

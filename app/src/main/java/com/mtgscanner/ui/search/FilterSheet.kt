@@ -260,34 +260,4 @@ private fun Dropdown(label: String, options: List<Pair<String, String>>, onPick:
     }
 }
 
-/** Load and save named searches. */
-@Composable
-fun SavedMenu(
-    saved: List<SavedScryfallSearch>,
-    onSave: () -> Unit,
-    onLoad: (SavedScryfallSearch) -> Unit,
-    onDelete: (String) -> Unit,
-) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        SelectPill("Saved", false, { open = true }, leading = { Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(16.dp), tint = Palette.Icon) })
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(
-                text = { Text("Save search…", color = Palette.AccentText) },
-                onClick = { open = false; onSave() },
-            )
-            if (saved.isEmpty()) DropdownMenuItem(text = { Text("No saved searches", color = Palette.Muted) }, onClick = { open = false }, enabled = false)
-            saved.forEach { s ->
-                DropdownMenuItem(
-                    text = { Text(s.name) },
-                    onClick = { open = false; onLoad(s) },
-                    trailingIcon = {
-                        Icon(Icons.Filled.Close, "Delete ${s.name}", tint = Palette.Icon, modifier = Modifier.size(18.dp).clickable { onDelete(s.name) })
-                    },
-                )
-            }
-        }
-    }
-}
-
 private val COLOR_NAMES = mapOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless")

@@ -181,7 +181,3 @@ data class SearchFilters(
         }
     }
 }
-
-/** A saved Scryfall search: the typed words plus filters. */
-@Serializable
-data class SavedScryfallSearch(val name: String, val text: String, val filters: SearchFilters)
