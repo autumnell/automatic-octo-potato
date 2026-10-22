@@ -242,7 +242,7 @@ private fun CounterTile(
                     ) { Text(if (sign < 0) "−" else "+", color = Color.White, fontSize = 28.sp) }
                 }
             }
-            if (note != null) Text(note, color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (note != null) Text(note, color = Palette.OnDarkMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -267,7 +267,7 @@ private fun ActionTile(
             Icon(icon, null, tint = tint, modifier = Modifier.size(38.dp))
             Spacer(Modifier.height(6.dp))
             Text(label, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (detail != null) Text(detail, color = Color.White.copy(alpha = 0.8f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, color = Palette.OnDarkMuted, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -329,7 +329,7 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
             }
             "Damage" -> {
                 Text("21 from one commander and you're out.",
-                    color = Color.White.copy(alpha = 0.8f), fontSize = 16.sp)
+                    color = Palette.OnDarkMuted, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 val sources = g.players.indices.filter { it != i }.flatMap { from -> listOf(from to false) + if (g.partners) listOf(from to true) else emptyList() }
                 val scroll = rememberScrollState()

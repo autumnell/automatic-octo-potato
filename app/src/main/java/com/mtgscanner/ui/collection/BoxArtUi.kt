@@ -73,7 +73,7 @@ fun boxChangeLabel(change: Double, percent: Double?): String {
 fun boxChangeColor(change: Double, onDark: Boolean = false): Color = when {
     change > 0.005 -> if (onDark) Color(0xFF4CC38A) else Palette.Success
     change < -0.005 -> if (onDark) Color(0xFFE5534B) else Palette.Danger
-    else -> if (onDark) Color.White.copy(alpha = 0.7f) else Palette.Muted
+    else -> if (onDark) Palette.OnDarkMuted else Palette.Muted
 }
 
 /**

@@ -398,7 +398,7 @@ private fun PlayerPanel(
                     )
                 }
                 Text("${p.life}", color = Color.White, fontSize = lifeSize, fontWeight = FontWeight.Bold)
-                Text(p.name, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.titleSmall)
+                Text(p.name, color = Color.White, style = MaterialTheme.typography.titleSmall)
                 if (out != null) Text(out, color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
             // Other counters along the top, shown only when they matter. Not scrollable, so taps and
@@ -517,7 +517,7 @@ private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit
         Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
             Text("Tap Done or Play again to save.",
-                color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                color = Palette.OnDarkMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
             Row {
                 TextButton(onClick = onRestart) { Text("Play again") }
                 TextButton(onClick = onDone) { Text("Done") }

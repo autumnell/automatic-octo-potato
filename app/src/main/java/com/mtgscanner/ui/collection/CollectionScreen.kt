@@ -946,7 +946,7 @@ private fun BoxTitle(b: BoxSummary, stripe: Color, onArt: Boolean, modifier: Mod
         LabelTape(b.name, Modifier.weight(1f, fill = false))
         if (b.fallback) {
             Spacer(Modifier.width(8.dp))
-            Text("Fallback", style = MaterialTheme.typography.labelSmall, color = if (onArt) Color.White.copy(alpha = 0.72f) else Palette.Muted)
+            Text("Fallback", style = MaterialTheme.typography.labelSmall, color = if (onArt) Palette.OnDarkMuted else Palette.Muted)
         }
     }
 }

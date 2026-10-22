@@ -1112,7 +1112,7 @@ private fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
         ) {
             Text(
                 if (state.target == ScanTarget.REMOVE) "Take it from" else "Put it in",
-                color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium,
+                color = Palette.OnDarkMuted, style = MaterialTheme.typography.labelMedium,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -1132,7 +1132,7 @@ private fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
             if (state.lastAlso.isNotEmpty()) {
                 Text(
                     "Also fits: " + state.lastAlso.joinToString(" · "),
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = Palette.OnDarkMuted,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1164,7 +1164,7 @@ private fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = Mo
         )
         TextButton(onClick = vm::saveUnknown) { Text("Save for later", color = Palette.Gold) }
         IconButton(onClick = vm::dismissUnknown, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Outlined.Close, "Dismiss", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Close, "Dismiss", tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
         }
     }
 }

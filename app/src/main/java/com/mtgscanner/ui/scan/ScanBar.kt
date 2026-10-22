@@ -187,7 +187,7 @@ fun LastCardBar(
         if (e == null) {
             Text(
                 "Scanned cards show up here",
-                color = Color.White.copy(alpha = 0.6f),
+                color = Palette.OnDarkMuted,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
@@ -214,7 +214,7 @@ fun LastCardBar(
             Spacer(Modifier.width(8.dp))
             Text(scryfallPriceShort(e.card, e.foil), color = Palette.Gold, style = MaterialTheme.typography.titleSmall)
         }
-        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Open card", tint = Color.White.copy(alpha = 0.7f))
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Open card", tint = Palette.OnDarkMuted)
         if (onSameAgain != null) {
             Spacer(Modifier.width(4.dp))
             Box(

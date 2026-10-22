@@ -524,7 +524,7 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, onOpen: () -> U
                     TileArt(arts.firstOrNull(), Modifier.matchParentSize())
                 }
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-                Icon(Icons.Outlined.Folder, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
+                Icon(Icons.Outlined.Folder, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
             }
             Column(Modifier.padding(12.dp)) {
                 Text(
