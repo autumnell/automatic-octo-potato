@@ -334,6 +334,12 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
             .mapValues { (_, rows) -> rows.sumOf { it.quantity } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** (box id, copies) for every row of this card, any printing: the "where are my copies" line. */
+    val copyRows: StateFlow<List<Pair<Long, Int>>> = combine(card, repo.observeAll()) { c, all ->
+        if (c == null) emptyList<Pair<Long, Int>>()
+        else all.filter { if (c.oracleId != null) it.oracleId == c.oracleId else it.name == c.name }.map { it.boxId to it.quantity }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun loadPrintings(force: Boolean = false) {
         val c = card.value ?: return
         val key = c.oracleId ?: c.name
@@ -435,6 +441,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     var showAllEvents by remember { mutableStateOf(false) }
     val events by vm.events.collectAsStateWithLifecycle()
     val nb by vm.neighbors.collectAsStateWithLifecycle()
+    val copyRows by vm.copyRows.collectAsStateWithLifecycle()
     val c = card
     // For the "Recently opened" strip on Browse.
     LaunchedEffect(c?.id) { c?.id?.let { com.mtgscanner.ui.collection.RecentCards.opened(ctx, it) } }
@@ -522,6 +529,19 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             },
                         )
                         ManaCost(c.manaCost, size = 20.dp)
+                    }
+                    // Where every copy is, when there's more than this row: "3 copies: Rares ×2, Atraxa deck ×1".
+                    val copiesLine = remember(copyRows, places, decks) {
+                        val deckNames = decks.associate { it.id to it.name }
+                        val spots = places.associate { b ->
+                            val spot = if (b.isDeckSlot) com.mtgscanner.data.CopiesLine.Spot(deckNames[b.deckId] ?: b.name, deck = true)
+                            else com.mtgscanner.data.CopiesLine.Spot(b.name)
+                            b.id to spot
+                        }
+                        com.mtgscanner.data.CopiesLine.text(copyRows, spots)
+                    }
+                    copiesLine?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
