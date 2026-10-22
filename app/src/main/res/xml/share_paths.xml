@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files handed to other apps through the share sheet: have-list pages and share images. -->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>

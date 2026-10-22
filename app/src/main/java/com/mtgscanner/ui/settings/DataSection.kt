@@ -532,6 +532,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 }
             }
             HorizontalDivider(color = Palette.Outline)
+            SharedCollectionRow()
+            HorizontalDivider(color = Palette.Outline)
             ToggleRow("Weekly summary", "Value and new cards", weeklyDigest) { on ->
                 weeklyDigest = on
                 Notifications.setWeeklyDigest(ctx.applicationContext, on)

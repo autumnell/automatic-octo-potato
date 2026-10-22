@@ -799,6 +799,8 @@ private fun ToolsTab(
     var quiz by remember { mutableStateOf(false) }
     if (pulls) PullRatesSheet(onDismiss = { pulls = false })
     if (quiz) QuizSheet(onDismiss = { quiz = false })
+    var haveList by remember { mutableStateOf(false) }
+    if (haveList) HaveListDialog(ui.boxes, scope) { haveList = false }
     if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
     if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
     LazyColumn(Modifier.fillMaxSize()) {
@@ -812,6 +814,7 @@ private fun ToolsTab(
             if (AppSettings.showPrices) ToolCard(Icons.Filled.Sell, "Sell to a buylist", "Pull list and total", onBuylist)
             ToolCard(Icons.Filled.BarChart, "Pull rates", "From your opened packs", { pulls = true })
             ToolCard(Icons.Filled.Quiz, "Quiz", "Guess the box or price", { quiz = true })
+            ToolCard(Icons.Filled.Share, "Have list", "A web page for friends", { haveList = true })
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(
@@ -837,9 +840,7 @@ private fun ToolsTab(
                         Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
-                    IconButton(enabled = b.cards > 0, onClick = {
-                        scope.launch { shareSheet(ctx, b.name, binderShareText(b.name, vm.cardsIn(b.id), AppSettings.showPrices)) }
-                    }) { Icon(Icons.Filled.Share, "Share ${b.name}") }
+                    ShareBinderButton(b, { vm.cardsIn(it) }) { cards -> shareSheet(ctx, b.name, binderShareText(b.name, cards, AppSettings.showPrices)) }
                 }
             }
         }
