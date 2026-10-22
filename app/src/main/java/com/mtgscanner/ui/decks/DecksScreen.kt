@@ -655,8 +655,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         leadsJob = viewModelScope.launch {
             val s = _ui.value
             val lines = DecklistParser.parse(s.text)
-            val names = s.commanders.all + lines.filter { it.section in PLAYED }.map { it.name }
-            val info = runCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
+            val names = s.commanders.all + lines.filter { it.section in PLAYED || it.section == "Sideboard" }.map { it.name }
+            val info = runCatching { repo.deckCardInfo(names, s.format) }.getOrDefault(emptyMap())
             fun rulesOf(n: String) = info[DeckNames.key(n)]?.rules()
             val leads = s.commanders.all.mapNotNull { n -> rulesOf(n)?.let { n.lowercase() to it } }.toMap()
             val art = s.commanders.commanders.mapNotNull { artCropUrl(info[DeckNames.key(it)]?.imageUrl) }
