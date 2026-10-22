@@ -45,6 +45,7 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
 
 /** Lost card finder: type a name, see every box it's in and exactly where. */
@@ -83,6 +84,10 @@ fun FindCardSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                 found.isEmpty() && !settled -> Spacer(Modifier.height(48.dp))
                 found.isEmpty() -> EmptyState("Not in your collection", action = "Clear", onAction = { query = "" })
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
+                    // Where it is on the shelf, when the boxes are laid out there.
+                    item(key = "shelf") {
+                        ShelfSpot(boxes, found.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    }
                     items(found, key = { it.card.id }) { f ->
                         FoundRow(f.card, f.where) { onOpenCard(f.card.id) }
                     }
@@ -163,7 +168,7 @@ fun DuplicatesSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                             Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall)
                             if (AppSettings.showPrices) {
                                 Spacer(Modifier.width(10.dp))
-                                Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
+                                Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
                             }
                         }
                     }

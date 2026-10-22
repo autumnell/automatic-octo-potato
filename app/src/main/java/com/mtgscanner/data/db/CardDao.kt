@@ -97,10 +97,14 @@ interface CardDao {
     /**
      * Copies and value per box, worked out in SQL so the box list doesn't read every card. Value matches
      * [totalPrice]: proxies count 0, else the condition price or the near-mint price for the finish.
+     * valueEur matches [totalEur]: the euro price, scaled like the condition price when there is one.
      */
     @Query(
         "SELECT boxId, COALESCE(SUM(quantity), 0) AS n, COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
-            "COALESCE(conditionPrice, CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) * quantity END), 0) AS value " +
+            "COALESCE(conditionPrice, CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) * quantity END), 0) AS value, " +
+            "COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceEurFoil, priceEur) ELSE priceEur END * " +
+            "CASE WHEN conditionPrice IS NOT NULL AND COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) > 0 " +
+            "THEN conditionPrice / CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END ELSE 1 END, 0) * quantity END), 0) AS valueEur " +
             "FROM cards GROUP BY boxId"
     )
     fun observeBoxTotals(): Flow<List<BoxTotal>>
@@ -122,6 +126,10 @@ interface CardDao {
             "WHERE scryfallId = :scryfallId"
     )
     suspend fun setPrices(scryfallId: String, usd: Double?, foil: Double?, treatments: String): Int
+
+    /** Updates a printing's euro prices (DB v12), next to [setPrices]. */
+    @Query("UPDATE cards SET priceEur = :eur, priceEurFoil = :eurFoil WHERE scryfallId = :scryfallId")
+    suspend fun setEurPrices(scryfallId: String, eur: Double?, eurFoil: Double?)
 
     /** Keeps rarity and tags (keywords, types, legal formats) up to date, so bans reach box rules. */
     @Query("UPDATE cards SET rarity = :rarity, tags = :tags WHERE scryfallId = :scryfallId")
@@ -297,6 +305,29 @@ interface CardDao {
 
     @Upsert
     suspend fun putPacks(items: List<PackOpening>)
+
+    // Loans (DB v12)
+
+    @Query("SELECT * FROM loans ORDER BY at DESC")
+    fun observeLoans(): Flow<List<Loan>>
+
+    @Query("SELECT * FROM loans")
+    suspend fun allLoans(): List<Loan>
+
+    @Insert
+    suspend fun addLoan(l: Loan): Long
+
+    @Update
+    suspend fun updateLoan(l: Loan)
+
+    @Query("DELETE FROM loans WHERE id = :id")
+    suspend fun deleteLoan(id: Long)
+
+    @Query("DELETE FROM loans")
+    suspend fun deleteLoans()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putLoans(l: List<Loan>)
 
     // Offline scans
 

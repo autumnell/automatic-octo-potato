@@ -1,5 +1,8 @@
 package com.mtgscanner.ui.scan
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,6 +34,7 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.foundation.rememberScrollState
@@ -80,6 +84,9 @@ import com.mtgscanner.ui.theme.Palette
 @Composable
 fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
     var open by remember { mutableStateOf(false) }
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.readPhoto(uri)
+    }
     Box {
         Box(
             Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
@@ -176,6 +183,14 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                 },
                 leadingIcon = { Icon(Icons.Filled.GridOn, null) },
                 onClick = { open = false; vm.setPageMode(!state.pageMode) },
+            )
+            DropdownMenuItem(
+                text = { ModeText("From photo", "Read every card in a picture") },
+                leadingIcon = { Icon(Icons.Filled.PhotoLibrary, null) },
+                onClick = {
+                    open = false
+                    runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                },
             )
             DropdownMenuItem(
                 text = {

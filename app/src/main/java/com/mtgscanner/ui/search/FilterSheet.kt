@@ -52,6 +52,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.ColorPip
+import com.mtgscanner.ui.collection.CardColors
+import com.mtgscanner.ui.collection.ColorMatch
 import com.mtgscanner.ui.theme.Palette
 
 /** Scryfall filters: printings, legality, types, stats, language and sort. */
@@ -78,6 +81,7 @@ fun FilterSheet(
             }
 
             ToggleRow("Group printings", f.groupPrintings) { onChange(f.copy(groupPrintings = it)) }
+            ToggleRow("Tokens & art cards", f.tokens) { onChange(f.copy(tokens = it)) }
 
             Heading("Format")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -88,6 +92,21 @@ fun FilterSheet(
                     })
                 }
                 SelectPill(if (moreFormats) "Less" else "More…", false, { moreFormats = !moreFormats })
+            }
+
+            Heading("Color")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CardColors.PIPS.forEach { c ->
+                    val on = c in f.colors
+                    SelectPill(COLOR_NAMES[c] ?: c, on, { onChange(f.copy(colors = if (on) f.colors - c else f.colors + c)) }, leading = { ColorPip(c[0]) })
+                }
+            }
+            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ColorMatch.entries.forEach { m -> SelectPill(m.label, f.colorMatch == m, { onChange(f.copy(colorMatch = m)) }) }
+            }
+            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SelectPill("Colors", !f.byIdentity, { onChange(f.copy(byIdentity = false)) })
+                SelectPill("Identity", f.byIdentity, { onChange(f.copy(byIdentity = true)) })
             }
 
             Heading("Type")
@@ -269,3 +288,5 @@ fun SavedMenu(
         }
     }
 }
+
+private val COLOR_NAMES = mapOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless")

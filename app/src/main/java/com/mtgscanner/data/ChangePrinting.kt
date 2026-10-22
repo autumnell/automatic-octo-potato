@@ -51,6 +51,8 @@ suspend fun CollectionRepository.changePrinting(id: Long, to: ScryfallCard): Pri
                     tags = e.tags,
                     priceUsd = e.priceUsd,
                     priceUsdFoil = e.priceUsdFoil,
+                    priceEur = e.priceEur,
+                    priceEurFoil = e.priceEurFoil,
                     imageUrl = e.imageUrl,
                     smallImageUrl = e.smallImageUrl,
                     scryfallUri = e.scryfallUri,

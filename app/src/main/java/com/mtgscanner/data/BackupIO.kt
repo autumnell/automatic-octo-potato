@@ -8,6 +8,7 @@ import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.Goal
+import com.mtgscanner.data.db.Loan
 import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.data.db.PricePoint
@@ -21,11 +22,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
-import kotlinx.serialization.json.put
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -51,6 +49,8 @@ data class Backup(
     val packs: List<PackOpening> = emptyList(),
     val events: List<CardEvent> = emptyList(),
     val goals: List<Goal> = emptyList(),
+    /** Copies lent out (DB v12). Older backups have none. */
+    val loans: List<Loan> = emptyList(),
     /** Settings that hold your organisation (deck folders, saved searches, sorting…): file name to values. Added in version 2. */
     val prefs: Map<String, Map<String, PrefValue>> = emptyMap(),
     /** Where a zip backup's price history and photos were unpacked when read; not part of the file. */
@@ -125,7 +125,7 @@ internal object BackupIO {
             version = Backup.CURRENT, exportedAt = System.currentTimeMillis(),
             boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
-            packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(),
+            packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(), loans = dao.allLoans(),
             prefs = BACKED_UP_PREFS.associateWith { name ->
                 BackupCodec.prefValues(repo.appContext.getSharedPreferences(name, Context.MODE_PRIVATE).all)
             }.filterValues { it.isNotEmpty() },
@@ -212,12 +212,12 @@ internal object BackupIO {
         val dao = repo.dao
         repo.db.withTransaction {
             dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
-            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteEvents(); dao.deleteGoals()
+            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteEvents(); dao.deleteGoals(); dao.deleteLoans()
             dao.putBoxes(b.boxes); dao.putCards(cards); dao.putSnapshots(b.snapshots)
             dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
             b.priceHistory.chunked(2000).forEach { dao.putPricePoints(it) }
             BackupArchive.forEachPriceChunk(b) { dao.putPricePoints(it) }
-            dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals)
+            dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals); dao.putLoans(b.loans)
         }
         b.staged?.let { runCatching { File(it).deleteRecursively() } }
         // Old backups have no settings: keep the current ones.
@@ -293,17 +293,16 @@ internal object BackupIO {
         fallbackBox: (suspend () -> Long)? = null,
     ): ImportResult = applyPlan(repo, plan(repo, rows, lookUp(repo, rows), boxId), fallbackBox)
 
-    /** Looks every row up on Scryfall (exact matches only). Throws IOException when offline. */
+    /**
+     * Looks every row up on Scryfall (exact matches only). A row that names a set gets that set's printing
+     * (and that collector number when given); only when there's no such printing does it fall back to the
+     * card in that set, then to any printing ([ImportPlan.otherPrinting] lists those). Throws IOException when offline.
+     */
     suspend fun lookUp(repo: CollectionRepository, given: List<ImportRow>): List<ScryfallCard?> {
         val api = repo.api
         val rows = withSetCodes(repo, given)
-        val found = api.identify(rows.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) }).toMutableList()
-        val retry = rows.indices.filter { found[it] == null && (rows[it].setCode != null || rows[it].scryfallId != null) }
-        if (retry.isNotEmpty()) {
-            val byName = api.identify(retry.map { buildJsonObject { put("name", rows[it].name) } })
-            retry.zip(byName).forEach { (i, c) -> found[i] = c }
-        }
-        return found
+        val wants = rows.map { PrintingLookup.Wanted(it.name, it.setCode, it.collectorNumber, it.scryfallId) }
+        return PrintingLookup.resolve(wants) { ids -> api.identify(ids.map(PrintingLookup::json)) }
     }
 
     /** Fills in set codes for rows that only have a full set name (Deckbox, Cardmarket), from Scryfall's set list. */
@@ -325,7 +324,7 @@ internal object BackupIO {
         val row = withSetCodes(repo, listOf(given)).first()
         lookUp(repo, listOf(row)).firstOrNull()?.let { return it }
         val name = row.name.trim().takeIf { it.isNotEmpty() } ?: return null
-        val set = row.setCode
+        val set = PrintingLookup.setCode(row.setCode)
         return (if (set != null) repo.api.named(name, set) else null) ?: repo.api.named(name)
     }
 
@@ -407,11 +406,4 @@ internal object BackupIO {
         return ImportResult(added, notFound)
     }
 
-    private fun identifierFor(name: String, set: String?, number: String?, id: String?): JsonObject = buildJsonObject {
-        when {
-            id != null -> put("id", id)
-            set != null && number != null -> { put("set", set.lowercase()); put("collector_number", number) }
-            else -> { put("name", name); if (set != null) put("set", set.lowercase()) }
-        }
-    }
 }

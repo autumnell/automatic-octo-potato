@@ -88,6 +88,10 @@ data class CollectionCard(
     val pinned: Boolean = false,
     val addedAt: Long,
     val updatedAt: Long,
+    /** Cardmarket price per copy in euros, from Scryfall (DB v12); null when Scryfall has none. */
+    val priceEur: Double? = null,
+    /** Cardmarket foil price per copy in euros (DB v12). */
+    val priceEurFoil: Double? = null,
 )
 
 /** Columns that must all match for copies to share a row: the unique index on cards (DB v9) and [sameCopyAs]. */
@@ -139,6 +143,23 @@ fun CollectionCard.nearMintPrice(): Double? = if (foil) priceUsdFoil ?: priceUsd
 /** Price for one copy: JustTCG's price for its condition when there is one, else Scryfall's near-mint price. */
 fun CollectionCard.unitPrice(): Double? = conditionPrice ?: nearMintPrice()
 fun CollectionCard.totalPrice(): Double = if (proxy) 0.0 else (unitPrice() ?: 0.0) * quantity
+
+/** Scryfall's Cardmarket price in euros for this printing and finish. */
+fun CollectionCard.nearMintEur(): Double? = if (foil) priceEurFoil ?: priceEur else priceEur
+
+/**
+ * Price for one copy in euros. With a JustTCG condition price (in dollars), the euro price is scaled
+ * the same way that condition price relates to the dollar near-mint price.
+ */
+fun CollectionCard.unitEur(): Double? {
+    val nm = nearMintEur() ?: return null
+    val cond = conditionPrice ?: return nm
+    val usdNm = nearMintPrice()?.takeIf { it > 0 } ?: return nm
+    return nm * cond / usdNm
+}
+
+/** What the copies are worth in euros; proxies count 0. Cards with no euro price count 0. */
+fun CollectionCard.totalEur(): Double = if (proxy) 0.0 else (unitEur() ?: 0.0) * quantity
 /** Scryfall serves the same image path in several sizes; this swaps in the art-only crop. */
 fun artCropUrl(imageUrl: String?): String? = imageUrl
     ?.replace("/normal/", "/art_crop/")?.replace("/large/", "/art_crop/")?.replace("/small/", "/art_crop/")

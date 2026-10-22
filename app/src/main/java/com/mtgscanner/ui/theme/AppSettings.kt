@@ -15,6 +15,10 @@ object AppSettings {
     var showPrices by mutableStateOf(true)
         private set
 
+    /** Dollar prices, euro prices or both, wherever card and collection values show. */
+    var currency by mutableStateOf(com.mtgscanner.util.PriceCurrency.USD)
+        private set
+
     /** Daily notification when a card you own or want changes price by more than these amounts. */
     var priceAlerts by mutableStateOf(false)
         private set
@@ -40,12 +44,14 @@ object AppSettings {
         alertDollars = p.getFloat("alertDollars", 1f).toDouble()
         scanLogUnlocked = p.getBoolean("scanLog", false)
         bigText = p.getBoolean("bigText", false)
+        currency = com.mtgscanner.util.PriceCurrency.of(p.getString("currency", null))
     }
 
     fun updateShowPrices(v: Boolean) { showPrices = v; prefs?.edit()?.putBoolean("showPrices", v)?.apply() }
     fun updatePriceAlerts(v: Boolean) { priceAlerts = v; prefs?.edit()?.putBoolean("priceAlerts", v)?.apply() }
     fun updateAlertPercent(v: Double) { alertPercent = v; prefs?.edit()?.putFloat("alertPercent", v.toFloat())?.apply() }
     fun updateAlertDollars(v: Double) { alertDollars = v; prefs?.edit()?.putFloat("alertDollars", v.toFloat())?.apply() }
+    fun updateCurrency(v: com.mtgscanner.util.PriceCurrency) { currency = v; prefs?.edit()?.putString("currency", v.name)?.apply() }
     fun updateBigText(v: Boolean) { bigText = v; prefs?.edit()?.putBoolean("bigText", v)?.apply() }
     fun unlockScanLog(v: Boolean) { scanLogUnlocked = v; prefs?.edit()?.putBoolean("scanLog", v)?.apply() }
 

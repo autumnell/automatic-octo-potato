@@ -131,6 +131,22 @@ internal fun ImportPreviewDialog(
                     }
                 }
 
+                val other = plan.otherPrinting
+                if (other.isNotEmpty()) {
+                    HorizontalDivider(color = Palette.Outline, modifier = Modifier.padding(vertical = 6.dp))
+                    Text("Other printing (${other.sumOf { plan.rows[it].quantity }})", style = MaterialTheme.typography.titleSmall, color = Palette.GoldText)
+                    other.forEach { i ->
+                        val r = plan.rows[i]
+                        val c = plan.found[i] ?: return@forEach
+                        val asked = (r.setCode?.uppercase() ?: "") + (r.collectorNumber?.let { " #$it" } ?: "")
+                        Text("${r.quantity}  ${r.name}", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "No $asked · got ${c.set.uppercase()} #${c.collectorNumber}",
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+
                 if (missing.isNotEmpty()) {
                     HorizontalDivider(color = Palette.Outline, modifier = Modifier.padding(vertical = 6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -59,6 +59,7 @@ import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SectionHeader
+import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.MtgColors
@@ -96,6 +97,8 @@ fun StatsScreen(
     val stats by vm.stats.collectAsStateWithLifecycle()
     val prices = AppSettings.showPrices
     var allSets by remember { mutableStateOf(false) }
+    var yearReview by remember { mutableStateOf(false) }
+    if (yearReview) YearReviewDialog(onDismiss = { yearReview = false }, onOpenCard = { yearReview = false; onOpenCard(it) })
 
     fun browse(filters: Filters) {
         BrowseLaunch.filters = filters
@@ -106,6 +109,7 @@ fun StatsScreen(
         Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Text("Stats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = { yearReview = true }) { Text("Year in review") }
         }
         val s = stats
         if (s == null) {
@@ -130,6 +134,8 @@ fun StatsScreen(
                 PaidPanel(s.paid)
             }
 
+            if (prices) MoneySection()
+
             SectionHeader("By color")
             Breakdown(
                 s.byColor.filter { it.cards > 0 }, prices,
@@ -144,7 +150,7 @@ fun StatsScreen(
                 s.byRarity, prices,
                 lead = { RarityDot(it.key, 10.dp) },
                 bar = { MtgColors.rarity(it.key) },
-                onRow = { r -> if (r.key != "special") browse(Filters(rarities = setOf(r.key), sort = SortBy.PRICE)) },
+                onRow = { r -> if (r.key != "special" && r.key != StatsMath.TOKENS) browse(Filters(rarities = setOf(r.key), sort = SortBy.PRICE)) },
             )
 
             SectionHeader("By set") {
@@ -176,7 +182,7 @@ fun StatsScreen(
                                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1,
                                     )
                                 }
-                                Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                                Text(cardPrice(c), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
                             }
                         }
                     }

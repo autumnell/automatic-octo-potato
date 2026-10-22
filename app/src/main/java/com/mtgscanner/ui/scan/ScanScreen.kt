@@ -124,6 +124,7 @@ import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
+import com.mtgscanner.ui.components.scryfallPrice
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
@@ -166,6 +167,14 @@ fun ScanScreen(
     val priceCheck by com.mtgscanner.util.OpenRequests.priceCheck.collectAsStateWithLifecycle()
     LaunchedEffect(priceCheck) {
         if (priceCheck) { com.mtgscanner.util.OpenRequests.priceCheck.value = false; vm.startCheck() }
+    }
+    // Home's "not checked in 3 months" nudge: start a Box check of that box once the boxes are loaded.
+    val boxCheckAsk by com.mtgscanner.util.OpenRequests.boxCheck.collectAsStateWithLifecycle()
+    LaunchedEffect(boxCheckAsk, loadedBoxes) {
+        val id = boxCheckAsk ?: return@LaunchedEffect
+        val box = loadedBoxes?.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        com.mtgscanner.util.OpenRequests.boxCheck.value = null
+        vm.startBoxCheck(box)
     }
     val boxes = loadedBoxes.orEmpty()
     val needsBox = loadedBoxes != null && boxes.isEmpty()
@@ -361,7 +370,7 @@ fun ScanScreen(
         // Drawn over everything on the screen, never catching touches.
         AddFlightOverlay(flight)
         val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
-            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.showNewBox ||
+            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.photo != null || state.showNewBox ||
             state.showSkipped || state.showUnknown || state.showBoxPick || state.showBoxCheck
         if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
             ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.updateHintsSeen(true) })
@@ -379,6 +388,7 @@ fun ScanScreen(
     if (state.showSetLock) SetPickSheet(vm)
     if (state.showDeckPick) DeckPickDialog(vm)
     if (state.page != null) PageSheet(state, vm)
+    if (state.photo != null) PhotoSheet(state, vm)
     if (state.showSkipped) SkippedSheet(state, vm)
     if (state.showUnknown) UnknownSheet(vm)
     if (state.showBoxPick) BoxPickDialog(boxes, vm)
@@ -714,7 +724,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        if (AppSettings.showPrices) Text(formatUsd(card.price(foil)), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
+                        if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
                         state.owned?.let { n ->
                             if (AppSettings.showPrices) Spacer(Modifier.width(10.dp))
                             Text(

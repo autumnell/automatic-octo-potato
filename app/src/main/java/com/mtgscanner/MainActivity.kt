@@ -117,7 +117,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        openRequest = intent.getStringExtra(CollectionWidget.EXTRA_OPEN)
+        openRequest = com.mtgscanner.data.BoxLinks.route(intent.dataString) ?: intent.getStringExtra(CollectionWidget.EXTRA_OPEN)
         com.mtgscanner.util.IncomingShare.accept(intent)
     }
 
@@ -125,7 +125,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         com.mtgscanner.ui.settings.CrashLog.install(this)
         if (savedInstanceState == null) {
-            openRequest = intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
+            // A box's QR code or NFC tag (grimoire://box/12) opens that box.
+            openRequest = com.mtgscanner.data.BoxLinks.route(intent?.dataString) ?: intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
             // A CSV, decklist or deck link shared to the app or opened with it.
             com.mtgscanner.util.IncomingShare.accept(intent)
         }
@@ -208,7 +209,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             "search" -> nav.goToTab("search")
             "check" -> { com.mtgscanner.util.OpenRequests.priceCheck.value = true; nav.goToTab("scan") }
             "settings" -> nav.navigate("settings") { launchSingleTop = true }
-            else -> openRequest?.takeIf { it.startsWith("card/") && it.removePrefix("card/").toLongOrNull() != null }?.let { nav.navigate(it) }
+            else -> openRequest?.takeIf { (it.startsWith("card/") || it.startsWith("browse/")) && it.substringAfter('/').toLongOrNull() != null }?.let { nav.navigate(it) }
         }
         if (openRequest != null) onOpened()
     }
@@ -244,6 +245,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onBrowseAll = { nav.navigate("browse/-1") },
                     onGoals = { nav.navigate("goals") },
                     onStats = { nav.navigate("stats") },
+                    onOpenSet = { nav.navigate("set/$it") },
                 )
               }
             }
@@ -278,6 +280,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onTrade = { binderId -> nav.navigate("trade/$binderId") },
                     onSets = { nav.navigate("sets") },
                     onExtras = { nav.navigate("extras") },
+                    onLoans = { nav.navigate("loans") },
+                    onBuylist = { nav.navigate("buylist") },
                 )
               }
             }
@@ -349,6 +353,16 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popFrom(it) }, onBrowse = { nav.navigate("browse/-1") }) }
+            composable(
+                "loans",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.loans.LoansScreen(onBack = { nav.popFrom(it) }, onOpenCard = { id -> nav.navigate("card/$id") }) }
+            composable(
+                "buylist",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.sell.BuylistScreen(onBack = { nav.popFrom(it) }, onOpenCard = { id -> nav.navigate("card/$id") }) }
             composable(
                 "scanlog",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },

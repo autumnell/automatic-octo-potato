@@ -45,6 +45,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.PriceSparkline
 import com.mtgscanner.ui.components.RarityMark
 import com.mtgscanner.ui.components.foilShimmer
+import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -159,7 +160,7 @@ fun CardStack(
             )
             if (AppSettings.showPrices) {
                 Spacer(Modifier.width(10.dp))
-                Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
+                Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
                 Spacer(Modifier.width(6.dp))
                 PriceSparkline(sparks[c.id].orEmpty())
             }

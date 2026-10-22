@@ -1,5 +1,8 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.data.search.ScryfallQuery
+import com.mtgscanner.ui.collection.CardColors
+import com.mtgscanner.ui.collection.ColorMatch
 import kotlinx.serialization.Serializable
 
 /** A type line term to require (IS) or exclude (NOT). */
@@ -17,11 +20,18 @@ data class SearchFilters(
     val groupPrintings: Boolean = true,
     /** Scryfall format key, such as "commander"; only cards legal in it are shown. */
     val format: String? = null,
+    /** Picked color pips (W U B R G, C for colorless), matched by [colorMatch] like Scryfall's c>=, c= and c<=. */
+    val colors: Set<String> = emptySet(),
+    val colorMatch: ColorMatch = ColorMatch.INCLUDING,
+    /** Commander color identity (id) instead of the card's colors (c). */
+    val byIdentity: Boolean = false,
     val types: List<TypeTerm> = emptyList(),
     val stats: List<StatTerm> = emptyList(),
     /** Scryfall language code; "" means default (English), "any" means all. */
     val lang: String = "",
     val order: String = "name",
+    /** Also show tokens, emblems and art cards (Scryfall leaves them out unless asked). */
+    val tokens: Boolean = false,
 ) {
     val unique: String get() = if (groupPrintings) "cards" else "prints"
 
@@ -29,12 +39,16 @@ data class SearchFilters(
     val activeCount: Int
         get() = (if (!groupPrintings) 1 else 0) +
             (if (format != null) 1 else 0) +
+            (if (colorTerm != null) 1 else 0) +
             types.size + validStats.size +
             (if (lang.isNotEmpty()) 1 else 0) +
-            (if (order != "name") 1 else 0)
+            (if (order != "name") 1 else 0) +
+            (if (tokens) 1 else 0)
 
     /** True when the filters alone narrow the search, so it can run with no words typed. */
-    val narrows: Boolean get() = format != null || types.isNotEmpty() || validStats.isNotEmpty()
+    val narrows: Boolean get() = format != null || colorTerm != null || types.isNotEmpty() || validStats.isNotEmpty()
+
+    private val colorTerm: String? get() = CardColors.scryfallTerm(colors, colorMatch, byIdentity)
 
     private val validStats: List<StatTerm>
         get() = stats.filter { it.stat in STATS && it.op in OPS && validValue(it.op, it.value.trim()) }
@@ -42,6 +56,7 @@ data class SearchFilters(
     /** The Scryfall query terms for these filters, joined by spaces. Empty when none apply. */
     fun toQuery(): String = buildList {
         if (format != null) add("f:$format")
+        colorTerm?.let { add(it) }
         types.forEach { t ->
             val w = t.word.trim().lowercase()
             if (w.isNotEmpty()) {
@@ -51,6 +66,7 @@ data class SearchFilters(
         }
         validStats.forEach { add("${it.stat}${it.op}${it.value.trim()}") }
         if (lang.isNotEmpty()) add("lang:$lang")
+        if (tokens) add("include:extras")
     }.joinToString(" ")
 
     /**
@@ -58,7 +74,7 @@ data class SearchFilters(
      * parentheses so the filters apply to every branch, not just the last one.
      */
     fun combine(text: String): String {
-        val t = text.trim()
+        val t = tidy(text)
         val q = toQuery()
         val words = if (q.isNotEmpty() && OR.containsMatchIn(t)) "($t)" else t
         return listOf(words, q).filter { it.isNotEmpty() }.joinToString(" ")
@@ -87,6 +103,28 @@ data class SearchFilters(
         val STATS = listOf("mv", "pow", "tou")
         val OPS = listOf("=", "<", ">", "<=", ">=")
         private val OR = Regex("""(?i)(^|\s)or(\s|$)""")
+
+        /**
+         * Typed text made safe to send with filters after it: curly quotes from phone keyboards made straight,
+         * and a quote or ( left open closed, so it doesn't swallow the filters.
+         */
+        fun tidy(text: String): String {
+            val t = ScryfallQuery.straightenQuotes(text).trim()
+            var inQuote = false
+            var depth = 0
+            var i = 0
+            while (i < t.length) {
+                val ch = t[i]
+                when {
+                    ch == '\\' && inQuote -> i++
+                    ch == '"' -> inQuote = !inQuote
+                    !inQuote && ch == '(' -> depth++
+                    !inQuote && ch == ')' && depth > 0 -> depth--
+                }
+                i++
+            }
+            return t + (if (inQuote) "\"" else "") + ")".repeat(depth)
+        }
 
         /** A number (may be negative or have a decimal point), or "*" with "=". */
         private fun validValue(op: String, v: String): Boolean =

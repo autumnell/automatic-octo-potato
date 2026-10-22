@@ -105,6 +105,8 @@ fun BoxEditorSheet(
     layout: Boolean = false,
     /** When set, step 1 also offers whole systems of boxes made in one tap. */
     onTemplate: ((BoxTemplate) -> Unit)? = null,
+    /** When set, "Try it first" shows where every card would go before anything is saved. */
+    onTry: ((BoxDraft) -> Unit)? = null,
 ) {
     val isNew = initial == null
     var draft by remember { mutableStateOf(initial ?: BoxDraft()) }
@@ -199,6 +201,13 @@ fun BoxEditorSheet(
                     Modifier.fillMaxWidth(),
                     enabled = draft.name.isNotBlank(),
                 )
+            }
+            if (step == 3 && onTry != null) {
+                TextButton(
+                    onClick = { onTry(draft.copy(name = draft.name.trim(), rules = rules(), capacity = capText.toIntOrNull() ?: 0)) },
+                    enabled = draft.name.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Try it first") }
             }
             Spacer(Modifier.height(20.dp))
         }
@@ -471,6 +480,12 @@ private fun RulesStep(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectPill("Any", !rules.reserved, { onRules(rules.copy(reserved = false)) })
             SelectPill("Reserved only", rules.reserved, { onRules(rules.copy(reserved = true)) })
+        }
+    }
+    RuleCard("Tokens & art cards", if (rules.tokens) "Only" else null, open == "tokens", { toggle("tokens") }) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectPill("Any", !rules.tokens, { onRules(rules.copy(tokens = false)) })
+            SelectPill("Tokens & art only", rules.tokens, { onRules(rules.copy(tokens = true)) })
         }
     }
 }

@@ -44,9 +44,9 @@ import com.mtgscanner.ui.theme.Palette
 data class SmartList(val search: SavedSearch, val cards: Int, val value: Double) {
     companion object {
         /** Uses Browse's own filter so the count matches what Browse shows; a list saved in a box counts that box only. */
-        fun of(s: SavedSearch, all: List<CollectionCard>): SmartList {
+        fun of(s: SavedSearch, all: List<CollectionCard>, env: com.mtgscanner.data.search.SearchEnv = com.mtgscanner.data.search.SearchEnv()): SmartList {
             val box = s.boxId
-            val hits = all.filter { (box == null || it.boxId == box) && BrowseViewModel.matches(it, s.filters) }
+            val hits = all.filter { (box == null || it.boxId == box) && BrowseViewModel.matches(it, s.filters, null, env) }
             return SmartList(s, hits.sumOf { it.quantity }, hits.sumOf { it.totalPrice() })
         }
     }

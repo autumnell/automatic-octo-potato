@@ -76,6 +76,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
@@ -93,8 +94,6 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.DeckLine
 import com.mtgscanner.util.DecklistParser
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -598,9 +597,11 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             try {
                 val missing = check.lines.filter { it.section in PLAYED && it.missing > 0 }
                     .groupBy { DeckStatsMath.key(it.name) }.values
-                    .map { ls -> ls.first().name to ls.sumOf { it.missing } }
+                    .map { ls -> ls.first() to ls.sumOf { it.missing } }
                 val msg = runCatching {
-                    val cards = repo.api.identify(missing.map { (n, _) -> buildJsonObject { put("name", n) } })
+                    // The printing the list names, when it has one.
+                    val wants = missing.map { (l, _) -> PrintingLookup.Wanted(l.name, l.setCode, l.collectorNumber) }
+                    val cards = PrintingLookup.resolve(wants) { ids -> repo.api.identify(ids.map(PrintingLookup::json)) }
                     var n = 0
                     missing.zip(cards).forEach { (m, c) -> if (c != null) { repo.wantAtLeast(c, m.second); n++ } }
                     n
@@ -798,9 +799,12 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val where = if (missingView) {
-                if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section
-            } else l.boxes.joinToString(" · ") { (b, n) -> "$b ×$n" }
+            val printing = l.setCode?.let { it.uppercase() + (l.collectorNumber?.let { n -> " #$n" } ?: "") }
+            val where = when {
+                l.otherPrinting -> "No $printing · other printing shown"
+                missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, printing).joinToString(" · ")
+                else -> l.boxes.joinToString(" · ") { (b, n) -> "$b ×$n" }
+            }
             Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText) }

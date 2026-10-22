@@ -22,7 +22,10 @@ data class CardFacts(
     val formats: Set<String> = emptySet(),
     /** Collector number, for boxes kept in number order. */
     val number: String = "",
-)
+) {
+    /** A token, emblem or art card (see [CardExtras]), from the type line. */
+    val tokenOrArt: Boolean get() = CardExtras.isExtra(typeLine)
+}
 
 /**
  * What belongs in a box. Empty sets mean "any". A card fits when it passes every rule that's set.
@@ -58,12 +61,14 @@ data class BoxRules(
     val formats: Set<String> = emptySet(),
     /** Only cards on the Reserved List. */
     val reserved: Boolean = false,
+    /** Only tokens, emblems and art cards. Such a box gets them ahead of every other box. */
+    val tokens: Boolean = false,
 ) {
     val isCatchAll: Boolean
         get() = colors.isEmpty() && rarities.isEmpty() && types.isEmpty() && treatments.isEmpty() &&
             finish == "any" && minPrice == null && maxPrice == null && sets.isEmpty() && nameFrom == null && nameTo == null &&
             identity.isEmpty() && minCmc == null && maxCmc == null && minPower == null && maxPower == null &&
-            minToughness == null && maxToughness == null && formats.isEmpty() && !reserved
+            minToughness == null && maxToughness == null && formats.isEmpty() && !reserved && !tokens
 
     /**
      * Takes any card, or any card in a name range only (half of a split "Anything" box).
@@ -130,6 +135,7 @@ data class BoxRules(
         }
         if (formats.isNotEmpty() && formats.none { it in c.formats }) return false
         if (reserved && !c.reserved) return false
+        if (tokens && !c.tokenOrArt) return false
         return true
     }
 
@@ -159,6 +165,7 @@ data class BoxRules(
         range("Toughness", minToughness, maxToughness)?.let { parts += it }
         if (formats.isNotEmpty()) parts += formats.joinToString("/") { FORMAT_NAMES[it] ?: it } + " legal"
         if (reserved) parts += "Reserved List"
+        if (tokens) parts += "Tokens & art cards"
         return parts.joinToString(" · ")
     }
 
@@ -192,6 +199,7 @@ data class BoxRules(
         if (!lowAtMost(minToughness?.toDouble(), other.minToughness?.toDouble()) || !highAtLeast(maxToughness?.toDouble(), other.maxToughness?.toDouble())) return false
         if (!sub(formats, other.formats)) return false
         if (reserved && !other.reserved) return false
+        if (tokens && !other.tokens) return false
         return true
     }
 
@@ -242,7 +250,11 @@ data class BoxRules(
 
         /** The first box whose rules fit [card], ignoring open boxes (see [isOpen]). Used to sort a catch-all box later. */
         fun <T> ruleMatch(boxes: List<Pair<T, BoxRules>>, card: CardFacts): T? =
-            boxes.firstOrNull { !it.second.isOpen && it.second.matches(card) }?.first
+            tokensFirst(boxes) { it.second }.firstOrNull { !it.second.isOpen && it.second.matches(card) }?.first
+
+        /** [boxes] with the "Tokens & art cards" boxes moved to the front, the rest in their order. */
+        fun <T> tokensFirst(boxes: List<T>, rules: (T) -> BoxRules): List<T> =
+            if (boxes.none { rules(it).tokens }) boxes else boxes.filter { rules(it).tokens } + boxes.filterNot { rules(it).tokens }
 
         /**
          * Picks the box a card belongs in: the first box with rules that fit, in Auto-sort order.
@@ -258,7 +270,7 @@ data class BoxRules(
          * checked earlier would take first. Boxes that take any card never take cards first.
          */
         fun <T> overlap(draft: BoxRules, ahead: List<Pair<T, BoxRules>>, cards: List<CardFacts>): Overlap<T> {
-            val rulesAhead = ahead.filter { !it.second.isOpen }
+            val rulesAhead = tokensFirst(ahead.filter { !it.second.isOpen }) { it.second }
             val fits = cards.indices.filter { draft.matches(cards[it]) }
             val taken = LinkedHashMap<T, MutableList<Int>>()
             for (i in fits) {
@@ -284,7 +296,8 @@ object RuleCheck {
         val out = LinkedHashMap<T, T?>()
         val colorsAhead = HashSet<String>()
         boxes.forEachIndexed { i, (id, rules, limited) ->
-            if (!rules.isOpen) {
+            // A tokens box is checked ahead of the others, so no earlier box takes its cards.
+            if (!rules.isOpen && !rules.tokens) {
                 val by = boxes.subList(0, i).firstOrNull { (_, r, lim) -> !lim && !r.isOpen && r.covers(rules) }
                 when {
                     by != null -> out[id] = by.first
@@ -356,6 +369,7 @@ val BOX_PRESETS = listOf(
     BoxPreset("Foils", "binder", BoxRules(finish = "foil")),
     BoxPreset("High value", "binder", BoxRules(minPrice = 10.0)),
     BoxPreset("Reserved List", "binder", BoxRules(reserved = true)),
+    BoxPreset("Tokens & art cards", "box", BoxRules(tokens = true)),
     BoxPreset("Pauper", "box", BoxRules(formats = setOf("pauper"))),
     BoxPreset("White", "box", BoxRules(colors = setOf("W"))),
     BoxPreset("Blue", "box", BoxRules(colors = setOf("U"))),

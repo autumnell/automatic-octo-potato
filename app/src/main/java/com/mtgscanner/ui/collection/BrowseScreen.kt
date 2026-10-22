@@ -106,6 +106,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.ToolChip
+import com.mtgscanner.ui.components.cardPrice
+import com.mtgscanner.ui.components.cardPriceShort
+import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
@@ -167,8 +170,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             Column(Modifier.weight(1f)) {
                 Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
                 Text(
-                    if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards${priceSuffix(ui.shownValue)}"
-                    else "${ui.totalCards} cards${priceSuffix(ui.shownValue)}",
+                    if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}"
+                    else "${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                 )
@@ -212,7 +215,22 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
         }
         MoveListHost()
 
-        SearchField(f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+        var syntaxHelp by remember { mutableStateOf(false) }
+        SearchField(
+            f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            trailing = {
+                Text(
+                    "?",
+                    color = if (syntaxHelp) Palette.Accent else Palette.Muted,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { syntaxHelp = !syntaxHelp }.padding(horizontal = 8.dp),
+                )
+            },
+        )
+        ui.searchNote?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 24.dp))
+        }
+        if (syntaxHelp) SyntaxHelp(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         if (showTip && ui.totalCards > 0 && !picking) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
@@ -491,8 +509,32 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
     )
 }
 
+/** A few examples of Scryfall search syntax, which the collection search reads too. */
 @Composable
-fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = "Search name, type, text, tag") {
+private fun SyntaxHelp(modifier: Modifier = Modifier) {
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Surface).padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        listOf(
+            "t:elf  c:rg  id<=esper  mv>=4",
+            "o:\"draw a card\"  r:mythic  s:mh2",
+            "pow>tou  usd>5  is:foil  a:rush",
+            "-t:land  (bolt or shock)  !\"Sol Ring\"",
+            "box:binder  tag:trade  cond:lp  qty>1",
+            "added>=7d  is:lent  is:forsale",
+            "f:modern  otag:ramp  (asks Scryfall)",
+        ).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Text) }
+    }
+}
+
+@Composable
+fun SearchField(
+    value: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "Search name, type, text, tag",
+    trailing: (@Composable () -> Unit)? = null,
+) {
     Row(
         modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Palette.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -513,6 +555,7 @@ fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier = 
         if (value.isNotEmpty()) {
             Icon(Icons.Filled.Clear, "Clear", tint = Palette.Muted, modifier = Modifier.size(20.dp).clickable { onChange("") })
         }
+        trailing?.invoke()
     }
 }
 
@@ -558,7 +601,7 @@ private fun CardGrid(
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
                     if (grid) {
                         CardTile(
-                            c.smallImageUrl ?: c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
+                            c.smallImageUrl ?: c.imageUrl, c.name, cardPriceShort(c), quantity = c.quantity, foil = c.foil,
                             onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
                         )
                     } else if (picking) {
@@ -743,7 +786,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
             if (AppSettings.showPrices) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (spark != null) { PriceSparkline(spark); Spacer(Modifier.width(6.dp)) }
-                    Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
+                    Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
                 }
             }
         }
@@ -778,7 +821,7 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
             Spacer(Modifier.width(6.dp))
             Box(Modifier.width(36.dp)) { if (spark != null) PriceSparkline(spark) }
             Text(
-                formatUsd(c.unitPrice()), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
+                cardPriceShort(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(64.dp),
             )
         }
@@ -841,7 +884,9 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                 if (f.activeCount > 0) TextButton(onClick = vm::clearFilters) { Text("Clear all") }
             }
             FilterGroup("Color") {
-                (COLOR_FILTERS + f.colors.filter { com.mtgscanner.ui.home.ColorPairs.isPairKey(it) }).forEach { col ->
+                // Pair keys from Home and an old "Multicolor" pick show only while picked, so they can be cleared.
+                val legacy = f.colors.filter { it == CardColors.LEGACY_MULTI || com.mtgscanner.ui.home.ColorPairs.isPairKey(it) }
+                (COLOR_FILTERS + legacy).forEach { col ->
                     val label = mapOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless", "M" to "Multicolor")[col]
                         ?: com.mtgscanner.ui.home.ColorPairs.name(col)
                     val pip: (@Composable () -> Unit)? = if (col in listOf("W", "U", "B", "R", "G", "C", "M")) {
@@ -849,6 +894,15 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                     } else null
                     SelectPill(label, col in f.colors, onClick = { vm.update { it.copy(colors = it.colors.toggle(col)) } }, leading = pip)
                 }
+            }
+            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ColorMatch.entries.forEach { m ->
+                    SelectPill(m.label, f.colorMatch == m, onClick = { vm.update { it.copy(colorMatch = m) } })
+                }
+            }
+            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SelectPill("Colors", !f.byIdentity, onClick = { vm.update { it.copy(byIdentity = false) } })
+                SelectPill("Identity", f.byIdentity, onClick = { vm.update { it.copy(byIdentity = true) } })
             }
             FilterGroup("Rarity") {
                 RARITIES.forEach { r ->

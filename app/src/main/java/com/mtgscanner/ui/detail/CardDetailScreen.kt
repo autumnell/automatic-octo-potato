@@ -111,6 +111,8 @@ import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
+import com.mtgscanner.ui.components.cardPrice
+import com.mtgscanner.ui.components.cardTotal
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -425,6 +427,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     var editingAsk by remember { mutableStateOf(false) }
     var editingFrom by remember { mutableStateOf(false) }
     var splitting by remember { mutableStateOf(false) }
+    var lending by remember { mutableStateOf(false) }
     var viewingPhoto by remember { mutableStateOf(false) }
     var showAllEvents by remember { mutableStateOf(false) }
     val events by vm.events.collectAsStateWithLifecycle()
@@ -514,11 +517,12 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         if (c.altered) Badge("Altered")
                         if (c.graded.isNotBlank()) Badge(c.graded)
                         if (c.proxy) InfoChip { Text("Proxy", style = MaterialTheme.typography.labelMedium, color = Palette.Danger) }
+                        com.mtgscanner.ui.loans.loanLabel(c)?.let { Badge(it) }
                         if (c.forSale) Badge(if (c.askPrice != null && AppSettings.showPrices) "For sale ${formatUsd(c.askPrice)}" else "For sale")
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         InfoChip { Text("${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium) }
                         c.releasedAt?.let { InfoChip { Text(it.take(4), style = MaterialTheme.typography.labelMedium) } }
-                        if (AppSettings.showPrices) InfoChip { Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
+                        if (AppSettings.showPrices) InfoChip { Text(cardPrice(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
                         InfoChip {
                             Text(
                                 listOf("Added ${shortDate(c.addedAt)}", c.acquiredFrom).filter { it.isNotBlank() }.joinToString(" · "),
@@ -560,6 +564,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                     onPick = startPicker,
                                     onRemovePhoto = { vm.removePhoto() },
                                     onSplit = if (c.quantity > 1) ({ splitting = true }) else null,
+                                    onLend = { lending = true },
                                 )
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
@@ -594,6 +599,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                     }
 
+                    // Where its box sits on the shelf, when the shelf is laid out.
+                    com.mtgscanner.ui.collection.ShelfSpot(boxes, setOf(c.boxId), Modifier.padding(top = 10.dp))
                     Spacer(Modifier.height(10.dp))
                     // Legality lives in the Rules tab below, with every format.
                     CardTextBlock((live?.textInfo() ?: c.textInfo()).copy(legalities = emptyMap()))
@@ -603,7 +610,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText)
+                                Text(cardPrice(c), style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText)
                                 if (c.conditionPrice != null && c.condition != "NM" && c.nearMintPrice() != null) {
                                     Text("${c.condition} · near mint ${formatUsd(c.nearMintPrice())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 }
@@ -621,7 +628,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("You own", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text("${c.quantity} · ${formatUsd(c.totalPrice())}", style = MaterialTheme.typography.titleMedium)
+                                Text("${c.quantity} · ${cardTotal(c)}", style = MaterialTheme.typography.titleMedium)
                             }
                         }
                         PriceAlertRow(c)
@@ -779,6 +786,9 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     if (splitting && c != null && c.quantity > 1) {
         SplitDialog(c, onSplit = { vm.split(it); splitting = false }, onDismiss = { splitting = false })
     }
+    if (lending && c != null) {
+        com.mtgscanner.ui.loans.LendDialog(c, onDismiss = { lending = false })
+    }
 
     if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
 
@@ -866,6 +876,7 @@ private fun MorePicker(
     onRemovePhoto: () -> Unit,
     /** Change condition, finish or language for some copies; null with only one copy. */
     onSplit: (() -> Unit)? = null,
+    onLend: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -874,6 +885,10 @@ private fun MorePicker(
             if (onSplit != null) DropdownMenuItem(
                 text = { Text("Split copies…") },
                 onClick = { open = false; onSplit() },
+            )
+            if (onLend != null) DropdownMenuItem(
+                text = { Text("Lend…") },
+                onClick = { open = false; onLend() },
             )
             DropdownMenuItem(
                 text = { Text(if (c.purchasePrice == null) "Paid…" else "Paid: ${formatUsd(c.purchasePrice)}", color = if (c.purchasePrice != null) Palette.AccentText else Palette.Text) },

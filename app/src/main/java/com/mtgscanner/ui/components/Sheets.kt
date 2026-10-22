@@ -105,9 +105,9 @@ fun PrintingsSheet(
                             }
                         }
                         if (AppSettings.showPrices) Column(horizontalAlignment = Alignment.End) {
-                            Text(formatUsd(p.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                            Text(formatMoneyShort(p.prices.usd?.toDoubleOrNull(), p.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
                             if (p.prices.usdFoil != null) {
-                                Text("Foil ${formatUsd(p.prices.usdFoil)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                                Text("Foil ${formatMoneyShort(p.prices.usdFoil?.toDoubleOrNull(), p.prices.eurFoil?.toDoubleOrNull())}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                             }
                         }
                     }
@@ -166,7 +166,7 @@ fun AddCardSheet(
                     }
                     Spacer(Modifier.height(8.dp))
                     if (AppSettings.showPrices) Text(
-                        formatUsd(card.price(foil)),
+                        scryfallPrice(card, foil),
                         style = MaterialTheme.typography.headlineSmall,
                         color = Palette.AccentText,
                     )

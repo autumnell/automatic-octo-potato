@@ -50,7 +50,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mtgscanner.MtgApp
 import com.mtgscanner.data.CardKingdom
 import com.mtgscanner.data.CollectionRepository
-import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.CardImage
@@ -92,17 +91,8 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Takes [qty] sold copies out of the collection and notes the price in the card's history, with Undo. */
     fun sold(c: CollectionCard, qty: Int, each: Double) = viewModelScope.launch {
-        val now = repo.cardOnce(c.id) ?: return@launch
-        val n = qty.coerceIn(1, now.quantity)
-        val before = repo.snapshot(listOf(now.id))
-        val event = CardEvent(scryfallId = now.scryfallId, name = now.name, kind = Sales.KIND, detail = Sales.detail(n, each))
-        val eventId = runCatching { repo.dao.addEvent(event) }.getOrNull()
-        repo.setQuantity(now.id, now.quantity - n)
-        Undo.offer("Sold ${n}× ${now.name}") {
-            // The history keeps a note instead of the sale, so it no longer counts toward earned.
-            if (eventId != null) runCatching { repo.dao.putEvents(listOf(event.copy(id = eventId, kind = "edited", detail = "Sale undone"))) }
-            repo.restore(before)
-        }
+        val (n, undo) = repo.sellCopies(listOf(Triple(c.id, qty, each)))
+        if (n > 0) Undo.offer("Sold ${n}× ${c.name}") { undo() }
     }
 
     fun unlist(c: CollectionCard) = viewModelScope.launch {

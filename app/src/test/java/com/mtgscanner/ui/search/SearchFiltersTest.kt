@@ -21,6 +21,15 @@ class SearchFiltersTest {
         assertEquals("elf f:modern t:creature -t:legendary mv<3 lang:ja", f.combine("elf"))
     }
 
+    @Test fun colorsUseScryfallOperators() {
+        val f = SearchFilters(format = "commander", colors = setOf("U", "W"), colorMatch = com.mtgscanner.ui.collection.ColorMatch.EXACTLY)
+        assertEquals("f:commander c=wu", f.toQuery())
+        assertEquals(2, f.activeCount)
+        val id = SearchFilters(colors = setOf("G"), byIdentity = true)
+        assertEquals("id>=g", id.toQuery())
+        assertEquals(true, id.narrows)
+    }
+
     @Test fun formatMeansLegal() {
         val f = SearchFilters(format = "commander")
         assertEquals("f:commander", f.toQuery())
@@ -34,6 +43,20 @@ class SearchFiltersTest {
         assertEquals("(goblin OR elf) f:modern", f.combine("goblin OR elf"))
         assertEquals("goblin or elf", SearchFilters().combine("goblin or elf"))
         assertEquals("sword f:modern", f.combine("sword"))
+    }
+
+    @Test fun typedSyntaxIsKeptWhole() {
+        val f = SearchFilters(format = "modern")
+        assertEquals("t:elf -c:g o:\"draw a card\" f:modern", f.combine("t:elf -c:g o:\"draw a card\""))
+        assertEquals("!\"Sol Ring\" f:modern", f.combine("!\"Sol Ring\""))
+        assertEquals("(t:elf (c:g OR c:b)) f:modern", f.combine("t:elf (c:g OR c:b)"))
+        // Curly quotes from a phone keyboard are made straight.
+        assertEquals("o:\"draw a card\" f:modern", f.combine("o:“draw a card”"))
+        // A quote or ( left open doesn't swallow the filters.
+        assertEquals("o:\"draw a\" f:modern", f.combine("o:\"draw a"))
+        assertEquals("((t:elf or t:goblin)) f:modern", f.combine("(t:elf or t:goblin"))
+        assertEquals("t:\"(\" f:modern", f.combine("t:\"(\""))
+        assertEquals("o:\"say \\\"hi\\\"\" f:modern", f.combine("o:\"say \\\"hi\\\"\""))
     }
 
     @Test fun opSticksBeforeValueTyped() {

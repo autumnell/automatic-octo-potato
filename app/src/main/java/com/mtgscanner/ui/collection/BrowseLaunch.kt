@@ -42,3 +42,11 @@ object BrowseLaunch {
     /** The smart list's name for the title, then clears it. */
     fun takeTitle(): String? = title.also { title = null }
 }
+
+/** A one-time handoff for opening a set's page on its Missing list (from Home's new set offer). */
+object SetLaunch {
+    @Volatile var missing: Boolean = false
+
+    /** Whether to start on Missing; clears the handoff. */
+    fun takeMissing(): Boolean = missing.also { missing = false }
+}

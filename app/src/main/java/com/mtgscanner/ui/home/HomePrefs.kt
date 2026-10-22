@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 enum class HomeSection(val key: String, val label: String) {
     TO_SORT("sort", "To be sorted"),
     GOALS("goals", "Goals"),
+    CARD_OF_DAY("daycard", "Card of the day"),
     RECENT("recent", "Recently added"),
     MOVERS("movers", "Price moves this week"),
     VALUABLE("valuable", "Most valuable"),

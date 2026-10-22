@@ -1,5 +1,8 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.components.formatPrimary
+import com.mtgscanner.ui.components.primaryValue
+import com.mtgscanner.data.db.totalEur
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +78,7 @@ import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.Undo
+import com.mtgscanner.ui.components.cardPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.MtgColors
@@ -110,6 +114,8 @@ data class HomeUi(
     val totalCards: Int = 0,
     val uniqueCards: Int = 0,
     val totalValue: Double = 0.0,
+    /** [totalValue] in euros. */
+    val totalEur: Double = 0.0,
     val sets: Int = 0,
     val foils: Int = 0,
     val recent: List<CollectionCard> = emptyList(),
@@ -152,6 +158,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             totalCards = all.sumOf { it.quantity },
             uniqueCards = all.map { it.oracleId ?: it.name }.distinct().size,
             totalValue = all.sumOf { it.totalPrice() },
+            totalEur = all.sumOf { it.totalEur() },
             sets = all.map { it.setCode }.distinct().size,
             foils = all.filter { it.foil }.sumOf { it.quantity },
             recent = all.sortedByDescending { it.addedAt }.take(12),
@@ -172,6 +179,10 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
 
     val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** One random card of yours, the same all day, with where it lives. */
+    val cardOfDay: StateFlow<DayCard?> = combine(repo.observeAll(), repo.observeBoxes()) { all, boxes -> CardOfDay.of(repo.appContext, all, boxes) }
+        .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Cards to move and unknown scans, for "To be sorted". */
     val toSort: StateFlow<ToSortUi> = combine(repo.observeAll(), repo.observeBoxes(), repo.observePending()) { cards, boxes, pending ->
@@ -213,7 +224,12 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val tiles: StateFlow<TileData> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeWishlist(), searches.saved) { all, boxes, wish, saved ->
         TileData(
             values = TileMath.counts(all, boxes.size, wish.sumOf { it.wanted }, System.currentTimeMillis()),
-            lists = saved.associate { s -> s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters) }.sumOf { it.quantity } },
+            lists = run {
+                // box: in a saved search needs the box names.
+                val boxNames = boxes.associate { it.id to it.name }
+                val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] })
+                saved.associate { s -> s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters, null, env) }.sumOf { it.quantity } }
+            },
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TileData())
 
@@ -282,6 +298,8 @@ fun HomeScreen(
     onGoals: () -> Unit = {},
     /** Opens collection stats (value by set, color, rarity). */
     onStats: () -> Unit = {},
+    /** Opens a set's page (new set offer). */
+    onOpenSet: (String) -> Unit = {},
     vm: HomeViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ctx = LocalContext.current
@@ -294,17 +312,19 @@ fun HomeScreen(
     val tiles by vm.tiles.collectAsStateWithLifecycle()
     val alerts by vm.alerts.collectAsStateWithLifecycle()
     val listNames by vm.listNames.collectAsStateWithLifecycle()
+    val cardOfDay by vm.cardOfDay.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf(false) }
     var editingTiles by remember { mutableStateOf(false) }
     var unknown by remember { mutableStateOf<PendingScan?>(null) }
     // Which section's picture of a card grows into the card page: the first one showing it, so a card in two
     // carousels doesn't have two pictures claiming the same transition.
     val showPricesNow = AppSettings.showPrices
-    val sharedIds: Map<HomeSection, Set<Long>> = remember(HomePrefs.sections, ui, toSort, prices.movers, showPricesNow) {
+    val sharedIds: Map<HomeSection, Set<Long>> = remember(HomePrefs.sections, ui, toSort, prices.movers, showPricesNow, cardOfDay) {
         val seen = HashSet<Long>()
         HomePrefs.sections.associateWith { s ->
             val ids = when (s) {
                 HomeSection.TO_SORT -> toSort.items.take(4).map { it.card.id }
+                HomeSection.CARD_OF_DAY -> listOfNotNull(cardOfDay?.card?.id)
                 HomeSection.RECENT -> ui.recent.map { it.id }
                 HomeSection.MOVERS -> if (showPricesNow) prices.movers.map { it.card.id } else emptyList()
                 HomeSection.VALUABLE -> if (showPricesNow) ui.valuable.map { it.id } else emptyList()
@@ -367,6 +387,10 @@ fun HomeScreen(
         HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
         Spacer(Modifier.height(12.dp))
         com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
+        if (ui.loaded && ui.totalCards > 0) {
+            BoxCheckNudge(onCheck = { id -> com.mtgscanner.util.OpenRequests.boxCheck.value = id; onScan() })
+            NewSetOffer(onOpenSet)
+        }
 
         if (ui.loaded && ui.totalCards == 0) {
             if (ui.boxCount == 0) EmptyState("Start with a box", action = "Make a box", onAction = onCollection)
@@ -388,6 +412,10 @@ fun HomeScreen(
                     HomeSection.GOALS -> {
                         HomeHeading("Goals", if (goals.isNotEmpty()) "See all" else null, onGoals)
                         GoalsPreview(goals, onGoals)
+                    }
+                    HomeSection.CARD_OF_DAY -> cardOfDay?.let { day ->
+                        HomeHeading("Card of the day")
+                        CardOfDaySection(day, onOpenCard, shared = day.card.id in shared(section))
                     }
                     HomeSection.RECENT -> if (ui.recent.isNotEmpty()) {
                         HomeHeading("Recently added", "See all") { browse(SortBy.RECENT) }
@@ -516,7 +544,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
             }
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
             // AccentText: the raw accent is too faint on the light panel. It shrinks to fit in wide fonts.
-            if (prices) RollingText(ui.totalValue, { formatUsd(it) }, big, Palette.AccentText)
+            if (prices) RollingText(primaryValue(ui.totalValue, ui.totalEur), { formatPrimary(it, ui.totalEur) }, big, Palette.AccentText)
             else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.AccentText)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
@@ -546,7 +574,7 @@ private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
             CardTile(
                 imageUrl = c.imageUrl,
                 name = c.name,
-                price = if (showGain) "+" + formatUsd(c.changeSinceAdded()) else formatUsd(c.unitPrice()),
+                price = if (showGain) "+" + formatUsd(c.changeSinceAdded()) else cardPriceShort(c),
                 quantity = c.quantity,
                 foil = c.foil,
                 modifier = Modifier.width(118.dp),

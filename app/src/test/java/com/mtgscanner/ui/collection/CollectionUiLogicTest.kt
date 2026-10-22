@@ -60,6 +60,17 @@ class CollectionUiLogicTest {
         assertFalse(BrowseViewModel.matches(card, Filters(query = "boltinstant"), hay))
     }
 
+    @Test fun searchReadsScryfallSyntax() {
+        for (q in listOf("t:instant c:r", "bolt mv=1", "-t:creature tag:trade", "s:m10 or s:2xm", "!\"lightning bolt\"")) {
+            assertTrue(q, BrowseViewModel.matches(card, Filters(query = q)))
+        }
+        for (q in listOf("c:u", "t:creature", "\"bolt lightning\"", "usd>3")) {
+            assertFalse(q, BrowseViewModel.matches(card, Filters(query = q)))
+        }
+        // Text that can't be read as syntax is searched as plain text.
+        assertFalse(BrowseViewModel.matches(card, Filters(query = "mv>abc")))
+    }
+
     @Test fun boxEditorWarnsWhenMinAboveMax() {
         assertTrue(rangeWarnings(BoxRules(minPrice = 1.0, maxPrice = 5.0)).isEmpty())
         assertEquals(1, rangeWarnings(BoxRules(minPrice = 5.0, maxPrice = 5.0)).size)

@@ -40,7 +40,7 @@ class MtgApp : Application(), ImageLoaderFactory {
                     repository.startBackgroundWork()
                 }
             }
-            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityStarted(activity: Activity) { com.mtgscanner.data.sync.HouseSync.syncOnOpen(this@MtgApp) }
             override fun onActivityResumed(activity: Activity) {}
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivityStopped(activity: Activity) {}

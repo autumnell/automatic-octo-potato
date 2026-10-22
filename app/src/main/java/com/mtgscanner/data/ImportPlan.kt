@@ -14,6 +14,12 @@ data class ImportPlan(
 ) {
     val added: Int get() = rows.indices.filter { found[it] != null }.sumOf { rows[it].quantity }
     val notFound: List<Int> get() = rows.indices.filter { found[it] == null }
+    /** Rows that named a set (or set and number) Scryfall had no such printing for, so another printing was used. */
+    val otherPrinting: List<Int> get() = rows.indices.filter { i ->
+        val c = found.getOrNull(i) ?: return@filter false
+        val r = rows[i]
+        r.scryfallId == null && !PrintingLookup.samePrinting(r.setCode, r.collectorNumber, c.set, c.collectorNumber)
+    }
 
     /** Copies per box, in the order boxes first appear. */
     fun perBox(): List<Pair<Long, Int>> = ImportPlanner.perBox(targets, rows.map { it.quantity })

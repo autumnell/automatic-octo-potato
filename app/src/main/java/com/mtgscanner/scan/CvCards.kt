@@ -99,6 +99,42 @@ object CvCards {
             return FloatArray(8) { i -> refined[i] + if (i % 2 == 0) r.x else r.y }
         }
 
+        /**
+         * Every card in the whole picture, for a photo with many cards (see [PhotoQuads]): each card's corners in
+         * the picture's pixels, refined, in [CardQuad]'s order, top row first. A card must cover at least [minFill]
+         * of the picture.
+         */
+        fun findAll(minFill: Double = 0.003): List<FloatArray> {
+            val gray = keep(Mat())
+            Imgproc.cvtColor(reuse, gray, Imgproc.COLOR_RGBA2GRAY)
+            val scale = minOf(1.0, ALL_PX / maxOf(gray.cols(), gray.rows()))
+            val small = keep(Mat())
+            Imgproc.resize(gray, small, Size(gray.cols() * scale, gray.rows() * scale), 0.0, 0.0, Imgproc.INTER_AREA)
+            Imgproc.GaussianBlur(small, small, Size(5.0, 5.0), 0.0)
+            val bin = keep(Mat())
+            val otsu = Imgproc.threshold(small, bin, 0.0, 255.0, Imgproc.THRESH_BINARY or Imgproc.THRESH_OTSU)
+            val edges = keep(Mat())
+            Imgproc.Canny(small, edges, maxOf(10.0, otsu * 0.5), maxOf(30.0, otsu))
+            val kernel = keep(Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(3.0, 3.0)))
+            Imgproc.dilate(edges, edges, kernel)
+            val contours = ArrayList<MatOfPoint>()
+            val hierarchy = keep(Mat())
+            Imgproc.findContours(edges, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE)
+            contours.forEach { keep(it) }
+            val total = small.rows().toDouble() * small.cols()
+            val minArea = total * minFill
+            val quads = ArrayList<FloatArray>()
+            for (c in contours) {
+                if (Imgproc.contourArea(c) < minArea) continue
+                quadOf(c)?.let { quads += it }
+                hullQuad(c)?.let { quads += it }
+                if (quads.size >= MAX_ALL_QUADS) break
+            }
+            return PhotoQuads.pick(quads, minArea.toFloat(), (total * 0.99).toFloat()).map { q ->
+                refine(gray, FloatArray(8) { (q[it] / scale).toFloat() }, scale)
+            }
+        }
+
         /** Four corners of [c] simplified, or null when it doesn't simplify to four. */
         private fun quadOf(c: MatOfPoint): FloatArray? {
             val curve = keep(MatOfPoint2f(*c.toArray()))
@@ -174,6 +210,10 @@ object CvCards {
     private const val MIN_FILL = 0.15
     /** Outlines tried at most per frame. */
     private const val MAX_QUADS = 24
+    /** Longest side of the picture a photo's cards are searched in. */
+    private const val ALL_PX = 1400.0
+    /** Outlines tried at most in a photo. */
+    private const val MAX_ALL_QUADS = 600
 
     /** The bounding box of [quad], rounded outwards. */
     fun boundsOf(quad: FloatArray): OcrBox {
