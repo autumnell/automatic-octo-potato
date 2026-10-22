@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -839,7 +840,11 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
             if (AppSettings.showPrices) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (spark != null) { PriceSparkline(spark); Spacer(Modifier.width(6.dp)) }
-                    Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
+                    // A fixed right-aligned slot so prices line up down the list.
+                    Text(
+                        cardPrice(c), style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Accent,
+                        textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.widthIn(min = 64.dp),
+                    )
                 }
             }
         }
@@ -874,7 +879,7 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
             Spacer(Modifier.width(6.dp))
             Box(Modifier.width(36.dp)) { if (spark != null) PriceSparkline(spark) }
             Text(
-                cardPriceShort(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
+                cardPriceShort(c), style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.AccentText,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(64.dp),
             )
         }
