@@ -715,10 +715,19 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     }
 
                     Spacer(Modifier.height(16.dp))
-                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(c.scryfallUri))) }) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Open on Scryfall")
+                    // Scryfall, then EDHREC and the two stores (Scryfall's own links once it has answered).
+                    val links = remember(c.name, c.scryfallUri, live) {
+                        listOf(com.mtgscanner.data.CardLinks.Link("Scryfall", c.scryfallUri)).filter { it.url.isNotBlank() } +
+                            com.mtgscanner.data.CardLinks.of(c.name, live?.relatedUris.orEmpty(), live?.purchaseUris.orEmpty())
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        links.forEach { link ->
+                            TextButton(onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url))) } }) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(link.label)
+                            }
+                        }
                     }
                     Spacer(Modifier.navigationBarsPadding().height(16.dp))
                 }
