@@ -242,6 +242,8 @@ data class ScanUiState(
     val keptIn: List<Pair<String, Int>> = emptyList(),
     /** Scan to remove: copies taken out this time. */
     val removedCount: Int = 0,
+    /** What a scan list or sorting session added, shown once when it ends. */
+    val summary: ScanSummary? = null,
 ) {
     val autoAdd: Boolean get() = settings.autoAdd
     val foil: Boolean get() = settings.foil
@@ -256,6 +258,11 @@ data class ScanUiState(
     val packEntries: List<ScanEntry> get() = pack?.entries.orEmpty()
     val packValue: Double get() = packEntries.sumOf { it.value }
 }
+
+/** The end-of-session summary for [entries], or null when they added nothing. */
+fun summaryOf(entries: List<ScanEntry>): ScanSummary? = ScanSummary.of(
+    entries.map { SummaryLine(it.card.name, it.card.imageUrl, it.card.price(it.foil)?.toDoubleOrNull(), it.count, it.boxName) },
+)
 
 class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
@@ -1366,7 +1373,11 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Ends the session. Cards stay in their boxes. */
-    fun endSort() = _state.update { it.copy(sort = null, showSort = false, status = "Point your camera at a card") }
+    fun endSort() = _state.update {
+        it.copy(sort = null, showSort = false, status = "Point your camera at a card", summary = summaryOf(it.sort?.entries.orEmpty()))
+    }
+
+    fun dismissSummary() = _state.update { it.copy(summary = null) }
 
     // Set lock
 
@@ -1600,7 +1611,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Clears the list on screen. Cards stay in the collection. */
-    fun clearList() = _state.update { it.copy(session = emptyList(), showList = false) }
+    fun clearList() = _state.update { it.copy(session = emptyList(), showList = false, summary = summaryOf(it.session)) }
 
     fun skip() {
         val auto = _state.value.autoAdd

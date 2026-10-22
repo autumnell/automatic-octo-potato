@@ -46,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -281,16 +280,16 @@ fun ColorPip(letter: Char, size: Dp = 12.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(MtgColors.forLetter(letter)).border(1.dp, Color.Black.copy(alpha = 0.3f), CircleShape))
 }
 
-/** Little "FOIL" tag; the rainbow stands for the foil sheen. */
+/** Small "Foil" tag: a thin silver outline, no fill. */
 @Composable
 fun FoilTag(modifier: Modifier = Modifier) {
+    val silver = Color(0xFFB8BCC4)
     Box(
         modifier
-            .clip(RoundedCornerShape(Corners.Small))
-            .background(Brush.linearGradient(listOf(Color(0xFF7DD3FC), Color(0xFFC4B5FD), Color(0xFFF9A8D4), Color(0xFFFDE68A))))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .border(1.dp, silver, RoundedCornerShape(Corners.Small))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
     ) {
-        Text("FOIL", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1B1B1B))
+        Text("Foil", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = silver)
     }
 }
 

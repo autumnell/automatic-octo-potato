@@ -1,14 +1,12 @@
 package com.mtgscanner.ui.home
 
 import android.content.Context
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,9 +62,10 @@ fun WhatsNewLine(modifier: Modifier = Modifier) {
     }
     val text = line ?: return
     Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.AutoAwesome, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text("New in ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+        }
         IconButton(onClick = { WhatsNew.markSeen(ctx, code); line = null }) {
             Icon(Icons.Filled.Close, "Close", tint = Palette.Icon, modifier = Modifier.size(18.dp))
         }

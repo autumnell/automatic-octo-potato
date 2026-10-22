@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -501,6 +502,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.AutoMirrored.Filled.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
             }
+            HorizontalDivider(color = Palette.Outline)
+            Action(Icons.Outlined.History, "Recent actions", "Undo any of the last 10") { com.mtgscanner.ui.components.Undo.showRecent.value = true }
             if (pending.isNotEmpty()) {
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.Filled.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }
