@@ -22,6 +22,8 @@ data class SearchFilters(
     /** Scryfall language code; "" means default (English), "any" means all. */
     val lang: String = "",
     val order: String = "name",
+    /** Also show tokens, emblems and art cards (Scryfall leaves them out unless asked). */
+    val tokens: Boolean = false,
 ) {
     val unique: String get() = if (groupPrintings) "cards" else "prints"
 
@@ -31,7 +33,8 @@ data class SearchFilters(
             (if (format != null) 1 else 0) +
             types.size + validStats.size +
             (if (lang.isNotEmpty()) 1 else 0) +
-            (if (order != "name") 1 else 0)
+            (if (order != "name") 1 else 0) +
+            (if (tokens) 1 else 0)
 
     /** True when the filters alone narrow the search, so it can run with no words typed. */
     val narrows: Boolean get() = format != null || types.isNotEmpty() || validStats.isNotEmpty()
@@ -51,6 +54,7 @@ data class SearchFilters(
         }
         validStats.forEach { add("${it.stat}${it.op}${it.value.trim()}") }
         if (lang.isNotEmpty()) add("lang:$lang")
+        if (tokens) add("include:extras")
     }.joinToString(" ")
 
     /**

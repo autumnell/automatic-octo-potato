@@ -3,26 +3,40 @@ package com.mtgscanner.scan
 /**
  * Matches OCR text against every Magic card name, on the phone, with no network.
  * Double-faced cards can be matched by either face.
+ *
+ * [extras] are token and emblem names. A card name always wins a tie with one, and an extra's score is lowered a
+ * little ([EXTRA_PENALTY]) so a near miss on a real card still comes first.
  */
-class CardNameMatcher(names: Collection<String>) {
-    data class Match(val name: String, val score: Double)
+class CardNameMatcher(names: Collection<String>, extras: Collection<String> = emptyList()) {
+    /** [extra]: a token or emblem name, not a card's. */
+    data class Match(val name: String, val score: Double, val extra: Boolean = false)
 
     /** normalized face name -> full card name */
     private val byNorm = HashMap<String, String>(names.size * 2)
     /** normalized names grouped by length, so only similar lengths are compared */
     private val byLength = HashMap<Int, MutableList<String>>()
 
+    /** Normalized names that only belong to tokens and emblems. */
+    private val extraNorms = HashSet<String>()
+
     init {
-        for (full in names) {
-            val faces = listOf(full) + if (" // " in full) full.split(" // ") else emptyList()
-            for (face in faces) {
-                val n = CardTextParser.normalize(face)
-                if (n.isEmpty() || byNorm.containsKey(n)) continue
-                byNorm[n] = full
-                byLength.getOrPut(n.length) { mutableListOf() } += n
+        // Card names first: a token sharing a card's name ("Ornithopter") stays the card.
+        for ((list, extra) in listOf(names to false, extras to true)) {
+            for (full in list) {
+                val faces = listOf(full) + if (" // " in full) full.split(" // ") else emptyList()
+                for (face in faces) {
+                    val n = CardTextParser.normalize(face)
+                    if (n.isEmpty() || byNorm.containsKey(n)) continue
+                    byNorm[n] = full
+                    if (extra) extraNorms += n
+                    byLength.getOrPut(n.length) { mutableListOf() } += n
+                }
             }
         }
     }
+
+    /** Whether [name] is only a token's or emblem's name. */
+    fun isExtra(name: String): Boolean = CardTextParser.normalize(name) in extraNorms
 
     val size: Int get() = byNorm.size
 
@@ -30,7 +44,7 @@ class CardNameMatcher(names: Collection<String>) {
     fun best(text: String, minScore: Double = 0.72): Match? {
         val q = CardTextParser.normalize(text)
         if (q.length < 3) return null
-        byNorm[q]?.let { return Match(it, 1.0) }
+        byNorm[q]?.let { return if (q in extraNorms) Match(it, 1.0 - EXTRA_PENALTY, extra = true) else Match(it, 1.0) }
         val slack = maxOf(2, q.length / 4)
         var bestName: String? = null
         var bestDist = Int.MAX_VALUE
@@ -38,19 +52,27 @@ class CardNameMatcher(names: Collection<String>) {
         for (len in (q.length - slack)..(q.length + slack)) {
             val bucket = byLength[len] ?: continue
             for (n in bucket) {
-                val d = boundedLevenshtein(q, n, minOf(bestDist, slack + 1))
-                if (d < bestDist) {
+                val isExtra = n in extraNorms
+                // An extra needs to be strictly closer than the best card name so far; a card name wins ties.
+                val limit = minOf(bestDist + if (!isExtra && bestName != null && bestName in extraNorms) 1 else 0, slack + 1)
+                val d = boundedLevenshtein(q, n, limit)
+                val better = d < bestDist || (d == bestDist && d < limit && !isExtra && bestName != null && bestName in extraNorms)
+                if (better) {
                     bestDist = d; bestName = n; bestLen = maxOf(q.length, n.length)
                     if (d == 0) break
                 }
             }
         }
         val name = bestName ?: return null
-        val score = 1.0 - bestDist.toDouble() / bestLen
-        return if (score >= minScore) Match(byNorm.getValue(name), score) else null
+        val extra = name in extraNorms
+        val score = 1.0 - bestDist.toDouble() / bestLen - if (extra) EXTRA_PENALTY else 0.0
+        return if (score >= minScore) Match(byNorm.getValue(name), score, extra) else null
     }
 
     companion object {
+        /** Taken off a token or emblem name's score. */
+        const val EXTRA_PENALTY = 0.03
+
         /** Edit distance that gives up (returns [limit]) as soon as it can't beat [limit]. */
         fun boundedLevenshtein(a: String, b: String, limit: Int): Int {
             if (kotlin.math.abs(a.length - b.length) >= limit) return limit

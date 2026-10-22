@@ -144,7 +144,7 @@ fun StatsScreen(
                 s.byRarity, prices,
                 lead = { RarityDot(it.key, 10.dp) },
                 bar = { MtgColors.rarity(it.key) },
-                onRow = { r -> if (r.key != "special") browse(Filters(rarities = setOf(r.key), sort = SortBy.PRICE)) },
+                onRow = { r -> if (r.key != "special" && r.key != StatsMath.TOKENS) browse(Filters(rarities = setOf(r.key), sort = SortBy.PRICE)) },
             )
 
             SectionHeader("By set") {

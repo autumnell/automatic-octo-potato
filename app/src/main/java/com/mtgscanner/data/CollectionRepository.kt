@@ -604,6 +604,20 @@ class CollectionRepository(
                 // If we couldn't read a name, trust the footer; otherwise the name has to agree.
                 if (names.isEmpty() || sim >= 0.6) return Identification(card, confident = true, exact = true)
             }
+            // A token prints its card set's code: the number may be in the token set ("tmom") instead.
+            if (names.isNotEmpty()) {
+                val token = runCatching { api.bySetAndNumber("t" + guess.setCode, guess.collectorNumber) }
+                    .onFailure { if (it is IOException && it !is ScryfallException) throw it }
+                    .getOrNull()
+                if (token != null && bestSimilarity(token) >= 0.6) return Identification(token, confident = true, exact = true)
+            }
+        }
+
+        // The name read is a token's or emblem's: look in the extras, which the name lookup is not made for.
+        corrected.firstOrNull()?.takeIf { it.extra && it.score >= 0.85 }?.let { t ->
+            runCatching { findExtra(t.name, guess) }
+                .onFailure { if (it is IOException && it !is ScryfallException) throw it }
+                .getOrNull()?.let { return it }
         }
 
         val knownGood = corrected.firstOrNull()?.takeIf { it.score >= 0.85 }?.name

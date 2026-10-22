@@ -78,6 +78,7 @@ fun FilterSheet(
             }
 
             ToggleRow("Group printings", f.groupPrintings) { onChange(f.copy(groupPrintings = it)) }
+            ToggleRow("Tokens & art cards", f.tokens) { onChange(f.copy(tokens = it)) }
 
             Heading("Format")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

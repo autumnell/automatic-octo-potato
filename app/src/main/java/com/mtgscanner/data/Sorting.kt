@@ -113,6 +113,11 @@ object Sorting {
      */
     fun decide(boxes: List<BoxInfo>, card: CardFacts, policy: SortPolicy = SortPolicy(), ownedInMain: Int = 0): SortDecision? {
         val ids = boxes.associateBy { it.id }
+        // A "Tokens & art cards" box takes them ahead of the bulk floor, extras and every other box.
+        if (card.tokenOrArt) {
+            val t = boxes.filter { it.rules.tokens && it.rules.matches(card) }
+            (t.firstOrNull { !it.isFull } ?: t.firstOrNull())?.let { return SortDecision(it.id, SortReason.RULES, it.isFull) }
+        }
         val floor = policy.bulkFloor
         val bulk = policy.bulkBoxId?.let(ids::get)
         val price = card.price
@@ -313,7 +318,9 @@ object Sorting {
                     decide(live, f, policy, ownedInMain(item)) ?: continue
                 }
                 else -> {
-                    if (!from.rules.isOpen && from.rules.matches(f, priceSlack)) continue
+                    // A token left in another box moves once a tokens box takes it.
+                    val tokenBox = f.tokenOrArt && !from.rules.tokens && live.any { it.rules.tokens && it.rules.matches(f) }
+                    if (!tokenBox && !from.rules.isOpen && from.rules.matches(f, priceSlack)) continue
                     val d = decide(live, f, noPlayset) ?: continue
                     // A card in an open box that fits its name range only moves when a rule box fits it.
                     if (from.rules.isOpen && from.rules.matches(f) && d.reason != SortReason.RULES && d.reason != SortReason.BULK) continue

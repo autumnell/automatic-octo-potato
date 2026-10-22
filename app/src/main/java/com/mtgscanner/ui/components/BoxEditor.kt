@@ -473,6 +473,12 @@ private fun RulesStep(
             SelectPill("Reserved only", rules.reserved, { onRules(rules.copy(reserved = true)) })
         }
     }
+    RuleCard("Tokens & art cards", if (rules.tokens) "Only" else null, open == "tokens", { toggle("tokens") }) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectPill("Any", !rules.tokens, { onRules(rules.copy(tokens = false)) })
+            SelectPill("Tokens & art only", rules.tokens, { onRules(rules.copy(tokens = true)) })
+        }
+    }
 }
 
 /** A from–to number rule, like mana value 0 to 2. [key] names the text fields ("minCmc", "maxCmc"). */

@@ -31,7 +31,10 @@ data class CollectionStats(
 /** Collection breakdowns for the Stats screen, kept free of Android so they can be tested. Proxies count as cards but are worth $0. */
 object StatsMath {
     private val COLORS = listOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless")
-    private val RARITY_ORDER = listOf("common", "uncommon", "rare", "mythic", "special")
+    private val RARITY_ORDER = listOf("common", "uncommon", "rare", "mythic", "special", TOKENS)
+
+    /** The rarity row key for tokens, emblems and art cards, kept apart so they don't swell the commons. */
+    const val TOKENS = "tokens"
 
     fun compute(cards: List<CollectionCard>, topN: Int = 20): CollectionStats {
         val bySet = cards.groupBy { it.setCode }.map { (code, rows) ->
@@ -49,8 +52,16 @@ object StatsMath {
         }
         val byColor = COLORS.map { (k, name) -> StatRow(k, name, colorCards[k] ?: 0, colorValue[k] ?: 0.0) }
 
-        val byRarity = cards.groupBy { if (it.rarity in RARITY_ORDER) it.rarity else "special" }
-            .map { (r, rows) -> StatRow(r, r.replaceFirstChar(Char::uppercase), rows.sumOf { it.quantity }, rows.sumOf { it.totalPrice() }) }
+        val byRarity = cards.groupBy {
+            when {
+                com.mtgscanner.data.CardExtras.isExtra(it.typeLine) -> TOKENS
+                it.rarity in RARITY_ORDER -> it.rarity
+                else -> "special"
+            }
+        }
+            .map { (r, rows) ->
+                StatRow(r, if (r == TOKENS) "Tokens & art" else r.replaceFirstChar(Char::uppercase), rows.sumOf { it.quantity }, rows.sumOf { it.totalPrice() })
+            }
             .sortedBy { RARITY_ORDER.indexOf(it.key) }
 
         val top = cards.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0.0 }
