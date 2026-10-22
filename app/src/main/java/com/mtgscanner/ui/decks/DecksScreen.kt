@@ -107,6 +107,7 @@ import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.ui.AppViewModels
+import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.collection.ShareDialog
 import com.mtgscanner.ui.collection.shareLine
 import com.mtgscanner.ui.components.CardImage
@@ -1096,6 +1097,7 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
 private fun Results(ui: DeckUi, vm: DeckViewModel) {
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
+    var find by rememberSaveable { mutableStateOf("") }
     val check = ui.check
     if (ui.checking || check == null) {
         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
@@ -1113,7 +1115,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
         else -> formatUsd(null as Double?)
     }
     // A commander deck lists its commanders (and companion, signature spell) first.
-    val (leads, rest) = PullListMath.leadsFirst(check.lines, leadsOf(ui), { it.name }, DeckNames::key)
+    val (leads, rest) = PullListMath.leadsFirst(check.lines.filter { DeckFind.matches(it.name, find) }, leadsOf(ui), { it.name }, DeckNames::key)
     val missing = rest.filter { it.section in PLAYED && it.missing > 0 }
     val otherMissing = rest.filter { it.section !in PLAYED && it.missing > 0 }
     val owned = rest.filter { it.owned > 0 }
@@ -1146,6 +1148,10 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share missing cards", tint = Palette.Icon) }
                 }
             }
+            SearchField(find, { find = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Find in deck")
+        }
+        if (leads.isEmpty() && missing.isEmpty() && otherMissing.isEmpty() && owned.isEmpty() && find.isNotBlank()) {
+            item { EmptyState("No matches") }
         }
         if (leads.isNotEmpty()) {
             item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
