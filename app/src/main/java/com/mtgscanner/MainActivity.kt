@@ -324,7 +324,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) {
-                DeckScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) })
+                DeckScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") })
             }
             composable(
                 "browse/{boxId}",
@@ -385,7 +385,9 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { scaleIn(tween(CARD_GROW_MS), initialScale = 0.9f) + fadeIn(tween(CARD_GROW_MS - 60)) },
                 popExitTransition = { scaleOut(tween(CARD_GROW_MS - 40), targetScale = 0.9f) + fadeOut(tween(CARD_GROW_MS - 80)) },
             ) {
-                ScreenAnimation(this) { CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) }) }
+                ScreenAnimation(this) {
+                    CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") })
+                }
             }
         }
        }

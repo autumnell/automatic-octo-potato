@@ -417,7 +417,7 @@ private val CONDITIONS = listOf("NM" to "Near mint", "LP" to "Lightly played", "
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CardDetailScreen(id: Long, onBack: () -> Unit) {
+fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     val vm: CardDetailViewModel = viewModel(key = "card-$id", factory = AppViewModels.detail(id))
     val card by vm.card.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
@@ -555,7 +555,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         com.mtgscanner.ui.loans.loanLabel(c)?.let { Badge(it) }
                         if (c.forSale) Badge(if (c.askPrice != null && AppSettings.showPrices) "For sale ${formatUsd(c.askPrice)}" else "For sale")
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
-                        InfoChip { Text("${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium) }
+                        // Tap the set to open it in the set tracker.
+                        InfoChip(onClick = onOpenSet?.let { open -> { open(c.setCode.lowercase()) } }) {
+                            Text(
+                                "${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium,
+                                color = if (onOpenSet != null) Palette.AccentText else Palette.Text,
+                            )
+                        }
                         c.releasedAt?.let { InfoChip { Text(it.take(4), style = MaterialTheme.typography.labelMedium) } }
                         if (AppSettings.showPrices) InfoChip { Text(cardPrice(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
                         InfoChip {
@@ -1073,9 +1079,11 @@ private fun Panel(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun InfoChip(content: @Composable () -> Unit) {
+private fun InfoChip(onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) { content() }
 }

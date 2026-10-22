@@ -990,7 +990,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 
 /** One deck: paste or edit the list, then see what you own, where it is, and what's missing. */
 @Composable
-fun DeckScreen(deckId: Long, onBack: () -> Unit) {
+fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -1053,7 +1053,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                         PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeck, leads = leadsOf(ui))
                     }
                     // Pull down to refresh prices.
-                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm) }
+                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm, onOpenSet) }
                 }
             }
         }
@@ -1158,7 +1158,7 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
 }
 
 @Composable
-private fun Results(ui: DeckUi, vm: DeckViewModel) {
+private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)?) {
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
     var find by rememberSaveable { mutableStateOf("") }
@@ -1220,21 +1220,21 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
         }
         if (leads.isNotEmpty()) {
             item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
-            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
             item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
         }
         // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {
             item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
-            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         if (otherMissing.isNotEmpty()) {
             item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
-            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         if (owned.isNotEmpty()) {
             item { SectionHeader("In your collection") }
-            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -1260,7 +1260,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit) {
+private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     // Tap to pick the printing.
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
@@ -1273,16 +1273,33 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> U
                 overflow = TextOverflow.Ellipsis,
             )
             val listed = l.setCode?.let { it.uppercase() + (l.collectorNumber?.let { n -> " #$n" } ?: "") }
+            // "LCI #287 · Borderless" opens the set when tapped; the rest of the line picks the printing.
+            val set = l.setCode?.takeIf { onOpenSet != null && !l.otherPrinting }
+            val link = when {
+                l.otherPrinting -> null
+                missingView -> l.printing
+                l.ownedOtherPrinting -> null
+                else -> l.printing
+            }?.takeIf { set != null }
             val where = when {
                 l.otherPrinting -> "No $listed · other printing shown"
-                missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, l.printing).joinToString(" · ")
+                missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, l.printing.takeIf { link == null }).joinToString(" · ")
                 else -> listOfNotNull(
                     l.whereText.ifEmpty { null },
-                    if (l.ownedOtherPrinting) "Other printing" else l.printing,
+                    if (l.ownedOtherPrinting) "Other printing" else l.printing.takeIf { link == null },
                 ).joinToString(" · ")
             }
-            // Green once every copy is kept in the deck; owned copies elsewhere still need pulling.
-            Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (where.isNotEmpty()) Text(
+                    if (link != null) "$where · " else where,
+                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (link != null && set != null && onOpenSet != null) Text(
+                    link, style = MaterialTheme.typography.bodySmall, color = Palette.AccentText, maxLines = 1,
+                    modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { onOpenSet(set.lowercase()) },
+                )
+            }
         }
         if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText) }
         else Icon(Icons.Filled.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
