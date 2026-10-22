@@ -303,7 +303,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
         when {
             !ui.loaded -> Unit
-            ui.totalCards == 0 -> EmptyState(if (boxId < 0) "No cards yet" else "Empty box", Modifier.padding(top = 24.dp))
+            ui.totalCards == 0 -> EmptyState(if (boxId < 0) "No cards yet" else "Empty box", Modifier.padding(top = 24.dp), fullScreen = boxId < 0)
             ui.groups.isEmpty() -> EmptyState(
                 "No matches", Modifier.padding(top = 24.dp),
                 action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },

@@ -393,8 +393,8 @@ fun HomeScreen(
         }
 
         if (ui.loaded && ui.totalCards == 0) {
-            if (ui.boxCount == 0) EmptyState("Start with a box", action = "Make a box", onAction = onCollection)
-            else EmptyState("No cards yet", action = "Search by name", onAction = onSearch)
+            if (ui.boxCount == 0) EmptyState("Start with a box", action = "Make a box", onAction = onCollection, fullScreen = true)
+            else EmptyState("No cards yet", action = "Search by name", onAction = onSearch, fullScreen = true)
             // Unknown scans can exist before any card was added.
             if (!toSort.isEmpty) {
                 HomeHeading("To be sorted")
