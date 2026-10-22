@@ -511,7 +511,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     Icon(if (auto) Icons.AutoMirrored.Filled.Sort else boxIcon(box!!.kind), null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     val where = when (state.target) {
-                        ScanTarget.CHECK -> "Price check · not adding"
+                        ScanTarget.CHECK -> "Just checking · not adding"
                         ScanTarget.DECK -> "Deck: ${state.deck?.name.orEmpty()}"
                         ScanTarget.REMOVE -> "Removing from collection"
                         ScanTarget.BOX -> "Checking ${state.boxCheck?.boxName.orEmpty()}"
