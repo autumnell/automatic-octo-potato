@@ -409,7 +409,7 @@ fun ScanScreen(
         AddFlightOverlay(flight)
         val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
             state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.photo != null || state.showNewBox ||
-            state.showSkipped || state.showUnknown || state.showBoxPick || state.showBoxCheck
+            state.showSkipped || state.showUnknown || state.showBoxPick || state.showBoxCheck || state.summary != null
         if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
             ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.updateHintsSeen(true) })
         }
@@ -431,6 +431,7 @@ fun ScanScreen(
     if (state.showUnknown) UnknownSheet(vm)
     if (state.showBoxPick) BoxPickDialog(boxes, vm)
     if (state.showBoxCheck) BoxCheckSheet(state, vm, onOpenCard)
+    state.summary?.let { ScanSummarySheet(it, vm::dismissSummary) }
     if (state.showNewBox) {
         BoxEditorSheet(
             title = if (boxes.isEmpty()) "Your first box" else "New box",
