@@ -132,7 +132,7 @@ data class DeckRow(
 )
 
 /** Sections that are played; sideboard, maybeboard and tokens don't count toward owning a deck. */
-private val PLAYED = setOf("Main", "Commander", "Companion")
+private val PLAYED = DeckCheck.PLAYED
 
 /** Parsed lists by deck id, so a collection change doesn't reparse every deck. */
 private val parsedDecks = java.util.concurrent.ConcurrentHashMap<Long, Pair<String, List<DeckLine>>>()

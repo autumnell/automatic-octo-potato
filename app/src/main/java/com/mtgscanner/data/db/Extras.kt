@@ -25,6 +25,10 @@ data class Deck(
     val text: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Format id, Scryfall's legality key ("commander", "modern"…); empty = none (DB v13). */
+    val format: String = "",
+    /** Commander, partner, companion and signature spell by name ([com.mtgscanner.data.DeckCommanders]); empty = none (DB v13). */
+    val commanders: String = "",
 )
 
 /** A card you want. Matched by oracle id, so any printing counts. */

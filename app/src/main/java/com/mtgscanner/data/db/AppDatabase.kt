@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CollectionCard::class, Box::class, ValueSnapshot::class, Deck::class, WishlistItem::class, PendingScan::class, PricePoint::class, PackOpening::class, CardEvent::class, Goal::class, Loan::class],
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -189,11 +189,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 13 adds a deck's format and its commanders. */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `decks` ADD COLUMN `format` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `decks` ADD COLUMN `commanders` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         /** Every migration, oldest first, for the database builder. */
         val ALL_MIGRATIONS: Array<Migration>
             get() = arrayOf(
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
             )
 
         fun seedBulk(db: SupportSQLiteDatabase) {
