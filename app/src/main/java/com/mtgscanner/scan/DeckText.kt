@@ -1,11 +1,40 @@
 package com.mtgscanner.scan
 
+import com.mtgscanner.util.CardNames
+import com.mtgscanner.util.DeckLine
 import com.mtgscanner.util.DecklistParser
 
 /** Edits a pasted decklist in place, one main-deck card at a time, keeping the rest of the text as it was. */
 object DeckText {
     private val LEADING_QTY = Regex("""^(\s*[-•*]?\s*)(\d+)(\s*[xX]?\s+)""")
     private val MAIN_HEADER = Regex("""^(//\s*)?(main\s*deck|maindeck|deck|mainboard)\s*:?""", RegexOption.IGNORE_CASE)
+    // What comes before the name: a bullet, "SB: ", the count.
+    private val LEAD = Regex("""^\s*[-•*]?\s*(?:(?:SB|CMDR):\s*)?(?:\d+\s*[xX]?\s+)?""", RegexOption.IGNORE_CASE)
+    private val FOIL_MARK = Regex("""\*(F|E|FOIL|ETCHED)\*""", RegexOption.IGNORE_CASE)
+    private val CMDR_MARK = Regex("""\*CMDR\*""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Sets the printing of each line that lists [name] as ([oldSet], [oldNumber]) to "(SET) number", keeping the
+     * line's count, "SB:" prefix, foil and commander marks. Other lines stay as they were.
+     */
+    fun setPrinting(text: String, name: String, oldSet: String?, oldNumber: String?, set: String, number: String): String {
+        val want = CardNames.key(name)
+        return text.lines().joinToString("\n") { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("//")) return@joinToString line
+            val l = DecklistParser.parse(line).singleOrNull() ?: return@joinToString line
+            val same = CardNames.key(l.name) == want && l.setCode.equals(oldSet, ignoreCase = true) &&
+                l.collectorNumber.equals(oldNumber, ignoreCase = true)
+            if (same) withPrinting(line, l, set, number) else line
+        }
+    }
+
+    private fun withPrinting(line: String, l: DeckLine, set: String, number: String): String = buildString {
+        append(LEAD.find(line)?.value.orEmpty())
+        append(l.name).append(" (").append(set.uppercase()).append(") ").append(number)
+        if (l.foil) append(' ').append(FOIL_MARK.find(line)?.value ?: "*F*")
+        if (CMDR_MARK.containsMatchIn(line)) append(" *CMDR*")
+    }
 
     /** Adds [delta] copies of [name] to the main deck (negative takes copies away). */
     fun adjust(text: String, name: String, delta: Int): String {
@@ -15,7 +44,7 @@ object DeckText {
         var section = "Main"
         var found = -1
         var lastMain = -1
-        val want = CardTextParser.normalize(name.substringBefore(" // "))
+        val want = com.mtgscanner.util.CardNames.key(name)
         for ((i, line) in lines.withIndex()) {
             val trimmed = line.trim()
             if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
@@ -31,7 +60,7 @@ object DeckText {
             val lineSection = if (l.section == "Main") section else l.section
             if (lineSection != "Main") continue
             lastMain = i
-            if (found < 0 && CardTextParser.normalize(l.name.substringBefore(" // ")) == want) found = i
+            if (found < 0 && com.mtgscanner.util.CardNames.key(l.name) == want) found = i
         }
         if (found >= 0) {
             val line = lines[found]
@@ -51,8 +80,8 @@ object DeckText {
 
     /** Copies of [name] in the main deck. */
     fun count(text: String, name: String): Int {
-        val want = CardTextParser.normalize(name.substringBefore(" // "))
-        return DecklistParser.parse(text).filter { it.section == "Main" && CardTextParser.normalize(it.name.substringBefore(" // ")) == want }
+        val want = com.mtgscanner.util.CardNames.key(name)
+        return DecklistParser.parse(text).filter { it.section == "Main" && com.mtgscanner.util.CardNames.key(it.name) == want }
             .sumOf { it.quantity }
     }
 }

@@ -1,5 +1,6 @@
 package com.mtgscanner.data
 
+import com.mtgscanner.util.CardNames
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -7,7 +8,8 @@ import kotlinx.serialization.json.put
 /**
  * Finds the printing a decklist or import line names. A line with a set (and number) is looked up as
  * that exact printing first; only when Scryfall has no such printing does it widen, step by step:
- * the same number without leading zeros, the card by name in that set, then the card by name anywhere.
+ * the same number without leading zeros, the card by name in that set, then the card by name anywhere. A name with
+ * two halves is tried in full, then by its front face.
  * Pure, so the order is tested; the caller does the Scryfall calls.
  */
 object PrintingLookup {
@@ -35,21 +37,31 @@ object PrintingLookup {
         return if (t != n && t.isNotEmpty() && t.first().isDigit()) t else null
     }
 
+    /**
+     * Names to send for [name]. Scryfall's collection lookup wants a name exactly as it has it; for cards with two
+     * halves ("Inverted Iceberg // Iceberg Titan", "Fire/Ice") the full "A // B" name isn't always found
+     * (adventures, transform and modal cards), while the front face is. So: the full name in Scryfall's spelling,
+     * then the front face.
+     */
+    fun names(name: String): List<String> {
+        val n = name.trim().takeIf { it.isNotEmpty() } ?: return emptyList()
+        if (!CardNames.hasFaces(n)) return listOf(n)
+        return listOf(CardNames.full(n), CardNames.front(n)).distinct()
+    }
+
     /** The identifiers to try for [w], most exact first. */
     fun attempts(w: Wanted): List<Ident> {
         val set = setCode(w.set)
         val num = number(w.number)
-        val name = w.name.trim().takeIf { it.isNotEmpty() }
+        val names = names(w.name)
         return buildList {
             w.id?.takeIf { it.isNotBlank() }?.let { add(Ident(id = it)) }
             if (set != null && num != null) {
                 add(Ident(set = set, number = num))
                 unpadded(num)?.let { add(Ident(set = set, number = it)) }
             }
-            if (name != null) {
-                if (set != null) add(Ident(set = set, name = name))
-                add(Ident(name = name))
-            }
+            if (set != null) names.forEach { add(Ident(set = set, name = it)) }
+            names.forEach { add(Ident(name = it)) }
         }.distinct()
     }
 

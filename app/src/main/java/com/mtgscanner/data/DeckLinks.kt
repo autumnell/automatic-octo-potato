@@ -51,7 +51,8 @@ object DeckLinks {
         return client.newCall(req).execute().use { if (it.isSuccessful) it.body?.string() else null }
     }
 
-    private data class Entry(val qty: Int, val name: String, val set: String?, val number: String?, val foil: Boolean)
+    /** [finish]: "" (non-foil), "foil" or "etched". */
+    private data class Entry(val qty: Int, val name: String, val set: String?, val number: String?, val finish: String)
 
     /** Moxfield's v3 ("boards": {"mainboard": {"cards": …}}) or v2 ("mainboard": {…}) deck JSON. */
     fun parseMoxfield(root: JsonElement): LinkedDeck? {
@@ -63,10 +64,16 @@ object DeckLinks {
                 val e = v as? JsonObject ?: return@mapNotNull null
                 val card = e["card"] as? JsonObject ?: return@mapNotNull null
                 val name = card.str("name") ?: return@mapNotNull null
-                val finish = e.str("finish").orEmpty()
+                val finish = e.str("finish").orEmpty().lowercase()
                 Entry(
-                    (e["quantity"] as? JsonPrimitive)?.intOrNull ?: 1, name, card.str("set"), card.str("cn"),
-                    finish == "foil" || finish == "etched" || (e["isFoil"] as? JsonPrimitive)?.booleanOrNull == true,
+                    (e["quantity"] as? JsonPrimitive)?.intOrNull ?: 1, name, card.str("set"),
+                    // The collector number tells a borderless or showcase printing from the normal one in the same set.
+                    card.number("cn") ?: card.number("collector_number") ?: card.number("collectorNumber") ?: card.number("number"),
+                    when {
+                        finish == "etched" -> "etched"
+                        finish == "foil" || (e["isFoil"] as? JsonPrimitive)?.booleanOrNull == true -> "foil"
+                        else -> ""
+                    },
                 )
             }
         }
@@ -106,11 +113,11 @@ object DeckLinks {
                 cats.any { it.equals("Maybeboard", true) } || (cats.isNotEmpty() && cats.first() in outOfDeck) -> continue
                 else -> "Deck"
             }
-            val modifier = co.str("modifier").orEmpty()
+            val modifier = co.str("modifier").orEmpty().lowercase()
             bySection.getValue(section) += Entry(
                 (co["quantity"] as? JsonPrimitive)?.intOrNull ?: 1, name,
-                (card["edition"] as? JsonObject)?.str("editioncode"), card.str("collectorNumber"),
-                modifier.equals("Foil", true) || modifier.equals("Etched", true),
+                (card["edition"] as? JsonObject)?.str("editioncode"), card.number("collectorNumber") ?: card.number("collector_number"),
+                if (modifier == "foil" || modifier == "etched") modifier else "",
             )
         }
         if (bySection.values.all { it.isEmpty() }) return null
@@ -130,10 +137,17 @@ object DeckLinks {
                         append(" (").append(e.set.uppercase()).append(')')
                         if (!e.number.isNullOrBlank()) append(' ').append(e.number)
                     }
-                    if (e.foil) append(" *F*")
+                    when (e.finish) {
+                        "foil" -> append(" *F*")
+                        "etched" -> append(" *E*")
+                    }
                 }
             }
         }
 
     private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    /** A collector number, given as a string ("287", "12a") or a bare number. */
+    private fun JsonObject.number(k: String): String? = (this[k] as? JsonPrimitive)
+        ?.takeIf { it.isString || it.content.firstOrNull()?.isDigit() == true }?.content?.trim()?.takeIf { it.isNotEmpty() }
 }

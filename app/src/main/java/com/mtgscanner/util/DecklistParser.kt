@@ -21,7 +21,8 @@ data class DeckLine(
 object DecklistParser {
     private val SECTION = Regex("""^(?://\s*)?(main\s*deck|maindeck|deck|mainboard|sideboard|side|commander|commanders|companions?|oathbreaker|signature\s*spells?|maybeboard|considering|tokens?)\s*:?\s*(\(\d+\))?$""", RegexOption.IGNORE_CASE)
     private val LINE = Regex("""^(?:(SB|CMDR):\s*)?(\d+)\s*[xX]?\s+(.+?)\s*$""")
-    private val PRINTING = Regex("""^(.+?)\s+[\(\[]([A-Za-z0-9]{2,6})[\)\]](?:\s+([A-Za-z0-9\-★†]+))?(?:\s+\*[A-Z]\*)?$""")
+    // "Sol Ring (CMR) 263", "Sol Ring [CMR] 263", and with the number inside: "Sol Ring [CMR:263]", "(CMR#263)".
+    private val PRINTING = Regex("""^(.+?)\s+[\(\[]([A-Za-z0-9]{2,6})(?:[:#]([A-Za-z0-9\-★†]+))?[\)\]](?:\s+([A-Za-z0-9\-★†]+))?(?:\s+\*[A-Z]\*)?$""")
     // Deckstats puts the printing first: "[CMR#263] Sol Ring", "[CMR] Sol Ring".
     private val PREFIX_PRINTING = Regex("""^\[([A-Za-z0-9]{2,6})(?:#([A-Za-z0-9\-★†]+))?\]\s+(.+)$""")
     // MTGGoldfish variants: "Lightning Bolt <retro> [2X2]", "Forest <251> [THB]".
@@ -36,7 +37,7 @@ object DecklistParser {
     private val CARET_TAG = Regex("""\s+\^[^^]*\^$""")
     private val BRACKET_TAG = Regex("""\s+\[([^\]]*)\]$""")
     // A set code in brackets is all one case ("[MH2]", "[mh2]"); "[Ramp]" is a tag.
-    private val SET_IN_BRACKETS = Regex("""[A-Z0-9]{2,6}|[a-z0-9]{2,6}""")
+    private val SET_IN_BRACKETS = Regex("""(?:[A-Z0-9]{2,6}|[a-z0-9]{2,6})(?:[:#][A-Za-z0-9\-★†]+)?""")
     private val ARENA_NAME = Regex("""^name\s+.+$""", RegexOption.IGNORE_CASE)
     private val FOIL_MARK = Regex("""\s\*(F|E|FOIL|ETCHED)\*(\s|$)""", RegexOption.IGNORE_CASE)
     // Archidekt and Moxfield mark the commander in a plain list: "1x Atraxa (ONE) 196 *CMDR*".
@@ -102,14 +103,16 @@ object DecklistParser {
             val pre = if (p == null) PREFIX_PRINTING.matchEntire(rest) else null
             val entry = when {
                 p != null -> DeckLine(
-                    qty, p.groupValues[1].trim(), p.groupValues[2].lowercase(), p.groupValues[3].ifEmpty { null } ?: angleNumber, lineSection, foil,
+                    qty, p.groupValues[1].trim(), p.groupValues[2].lowercase(),
+                    p.groupValues[3].ifEmpty { null } ?: p.groupValues[4].ifEmpty { null } ?: angleNumber, lineSection, foil,
                 )
                 pre != null -> DeckLine(
                     qty, pre.groupValues[3].trim(), pre.groupValues[1].lowercase(), pre.groupValues[2].ifEmpty { null } ?: angleNumber, lineSection, foil,
                 )
                 else -> DeckLine(qty, rest, section = lineSection, foil = foil)
             }
-            if (entry.name.isNotBlank() && entry.quantity > 0) out += entry
+            // Two-halved cards in Scryfall's spelling: "Fire/Ice" → "Fire // Ice". A front face alone stays as it is.
+            if (entry.name.isNotBlank() && entry.quantity > 0) out += entry.copy(name = CardNames.full(entry.name))
         }
         // MTGO lists: no headers, main deck, a blank line, then the sideboard.
         val starts = blockStarts.filter { it < out.size }

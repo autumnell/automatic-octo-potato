@@ -133,7 +133,7 @@ data class DeckCommanders(
          * deck check counts it. Names already in the list (any section) are left where they are.
          */
         fun addMissingTo(text: String, lines: List<DeckLine>, c: DeckCommanders): String {
-            fun key(n: String) = n.substringBefore(" // ").trim().lowercase()
+            fun key(n: String) = com.mtgscanner.util.CardNames.key(n)
             val have = lines.map { key(it.name) }.toMutableSet()
             val blocks = mutableListOf<String>()
             fun add(header: String, names: List<String>) {
@@ -289,7 +289,7 @@ object CommanderRules {
         val f = DeckFormats.of(format)
         if (f.id.isEmpty()) return Issues()
         val played = lines.filter { it.section == "Main" || it.section == "Commander" || it.section == "Signature" }
-        val byName = played.groupBy { it.name.substringBefore(" // ").trim().lowercase() }
+        val byName = played.groupBy { com.mtgscanner.util.CardNames.key(it.name) }
         val over = byName.values.mapNotNull { ls ->
             val n = ls.sumOf { it.quantity }
             val limit = copyLimit(info(ls.first().name), format) ?: return@mapNotNull null
