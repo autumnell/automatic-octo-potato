@@ -138,8 +138,8 @@ val Cormorant = FontFamily(
 private const val HEADING_FIGURES = "lnum"
 /** Lining and tabular figures: every digit the same width, so prices line up and counters don't jiggle. */
 private const val PRICE_FIGURES = "lnum, tnum"
-/** Tabular figures alone, for labels (see [TabularNums]). */
-private const val TABULAR = "tnum"
+/** Lining tabular figures for labels (see [TabularNums]). */
+private const val TABULAR = PRICE_FIGURES
 
 private fun scheme(): ColorScheme {
     val p = Palette
@@ -250,8 +250,8 @@ object Corners {
 /** A real Magic card's corner, for card images (about 5% of the card's shorter side). */
 val CardShape = RoundedCornerShape(percent = 5)
 
-/** Tabular figures for counts and quantities in lists: `style.merge(TabularNums)`. */
-val TabularNums = TextStyle(fontFeatureSettings = "tnum")
+/** Tabular (and lining) figures for prices, counts and quantities in lists: `style.merge(TabularNums)`. Lining keeps Cormorant's digits on the line. */
+val TabularNums = TextStyle(fontFeatureSettings = "lnum, tnum")
 
 private val shapes = Shapes(
     extraSmall = RoundedCornerShape(Corners.Small),
