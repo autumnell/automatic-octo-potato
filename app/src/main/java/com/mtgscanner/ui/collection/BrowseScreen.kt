@@ -123,7 +123,6 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalConfiguration
 import com.mtgscanner.data.Binder
-import com.mtgscanner.ui.components.CardPreviewSheet
 import com.mtgscanner.ui.detail.CardDetailScreen
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.CardShape
@@ -140,19 +139,16 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     val showTip by vm.showTip.collectAsStateWithLifecycle()
     val dense by vm.dense.collectAsStateWithLifecycle()
     val pagesOn by vm.pages.collectAsStateWithLifecycle()
-    val stackOn by vm.stack.collectAsStateWithLifecycle()
     val sparks by vm.sparks.collectAsStateWithLifecycle()
     /** Wide screens show the card beside the list. */
     val wide = LocalConfiguration.current.screenWidthDp >= 840
     /** The card in the side pane on wide screens. */
     var paneId by remember { mutableStateOf<Long?>(null) }
-    /** The card in the quick preview sheet. */
-    var preview by remember { mutableStateOf<CollectionCard?>(null) }
     var menu by remember { mutableStateOf(false) }
     val kinds = remember(ui.boxes) { ui.boxes.associate { it.id to it.kind } }
     val perCopy = remember(ui.boxes) { ui.boxes.filter { it.pocketPerCopy }.map { it.id }.toSet() }
     fun tap(c: CollectionCard) {
-        if (wide) paneId = c.id else preview = c
+        if (wide) paneId = c.id else onOpenCard(c.id)
     }
     val saved by vm.saved.collectAsStateWithLifecycle()
     val recent by vm.recent.collectAsStateWithLifecycle()
@@ -181,7 +177,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             }
             if (ui.boxes.any { it.id == boxId && it.kind == "trade" }) TextButton(onClick = { onTrade(boxId) }) { Text("Trade") }
             if (ui.totalCards > 0) TextButton(onClick = vm::startSelecting) { Text("Select") }
-            if (!stackOn || boxId < 0) IconButton(onClick = vm::cycleView) {
+            IconButton(onClick = vm::cycleView) {
                 // Shows the view you get next.
                 when {
                     grid -> Icon(Icons.Filled.ViewAgenda, "List view")
@@ -189,30 +185,23 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                     else -> Icon(Icons.Filled.GridView, "Grid view")
                 }
             }
-            Box {
+            if (ui.binder) Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    if (boxId >= 0) DropdownMenuItem(
-                        text = { Text("Card stack") },
-                        trailingIcon = { if (stackOn) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
-                        onClick = { menu = false; vm.toggleStack() },
+                    DropdownMenuItem(
+                        text = { Text("Pages") },
+                        trailingIcon = { if (pagesOn) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
+                        onClick = { menu = false; vm.togglePages() },
                     )
-                    if (ui.binder) {
-                        DropdownMenuItem(
-                            text = { Text("Pages") },
-                            trailingIcon = { if (pagesOn) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
-                            onClick = { menu = false; vm.togglePages() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Pocket per copy") },
-                            trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
-                            onClick = { menu = false; vm.setPocketPerCopy(!ui.pocketPerCopy) },
-                        )
-                        if (ui.unslotted > 0) DropdownMenuItem(
-                            text = { Text("Number slots") },
-                            onClick = { menu = false; vm.numberSlots() },
-                        )
-                    }
+                    DropdownMenuItem(
+                        text = { Text("Pocket per copy") },
+                        trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
+                        onClick = { menu = false; vm.setPocketPerCopy(!ui.pocketPerCopy) },
+                    )
+                    if (ui.unslotted > 0) DropdownMenuItem(
+                        text = { Text("Number slots") },
+                        onClick = { menu = false; vm.numberSlots() },
+                    )
                 }
             }
         }
@@ -312,10 +301,6 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },
             )
             ui.binder && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
-            boxId >= 0 && stackOn && !picking -> {
-                val flat = remember(ui.groups) { ui.groups.flatMap { it.second } }
-                CardStack(flat, sparks, onOpen = { tap(it) }, modifier = Modifier.padding(bottom = 16.dp))
-            }
             else -> CardGrid(
                 ui.groups, grid, selected, picking, dense, sparks,
                 slotOf = { c -> slotLabel(c, kinds[c.boxId], c.boxId in perCopy) },
@@ -338,16 +323,6 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     }
     }
 
-    preview?.let { c ->
-        val where = remember(c, ui.all) { vm.whereIs(c) }
-        CardPreviewSheet(
-            card = c,
-            box = ui.boxes.firstOrNull { it.id == c.boxId },
-            where = where,
-            onOpen = { preview = null; onOpenCard(c.id) },
-            onDismiss = { preview = null },
-        )
-    }
     if (showFilters) FilterSheet(f, ui, vm, saved, onDismiss = { showFilters = false })
     if (savingSearch) NameDialog("Save this search", "e.g. Red rares under $5", "Save", onDone = { vm.saveSearch(it); savingSearch = false }, onDismiss = { savingSearch = false })
     if (tagging) TagDialog(ui.userTags, onDone = { vm.tagSelected(it); tagging = false }, onDismiss = { tagging = false })

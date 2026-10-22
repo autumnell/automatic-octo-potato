@@ -16,7 +16,6 @@ import com.mtgscanner.data.MoveLine
 import kotlinx.coroutines.flow.drop
 import kotlinx.serialization.json.Json
 import com.mtgscanner.data.Binder
-import com.mtgscanner.data.Placement
 import com.mtgscanner.data.numberBinderSlots
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -190,14 +189,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             !_dense.value -> toggleDense()
             else -> { _dense.value = false; setPref("dense", false); toggleGrid() }
         }
-    }
-
-    /** A box shown as a fanned stack of cards, one at a time. */
-    private val _stack = MutableStateFlow(boxId >= 0 && pref("stack", false))
-    val stack: StateFlow<Boolean> = _stack
-    fun toggleStack() {
-        _stack.value = !_stack.value
-        setPref("stack", _stack.value)
     }
 
     /** Binder page view instead of the list. */
@@ -423,12 +414,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
         ScryfallQueryCache.put(a, result)
         remoteTick.update { it + 1 }
-    }
-
-    /** Where a card sits: its box, divider and neighbors, or binder page and slot. */
-    fun whereIs(c: CollectionCard): String {
-        val u = ui.value
-        return Placement.whereIs(c, u.boxes.firstOrNull { it.id == c.boxId }, u.all.filter { it.boxId == c.boxId })
     }
 
     /** Gives binder slots to cards without one, in name order after the last used slot. */
