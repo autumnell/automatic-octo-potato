@@ -202,6 +202,8 @@ object HouseSync {
         val repo = app.repository
         val dao = repo.dao
         var ids = start
+        // Shared id → row id, for the rows that were here before this sync.
+        val rowFor = start.rows.entries.associate { it.value.id to it.key }
 
         suspend fun boxFor(name: String, fallback: Long): Long {
             if (name.isBlank()) return fallback
@@ -228,12 +230,12 @@ object HouseSync {
 
         repo.db.withTransaction {
             for (id in plan.deletes) {
-                val rowId = ids.rowOf(id) ?: continue
+                val rowId = rowFor[id] ?: continue
                 dao.get(rowId)?.let { dao.delete(it) }
                 ids = ids.without(rowId)
             }
             for ((id, f) in plan.updates) {
-                val rowId = ids.rowOf(id) ?: continue
+                val rowId = rowFor[id] ?: continue
                 val row = dao.get(rowId) ?: continue
                 val changed = SyncFields.apply(row, f).copy(boxId = f[SyncFields.BOX]?.let { boxFor(it, row.boxId) } ?: row.boxId, updatedAt = now)
                 if (save(changed, rowId) == null) ids = ids.without(rowId)

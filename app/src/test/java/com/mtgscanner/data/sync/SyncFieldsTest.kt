@@ -63,4 +63,12 @@ class SyncFieldsTest {
         assertNull(m2.without(3).rowOf("id4"))
         assertEquals("z", m2.with(9, IdEntry("z", "s")).idOf(9, "s"))
     }
+
+    @Test fun `id map and doc survive json`() {
+        val json = kotlinx.serialization.json.Json { encodeDefaults = true }
+        val m = IdMap(mapOf(5L to IdEntry("u1", "s1")))
+        assertEquals(m, json.decodeFromString(IdMap.serializer(), json.encodeToString(IdMap.serializer(), m)))
+        val d = SyncDoc(records = mapOf("u1" to SyncRecord("u1", "{}", mapOf("qty" to FieldValue("2", 9, "A")), deletedAt = 3)), devices = mapOf("A" to 9L))
+        assertEquals(d, json.decodeFromString(SyncDoc.serializer(), json.encodeToString(SyncDoc.serializer(), d)))
+    }
 }
