@@ -34,6 +34,31 @@ object DeckText {
         append(l.name).append(" (").append(set.uppercase()).append(") ").append(number)
         if (l.foil) append(' ').append(FOIL_MARK.find(line)?.value ?: "*F*")
         if (CMDR_MARK.containsMatchIn(line)) append(" *CMDR*")
+        tags(line).forEach { append(' ').append(it) }
+    }
+
+    private val END_MARK = Regex("""\s+\*[A-Za-z]+\*$""")
+    private val END_CARET = Regex("""\s+\^[^^]*\^$""")
+    private val END_HASH = Regex("""\s+#!?[A-Za-z][^#*^\[\]]*$""")
+    private val END_BRACKET = Regex("""\s+\[([^\]]*)\]$""")
+    // "[CMR]" right after the name is a set code, not a tag.
+    private val SET_LIKE = Regex("""(?:[A-Z0-9]{2,6}|[a-z0-9]{2,6})(?:[:#][A-Za-z0-9\-★†]+)?""")
+    private val HAS_PRINTING = Regex("""[\(\[][A-Za-z0-9]{2,6}(?:[:#][^\)\]]*)?[\)\]]""")
+
+    /** Moxfield and Archidekt tags at the end of a line ("#Ramp", "#!Staple", "^Have,#37d67a^", "[Removal]"), in order. */
+    fun tags(line: String): List<String> {
+        var rest = line.trimEnd()
+        val out = ArrayDeque<String>()
+        while (true) {
+            val mark = END_MARK.find(rest)
+            if (mark != null) { rest = rest.substring(0, mark.range.first); continue }
+            val m = END_CARET.find(rest) ?: END_HASH.find(rest) ?: END_BRACKET.find(rest)?.takeIf { b ->
+                !SET_LIKE.matches(b.groupValues[1]) || HAS_PRINTING.containsMatchIn(rest.substring(0, b.range.first))
+            } ?: break
+            out.addFirst(m.value.trim())
+            rest = rest.substring(0, m.range.first)
+        }
+        return out.toList()
     }
 
     /** Adds [delta] copies of [name] to the main deck (negative takes copies away). */
