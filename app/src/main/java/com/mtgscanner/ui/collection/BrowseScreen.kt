@@ -167,8 +167,15 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
+        val pickedValue = remember(selected, ui.groups) {
+            SelectionValue.total(
+                ui.groups.flatMap { it.second }.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) },
+                selected,
+            )
+        }
         if (picking) SelectionBar(
             selected.size, ui.boxes, deckChoices, vm, onTag = { tagging = true }, onEdit = { editing = true },
+            value = if (AppSettings.showPrices) pickedValue else null,
             onCopy = {
                 val names = ui.groups.flatMap { it.second }.filter { it.id in selected }.map { it.name }.distinct()
                 com.mtgscanner.util.CopyText.copy(ctx, names.joinToString("\n"), if (names.size == 1) "Card name" else "Card names")
@@ -353,7 +360,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
 /** Top bar while picking cards: how many, and what to do with them. */
 @Composable
-private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, onCopy: () -> Unit) {
+private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, value: Double?, onCopy: () -> Unit) {
     var moveMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
@@ -361,7 +368,9 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = vm::clearSelection) { Icon(Icons.Filled.Close, "Stop picking") }
-        Text("$count selected", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(
+            if (value != null) "$count selected · ${formatUsd(value)}" else "$count selected",
+            style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         IconButton(onClick = vm::selectAll) { Icon(Icons.Filled.SelectAll, "Select all") }
         Box {
             IconButton(onClick = { moveMenu = true }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "Move to box") }
