@@ -90,7 +90,7 @@ import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.PriceStyle
 import com.mtgscanner.ui.theme.Corners
 
-private val settingsTabs = listOf("Look", "Prices", "Scanning", "Sorting", "Data")
+private val settingsTabs = listOf("Look", "Prices", "Data")
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () -> Unit = {}) {
@@ -121,18 +121,6 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                 1 -> Page {
                     SectionLabel("Prices")
                     PricesSection()
-                    if (AppSettings.showPrices) {
-                        Spacer(Modifier.height(10.dp))
-                        ConditionPricesSection()
-                    }
-                }
-                2 -> Page {
-                    SectionLabel("Scanning")
-                    ScanningSection()
-                }
-                3 -> Page {
-                    SectionLabel("Sorting")
-                    SortingSection()
                 }
                 else -> Page { DataTab(dataVm, onScanLog, onTour, showMessage) }
             }

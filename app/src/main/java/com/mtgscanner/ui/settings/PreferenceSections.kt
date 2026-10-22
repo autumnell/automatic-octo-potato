@@ -26,7 +26,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mtgscanner.data.JustTcg
 import com.mtgscanner.ui.components.SelectPill
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
@@ -135,74 +134,6 @@ private fun openNotificationSettings(ctx: android.content.Context) {
             android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName),
         )
-    }
-}
-
-/** Optional JustTCG key for real per-condition prices. Without one, prices are near mint. */
-@Composable
-fun ConditionPricesSection() {
-    val ctx = LocalContext.current
-    val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var key by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(JustTcg.apiKey) }
-    var status by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    fun refresh() {
-        busy = true
-        status = "Updating…"
-        scope.launch {
-            status = runCatching { repo.refreshConditionPrices() }
-                .fold({ "Priced $it cards by condition" }, { it.message ?: "Couldn't reach JustTCG" })
-            busy = false
-        }
-    }
-    Card {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text("Condition prices", style = MaterialTheme.typography.titleSmall)
-            Text(
-                if (JustTcg.enabled) "JustTCG · ${JustTcg.usedThisMonth}/${JustTcg.MONTHLY_LIMIT} lookups this month"
-                else "Free JustTCG key for NM/LP/MP/HP prices",
-                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.padding(top = 8.dp))
-            androidx.compose.material3.OutlinedTextField(
-                value = key,
-                onValueChange = { key = it },
-                label = { Text("JustTCG API key") },
-                singleLine = true,
-                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp)) {
-                androidx.compose.material3.TextButton(
-                    enabled = !busy && key.trim() != JustTcg.apiKey,
-                    onClick = {
-                        val removed = key.isBlank()
-                        JustTcg.updateKey(key)
-                        if (removed) {
-                            scope.launch { repo.clearConditionPrices() }
-                            status = "Using near-mint prices"
-                        } else refresh()
-                    },
-                ) { Text("Save") }
-                if (JustTcg.enabled) {
-                    androidx.compose.material3.TextButton(enabled = !busy, onClick = { refresh() }) { Text("Update now") }
-                }
-                androidx.compose.material3.TextButton(onClick = {
-                    // No browser installed throws; nothing to do then.
-                    runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://justtcg.com"))) }
-                }) { Text("Get a key") }
-            }
-            status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
-        }
-    }
-}
-
-/** The same scan settings and presets as the scanner's settings sheet. */
-@Composable
-fun ScanningSection() {
-    Card {
-        com.mtgscanner.ui.scan.ScanSettingsEditor(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp), showFoil = false)
     }
 }
 

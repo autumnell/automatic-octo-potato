@@ -23,7 +23,6 @@ class MtgApp : Application(), ImageLoaderFactory {
         ThemeSettings.init(this)
         FontSettings.init(this)
         AppSettings.init(this)
-        com.mtgscanner.data.JustTcg.init(this)
         com.mtgscanner.data.SortPrefs.init(this)
         // Card Kingdom's buy list is big: it's fetched only when Trade or Sell opens (CardKingdom.init there).
         com.mtgscanner.scan.ScanPrefs.init(this)
@@ -32,7 +31,7 @@ class MtgApp : Application(), ImageLoaderFactory {
             .build()
         repository = CollectionRepository(this, db, ScryfallApi())
         // Price refresh, lookups and the name list only when a screen opens: a background job or the
-        // widget waking the app shouldn't spend battery, data and JustTCG requests on them.
+        // widget waking the app shouldn't spend battery and data on them.
         registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
                 if (!backgroundStarted) {
