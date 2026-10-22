@@ -121,6 +121,13 @@ class MainActivity : ComponentActivity() {
         com.mtgscanner.util.IncomingShare.accept(intent)
     }
 
+    /** Volume up/down add or skip the card on the Scan screen (see VolumeKeys); otherwise volume as usual. */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        val up = keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP
+        if ((up || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) && com.mtgscanner.ui.scan.VolumeKeys.press(up, event.repeatCount)) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.mtgscanner.ui.settings.CrashLog.install(this)
