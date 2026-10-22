@@ -518,7 +518,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
     Box(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             .clip(shape)
-            .background(Palette.HeroGradient)
+            .background(Palette.BoxCard)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         val art = ui.heroArt?.takeIf { AppSettings.showPrices }
@@ -550,7 +550,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                 )
                 if (onClick != null) {
                     Text("Stats", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                 }
             }
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
