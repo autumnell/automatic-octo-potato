@@ -844,7 +844,9 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                 if (f.activeCount > 0) TextButton(onClick = vm::clearFilters) { Text("Clear all") }
             }
             FilterGroup("Color") {
-                (COLOR_FILTERS + f.colors.filter { com.mtgscanner.ui.home.ColorPairs.isPairKey(it) }).forEach { col ->
+                // Pair keys from Home and an old "Multicolor" pick show only while picked, so they can be cleared.
+                val legacy = f.colors.filter { it == CardColors.LEGACY_MULTI || com.mtgscanner.ui.home.ColorPairs.isPairKey(it) }
+                (COLOR_FILTERS + legacy).forEach { col ->
                     val label = mapOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless", "M" to "Multicolor")[col]
                         ?: com.mtgscanner.ui.home.ColorPairs.name(col)
                     val pip: (@Composable () -> Unit)? = if (col in listOf("W", "U", "B", "R", "G", "C", "M")) {
@@ -852,6 +854,15 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                     } else null
                     SelectPill(label, col in f.colors, onClick = { vm.update { it.copy(colors = it.colors.toggle(col)) } }, leading = pip)
                 }
+            }
+            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ColorMatch.entries.forEach { m ->
+                    SelectPill(m.label, f.colorMatch == m, onClick = { vm.update { it.copy(colorMatch = m) } })
+                }
+            }
+            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SelectPill("Colors", !f.byIdentity, onClick = { vm.update { it.copy(byIdentity = false) } })
+                SelectPill("Identity", f.byIdentity, onClick = { vm.update { it.copy(byIdentity = true) } })
             }
             FilterGroup("Rarity") {
                 RARITIES.forEach { r ->

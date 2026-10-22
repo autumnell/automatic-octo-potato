@@ -82,6 +82,11 @@ data class DeckCheckLine(
     val price: Double?,
     val imageUrl: String?,
     val oracleId: String?,
+    /** The printing the list names ("fdc", "123"), if any. */
+    val setCode: String? = null,
+    val collectorNumber: String? = null,
+    /** The list named a printing Scryfall doesn't have, so the picture and price are another printing's. */
+    val otherPrinting: Boolean = false,
 ) {
     val missing: Int get() = (needed - owned).coerceAtLeast(0)
     /** In a section that's played (main deck, commander, companion); sideboard, maybeboard and tokens aren't. */
@@ -1114,24 +1119,40 @@ class CollectionRepository(
             left[k] = (left[k] ?: 0) - have
             ownedFor[i] = have
         }
-        val missingNames = lines.filterIndexed { i, l -> ownedFor[i] < l.quantity }.map { it.name }.distinct()
-        // Prices and pictures for missing cards come from Scryfall; ignore failures (offline).
+        // Copies of the exact printing a line names, for its picture and price.
+        val samePrinting = lines.map { l ->
+            if (l.setCode == null) emptyList()
+            else byName[key(l.name)].orEmpty().filter { PrintingLookup.samePrinting(l.setCode, l.collectorNumber, it.setCode, it.collectorNumber) }
+        }
+        // Prices and pictures for missing cards, and for printings named but not owned, come from Scryfall:
+        // that set's printing (and number) first. Ignore failures (offline).
+        val toLook = lines.indices.filter { ownedFor[it] < lines[it].quantity || (lines[it].setCode != null && samePrinting[it].isEmpty()) }
         val looked = runCatching {
-            api.identify(missingNames.map { n -> buildJsonObject { put("name", n) } })
+            PrintingLookup.resolve(toLook.map { PrintingLookup.Wanted(lines[it].name, lines[it].setCode, lines[it].collectorNumber) }) { ids ->
+                api.identify(ids.map(PrintingLookup::json))
+            }
         }.getOrNull()
-        val lookedUp = missingNames.zip(looked ?: List(missingNames.size) { null }).toMap()
+        val lookedUp = HashMap<Int, ScryfallCard>()
+        looked?.forEachIndexed { k, c -> if (c != null) lookedUp[toLook[k]] = c }
         return DeckCheck(lines.mapIndexed { i, l ->
             val owned = byName[key(l.name)].orEmpty()
-            val sc = lookedUp[l.name]
+            val exact = samePrinting[i]
+            val sc = lookedUp[i]
+            val named = l.setCode != null
             DeckCheckLine(
                 name = owned.firstOrNull()?.name ?: sc?.name ?: l.name,
                 section = l.section,
                 needed = l.quantity,
                 owned = ownedFor[i],
                 boxes = owned.groupBy { it.boxId }.map { (b, cs) -> (boxNames[b] ?: "Unsorted") to cs.sumOf { it.quantity } },
-                price = owned.mapNotNull { it.priceUsd }.minOrNull() ?: sc?.prices?.usd?.toDoubleOrNull(),
-                imageUrl = owned.firstOrNull()?.imageUrl ?: sc?.imageUrl,
+                price = exact.mapNotNull { it.priceUsd }.minOrNull()
+                    ?: (if (named) sc?.prices?.usd?.toDoubleOrNull() else null)
+                    ?: owned.mapNotNull { it.priceUsd }.minOrNull() ?: sc?.prices?.usd?.toDoubleOrNull(),
+                imageUrl = exact.firstOrNull()?.imageUrl ?: (if (named) sc?.imageUrl else null) ?: owned.firstOrNull()?.imageUrl ?: sc?.imageUrl,
                 oracleId = owned.firstOrNull()?.oracleId ?: sc?.oracleId,
+                setCode = l.setCode,
+                collectorNumber = l.collectorNumber,
+                otherPrinting = named && exact.isEmpty() && sc != null && !PrintingLookup.samePrinting(l.setCode, l.collectorNumber, sc.set, sc.collectorNumber),
             )
         })
     }

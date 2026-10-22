@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.ui.collection.CardColors
+import com.mtgscanner.ui.collection.ColorMatch
 import kotlinx.serialization.Serializable
 
 /** A type line term to require (IS) or exclude (NOT). */
@@ -17,6 +19,11 @@ data class SearchFilters(
     val groupPrintings: Boolean = true,
     /** Scryfall format key, such as "commander"; only cards legal in it are shown. */
     val format: String? = null,
+    /** Picked color pips (W U B R G, C for colorless), matched by [colorMatch] like Scryfall's c>=, c= and c<=. */
+    val colors: Set<String> = emptySet(),
+    val colorMatch: ColorMatch = ColorMatch.INCLUDING,
+    /** Commander color identity (id) instead of the card's colors (c). */
+    val byIdentity: Boolean = false,
     val types: List<TypeTerm> = emptyList(),
     val stats: List<StatTerm> = emptyList(),
     /** Scryfall language code; "" means default (English), "any" means all. */
@@ -29,12 +36,15 @@ data class SearchFilters(
     val activeCount: Int
         get() = (if (!groupPrintings) 1 else 0) +
             (if (format != null) 1 else 0) +
+            (if (colorTerm != null) 1 else 0) +
             types.size + validStats.size +
             (if (lang.isNotEmpty()) 1 else 0) +
             (if (order != "name") 1 else 0)
 
     /** True when the filters alone narrow the search, so it can run with no words typed. */
-    val narrows: Boolean get() = format != null || types.isNotEmpty() || validStats.isNotEmpty()
+    val narrows: Boolean get() = format != null || colorTerm != null || types.isNotEmpty() || validStats.isNotEmpty()
+
+    private val colorTerm: String? get() = CardColors.scryfallTerm(colors, colorMatch, byIdentity)
 
     private val validStats: List<StatTerm>
         get() = stats.filter { it.stat in STATS && it.op in OPS && validValue(it.op, it.value.trim()) }
@@ -42,6 +52,7 @@ data class SearchFilters(
     /** The Scryfall query terms for these filters, joined by spaces. Empty when none apply. */
     fun toQuery(): String = buildList {
         if (format != null) add("f:$format")
+        colorTerm?.let { add(it) }
         types.forEach { t ->
             val w = t.word.trim().lowercase()
             if (w.isNotEmpty()) {
