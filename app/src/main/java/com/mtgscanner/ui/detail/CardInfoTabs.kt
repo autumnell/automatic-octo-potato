@@ -63,6 +63,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Something fetched on demand: [key] says what it was fetched for. */
 data class Fetched<T>(
@@ -139,9 +140,8 @@ fun CardInfoTabs(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewModel
 
 @Composable
 private fun TabPanel(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(14.dp)) { content() }
-    }
+    // Plain on the background, under the underline tabs.
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) { content() }
 }
 
 @Composable
@@ -325,13 +325,10 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
         Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(Corners.Small))
-                .then(
-                    if (current) Modifier.background(Palette.Accent.copy(alpha = 0.12f)).border(1.dp, Palette.Accent.copy(alpha = 0.6f), RoundedCornerShape(Corners.Small))
-                    else Modifier,
-                )
+                .then(if (current) Modifier.background(Palette.SurfaceHigh) else Modifier)
                 .clickable { menu = true }
-                .padding(horizontal = 6.dp, vertical = 5.dp),
+                .ruleBelow()
+                .padding(horizontal = 6.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CardImage(p.smallImageUrl, Modifier.width(34.dp), zoom = true)

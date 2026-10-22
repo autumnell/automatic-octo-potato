@@ -133,6 +133,7 @@ import java.util.concurrent.Executors
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.CardShape
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.ruleBelow
 
 @Composable
 fun ScanScreen(
@@ -909,7 +910,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                     Modifier
                         .fillMaxWidth()
                         .clickable(enabled = e.deckId == 0L) { vm.showList(false); onOpenCard(e.rowId) }
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CardImage(e.card.smallImageUrl, Modifier.width(44.dp))

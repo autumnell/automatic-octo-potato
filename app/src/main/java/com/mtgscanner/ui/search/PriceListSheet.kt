@@ -46,6 +46,7 @@ import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.util.DecklistParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.components.ruleBelow
 
 /** A priced line and the card it was found as (null when not found). */
 private data class PriceRow(val line: PricedLine, val card: ScryfallCard?)
@@ -178,7 +179,7 @@ private fun PriceResult(rows: List<PriceRow>, wished: Boolean, note: String?, on
 @Composable
 private fun PriceLineRow(r: PriceRow, prices: Boolean) {
     val l = r.line
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().ruleBelow().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(r.card?.smallImageUrl, Modifier.width(32.dp), zoom = r.card != null)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {

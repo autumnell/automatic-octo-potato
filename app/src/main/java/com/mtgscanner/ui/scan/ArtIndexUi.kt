@@ -47,6 +47,7 @@ import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.ruleBelow
 
 /**
  * Art match settings in the scanner's settings sheet: which sets have an art index, the download under way,
@@ -247,7 +248,7 @@ private fun ArtSetPicker(vm: ScanViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun PickRow(code: String, title: String, sub: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SetIcon(code, size = 20.dp, tint = Palette.Text)

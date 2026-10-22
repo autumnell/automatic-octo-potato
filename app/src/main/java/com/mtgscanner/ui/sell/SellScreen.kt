@@ -72,6 +72,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Asking price per copy: your own, or the market price. */
 fun CollectionCard.salePrice(): Double? = askPrice ?: unitPrice()
@@ -215,7 +216,7 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
 
 @Composable
 private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(c.smallImageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {

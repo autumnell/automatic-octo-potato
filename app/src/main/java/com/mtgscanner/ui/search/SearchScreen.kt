@@ -88,6 +88,7 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.components.PlaceholderCards
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 @Composable
 fun SearchScreen(
@@ -278,7 +279,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
 @Composable
 private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick).padding(6.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl, Modifier.width(46.dp), zoom = true)
@@ -394,7 +395,7 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, In
 @Composable
 private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {

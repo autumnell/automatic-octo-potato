@@ -48,6 +48,7 @@ import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.home.UnknownScanDialog
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Cards the skip rules skipped this session, each with "Add anyway". */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -248,7 +249,7 @@ private fun CheckRow(
 ) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 48.dp).let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 20.dp).ruleBelow().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (imageUrl != null) {

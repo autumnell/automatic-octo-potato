@@ -75,6 +75,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.mtgscanner.ui.components.ruleBelow
 
 /** One loan with the row its copies live in (null when the card has left the collection) and that row's box. */
 data class LoanRow(val loan: Loan, val card: CollectionCard?, val boxName: String?)
@@ -142,7 +143,7 @@ fun LoansScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
 private fun LoanItem(r: LoanRow, onOpen: () -> Unit, onReturned: () -> Unit) {
     val c = r.card
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = c != null, onClick = onOpen).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        Modifier.fillMaxWidth().clickable(enabled = c != null, onClick = onOpen).padding(start = 20.dp, end = 8.dp).ruleBelow().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c?.smallImageUrl, Modifier.width(40.dp), zoom = c != null)

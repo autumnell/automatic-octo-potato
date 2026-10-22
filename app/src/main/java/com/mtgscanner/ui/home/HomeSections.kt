@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.CloudOff
 import com.mtgscanner.ui.theme.PriceStyle
 import androidx.compose.foundation.shape.CircleShape
 import com.mtgscanner.ui.detail.sharedCard
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Up to three goals, or a button to add the first one. */
 @Composable
@@ -72,7 +73,7 @@ internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
 /** A goal as a plain row: name and count, with a thin progress line under it. */
 @Composable
 private fun GoalRow(p: GoalProgress, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp)) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp).ruleBelow().padding(vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {

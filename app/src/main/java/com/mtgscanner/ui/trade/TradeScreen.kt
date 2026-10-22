@@ -87,6 +87,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.ruleBelow
 
 /** A card on one side of a trade. [owned] is set for cards you give away. */
 @kotlinx.serialization.Serializable
@@ -425,7 +426,7 @@ private fun SideHeader(title: String, onAdd: () -> Unit) {
 @Composable
 private fun TradeRow(item: TradeItem, vm: TradeViewModel, onEdit: (() -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(horizontal = 16.dp, vertical = 5.dp),
+        Modifier.fillMaxWidth().then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(item.imageUrl, Modifier.width(40.dp), zoom = true, onTap = onEdit)
@@ -511,7 +512,7 @@ private fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Col
 
 @Composable
 private fun PickRow(title: String, sub: String?, image: String?, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (image != null) { CardImage(image, Modifier.width(36.dp)); Spacer(Modifier.width(10.dp)) }
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall)

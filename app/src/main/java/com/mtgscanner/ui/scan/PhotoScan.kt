@@ -49,6 +49,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.CardShape
+import com.mtgscanner.ui.components.ruleBelow
 
 /** The cards read from a photo: each with its match, to fix the printing or take off, then add them all. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,7 +124,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
 @Composable
 private fun PhotoRow(item: PhotoItem, onPrinting: () -> Unit, onRemove: () -> Unit) {
     val c = item.card
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         val thumb = item.thumb
         val mod = Modifier.width(52.dp).aspectRatio(63f / 88f).clip(CardShape)
         if (c != null) CardImage(c.smallImageUrl, Modifier.width(52.dp))

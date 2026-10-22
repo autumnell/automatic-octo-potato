@@ -111,6 +111,7 @@ import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderCards
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 /** How much of a set you own: different collector numbers, out of the main set (or every printing, with variants). */
 data class SetProgress(
@@ -591,7 +592,7 @@ private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
 @Composable
 private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick).padding(6.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), zoom = true)

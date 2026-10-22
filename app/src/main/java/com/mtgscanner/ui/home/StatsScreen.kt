@@ -84,6 +84,7 @@ import kotlinx.coroutines.flow.stateIn
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.components.PlaceholderBlock
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 class StatsViewModel(repo: CollectionRepository) : ViewModel() {
     /** Null until the collection has loaded. */
@@ -192,11 +193,11 @@ fun StatsScreen(
 
             if (prices && s.top.isNotEmpty()) {
                 SectionHeader("Most valuable")
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-                    Column(Modifier.padding(vertical = 6.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    Column {
                         s.top.forEachIndexed { i, c ->
                             Row(
-                                Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.padding(horizontal = 12.dp, vertical = 5.dp),
+                                Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.ruleBelow().padding(horizontal = 4.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.width(24.dp))
@@ -243,10 +244,10 @@ private fun Breakdown(
     onRow: (StatRow) -> Unit,
 ) {
     val max = rows.maxOfOrNull { if (prices) it.value else it.cards.toDouble() }?.takeIf { it > 0 } ?: 1.0
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column {
             rows.forEach { r ->
-                Column(Modifier.fillMaxWidth().clickable { onRow(r) }.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Column(Modifier.fillMaxWidth().clickable { onRow(r) }.ruleBelow().padding(horizontal = 4.dp, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (lead != null) {
                             lead(r)

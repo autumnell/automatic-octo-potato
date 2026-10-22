@@ -144,6 +144,7 @@ import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -1264,7 +1265,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 @Composable
 private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     // Tap to pick the printing.
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
