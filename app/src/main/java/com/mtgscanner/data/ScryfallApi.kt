@@ -178,8 +178,10 @@ class ScryfallApi(
         val num = field("collector_number")
         if (set != null && num != null) return set.equals(card.set, true) && num.equals(card.collectorNumber, true)
         val name = field("name") ?: return false
+        // The full name, either half, or the same with other spacing ("Fire/Ice") or accents.
         val names = listOf(card.name) + card.name.split(" // ") + card.cardFaces.orEmpty().map { it.name }
-        val nameOk = names.any { it.equals(name, ignoreCase = true) }
+        val want = com.mtgscanner.scan.CardTextParser.normalize(com.mtgscanner.util.CardNames.full(name))
+        val nameOk = names.any { it.equals(name, ignoreCase = true) || com.mtgscanner.scan.CardTextParser.normalize(it) == want }
         return nameOk && (set == null || set.equals(card.set, true))
     }
 

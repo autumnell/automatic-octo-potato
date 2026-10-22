@@ -47,6 +47,8 @@ data class ScryfallCard(
     @SerialName("printed_name") val printedName: String? = null,
     /** Links to other sites about the card ("edhrec", "gatherer"…). */
     @SerialName("related_uris") val relatedUris: Map<String, String> = emptyMap(),
+    /** "boosterfun", "prerelease", "surgefoil"…: what kind of promo or variant a printing is. */
+    @SerialName("promo_types") val promoTypes: List<String> = emptyList(),
 ) {
     /** Special printings, used by box rules: borderless, showcase, extended art, full art, etched, promo. */
     val treatments: List<String>

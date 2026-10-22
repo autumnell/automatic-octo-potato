@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -98,6 +99,9 @@ import com.mtgscanner.data.deleteDeckAndCards
 import com.mtgscanner.data.observePlaces
 import com.mtgscanner.data.undoDeckDelete
 import com.mtgscanner.data.PrintingLookup
+import com.mtgscanner.data.ScryfallCard
+import com.mtgscanner.scan.DeckText
+import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
@@ -176,7 +180,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     val decks: StateFlow<List<DeckRow>?> = combine(repo.observeDecks(), repo.observeAll(), DeckShelfStore.state, liveMeta) { decks, cards, shelf, live ->
         // Same name matching as the deck check, and each owned copy counts toward one line only.
-        fun key(n: String) = com.mtgscanner.scan.CardTextParser.normalize(n.substringBefore(" // "))
+        fun key(n: String) = com.mtgscanner.util.CardNames.key(n)
         val owned = cards.groupBy { key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
         val folderIds = shelf.folders.map { it.id }.toSet()
         decks.map { d ->
@@ -557,6 +561,9 @@ data class DeckUi(
     val adding: Boolean = false,
     /** The commander's EDHREC page; null when the deck has no commander. */
     val edhrec: String? = null,
+    /** The line whose printing is being picked, and its printings (null while loading). */
+    val printingLine: DeckCheckLine? = null,
+    val printings: List<ScryfallCard>? = null,
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -840,6 +847,37 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
+    /** Opens the printing picker for a line of the saved list. */
+    fun openPrintings(line: DeckCheckLine) {
+        if (_ui.value.id == 0L || _ui.value.editing) return
+        _ui.update { it.copy(printingLine = line, printings = null) }
+        viewModelScope.launch {
+            val list = try {
+                repo.api.printingsOf(line.oracleId, line.name)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            if (_ui.value.printingLine != line) return@launch
+            if (list.isNullOrEmpty()) {
+                _ui.update { it.copy(printingLine = null, printings = null, message = "Couldn't reach Scryfall") }
+            } else {
+                _ui.update { it.copy(printings = list) }
+            }
+        }
+    }
+
+    fun closePrintings() = _ui.update { it.copy(printingLine = null, printings = null) }
+
+    /** Saves [card]'s set and number into the list for the line being picked, as "(SET) number". */
+    fun pickPrinting(card: ScryfallCard) {
+        val line = _ui.value.printingLine ?: return
+        val text = DeckText.setPrinting(_ui.value.text, line.name, line.setCode, line.collectorNumber, card.set, card.collectorNumber)
+        _ui.update { it.copy(printingLine = null, printings = null, text = text) }
+        save()
+    }
+
     /** Wants enough copies of each missing played card; tapping again doesn't add more. */
     fun wishlistMissing() {
         val check = _ui.value.check ?: return
@@ -1057,6 +1095,12 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
     val needed = played.sumOf { it.needed }
     val have = played.sumOf { minOf(it.owned, it.needed) }
     val missingCost = played.sumOf { (it.price ?: 0.0) * it.missing }
+    // A missing card with no price: "$12.30 + ?", or "--" when none has one, never a short total.
+    val missingCostText = when {
+        !check.missingCostPartial -> formatUsd(missingCost)
+        missingCost > 0 -> formatUsd(missingCost) + " + ?"
+        else -> formatUsd(null as Double?)
+    }
     // A commander deck lists its commanders (and companion, signature spell) first.
     val (leads, rest) = PullListMath.leadsFirst(check.lines, leadsOf(ui), { it.name }, DeckNames::key)
     val missing = rest.filter { it.section in PLAYED && it.missing > 0 }
@@ -1067,7 +1111,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
         item {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("Owned", "$have / $needed", Modifier.weight(1f))
-                if (AppSettings.showPrices) Stat("Missing cost", formatUsd(missingCost), Modifier.weight(1f))
+                if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
             }
             if (have > 0) {
@@ -1094,26 +1138,32 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
         }
         if (leads.isNotEmpty()) {
             item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
-            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0) }
+            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }) }
             item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
         }
         // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {
             item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
-            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true) }
+            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }) }
         }
         if (otherMissing.isNotEmpty()) {
             item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
-            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true) }
+            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }) }
         }
         if (owned.isNotEmpty()) {
             item { SectionHeader("In your collection") }
-            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false) }
+            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false, onClick = { vm.openPrintings(l) }) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
     if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {
         played.filter { it.missing > 0 }.map { it.shareLine() }
+    }
+    ui.printingLine?.let { line ->
+        val chosen = ui.printings?.firstOrNull { p ->
+            line.setCode != null && PrintingLookup.samePrinting(line.setCode, line.shownNumber, p.set, p.collectorNumber)
+        }
+        PrintingsSheet(ui.printings, chosen?.id, vm::pickPrinting, vm::closePrintings)
     }
 }
 
@@ -1128,8 +1178,9 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit) {
+    // Tap to pick the printing.
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -1139,11 +1190,14 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val printing = l.setCode?.let { it.uppercase() + (l.collectorNumber?.let { n -> " #$n" } ?: "") }
+            val listed = l.setCode?.let { it.uppercase() + (l.collectorNumber?.let { n -> " #$n" } ?: "") }
             val where = when {
-                l.otherPrinting -> "No $printing · other printing shown"
-                missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, printing).joinToString(" · ")
-                else -> l.boxes.joinToString(" · ") { (b, n) -> "$b ×$n" }
+                l.otherPrinting -> "No $listed · other printing shown"
+                missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, l.printing).joinToString(" · ")
+                else -> listOfNotNull(
+                    l.whereText.ifEmpty { null },
+                    if (l.ownedOtherPrinting) "Other printing" else l.printing,
+                ).joinToString(" · ")
             }
             // Green once every copy is kept in the deck; owned copies elsewhere still need pulling.
             Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -1,9 +1,9 @@
 package com.mtgscanner.ui.decks
 
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.PrintingLookup
+import com.mtgscanner.util.CardNames
 import kotlinx.coroutines.flow.first
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.util.concurrent.ConcurrentHashMap
 
 /** What the deck tiles need to know about one card. */
@@ -22,9 +22,8 @@ data class DeckCardInfo(
 )
 
 object DeckNames {
-    /** A card name for matching deck lines to cards: front face only, normalized. */
-    fun key(name: String): String =
-        com.mtgscanner.scan.CardTextParser.normalize(name.substringBefore(" // "))
+    /** A card name for matching deck lines to cards: "A // B", "A/B" and "A" match (see [CardNames.key]). */
+    fun key(name: String): String = CardNames.key(name)
 }
 
 /** Card data looked up for decks, kept for the app's lifetime. */
@@ -64,7 +63,10 @@ suspend fun CollectionRepository.deckCardInfo(names: Collection<String>): Map<St
         }
     }
     if (missing.isNotEmpty()) {
-        val found = runCatching { api.identify(missing.map { n -> buildJsonObject { put("name", n.substringBefore(" // ")) } }) }.getOrNull()
+        // "A // B" names are tried in full, then by the front face (see PrintingLookup).
+        val found = runCatching {
+            PrintingLookup.resolve(missing.map { PrintingLookup.Wanted(it) }) { ids -> api.identify(ids.map(PrintingLookup::json)) }
+        }.getOrNull()
         missing.zip(found ?: emptyList()).forEach { (n, c) ->
             if (c == null) unknownNames += DeckNames.key(n)
             if (c != null) {

@@ -90,7 +90,23 @@ data class DeckCheckLine(
     val otherPrinting: Boolean = false,
     /** Of [owned], copies kept in the deck itself; the rest are in boxes or other decks. */
     val inDeck: Int = 0,
+    /** How many other decks hold copies of the card (they're left out of [boxes]). */
+    val otherDecks: Int = 0,
+    /** The collector number shown: the listed one, or the printing found or owned for a set-only line. */
+    val shownNumber: String? = null,
+    /** "Borderless", "Showcase"… for the printing shown; null for a normal one. */
+    val variant: String? = null,
+    /** Copies are owned, but none of the printing the list names. */
+    val ownedOtherPrinting: Boolean = false,
 ) {
+    /** "LCI #287 · Borderless"; null when the list names no set. */
+    val printing: String? get() = setCode?.let { s ->
+        listOfNotNull(s.uppercase() + (shownNumber?.let { " #$it" } ?: ""), variant).joinToString(" · ")
+    }
+
+    /** "In deck ×1 · Binder ×2 · 2 other decks". */
+    val whereText: String get() = DeckPlaces.text(boxes, otherDecks)
+
     val missing: Int get() = (needed - owned).coerceAtLeast(0)
     /** In a section that's played (main deck, commander, companion); sideboard, maybeboard and tokens aren't. */
     val played: Boolean get() = section in DeckCheck.PLAYED
@@ -106,6 +122,8 @@ data class DeckCheck(val lines: List<DeckCheckLine>) {
     val needed: Int get() = lines.filter { it.played }.sumOf { it.needed }
     val owned: Int get() = lines.filter { it.played }.sumOf { minOf(it.owned, it.needed) }
     val missingCost: Double get() = lines.filter { it.played }.sumOf { (it.price ?: 0.0) * it.missing }
+    /** Some missing played card has no price, so [missingCost] is short. */
+    val missingCostPartial: Boolean get() = missingLines.any { it.price == null }
     /** Played lines with copies still missing. */
     val missingLines: List<DeckCheckLine> get() = lines.filter { it.played && it.missing > 0 }
 
@@ -1073,8 +1091,11 @@ class CollectionRepository(
      */
     suspend fun checkDeck(text: String, cards: List<CollectionCard>, places: List<Box>, deckSlotId: Long? = null): DeckCheck {
         val lines = DecklistParser.parse(text)
-        val boxNames = places.associate { it.id to (if (it.id == deckSlotId) DeckCheckLine.IN_DECK else it.placeName()) }
-        fun key(n: String) = CardTextParser.normalize(n.substringBefore(" // "))
+        // This deck's own rows (normally one), and every place by id.
+        val ownDeck = places.firstOrNull { it.id == deckSlotId }?.deckId?.takeIf { it != 0L }
+        val ownSlots = places.filter { it.id == deckSlotId || (ownDeck != null && it.deckId == ownDeck) }.map { it.id }.toSet()
+        val placeInfo = places.associate { it.id to DeckPlaces.Place(it.placeName(), it.deckId) }
+        fun key(n: String) = com.mtgscanner.util.CardNames.key(n)
         val byName = cards.groupBy { key(it.name) }
         // Hand owned copies out line by line, so a card in both the main deck and sideboard isn't counted twice.
         // Played sections (main deck, commander, companion) get them first.
@@ -1089,8 +1110,8 @@ class CollectionRepository(
             ownedFor[i] = have
         }
         // Of those, the copies already kept in this deck, handed out the same way.
-        val inDeckLeft: MutableMap<String, Int> = if (deckSlotId == null) HashMap() else
-            byName.mapValues { (_, cs) -> cs.filter { it.boxId == deckSlotId }.sumOf { it.quantity } }.toMutableMap()
+        val inDeckLeft: MutableMap<String, Int> = if (ownSlots.isEmpty()) HashMap() else
+            byName.mapValues { (_, cs) -> cs.filter { it.boxId in ownSlots }.sumOf { it.quantity } }.toMutableMap()
         val inDeckFor = IntArray(lines.size)
         for (i in order) {
             val k = key(lines[i].name)
@@ -1107,9 +1128,10 @@ class CollectionRepository(
         // that set's printing (and number) first. Ignore failures (offline).
         val toLook = lines.indices.filter { ownedFor[it] < lines[it].quantity || (lines[it].setCode != null && samePrinting[it].isEmpty()) }
         val looked = runCatching {
-            PrintingLookup.resolve(toLook.map { PrintingLookup.Wanted(lines[it].name, lines[it].setCode, lines[it].collectorNumber) }) { ids ->
-                api.identify(ids.map(PrintingLookup::json))
-            }
+            val wants = toLook.map { PrintingLookup.Wanted(lines[it].name, lines[it].setCode, lines[it].collectorNumber) }
+            val found = PrintingLookup.resolve(wants) { ids -> api.identify(ids.map(PrintingLookup::json)) }
+            // A set with no number: show that set's normal printing, not a borderless or showcase one.
+            api.preferRegular(wants, found)
         }.getOrNull()
         val lookedUp = HashMap<Int, ScryfallCard>()
         looked?.forEachIndexed { k, c -> if (c != null) lookedUp[toLook[k]] = c }
@@ -1118,14 +1140,21 @@ class CollectionRepository(
             val exact = samePrinting[i]
             val sc = lookedUp[i]
             val named = l.setCode != null
+            val where = DeckPlaces.where(owned.map { it.boxId to it.quantity }, placeInfo, ownSlots)
+            // The printing shown: a copy of the listed one, else the one Scryfall found for the line.
+            val scShown = sc?.takeIf { named && PrintingLookup.samePrinting(l.setCode, null, it.set, it.collectorNumber) }
             DeckCheckLine(
                 name = owned.firstOrNull()?.name ?: sc?.name ?: l.name,
                 section = l.section,
                 needed = l.quantity,
                 owned = ownedFor[i],
-                boxes = owned.groupBy { it.boxId }.map { (b, cs) -> (boxNames[b] ?: "Unsorted") to cs.sumOf { it.quantity } }
-                    .sortedBy { it.first != DeckCheckLine.IN_DECK },
+                boxes = where.boxes,
+                otherDecks = where.otherDecks,
                 inDeck = inDeckFor[i],
+                shownNumber = l.collectorNumber ?: exact.map { it.collectorNumber }.distinct().singleOrNull() ?: scShown?.collectorNumber,
+                variant = if (!named) null else if (exact.isNotEmpty()) SetPrintings.label(exact.first().treatments)
+                    else scShown?.let { SetPrintings.label(it.treatments) },
+                ownedOtherPrinting = named && ownedFor[i] > 0 && exact.isEmpty(),
                 price = exact.mapNotNull { it.priceUsd }.minOrNull()
                     ?: (if (named) sc?.prices?.usd?.toDoubleOrNull() else null)
                     ?: owned.mapNotNull { it.priceUsd }.minOrNull() ?: sc?.prices?.usd?.toDoubleOrNull(),
@@ -1168,7 +1197,7 @@ class CollectionRepository(
     suspend fun wishlistMissing(check: DeckCheck): Int {
         val missing = check.missingLines.groupBy { it.name }.map { (name, ls) -> name to ls.sumOf { it.missing } }
         if (missing.isEmpty()) return 0
-        val cards = api.identify(missing.map { m -> buildJsonObject { put("name", m.first) } })
+        val cards = PrintingLookup.resolve(missing.map { PrintingLookup.Wanted(it.first) }) { ids -> api.identify(ids.map(PrintingLookup::json)) }
         var n = 0
         missing.zip(cards).forEach { (m, c) -> if (c != null) { wantAtLeast(c, m.second); n++ } }
         return n
@@ -1216,7 +1245,7 @@ class CollectionRepository(
         pending.zip(cards).forEach { (p, c) -> if (c != null) { if (addPendingCard(p, c)) n++ } else retry += p }
         // A misread footer shouldn't lose the card: try by name alone.
         if (retry.isNotEmpty()) {
-            val byName = api.identify(retry.map { buildJsonObject { put("name", it.name) } })
+            val byName = PrintingLookup.resolve(retry.map { PrintingLookup.Wanted(it.name) }) { ids -> api.identify(ids.map(PrintingLookup::json)) }
             retry.zip(byName).forEach { (p, c) -> if (c != null && addPendingCard(p, c)) n++ }
         }
         return n

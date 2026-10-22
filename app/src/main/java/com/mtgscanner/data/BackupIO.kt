@@ -296,14 +296,16 @@ internal object BackupIO {
 
     /**
      * Looks every row up on Scryfall (exact matches only). A row that names a set gets that set's printing
-     * (and that collector number when given); only when there's no such printing does it fall back to the
+     * (and that collector number when given; with no number, the set's normal printing); only when there's no such printing does it fall back to the
      * card in that set, then to any printing ([ImportPlan.otherPrinting] lists those). Throws IOException when offline.
      */
     suspend fun lookUp(repo: CollectionRepository, given: List<ImportRow>): List<ScryfallCard?> {
         val api = repo.api
         val rows = withSetCodes(repo, given)
         val wants = rows.map { PrintingLookup.Wanted(it.name, it.setCode, it.collectorNumber, it.scryfallId) }
-        return PrintingLookup.resolve(wants) { ids -> api.identify(ids.map(PrintingLookup::json)) }
+        val found = PrintingLookup.resolve(wants) { ids -> api.identify(ids.map(PrintingLookup::json)) }
+        // A set with no number gets that set's normal printing, not a borderless or showcase one.
+        return api.preferRegular(wants, found)
     }
 
     /** Fills in set codes for rows that only have a full set name (Deckbox, Cardmarket), from Scryfall's set list. */
