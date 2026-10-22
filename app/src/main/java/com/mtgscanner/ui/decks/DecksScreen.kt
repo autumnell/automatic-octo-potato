@@ -925,6 +925,16 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
+    /** Copies the deck (not its cards), with Undo. */
+    fun duplicate() {
+        val id = _ui.value.id
+        if (id == 0L) return
+        viewModelScope.launch {
+            val copy = repo.duplicateDeck(id) ?: return@launch
+            Undo.offer("Copy made") { repo.deleteDeckAndCards(copy, false) }
+        }
+    }
+
     fun messageShown() = _ui.update { it.copy(message = null) }
 }
 
@@ -961,6 +971,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Deck options") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
+                            DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
                         }
                     }
                 }
