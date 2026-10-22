@@ -42,6 +42,9 @@ import com.mtgscanner.ui.components.cardPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.scan.SetIcon
 import java.util.Locale
 import kotlin.math.abs
 
@@ -117,18 +120,18 @@ fun ValueRing(
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 22.dp)) {
                 if (prices) {
-                    Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge.merge(TabularNums), fontWeight = FontWeight.SemiBold, maxLines = 1)
                     if (then > 0) {
                         Text(
                             boxChangeLabel(change, change / then * 100),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.merge(TabularNums),
                             color = boxChangeColor(change),
                             maxLines = 1,
                         )
                     }
-                    Text("$totalCards cards", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                    Text("$totalCards cards", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted)
                 } else {
-                    Text("$totalCards", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                    Text("$totalCards", style = MaterialTheme.typography.headlineMedium.merge(TabularNums), fontWeight = FontWeight.SemiBold)
                     Text("cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                 }
             }
@@ -144,7 +147,7 @@ fun ValueRing(
                     Spacer(Modifier.width(8.dp))
                     Text(b.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(6.dp))
-                    Text("${(w / sum * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                    Text("${(w / sum * 100).toInt()}%", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted)
                 }
             }
         }
@@ -172,18 +175,22 @@ fun CoverPickerDialog(
                 LazyColumn(Modifier.heightIn(max = 420.dp)) {
                     items(sorted, key = { it.id }) { c ->
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small))
                                 .background(if (c.id == currentId) Palette.SurfaceHigh else Color.Transparent)
                                 .clickable { onPick(c.id) }.padding(6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(36.dp), corner = 3.dp)
+                            CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(36.dp))
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(c.setCode.uppercase(), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    SetIcon(c.setCode, size = 12.dp, tint = Palette.Muted)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(c.setCode.uppercase(), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                                }
                             }
-                            if (AppSettings.showPrices) Text(cardPriceShort(c), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                            if (AppSettings.showPrices) Text(cardPriceShort(c), style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.Muted)
                         }
                     }
                 }
