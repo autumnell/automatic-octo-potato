@@ -47,6 +47,8 @@ data class ScryfallCard(
     @SerialName("printed_name") val printedName: String? = null,
     /** Links to other sites about the card ("edhrec", "gatherer"…). */
     @SerialName("related_uris") val relatedUris: Map<String, String> = emptyMap(),
+    /** Store pages for the card ("tcgplayer", "cardmarket", "cardhoarder"). */
+    @SerialName("purchase_uris") val purchaseUris: Map<String, String> = emptyMap(),
     /** "boosterfun", "prerelease", "surgefoil"…: what kind of promo or variant a printing is. */
     @SerialName("promo_types") val promoTypes: List<String> = emptyList(),
 ) {

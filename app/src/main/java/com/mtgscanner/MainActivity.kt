@@ -121,6 +121,13 @@ class MainActivity : ComponentActivity() {
         com.mtgscanner.util.IncomingShare.accept(intent)
     }
 
+    /** Volume up/down add or skip the card on the Scan screen (see VolumeKeys); otherwise volume as usual. */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        val up = keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP
+        if ((up || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) && com.mtgscanner.ui.scan.VolumeKeys.press(up, event.repeatCount)) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.mtgscanner.ui.settings.CrashLog.install(this)
@@ -184,6 +191,9 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Reopens on the tab used last; widget, shortcut and link requests below still go where they ask.
+    val startTab = remember { com.mtgscanner.ui.home.LastTab.load(ctx, tabs.map { it.route }) }
+    LaunchedEffect(route) { if (route != null && tabs.any { it.route == route }) com.mtgscanner.ui.home.LastTab.save(ctx, route) }
     var showTour by remember { mutableStateOf(!Tour.seen(ctx)) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -229,7 +239,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
        CompositionLocalProvider(LocalSharedTransition provides this) {
         NavHost(
             nav,
-            startDestination = "home",
+            startDestination = startTab,
             modifier = Modifier.padding(padding),
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() },

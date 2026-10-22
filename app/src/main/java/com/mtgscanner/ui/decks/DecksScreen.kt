@@ -1042,7 +1042,8 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                         val checks by vm.pullChecks.collectAsStateWithLifecycle()
                         PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeck, leads = leadsOf(ui))
                     }
-                    else -> Results(ui, vm)
+                    // Pull down to refresh prices.
+                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm) }
                 }
             }
         }

@@ -334,6 +334,12 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
             .mapValues { (_, rows) -> rows.sumOf { it.quantity } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** (box id, copies) for every row of this card, any printing: the "where are my copies" line. */
+    val copyRows: StateFlow<List<Pair<Long, Int>>> = combine(card, repo.observeAll()) { c, all ->
+        if (c == null) emptyList<Pair<Long, Int>>()
+        else all.filter { if (c.oracleId != null) it.oracleId == c.oracleId else it.name == c.name }.map { it.boxId to it.quantity }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun loadPrintings(force: Boolean = false) {
         val c = card.value ?: return
         val key = c.oracleId ?: c.name
@@ -435,7 +441,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     var showAllEvents by remember { mutableStateOf(false) }
     val events by vm.events.collectAsStateWithLifecycle()
     val nb by vm.neighbors.collectAsStateWithLifecycle()
+    val copyRows by vm.copyRows.collectAsStateWithLifecycle()
     val c = card
+    // For the "Recently opened" strip on Browse.
+    LaunchedEffect(c?.id) { c?.id?.let { com.mtgscanner.ui.collection.RecentCards.opened(ctx, it) } }
 
     // Photo of this copy: camera (Android 10+) or the photo picker; both are copied into app storage.
     var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
@@ -509,8 +518,30 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                 Hero(c, sharedId = if (c.id == id) id else 0L, onPhoto = { viewingPhoto = true })
                 Column(Modifier.padding(horizontal = 16.dp).offset(y = (-12).dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(c.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        // Hold the name to copy it.
+                        Text(
+                            c.name, style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.weight(1f).pointerInput(c.name) {
+                                androidx.compose.foundation.gestures.detectTapGestures(onLongPress = {
+                                    com.mtgscanner.util.Haptics.tick()
+                                    com.mtgscanner.util.CopyText.copy(ctx, c.name)
+                                })
+                            },
+                        )
                         ManaCost(c.manaCost, size = 20.dp)
+                    }
+                    // Where every copy is, when there's more than this row: "3 copies: Rares ×2, Atraxa deck ×1".
+                    val copiesLine = remember(copyRows, places, decks) {
+                        val deckNames = decks.associate { it.id to it.name }
+                        val spots = places.associate { b ->
+                            val spot = if (b.isDeckSlot) com.mtgscanner.data.CopiesLine.Spot(deckNames[b.deckId] ?: b.name, deck = true)
+                            else com.mtgscanner.data.CopiesLine.Spot(b.name)
+                            b.id to spot
+                        }
+                        com.mtgscanner.data.CopiesLine.text(copyRows, spots)
+                    }
+                    copiesLine?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -704,10 +735,19 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     }
 
                     Spacer(Modifier.height(16.dp))
-                    TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(c.scryfallUri))) }) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Open on Scryfall")
+                    // Scryfall, then EDHREC and the two stores (Scryfall's own links once it has answered).
+                    val links = remember(c.name, c.scryfallUri, live) {
+                        listOf(com.mtgscanner.data.CardLinks.Link("Scryfall", c.scryfallUri)).filter { it.url.isNotBlank() } +
+                            com.mtgscanner.data.CardLinks.of(c.name, live?.relatedUris.orEmpty(), live?.purchaseUris.orEmpty())
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        links.forEach { link ->
+                            TextButton(onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url))) } }) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(link.label)
+                            }
+                        }
                     }
                     Spacer(Modifier.navigationBarsPadding().height(16.dp))
                 }
@@ -1042,8 +1082,11 @@ private fun InfoChip(content: @Composable () -> Unit) {
 @Composable
 private fun NotesDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var notes by remember { mutableStateOf(initial) }
+    // Notes save only on Save: ask before dropping typed changes.
+    var leaving by remember { mutableStateOf(false) }
+    val close: () -> Unit = { if (notes != initial) leaving = true else onDismiss() }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = close,
         containerColor = Palette.Surface,
         title = { Text("Notes") },
         text = {
@@ -1056,7 +1099,14 @@ private fun NotesDialog(initial: String, onSave: (String) -> Unit, onDismiss: ()
             )
         },
         confirmButton = { TextButton(onClick = { onSave(notes) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = close) { Text("Cancel") } },
+    )
+    if (leaving) AlertDialog(
+        onDismissRequest = { leaving = false },
+        containerColor = Palette.Surface,
+        title = { Text("Discard changes?") },
+        confirmButton = { TextButton(onClick = { leaving = false; onDismiss() }) { Text("Discard", color = Palette.Danger) } },
+        dismissButton = { TextButton(onClick = { leaving = false }) { Text("Keep editing") } },
     )
 }
 

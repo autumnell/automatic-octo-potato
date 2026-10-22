@@ -183,6 +183,34 @@ fun ScanScreen(
     val needsBox = loadedBoxes != null && boxes.isEmpty()
     val view = LocalView.current
     DisposableEffect(Unit) { onDispose { ScanFeedback.release() } }
+    // Volume up adds the card showing (or moves on, in a price check), volume down skips it.
+    // Only while a card is showing and no sheet is open; otherwise the buttons change the volume.
+    val latest by androidx.compose.runtime.rememberUpdatedState(state)
+    DisposableEffect(vm) {
+        VolumeKeys.load(ctx)
+        VolumeKeys.handler = handler@{ up ->
+            val st = latest
+            val card = st.current ?: return@handler false
+            if (st.pageMode || st.showPrintings || st.showSettings || st.showList || st.showReview || st.showSort || st.showBoxPick ||
+                st.showDeckPick || st.showNewBox || st.showSkipped || st.showUnknown || st.showBoxCheck || st.showSetLock || st.showPackStart ||
+                st.page != null || st.photo != null
+            ) return@handler false
+            if (!up) {
+                vm.skip()
+                if (st.settings.vibrate) Haptics.setAside(view)
+            } else when (st.target) {
+                ScanTarget.CHECK -> vm.skip()
+                ScanTarget.REMOVE -> if ((st.owned ?: 1) > 0) vm.add(1) else return@handler false
+                ScanTarget.BOX -> vm.add(1)
+                else -> if (st.autoAdd && st.session.firstOrNull()?.card?.id == card.id) vm.sameAgain() else vm.add(ScanBarPrefs.quantity)
+            }
+            true
+        }
+        onDispose { VolumeKeys.handler = null }
+    }
+    // Face down on the table: pause, and pick back up where it left off when lifted.
+    var faceDown by remember { mutableStateOf(false) }
+    if (hasPermission) FaceDownPause(state.paused, onPause = vm::togglePause, onResume = vm::togglePause, onFaceDown = { faceDown = it })
     val hintTargets = remember { mutableStateMapOf<String, Rect>() }
     // Lines added since the screen opened slide into the pile; older ones are already there.
     val startKey = remember { state.session.maxOfOrNull { it.key } ?: 0L }
@@ -287,6 +315,13 @@ fun ScanScreen(
                             RemoveChip(state, vm)
                         }
                         BoxCallout(state, addTick, Modifier.align(Alignment.Center))
+                        if (faceDown && state.paused) Text(
+                            "Paused",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(Corners.Medium))
+                                .background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
                         Column(
                             Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
                             horizontalAlignment = Alignment.End,
@@ -792,6 +827,8 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
             ArtIndexSection(vm)
             HorizontalDivider(color = Palette.Outline)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
+            HorizontalDivider(color = Palette.Outline)
+            SettingRow("Volume buttons scan", "Up adds, down skips.", VolumeKeys.enabled, VolumeKeys::update)
             HorizontalDivider(color = Palette.Outline)
             Text(
                 "Show hints",
