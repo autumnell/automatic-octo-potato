@@ -22,7 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -253,14 +253,14 @@ fun SetPickSheet(vm: ScanViewModel) {
                 item(key = "auto") {
                     SetRowItem(
                         title = "Auto", sub = "Any set", selected = lock == null,
-                        icon = { Icon(Icons.Filled.AutoFixHigh, null, tint = Palette.Accent, modifier = Modifier.size(22.dp)) },
+                        icon = { Icon(Icons.Filled.LockOpen, null, tint = if (lock == null) Palette.Accent else Palette.Icon, modifier = Modifier.size(22.dp)) },
                         onClick = { vm.setLock(null) },
                     )
                 }
                 if (typed != null) item(key = "typed") {
                     SetRowItem(
                         title = "Lock to ${typed.uppercase()}", sub = "Set code", selected = false,
-                        icon = { Icon(Icons.Filled.Lock, null, tint = Palette.Accent, modifier = Modifier.size(22.dp)) },
+                        icon = { Icon(Icons.Filled.Lock, null, tint = Palette.Icon, modifier = Modifier.size(22.dp)) },
                         onClick = { vm.setLock(typed) },
                     )
                 }

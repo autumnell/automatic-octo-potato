@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -221,7 +221,7 @@ fun AddCardSheet(
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
-                        Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Muted)
+                        Icon(Icons.AutoMirrored.Filled.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Muted)
                     })
                     boxes.forEach { b ->
                         SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {

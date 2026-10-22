@@ -55,7 +55,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Close
@@ -507,7 +507,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
-                    Icon(if (auto) Icons.Filled.AutoFixHigh else boxIcon(box!!.kind), null, tint = Palette.Accent, modifier = Modifier.size(14.dp))
+                    Icon(if (auto) Icons.AutoMirrored.Filled.Sort else boxIcon(box!!.kind), null, tint = Palette.Accent, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Price check · not adding"
@@ -533,7 +533,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                                 Text("Each card goes to the box whose rules fit", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                             }
                         },
-                        leadingIcon = { Icon(Icons.Filled.AutoFixHigh, null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null) },
                         onClick = { vm.setBox(CardBox.AUTO_SORT); boxMenu = false },
                     )
                     HorizontalDivider(color = Palette.Outline)

@@ -14,7 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.NewReleases
+import com.mtgscanner.ui.scan.SetIcon
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -71,7 +71,7 @@ fun BoxCheckNudge(onCheck: (Long) -> Unit, modifier: Modifier = Modifier) {
     val box = live.firstOrNull { it.id == due.first } ?: return
 
     Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.DoneAll, null, tint = Palette.Accent, modifier = Modifier.size(20.dp))
+        Icon(Icons.Filled.DoneAll, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(
             BoxReminders.label(box.name, due.second.coerceAtLeast(months)),
@@ -125,7 +125,7 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
     ) {
         Column(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.NewReleases, null, tint = Palette.Accent, modifier = Modifier.size(20.dp))
+                SetIcon(set.code, size = 20.dp, tint = Palette.Icon)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "New set: ${set.name}",

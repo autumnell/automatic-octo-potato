@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
@@ -709,7 +709,7 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
                 } else {
                     Text("Where should they go?")
                     Spacer(Modifier.padding(top = 4.dp))
-                    Choice("Auto-sort by box rules", choice == Box.AUTO_SORT, Icons.Filled.AutoFixHigh) { choice = Box.AUTO_SORT }
+                    Choice("Auto-sort by box rules", choice == Box.AUTO_SORT, Icons.AutoMirrored.Filled.Sort) { choice = Box.AUTO_SORT }
                     boxes.forEach { b -> Choice(b.name, choice == b.id, null) { choice = b.id } }
                     Choice("A new box called \"Imported\"", choice == 0L, null) { choice = 0L }
                 }
