@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material3.AlertDialog
@@ -783,6 +785,10 @@ private fun ToolsTab(
     val scope = rememberCoroutineScope()
     var finding by remember { mutableStateOf(false) }
     var dupes by remember { mutableStateOf(false) }
+    var pulls by remember { mutableStateOf(false) }
+    var quiz by remember { mutableStateOf(false) }
+    if (pulls) PullRatesSheet(onDismiss = { pulls = false })
+    if (quiz) QuizSheet(onDismiss = { quiz = false })
     if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
     if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
     LazyColumn(Modifier.fillMaxSize()) {
@@ -792,6 +798,8 @@ private fun ToolsTab(
             ToolCard(Icons.Filled.Layers, "Duplicates", "Cards in 2+ printings", { dupes = true })
             ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
             ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
+            ToolCard(Icons.Filled.BarChart, "Pull rates", "From your opened packs", { pulls = true })
+            ToolCard(Icons.Filled.Quiz, "Quiz", "Guess the box or price", { quiz = true })
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(

@@ -1327,16 +1327,39 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun cancelPack() = _state.update { it.copy(pack = null, status = "Point your camera at a card") }
 
-    /** Ends the pack. Cards stay in the collection; nothing is saved to history. */
+    /** Ends the pack. Cards stay in the collection; the pack is logged for pull rates. */
     fun finishPack() {
         val s = _state.value
         val p = s.pack ?: return
         val n = s.packEntries.sumOf { it.count }
+        if (n > 0) logPack(p, s.packEntries, s.packValue)
         val total = if (AppSettings.showPrices) " · " + formatPrice(s.packValue) else ""
         _state.update { it.copy(pack = null, status = if (n == 0) "Point your camera at a card" else "${p.name}: $n cards$total") }
     }
 
     private fun formatPrice(v: Double) = "$" + "%.2f".format(java.util.Locale.US, v)
+
+    /** Saves an opened pack: its cost, value and each card with rarity, for Collection › Tools › Pull rates. */
+    private fun logPack(p: PackDraft, entries: List<ScanEntry>, value: Double) {
+        val pulls = entries.map { e ->
+            com.mtgscanner.data.Pull(
+                e.card.name, e.card.set, e.card.collectorNumber, e.card.price(e.foil)?.toDoubleOrNull(),
+                com.mtgscanner.data.PullRates.rarityKey(e.card.rarity), e.foil, e.count,
+            )
+        }
+        val best = entries.maxByOrNull { it.card.price(it.foil)?.toDoubleOrNull() ?: 0.0 }
+            ?.let { b -> "${b.card.name} (${b.card.set.uppercase()})" + (b.card.price(b.foil)?.let { " $$it" } ?: "") }.orEmpty()
+        viewModelScope.launch {
+            runCatching {
+                repo.dao.addPack(
+                    com.mtgscanner.data.db.PackOpening(
+                        name = p.name, cost = p.cost, value = value, cards = entries.sumOf { it.count },
+                        best = best, pulls = com.mtgscanner.data.PullRates.encode(pulls),
+                    ),
+                )
+            }
+        }
+    }
 
     // Sorting session
 
