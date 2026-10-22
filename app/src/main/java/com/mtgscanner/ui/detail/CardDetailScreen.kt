@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -522,7 +523,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         Text(
                             c.name, style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.weight(1f).pointerInput(c.name) {
-                                androidx.compose.foundation.gestures.detectTapGestures(onLongPress = {
+                                detectTapGestures(onLongPress = {
                                     com.mtgscanner.util.Haptics.tick()
                                     com.mtgscanner.util.CopyText.copy(ctx, c.name)
                                 })
