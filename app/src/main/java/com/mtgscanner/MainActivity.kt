@@ -191,6 +191,9 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Reopens on the tab used last; widget, shortcut and link requests below still go where they ask.
+    val startTab = remember { com.mtgscanner.ui.home.LastTab.load(ctx, tabs.map { it.route }) }
+    LaunchedEffect(route) { if (route != null && tabs.any { it.route == route }) com.mtgscanner.ui.home.LastTab.save(ctx, route) }
     var showTour by remember { mutableStateOf(!Tour.seen(ctx)) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -236,7 +239,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
        CompositionLocalProvider(LocalSharedTransition provides this) {
         NavHost(
             nav,
-            startDestination = "home",
+            startDestination = startTab,
             modifier = Modifier.padding(padding),
             enterTransition = { fadeIn() },
             exitTransition = { fadeOut() },
