@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -41,24 +42,29 @@ object Palette {
     /** Dark mode on pure black (Settings › Look). */
     val black: Boolean get() = dark && ThemeSettings.trueBlack
 
-    val Accent: Color get() = ThemeSettings.activeAccent
-    val AccentDeep: Color get() = lerp(Accent, Color(0xFF6E1630), 0.38f)
+    /** The accent. The default red is a touch deeper in light mode, as in the "Small step" look. */
+    val Accent: Color get() {
+        val a = ThemeSettings.activeAccent
+        return if (!dark && a.toArgb() == ThemeSettings.defaultAccent.toArgb()) ThemeSettings.defaultAccentLight else a
+    }
+    val AccentDeep: Color get() = lerp(Accent, Color(0xFF4A1512), 0.38f)
     /**
-     * The accent for text (prices, selected labels). In light mode it is darkened until it reaches
-     * about 4.5:1 contrast on the light background; in dark mode it is the accent itself.
+     * The accent for text (selected labels, links). Moved toward white (dark mode) or black (light mode) until it
+     * reaches about 4.5:1 contrast on the background, so a deep accent such as the default red still reads.
      */
     val AccentText: Color get() {
-        if (dark) return Accent
         val accent = Accent
         val background = Background
         // Read on every recomposition; the contrast search only needs redoing when the colors change.
-        if (accent != accentTextFor) {
+        if (accent != accentTextFor || background != accentTextOn) {
             accentTextCache = readableOn(accent, background)
             accentTextFor = accent
+            accentTextOn = background
         }
         return accentTextCache
     }
     private var accentTextFor: Color = Color.Unspecified
+    private var accentTextOn: Color = Color.Unspecified
     private var accentTextCache: Color = Color.Unspecified
     /**
      * Text/icon color for a solid accent fill (buttons, badges): white when it reads (4.5:1) or reads better,
@@ -66,24 +72,31 @@ object Palette {
      */
     val OnAccent: Color get() = onFill(Accent)
 
-    val Background: Color get() = when { black -> Color.Black; dark -> Color(0xFF111214); else -> Color(0xFFF4F4F7) }
-    val Surface: Color get() = when { black -> Color(0xFF0D0D0F); dark -> Color(0xFF1A1B1F); else -> Color(0xFFFFFFFF) }
-    val SurfaceHigh: Color get() = when { black -> Color(0xFF1A1B1E); dark -> Color(0xFF24262C); else -> Color(0xFFE9EAEF) }
-    val BoxCard: Color get() = when { black -> Color(0xFF10121A); dark -> Color(0xFF1E2233); else -> Color(0xFFE4E8F6) }
-    val NavBar: Color get() = when { black -> Color.Black; dark -> Color(0xFF09090A); else -> Color(0xFFFFFFFF) }
+    // Warm "Small step" palette: ink-brown darks, paper lights.
+    val Background: Color get() = when { black -> Color.Black; dark -> Color(0xFF161513); else -> Color(0xFFF3F0E8) }
+    /** Sheets, dialogs and the odd panel. Lists sit on [Background] with a [Rule] under each row. */
+    val Surface: Color get() = when { black -> Color(0xFF12110F); dark -> Color(0xFF1C1A17); else -> Color(0xFFFBF9F4) }
+    val SurfaceHigh: Color get() = when { black -> Color(0xFF1C1A17); dark -> Color(0xFF24211D); else -> Color(0xFFECE8DE) }
+    /** Box tiles: a warm panel a step above the background. */
+    val BoxCard: Color get() = when { black -> Color(0xFF141310); dark -> Color(0xFF1E1C18); else -> Color(0xFFF8F5EE) }
+    val NavBar: Color get() = when { black -> Color.Black; dark -> Color(0xFF0F0E0D); else -> Color(0xFFECE8DE) }
     val Gold: Color get() = if (dark) Color(0xFFF2C14E) else Color(0xFFB07D12)
     /** [Gold] for text: darker in light mode so it reads on light panels (about 4.6:1 or better). */
     val GoldText: Color get() = if (dark) Gold else Color(0xFF876009)
     val Info: Color get() = if (dark) Color(0xFF5B9BE0) else Color(0xFF2F6FB8)
-    val Text: Color get() = if (dark) Color(0xFFEDEDEF) else Color(0xFF17181C)
-    val Muted: Color get() = if (dark) Color(0xFF9A9BA3) else Color(0xFF666873)
-    /** Default icon tint: a quiet gray, a touch softer than [Muted]. The accent is kept for value, selection and the main action. */
-    val Icon: Color get() = if (dark) Color(0xFF8E9098) else Color(0xFF6E707B)
+    val Text: Color get() = if (dark) Color(0xFFECE8E1) else Color(0xFF1C1B19)
+    /** Secondary text: 4.6:1 or better on [Background], [Surface] and [SurfaceHigh] in both modes. */
+    val Muted: Color get() = if (dark) Color(0xFFA29C92) else Color(0xFF6B675F)
+    /** Default icon tint: a quiet warm gray, a touch softer than [Muted]. */
+    val Icon: Color get() = if (dark) Color(0xFF99938A) else Color(0xFF706B63)
     /** Secondary text and icons on always-dark surfaces (camera, scrims over art, game screen), in both modes. */
     val OnDarkMuted: Color get() = Color(0xFFB4B5BB)
-    val Outline: Color get() = when { black -> Color(0xFF26272C); dark -> Color(0xFF34363D); else -> Color(0xFFD3D5DC) }
-    /** Hairline between plain sections: fainter than [Outline]. */
-    val Hairline: Color get() = Outline.copy(alpha = if (dark) 0.7f else 0.8f)
+    /** Borders of inputs, outlined buttons and chips. */
+    val Outline: Color get() = when { black -> Color(0xFF2A2722); dark -> Color(0xFF34302A); else -> Color(0xFFD8D3C7) }
+    /** The 1dp line under list rows, tab rows and the bottom bar's top edge. */
+    val Rule: Color get() = when { black -> Color(0xFF211F1B); dark -> Color(0xFF2A2722); else -> Color(0xFFE2DDD1) }
+    /** Hairline between plain sections: the same as [Rule]. */
+    val Hairline: Color get() = Rule
     val Danger: Color get() = if (dark) Color(0xFFE5534B) else Color(0xFFC62F28)
     val Success: Color get() = if (dark) Color(0xFF4CC38A) else Color(0xFF1E8E5A)
 
@@ -107,13 +120,17 @@ fun onFill(fill: Color): Color {
     return if (white >= 4.5f || white >= contrastRatio(InkOnLight, fill)) Color.White else InkOnLight
 }
 
-/** [color] darkened toward black just enough to reach [ratio] contrast on a light [background]. */
+/**
+ * [color] moved just enough to reach [ratio] contrast on [background]: toward black on a light background,
+ * toward white on a dark one.
+ */
 fun readableOn(color: Color, background: Color, ratio: Float = 4.6f): Color {
+    val target = if (background.luminance() > 0.4f) Color.Black else Color.White
     var t = 0f
     var c = color
     while (t < 1f && contrastRatio(c, background) < ratio) {
         t += 0.04f
-        c = lerp(color, Color.Black, t.coerceAtMost(1f))
+        c = lerp(color, target, t.coerceAtMost(1f))
     }
     return c
 }
@@ -243,10 +260,13 @@ private fun currentTypography(): Typography {
 val PriceStyle: TextStyle
     get() = priceCache.getOrPut(FontSettings.price to AppSettings.bigText) { priceStyle(FontSettings.price, AppSettings.bigText) }
 
-/** The two corner sizes: [Small] for chips, pills and small controls; [Medium] for cards, sheets, panels and dialogs. */
+/**
+ * The two corner sizes: [Small] for chips and small controls; [Medium] for panels, sheets and dialogs.
+ * Both are a near-square 3dp in the "Small step" look; card images keep [CardShape].
+ */
 object Corners {
-    val Small = 6.dp
-    val Medium = 12.dp
+    val Small = 3.dp
+    val Medium = 3.dp
 }
 
 /** A real Magic card's corner, for card images (about 5% of the card's shorter side). */
