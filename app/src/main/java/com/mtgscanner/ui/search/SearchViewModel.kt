@@ -121,7 +121,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         suggestJob = viewModelScope.launch {
             delay(250)
             val list = if (q.isBlank() || q.contains(':')) emptyList()
-            else runCatching { repo.api.autocomplete(q.trim()) }.getOrDefault(emptyList())
+            else runCatching { repo.api.autocomplete(q.trim(), extras = true) }.getOrDefault(emptyList())
             _ui.update { it.copy(suggestions = list.take(8)) }
         }
     }
@@ -158,12 +158,15 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun pickSuggestion(name: String) {
         _ui.update { it.copy(query = name, suggestions = emptyList(), recent = history.addRecent(RecentSearch(name, exactName = true))) }
-        run(exactNameQuery(name), label = name, order = "released", unique = "prints")
+        // Extras too, so a token picked from the suggestions is found.
+        run(exactNameQuery(name) + " include:extras", label = name, order = "released", unique = "prints")
     }
 
     fun openSet(set: ScryfallSet) {
         _ui.update { it.copy(tab = 0, query = "", suggestions = emptyList()) }
-        run("e:${set.code}", label = set.name, order = "set")
+        // A token or art card set shows nothing without include:extras.
+        val extras = if (set.setType in com.mtgscanner.data.CardExtras.SET_TYPES) " include:extras" else ""
+        run("e:${set.code}$extras", label = set.name, order = "set")
     }
 
     private var unique = "cards"

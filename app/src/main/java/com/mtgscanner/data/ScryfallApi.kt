@@ -128,10 +128,13 @@ class ScryfallApi(
         return decode(SetList.serializer(), body).data.filter { !it.digital && it.cardCount > 0 }
     }
 
-    suspend fun autocomplete(text: String): List<String> {
+    /** Name suggestions; [extras] adds token and emblem names. */
+    suspend fun autocomplete(text: String, extras: Boolean = false): List<String> {
         if (text.length < 2) return emptyList()
         val url = base.newBuilder().addPathSegments("cards/autocomplete")
-            .addQueryParameter("q", text).build()
+            .addQueryParameter("q", text)
+            .apply { if (extras) addQueryParameter("include_extras", "true") }
+            .build()
         val body = request(Request.Builder().url(url).build()) ?: return emptyList()
         return decode(Catalog.serializer(), body).data
     }
@@ -186,6 +189,12 @@ class ScryfallApi(
             ?: return emptyList()
         return decode(Catalog.serializer(), body).data
     }
+
+    /** Every token and emblem name (the card names catalog leaves them out), for reading tokens with the camera. */
+    suspend fun tokenNames(): List<String> =
+        searchAll("(t:token or t:emblem) include:extras", maxPages = 40).flatMap { c ->
+            listOf(c.name) + c.cardFaces.orEmpty().map { it.name }
+        }.filter { it.isNotBlank() }.distinct()
 
     /** Every card matching [query] (all pages, up to [maxPages]). */
     suspend fun searchAll(query: String, unique: String = "cards", maxPages: Int = 6, order: String = "name"): List<ScryfallCard> {

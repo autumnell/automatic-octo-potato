@@ -362,7 +362,7 @@ fun ScanScreen(
         // Drawn over everything on the screen, never catching touches.
         AddFlightOverlay(flight)
         val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
-            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.showNewBox ||
+            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.photo != null || state.showNewBox ||
             state.showSkipped || state.showUnknown || state.showBoxPick || state.showBoxCheck
         if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
             ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.updateHintsSeen(true) })
@@ -380,6 +380,7 @@ fun ScanScreen(
     if (state.showSetLock) SetPickSheet(vm)
     if (state.showDeckPick) DeckPickDialog(vm)
     if (state.page != null) PageSheet(state, vm)
+    if (state.photo != null) PhotoSheet(state, vm)
     if (state.showSkipped) SkippedSheet(state, vm)
     if (state.showUnknown) UnknownSheet(vm)
     if (state.showBoxPick) BoxPickDialog(boxes, vm)
