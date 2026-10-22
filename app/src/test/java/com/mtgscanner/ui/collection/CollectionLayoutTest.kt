@@ -38,9 +38,21 @@ class CollectionLayoutTest {
     @Test fun sectionsAddedLaterShowAtTheEnd() {
         // Saved by a version that only knew the ring and boxes; the ring was hidden.
         assertEquals(
-            listOf(CollectionSection.BOXES, CollectionSection.BROWSE, CollectionSection.TO_SORT, CollectionSection.LISTS),
+            listOf(CollectionSection.BOXES, CollectionSection.TO_SORT, CollectionSection.LISTS),
             CollectionLayout.sections("boxes", "ring,boxes"),
         )
+    }
+
+    @Test fun oldBrowseSectionIsDroppedAndBrowseAllShows() {
+        // Saved when Browse all was a Boxes page section, before it moved above the tabs.
+        val l = CollectionLayout.load("ring,browse,boxes", "ring,browse,sort,boxes,lists", "legend", false)
+        assertEquals(listOf(CollectionSection.RING, CollectionSection.BOXES), l.sections)
+        assertTrue(l.shows(CollectionPart.BROWSE))
+        assertFalse(l.shows(CollectionPart.LEGEND))
+        // It can still be hidden, and stays hidden.
+        val hidden = CollectionLayout.hidden(CollectionLayout.hiddenKey(setOf(CollectionPart.BROWSE)))
+        assertEquals(setOf(CollectionPart.BROWSE), hidden)
+        assertEquals(CollectionPart.Group.TOP, CollectionPart.BROWSE.group)
     }
 
     @Test fun hiddenSectionsStayHidden() {

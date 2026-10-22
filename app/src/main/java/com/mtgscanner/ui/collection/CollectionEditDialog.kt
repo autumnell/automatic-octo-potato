@@ -54,7 +54,8 @@ internal fun EditCollectionDialog(onDismiss: () -> Unit) {
         title = { Text("Collection") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("Boxes page", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+                Parts(CollectionPart.Group.TOP, hidden, onToggle = { p, v -> toggle(p, v) })
+                Heading("Boxes page")
                 rows.forEachIndexed { i, (section, on) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(

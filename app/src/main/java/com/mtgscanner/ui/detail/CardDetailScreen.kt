@@ -34,6 +34,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -44,6 +45,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -73,6 +75,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -85,6 +88,12 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.changePrinting
 import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.Box as CardBox
+import com.mtgscanner.data.db.Deck
+import com.mtgscanner.data.db.isDeckSlot
+import com.mtgscanner.data.db.placeName
+import com.mtgscanner.data.autoBoxFor
+import com.mtgscanner.data.deckSlotId
+import com.mtgscanner.data.observePlaces
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.PricePoint
 import com.mtgscanner.data.db.userTagList
@@ -145,6 +154,26 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val boxes: StateFlow<List<CardBox>> = repo.observeBoxes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Boxes and decks' card rows, to name where the card is. */
+    val places: StateFlow<List<CardBox>> = repo.observePlaces()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Decks the card can be moved into. */
+    val decks: StateFlow<List<Deck>> = repo.observeDecks()
+        .map { ds -> ds.sortedBy { it.name.lowercase() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Moves [qty] copies (all of them by default) to a box, into a deck, or to the box Auto-sort picks. */
+    fun moveToDest(d: MoveDest, qty: Int = Int.MAX_VALUE) = viewModelScope.launch {
+        val c = card.value ?: return@launch
+        if (qty < 1) return@launch
+        val from = currentId.value
+        val before = repo.snapshot(listOf(from))
+        val target = d.boxId ?: d.deckId?.let { repo.deckSlotId(it) } ?: repo.autoBoxFor(c)
+        val name = if (d.boxId == null && d.deckId == null) repo.box(target)?.name ?: "box" else d.name
+        val all = qty >= c.quantity
+        if (all) currentId.value = repo.moveToBox(from, target) else repo.moveCopiesMany(listOf(from to qty), target)
+        Undo.offer(if (all) "Moved to $name" else "Moved $qty to $name") { repo.restore(before); currentId.value = from }
+    }
 
     /** Scryfall's copy of the card, and whether fetching it failed (offline). */
     private val liveState: StateFlow<Pair<com.mtgscanner.data.ScryfallCard?, Boolean>> = card
@@ -183,25 +212,6 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         }
     }
     fun setFoil(foil: Boolean) = viewModelScope.launch { currentId.value = repo.setFoil(currentId.value, foil) }
-    fun moveTo(boxId: Long) = viewModelScope.launch {
-        val from = currentId.value
-        val before = repo.snapshot(listOf(from))
-        currentId.value = repo.moveToBox(from, boxId)
-        val name = boxes.value.firstOrNull { it.id == boxId }?.name ?: "box"
-        Undo.offer("Moved to $name") { repo.restore(before); currentId.value = from }
-    }
-
-    /** Moves [qty] copies to another box; the rest stay here. Moving all of them is [moveTo]. */
-    fun moveSome(boxId: Long, qty: Int) = viewModelScope.launch {
-        val c = card.value ?: return@launch
-        if (qty >= c.quantity) { moveTo(boxId); return@launch }
-        if (qty < 1) return@launch
-        val from = currentId.value
-        val before = repo.snapshot(listOf(from))
-        repo.moveCopiesMany(listOf(from to qty), boxId)
-        val name = boxes.value.firstOrNull { it.id == boxId }?.name ?: "box"
-        Undo.offer("Moved $qty to $name") { repo.restore(before); currentId.value = from }
-    }
     fun setCondition(c: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(condition = c)) } }
     fun setNotes(n: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(notes = n)) } }
     fun setLang(l: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(lang = l)) } }
@@ -404,6 +414,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     val vm: CardDetailViewModel = viewModel(key = "card-$id", factory = AppViewModels.detail(id))
     val card by vm.card.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
+    val places by vm.places.collectAsStateWithLifecycle()
+    val decks by vm.decks.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
     var addingTag by remember { mutableStateOf(false) }
@@ -411,7 +423,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     val allTags by vm.allTags.collectAsStateWithLifecycle()
     val live by vm.live.collectAsStateWithLifecycle()
     val loaded by vm.loaded.collectAsStateWithLifecycle()
-    var moveTarget by remember { mutableStateOf<CardBox?>(null) }
+    var moveTarget by remember { mutableStateOf<MoveDest?>(null) }
     var editingNotes by remember { mutableStateOf(false) }
     var editingGraded by remember { mutableStateOf(false) }
     var editingPaid by remember { mutableStateOf(false) }
@@ -534,8 +546,9 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             }
                             Spacer(Modifier.height(6.dp))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                if (boxes.size > 1) BoxPicker(boxes, c.boxId) { b ->
-                                    if (c.quantity > 1) moveTarget = b else vm.moveTo(b.id)
+                                val inDeck = places.any { it.id == c.boxId && it.isDeckSlot }
+                                if (boxes.size > 1 || decks.isNotEmpty() || inDeck) BoxPicker(boxes, decks, places, c.boxId) { d ->
+                                    if (c.quantity > 1) moveTarget = d else vm.moveToDest(d)
                                 }
                                 LangPicker(c.lang) { vm.setLang(it) }
                                 SpecialPicker(
@@ -724,7 +737,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
 
     moveTarget?.let { target ->
         val have = c?.quantity ?: 1
-        var count by remember(target.id, have) { mutableIntStateOf(have) }
+        var count by remember(target, have) { mutableIntStateOf(have) }
         AlertDialog(
             onDismissRequest = { moveTarget = null },
             containerColor = Palette.Surface,
@@ -740,7 +753,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { vm.moveSome(target.id, count); moveTarget = null }) { Text("Move") } },
+            confirmButton = { TextButton(onClick = { vm.moveToDest(target, count); moveTarget = null }) { Text("Move") } },
             dismissButton = { TextButton(onClick = { moveTarget = null }) { Text("Cancel") } },
         )
     }
@@ -1178,23 +1191,50 @@ private fun ConditionPicker(condition: String, onPick: (String) -> Unit) {
     }
 }
 
+/** Where to move a card: a box ([boxId]), a deck ([deckId]), or neither for the box Auto-sort picks. */
+data class MoveDest(val name: String, val boxId: Long? = null, val deckId: Long? = null)
+
+/** Where the card is, and where it can go: boxes, then decks in their own group. Out of a deck, Auto-sort comes first. */
 @Composable
-private fun BoxPicker(boxes: List<CardBox>, current: Long, onPick: (CardBox) -> Unit) {
+private fun BoxPicker(boxes: List<CardBox>, decks: List<Deck>, places: List<CardBox>, current: Long, onPick: (MoveDest) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val here = boxes.firstOrNull { it.id == current }
+    val here = places.firstOrNull { it.id == current }
+    val inDeck = here?.isDeckSlot == true
     Box {
         DropChip(
-            here?.name ?: "Box",
+            here?.placeName() ?: "Box",
             onClick = { open = true },
             leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = Palette.Icon) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (inDeck) {
+                DropdownMenuItem(
+                    text = { Text("Auto-sort") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Icon) },
+                    onClick = { open = false; onPick(MoveDest("Auto-sort")) },
+                )
+            }
             boxes.forEach { b ->
                 DropdownMenuItem(
                     text = { Text(b.name, color = if (b.id == current) Palette.AccentText else Palette.Text) },
                     leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Icon) },
-                    onClick = { open = false; if (b.id != current) onPick(b) },
+                    onClick = { open = false; if (b.id != current) onPick(MoveDest(b.name, boxId = b.id)) },
                 )
+            }
+            if (decks.isNotEmpty()) {
+                HorizontalDivider(color = Palette.Outline)
+                Text(
+                    "Decks", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                )
+                decks.forEach { d ->
+                    val mine = inDeck && here?.deckId == d.id
+                    DropdownMenuItem(
+                        text = { Text(d.name, color = if (mine) Palette.AccentText else Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingIcon = { Icon(boxIcon("deck"), null, tint = if (mine) Palette.AccentText else Palette.Icon) },
+                        onClick = { open = false; if (!mine) onPick(MoveDest(d.name, deckId = d.id)) },
+                    )
+                }
             }
         }
     }

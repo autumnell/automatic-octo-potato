@@ -461,6 +461,8 @@ fun CollectionScreen(
                 }
             }
             if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
+            // Above the tabs, so it's there on every one.
+            if (layout.shows(CollectionPart.BROWSE)) BrowseAllButton { onBrowse(-1L) }
             // A hidden tab still shows while it's open (Home's wishlist link lands on it).
             val tabs = CollectionTab.shown(layout).let { if (tab in it) it else it + tab }
             if (tabs.size > 1) {
@@ -491,6 +493,23 @@ fun CollectionScreen(
     )
     val plan by vm.plan.collectAsStateWithLifecycle()
     plan?.let { p -> BoxPlanSheet(p, onApply = { vm.applyPlan() }, onDiscard = vm::discardPlan) }
+}
+
+@Composable
+private fun BrowseAllButton(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(Corners.Medium),
+        color = Palette.Surface,
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Search, null, tint = Palette.Icon)
+            Spacer(Modifier.width(12.dp))
+            Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
+        }
+    }
 }
 
 @Composable
@@ -538,19 +557,6 @@ private fun BoxesTab(
             when (section) {
                 CollectionSection.RING ->
                     ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue, totalEur = ui.totalEur, legend = layout.shows(CollectionPart.LEGEND))
-                CollectionSection.BROWSE -> Surface(
-                    onClick = { onBrowse(-1L) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(Corners.Medium),
-                    color = Palette.Surface,
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Search, null, tint = Palette.Icon)
-                        Spacer(Modifier.width(12.dp))
-                        Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
-                    }
-                }
                 CollectionSection.TO_SORT -> {
                     val toMove = toSort.sumOf { it.card.quantity }
                     if (toMove > 0) {
