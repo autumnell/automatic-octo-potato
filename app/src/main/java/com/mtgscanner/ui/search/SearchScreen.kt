@@ -165,6 +165,8 @@ private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifie
 private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>) {
     val focus = LocalFocusManager.current
     var showFilters by remember { mutableStateOf(false) }
+    var pricing by remember { mutableStateOf(false) }
+    if (pricing) PriceListSheet(owned, onDismiss = { pricing = false })
     Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
@@ -208,6 +210,8 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                 if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
                 leading = { Icon(Icons.Filled.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
             )
+            Spacer(Modifier.width(8.dp))
+            SelectPill("Price a list", false, { pricing = true })
             Spacer(Modifier.width(10.dp))
             Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
