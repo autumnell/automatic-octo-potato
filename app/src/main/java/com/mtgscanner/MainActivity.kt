@@ -278,6 +278,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onTrade = { binderId -> nav.navigate("trade/$binderId") },
                     onSets = { nav.navigate("sets") },
                     onExtras = { nav.navigate("extras") },
+                    onLoans = { nav.navigate("loans") },
+                    onBuylist = { nav.navigate("buylist") },
                 )
               }
             }
@@ -349,6 +351,16 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popFrom(it) }, onBrowse = { nav.navigate("browse/-1") }) }
+            composable(
+                "loans",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.loans.LoansScreen(onBack = { nav.popFrom(it) }, onOpenCard = { id -> nav.navigate("card/$id") }) }
+            composable(
+                "buylist",
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) { com.mtgscanner.ui.sell.BuylistScreen(onBack = { nav.popFrom(it) }, onOpenCard = { id -> nav.navigate("card/$id") }) }
             composable(
                 "scanlog",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },

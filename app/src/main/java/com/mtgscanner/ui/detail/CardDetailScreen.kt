@@ -427,6 +427,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     var editingAsk by remember { mutableStateOf(false) }
     var editingFrom by remember { mutableStateOf(false) }
     var splitting by remember { mutableStateOf(false) }
+    var lending by remember { mutableStateOf(false) }
     var viewingPhoto by remember { mutableStateOf(false) }
     var showAllEvents by remember { mutableStateOf(false) }
     val events by vm.events.collectAsStateWithLifecycle()
@@ -516,6 +517,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         if (c.altered) Badge("Altered")
                         if (c.graded.isNotBlank()) Badge(c.graded)
                         if (c.proxy) InfoChip { Text("Proxy", style = MaterialTheme.typography.labelMedium, color = Palette.Danger) }
+                        com.mtgscanner.ui.loans.loanLabel(c)?.let { Badge(it) }
                         if (c.forSale) Badge(if (c.askPrice != null && AppSettings.showPrices) "For sale ${formatUsd(c.askPrice)}" else "For sale")
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         InfoChip { Text("${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium) }
@@ -562,6 +564,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                     onPick = startPicker,
                                     onRemovePhoto = { vm.removePhoto() },
                                     onSplit = if (c.quantity > 1) ({ splitting = true }) else null,
+                                    onLend = { lending = true },
                                 )
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
@@ -781,6 +784,9 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
     if (splitting && c != null && c.quantity > 1) {
         SplitDialog(c, onSplit = { vm.split(it); splitting = false }, onDismiss = { splitting = false })
     }
+    if (lending && c != null) {
+        com.mtgscanner.ui.loans.LendDialog(c, onDismiss = { lending = false })
+    }
 
     if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
 
@@ -868,6 +874,7 @@ private fun MorePicker(
     onRemovePhoto: () -> Unit,
     /** Change condition, finish or language for some copies; null with only one copy. */
     onSplit: (() -> Unit)? = null,
+    onLend: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -876,6 +883,10 @@ private fun MorePicker(
             if (onSplit != null) DropdownMenuItem(
                 text = { Text("Split copies…") },
                 onClick = { open = false; onSplit() },
+            )
+            if (onLend != null) DropdownMenuItem(
+                text = { Text("Lend…") },
+                onClick = { open = false; onLend() },
             )
             DropdownMenuItem(
                 text = { Text(if (c.purchasePrice == null) "Paid…" else "Paid: ${formatUsd(c.purchasePrice)}", color = if (c.purchasePrice != null) Palette.AccentText else Palette.Text) },

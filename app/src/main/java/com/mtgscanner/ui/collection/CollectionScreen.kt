@@ -33,6 +33,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -366,6 +368,8 @@ fun CollectionScreen(
     onTrade: (binderId: Long) -> Unit = {},
     onSets: () -> Unit = {},
     onExtras: () -> Unit = {},
+    onLoans: () -> Unit = {},
+    onBuylist: () -> Unit = {},
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -429,7 +433,7 @@ fun CollectionScreen(
                 0 -> BoxesTab(ui, vm, onBrowse, onTrade)
                 1 -> DecksTab(onOpenDeck)
                 2 -> WishlistTab(vm)
-                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onOpenCard)
+                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onOpenCard, onLoans, onBuylist)
             }
         }
     }
@@ -782,6 +786,7 @@ private fun shareSheet(ctx: android.content.Context, title: String, text: String
 private fun ToolsTab(
     ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit,
     onSets: () -> Unit, onExtras: () -> Unit, onOpenCard: (Long) -> Unit,
+    onLoans: () -> Unit = {}, onBuylist: () -> Unit = {},
 ) {
     val trade = ui.boxes.filter { it.kind == "trade" }
     val ctx = LocalContext.current
@@ -797,6 +802,8 @@ private fun ToolsTab(
             ToolCard(Icons.Filled.Layers, "Duplicates", "Cards in 2+ printings", { dupes = true })
             ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
             ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
+            ToolCard(Icons.Filled.Person, "Loans", "Who has what", onLoans)
+            if (AppSettings.showPrices) ToolCard(Icons.Filled.Sell, "Sell to a buylist", "Pull list and total", onBuylist)
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(
