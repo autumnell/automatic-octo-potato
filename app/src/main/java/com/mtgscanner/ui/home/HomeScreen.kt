@@ -180,6 +180,10 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** One random card of yours, the same all day, with where it lives. */
+    val cardOfDay: StateFlow<DayCard?> = combine(repo.observeAll(), repo.observeBoxes()) { all, boxes -> CardOfDay.of(repo.appContext, all, boxes) }
+        .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     /** Cards to move and unknown scans, for "To be sorted". */
     val toSort: StateFlow<ToSortUi> = combine(repo.observeAll(), repo.observeBoxes(), repo.observePending()) { cards, boxes, pending ->
         ToSortUi(
@@ -301,17 +305,19 @@ fun HomeScreen(
     val tiles by vm.tiles.collectAsStateWithLifecycle()
     val alerts by vm.alerts.collectAsStateWithLifecycle()
     val listNames by vm.listNames.collectAsStateWithLifecycle()
+    val cardOfDay by vm.cardOfDay.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf(false) }
     var editingTiles by remember { mutableStateOf(false) }
     var unknown by remember { mutableStateOf<PendingScan?>(null) }
     // Which section's picture of a card grows into the card page: the first one showing it, so a card in two
     // carousels doesn't have two pictures claiming the same transition.
     val showPricesNow = AppSettings.showPrices
-    val sharedIds: Map<HomeSection, Set<Long>> = remember(HomePrefs.sections, ui, toSort, prices.movers, showPricesNow) {
+    val sharedIds: Map<HomeSection, Set<Long>> = remember(HomePrefs.sections, ui, toSort, prices.movers, showPricesNow, cardOfDay) {
         val seen = HashSet<Long>()
         HomePrefs.sections.associateWith { s ->
             val ids = when (s) {
                 HomeSection.TO_SORT -> toSort.items.take(4).map { it.card.id }
+                HomeSection.CARD_OF_DAY -> listOfNotNull(cardOfDay?.card?.id)
                 HomeSection.RECENT -> ui.recent.map { it.id }
                 HomeSection.MOVERS -> if (showPricesNow) prices.movers.map { it.card.id } else emptyList()
                 HomeSection.VALUABLE -> if (showPricesNow) ui.valuable.map { it.id } else emptyList()
@@ -395,6 +401,10 @@ fun HomeScreen(
                     HomeSection.GOALS -> {
                         HomeHeading("Goals", if (goals.isNotEmpty()) "See all" else null, onGoals)
                         GoalsPreview(goals, onGoals)
+                    }
+                    HomeSection.CARD_OF_DAY -> cardOfDay?.let { day ->
+                        HomeHeading("Card of the day")
+                        CardOfDaySection(day, onOpenCard, shared = day.card.id in shared(section))
                     }
                     HomeSection.RECENT -> if (ui.recent.isNotEmpty()) {
                         HomeHeading("Recently added", "See all") { browse(SortBy.RECENT) }
