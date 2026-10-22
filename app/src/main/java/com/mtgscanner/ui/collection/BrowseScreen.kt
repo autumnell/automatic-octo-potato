@@ -94,7 +94,17 @@ import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.RarityMark
 import com.mtgscanner.ui.components.SetMark
-import com.mtgscanner.ui.components.PriceSparkline
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Dp
+import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.db.nearMintPrice
+import com.mtgscanner.data.db.unitEur
+import com.mtgscanner.util.PriceCurrency
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.mtgscanner.ui.components.foilShimmer
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.ViewHeadline
@@ -144,7 +154,6 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     val dense by vm.dense.collectAsStateWithLifecycle()
     val pagesOn by vm.pages.collectAsStateWithLifecycle()
     val deckChoices by vm.deckChoices.collectAsStateWithLifecycle()
-    val sparks by vm.sparks.collectAsStateWithLifecycle()
     /** Wide screens show the card beside the list. */
     val wide = LocalConfiguration.current.screenWidthDp >= 840
     /** The card in the side pane on wide screens. */
@@ -165,6 +174,15 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     var moving by remember { mutableStateOf<CollectionCard?>(null) }
     val picking = selecting || selected.isNotEmpty()
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Each card's change over the last week, for the 7d column of the list. History is in dollars.
+    val showWeek = AppSettings.showPrices && !grid && AppSettings.currency != PriceCurrency.EUR
+    val week by produceState(emptyMap<Long, Double>(), ui.groups, showWeek) {
+        value = if (!showWeek) emptyMap() else {
+            val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
+            val cards = ui.groups.flatMap { it.second }
+            withContext(Dispatchers.Default) { runCatching { weekChanges(repo, cards) }.getOrDefault(emptyMap()) }
+        }
+    }
     androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -323,7 +341,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             )
             ui.binder && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
             else -> CardGrid(
-                ui.groups, grid, selected, picking, dense, sparks,
+                ui.groups, grid, selected, picking, dense, week,
                 slotOf = { c -> slotLabel(c, kinds[c.boxId], c.boxId in perCopy) },
                 onOpen = { c -> if (picking) vm.toggleSelect(c.id) else tap(c) },
                 onLongPress = { c -> vm.toggleSelect(c.id); if (showTip) vm.dismissTip() },
@@ -615,7 +633,8 @@ private fun CardGrid(
     selected: Set<Long>,
     picking: Boolean,
     dense: Boolean,
-    sparks: Map<Long, List<Double>>,
+    /** Change per copy over the last week, by card id; cards without a week of history are missing. */
+    week: Map<Long, Double>,
     slotOf: (CollectionCard) -> String?,
     onOpen: (CollectionCard) -> Unit,
     onLongPress: (CollectionCard) -> Unit,
@@ -637,7 +656,9 @@ private fun CardGrid(
         }
     }
     var railLetter by remember { mutableStateOf<String?>(null) }
-    Box(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize()) {
+    if (!grid) ListHeader(end = (if (jumpBar) 28.dp else 10.dp) + 6.dp)
+    Box(Modifier.fillMaxWidth().weight(1f)) {
         LazyVerticalGrid(
             state = state,
             columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
@@ -658,12 +679,10 @@ private fun CardGrid(
                             onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
                         )
                     } else if (picking) {
-                        if (dense) DenseRow(c, c.id in selected, slotOf(c), sparks[c.id], onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
-                        else CardRow(c, c.id in selected, slotOf(c), sparks[c.id], onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
+                        PriceRow(c, c.id in selected, slotOf(c), week[c.id], dense, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
                     } else {
                         SwipeRow(onMove = { onSwipeMove(c) }, onSell = { onSwipeSell(c) }) {
-                            if (dense) DenseRow(c, false, slotOf(c), sparks[c.id], onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
-                            else CardRow(c, false, slotOf(c), sparks[c.id], onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
+                            PriceRow(c, false, slotOf(c), week[c.id], dense, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
                         }
                     }
                 }
@@ -689,8 +708,9 @@ private fun CardGrid(
             Box(
                 Modifier.align(Alignment.Center).size(72.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh),
                 contentAlignment = Alignment.Center,
-            ) { Text(letter, style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText) }
+            ) { Text(letter, style = MaterialTheme.typography.headlineMedium, color = Palette.Text) }
         }
+    }
     }
 }
 
@@ -698,7 +718,7 @@ private fun CardGrid(
 @Composable
 private fun SectionHead(title: String, count: Int, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Accent, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         Spacer(Modifier.width(8.dp))
         Text("$count", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
     }
@@ -803,84 +823,123 @@ private fun Thumb(c: CollectionCard, width: androidx.compose.ui.unit.Dp, onClick
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+private val SET_COL = 48.dp
+private val USD_COL = 64.dp
+private val WEEK_COL = 52.dp
+private val COL_GAP = 8.dp
+
+/** Each card's change per copy since a week ago, for the cards that have that much history. */
+private suspend fun weekChanges(repo: CollectionRepository, cards: List<CollectionCard>): Map<Long, Double> {
+    if (cards.isEmpty()) return emptyMap()
+    val weekAgo = java.time.LocalDate.now().minusDays(WeekChange.DAYS)
+    val oldest = weekAgo.minusDays(WeekChange.SLACK_DAYS)
+    val history = PriceTrends.history(repo, cards.mapTo(HashSet()) { it.scryfallId })
+    val out = HashMap<Long, Double>()
+    for (c in cards) {
+        val change = WeekChange.change(c.nearMintPrice(), historyPairs(history[c.scryfallId].orEmpty(), c.foil), weekAgo.toString(), oldest.toString())
+        if (change != null) out[c.id] = change
+    }
+    return out
+}
+
+/** Price history is in dollars, so the 7d column only shows with dollar prices. */
+private fun weekColumn() = AppSettings.currency != PriceCurrency.EUR
+
+/** One copy's price as a plain number; the header says which currency. */
+private fun rowPrice(c: CollectionCard): String =
+    WeekChange.amount(if (AppSettings.currency == PriceCurrency.EUR) c.unitEur() else c.unitPrice())
+
+/** Set / Card / USD / 7d over the list, with a rule under it. [end] lines the numbers up with the rows'. */
 @Composable
-private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: List<Double>?, onClick: () -> Unit, onLongClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium))
-            .background(if (selected) Palette.Accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 6.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Thumb(c, 46.dp, onClick)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(6.dp))
-                ManaCost(c.manaCost, size = 14.dp)
-            }
-            Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SetMark(c.setCode, c.rarity)
-                Spacer(Modifier.width(6.dp))
-                Text("${c.setCode.uppercase()} #${c.collectorNumber} · ${c.typeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (slot != null || c.pinned) Row(verticalAlignment = Alignment.CenterVertically) {
-                if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Icon, modifier = Modifier.size(12.dp).padding(end = 2.dp))
-                if (slot != null) Text(slot, style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (c.foil) { FoilTag(); Spacer(Modifier.width(4.dp)) }
-                Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall.merge(TabularNums))
-            }
+private fun ListHeader(end: Dp) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = end, top = 6.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(COL_GAP),
+        ) {
+            val style = MaterialTheme.typography.labelSmall
+            Text("Set", style = style, color = Palette.Muted, maxLines = 1, modifier = Modifier.width(SET_COL))
+            Text("Card", style = style, color = Palette.Muted, maxLines = 1, modifier = Modifier.weight(1f))
             if (AppSettings.showPrices) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (spark != null) { PriceSparkline(spark); Spacer(Modifier.width(6.dp)) }
-                    // A fixed right-aligned slot so prices line up down the list.
-                    Text(
-                        cardPrice(c), style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Accent,
-                        textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.widthIn(min = 64.dp),
-                    )
-                }
+                Text(
+                    if (AppSettings.currency == PriceCurrency.EUR) "EUR" else "USD",
+                    style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(USD_COL),
+                )
+                if (weekColumn()) Text("7d", style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(WEEK_COL))
             }
         }
+        RuleLine()
     }
 }
 
-/** One line per card: rarity, name, set, copies, price. */
+/**
+ * A card in the list's columns: set symbol and code, then the name with a color-identity dot (and the
+ * thumbnail unless [dense]), its price and its change over the week. A hairline runs under each row.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark: List<Double>?, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun PriceRow(
+    c: CollectionCard, selected: Boolean, slot: String?, week: Double?, dense: Boolean,
+    onClick: () -> Unit, onLongClick: () -> Unit,
+) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small))
-            .background(if (selected) Palette.Accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 8.dp, vertical = 7.dp),
+        Modifier.fillMaxWidth()
+            .background(if (selected) Palette.SurfaceHigh else Palette.Background)
+            .drawBehind {
+                val y = size.height - 0.5.dp.toPx()
+                drawLine(RuleColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+            }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .heightIn(min = if (dense) 44.dp else 52.dp)
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(COL_GAP),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SetMark(c.setCode, c.rarity)
-        Spacer(Modifier.width(8.dp))
-        Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        if (c.foil) { Spacer(Modifier.width(4.dp)); FoilTag() }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            slot?.replace("Page ", "P")?.replace(" · Slots ", "·")?.replace(" · Slot ", "·") ?: c.setCode.uppercase(),
-            style = MaterialTheme.typography.labelSmall, color = Palette.Muted,
-        )
-        Text(
-            "×${c.quantity}", style = MaterialTheme.typography.labelMedium,
-            color = if (c.quantity > 1) Palette.Text else Palette.Muted,
-            textAlign = TextAlign.End, modifier = Modifier.width(30.dp),
-        )
+        Row(Modifier.width(SET_COL), verticalAlignment = Alignment.CenterVertically) {
+            SetMark(c.setCode, c.rarity)
+            Spacer(Modifier.width(4.dp))
+            Text(c.setCode.uppercase(), style = monoStyle(11.sp), color = Palette.Muted, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+        }
+        if (!dense) Thumb(c, 30.dp, onClick)
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ColorDot(c.colorIdentity)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    c.name, style = MaterialTheme.typography.bodyMedium, color = Palette.Text,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                )
+                if (c.quantity > 1) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("×${c.quantity}", style = monoStyle(12.sp), color = Palette.Muted, maxLines = 1)
+                }
+                if (c.foil) { Spacer(Modifier.width(6.dp)); FoilTag() }
+            }
+            if (!dense) {
+                Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Icon, modifier = Modifier.size(12.dp).padding(end = 2.dp))
+                    Text(
+                        listOfNotNull("#${c.collectorNumber}", slot).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else if (slot != null) {
+                Text(
+                    slot, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 16.dp),
+                )
+            }
+        }
         if (AppSettings.showPrices) {
-            Spacer(Modifier.width(6.dp))
-            Box(Modifier.width(36.dp)) { if (spark != null) PriceSparkline(spark) }
+            val price = rowPrice(c)
             Text(
-                cardPriceShort(c), style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.AccentText,
-                textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(64.dp),
+                price, style = monoStyle(if (price.length > 7) 12.sp else 14.sp), color = Palette.Text,
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(USD_COL),
+            )
+            val change = week?.let { WeekChange.label(it) }.orEmpty()
+            if (weekColumn()) Text(
+                change, style = monoStyle(if (change.length > 6) 11.sp else 12.sp), color = Palette.Muted,
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(WEEK_COL),
             )
         }
     }
@@ -905,7 +964,7 @@ private fun BinderPages(cards: List<CollectionCard>, unslotted: Int, perCopy: Bo
         items(pages, key = { "p$it" }) { i ->
             val page = i + 1
             Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                Text("Page $page", style = MaterialTheme.typography.titleSmall, color = Palette.Accent, modifier = Modifier.padding(bottom = 6.dp))
+                Text("Page $page", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(bottom = 6.dp))
                 for (row in 0 until 3) {
                     Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         for (col in 0 until 3) {
