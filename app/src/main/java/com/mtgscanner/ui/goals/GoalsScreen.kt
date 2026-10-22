@@ -83,6 +83,7 @@ import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -190,8 +191,7 @@ fun GoalsScreen(
             open != null -> MissingList(open, vm, onRetry = { vm.retry() })
             list.isEmpty() -> EmptyState("No goals yet", action = "Add goal", onAction = { adding = true })
             else -> LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp),
                 modifier = Modifier.navigationBarsPadding(),
             ) {
                 items(list, key = { it.goal.id }) { p ->
@@ -212,28 +212,27 @@ fun GoalsScreen(
 /** One goal with its progress bar. Used on Home too. */
 @Composable
 fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                when {
-                    p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
-                    !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
-                    else -> Text(
-                        "${p.have}/${p.total}", style = MaterialTheme.typography.labelLarge,
-                        color = if (p.done) Palette.Success else Palette.Muted,
-                    )
-                }
+    // A plain row on the background with a rule under it.
+    Column(modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            when {
+                p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                else -> Text(
+                    "${p.have}/${p.total}", style = MaterialTheme.typography.labelLarge,
+                    color = if (p.done) Palette.Success else Palette.Muted,
+                )
             }
-            Spacer(Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { p.fraction },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-                color = if (p.done) Palette.Success else Palette.Accent,
-                trackColor = Palette.SurfaceHigh,
-                drawStopIndicator = {},
-            )
         }
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(
+            progress = { p.fraction },
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
+            color = if (p.done) Palette.Success else Palette.Accent,
+            trackColor = Palette.SurfaceHigh,
+            drawStopIndicator = {},
+        )
     }
 }
 

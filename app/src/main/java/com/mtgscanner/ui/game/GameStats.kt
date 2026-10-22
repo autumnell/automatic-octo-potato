@@ -39,13 +39,16 @@ import java.util.Date
 import java.util.Locale
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.ruleBelow
+import com.mtgscanner.ui.components.ruleAbove
+import androidx.compose.ui.graphics.Color
 
 /** A summary of saved games on the Game tab. */
 @Composable
 fun StatsCard(records: List<GameRecord>, onOpen: () -> Unit) {
     val top = remember(records) { GameStats.byPlayer(records).firstOrNull() }
-    Surface(onClick = onOpen, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(onClick = onOpen, color = Color.Transparent, modifier = Modifier.fillMaxWidth().ruleAbove().ruleBelow()) {
+        Row(Modifier.padding(horizontal = 4.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.EmojiEvents, null, tint = Palette.Gold)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
