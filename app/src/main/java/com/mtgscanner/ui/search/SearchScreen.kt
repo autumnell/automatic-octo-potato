@@ -251,10 +251,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
             ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             ui.results.isEmpty() && ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
             ui.results.isEmpty() && ui.failed && ui.error != null ->
-                Column(Modifier.align(Alignment.TopCenter).padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    EmptyState("Can't run this search")
-                    Text(ui.error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 32.dp))
-                }
+                EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = 24.dp), body = ui.error.orEmpty())
             ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             ui.results.isEmpty() -> EmptyState("No cards found", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             else -> Results(ui, vm, owned)
