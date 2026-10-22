@@ -783,6 +783,8 @@ private fun ToolsTab(
     val scope = rememberCoroutineScope()
     var finding by remember { mutableStateOf(false) }
     var dupes by remember { mutableStateOf(false) }
+    var haveList by remember { mutableStateOf(false) }
+    if (haveList) HaveListDialog(ui.boxes, scope) { haveList = false }
     if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
     if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
     LazyColumn(Modifier.fillMaxSize()) {
@@ -792,6 +794,7 @@ private fun ToolsTab(
             ToolCard(Icons.Filled.Layers, "Duplicates", "Cards in 2+ printings", { dupes = true })
             ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
             ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
+            ToolCard(Icons.Filled.Share, "Have list", "A web page for friends", { haveList = true })
             SectionHeader("Trade binders")
             if (trade.isEmpty()) {
                 Text(
@@ -817,9 +820,7 @@ private fun ToolsTab(
                         Text("${b.cards} cards${priceSuffix(b.value)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
-                    IconButton(enabled = b.cards > 0, onClick = {
-                        scope.launch { shareSheet(ctx, b.name, binderShareText(b.name, vm.cardsIn(b.id), AppSettings.showPrices)) }
-                    }) { Icon(Icons.Filled.Share, "Share ${b.name}") }
+                    ShareBinderButton(b, { vm.cardsIn(it) }) { cards -> shareSheet(ctx, b.name, binderShareText(b.name, cards, AppSettings.showPrices)) }
                 }
             }
         }
