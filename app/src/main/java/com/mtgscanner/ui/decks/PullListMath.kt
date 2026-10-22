@@ -67,7 +67,7 @@ object PullListMath {
         val boxById = boxes.associateBy { it.id }
         val ownBox = boxes.filter { isDeckBoxFor(it, deckName) }.map { it.id }.toSet()
         val left = cards.associate { it.id to it.quantity }.toMutableMap()
-        val byName = cards.groupBy { DeckStatsMath.key(it.name) }
+        val byName = cards.groupBy { DeckNames.key(it.name) }
         val played = lines.filter { it.section in DeckCheck.PLAYED }
         // Lines naming a printing go first so a plain line doesn't take that printing.
         val order = played.sortedBy { if (it.setCode != null) 0 else 1 }
@@ -77,7 +77,7 @@ object PullListMath {
         var inDeckBox = 0
         for (l in order) {
             var need = l.quantity
-            val copies = byName[DeckStatsMath.key(l.name)].orEmpty()
+            val copies = byName[DeckNames.key(l.name)].orEmpty()
             fun take(c: CollectionCard, pull: Boolean) {
                 val n = minOf(need, left[c.id] ?: 0)
                 if (n <= 0) return

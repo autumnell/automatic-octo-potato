@@ -3,7 +3,6 @@ package com.mtgscanner.util
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,13 +19,6 @@ object ShareFile {
     suspend fun html(context: Context, name: String, html: String) {
         val file = withContext(Dispatchers.IO) { File(dir(context), fileName(name, "html")).apply { writeText(html) } }
         send(context, file, "text/html", name)
-    }
-
-    suspend fun png(context: Context, name: String, bitmap: Bitmap) {
-        val file = withContext(Dispatchers.IO) {
-            File(dir(context), fileName(name, "png")).apply { outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
-        }
-        send(context, file, "image/png", name)
     }
 
     private fun send(context: Context, file: File, type: String, title: String) {
