@@ -467,7 +467,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     var linkDialog by remember { mutableStateOf(false) }
     var buyDialog by remember { mutableStateOf(false) }
     var quietNights by remember { mutableStateOf(Notifications.quietNights(ctx)) }
-    var weeklyDigest by remember { mutableStateOf(Notifications.weeklyDigest(ctx)) }
     val canUndoRestore by vm.canUndoRestore.collectAsStateWithLifecycle()
     var choosingExport by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf(CsvFormat.FULL) }
@@ -534,11 +533,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             }
             HorizontalDivider(color = Palette.Outline)
             SharedCollectionRow()
-            HorizontalDivider(color = Palette.Outline)
-            ToggleRow("Weekly summary", "Value and new cards", weeklyDigest) { on ->
-                weeklyDigest = on
-                Notifications.setWeeklyDigest(ctx.applicationContext, on)
-            }
             HorizontalDivider(color = Palette.Outline)
             ToggleRow("Quiet at night", "No sound 10 pm to 8 am", quietNights) { on ->
                 quietNights = on
