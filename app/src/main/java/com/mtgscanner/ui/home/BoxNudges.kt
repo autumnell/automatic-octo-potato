@@ -132,7 +132,7 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = { closed = true; BoxPrefs.markOffered(ctx, set.code) }) {
-                    Icon(Icons.Filled.Close, "Not now", tint = Palette.Muted)
+                    Icon(Icons.Filled.Close, "Not now", tint = Palette.Icon)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

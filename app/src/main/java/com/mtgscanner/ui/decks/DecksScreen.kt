@@ -280,9 +280,9 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                         folder.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, "Rename folder", tint = Palette.Muted) }
+                    IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, "Rename folder", tint = Palette.Icon) }
                     IconButton(onClick = { vm.deleteFolder(folder); folderId = null }) {
-                        Icon(Icons.Filled.DeleteOutline, "Delete folder", tint = Palette.Muted)
+                        Icon(Icons.Filled.DeleteOutline, "Delete folder", tint = Palette.Icon)
                     }
                 } else {
                     Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -305,7 +305,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     value = query,
                     onValueChange = { query = it },
                     placeholder = { Text("Search decks") },
-                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Muted) },
+                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
                     trailingIcon = {
                         if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear") }
                     },
@@ -424,7 +424,7 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                 }
                 Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Filled.MoreVert, "Deck options", tint = Palette.Muted, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
@@ -460,7 +460,7 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, onOpen: () -> U
                     TileArt(arts.firstOrNull(), Modifier.matchParentSize())
                 }
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-                Icon(Icons.Filled.Folder, null, tint = Palette.Gold, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
+                Icon(Icons.Filled.Folder, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
             }
             Column(Modifier.padding(12.dp)) {
                 Text(

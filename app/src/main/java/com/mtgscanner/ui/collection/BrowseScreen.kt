@@ -245,7 +245,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                     color = Palette.Muted,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = vm::dismissTip) { Icon(Icons.Filled.Close, "Hide tip", tint = Palette.Muted, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = vm::dismissTip) { Icon(Icons.Filled.Close, "Hide tip", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
             }
         }
         if (f.query.isEmpty() && f.activeCount == 0 && (saved.isNotEmpty() || recent.isNotEmpty())) {
@@ -260,7 +260,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 }
                 recent.forEach { q ->
                     SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
-                        Icon(Icons.Filled.History, null, tint = Palette.Muted, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Filled.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
                     })
                 }
                 if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
@@ -541,7 +541,7 @@ fun SearchField(
         modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Search, null, tint = Palette.Muted, modifier = Modifier.size(20.dp))
+        Icon(Icons.Filled.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
@@ -555,7 +555,7 @@ fun SearchField(
             )
         }
         if (value.isNotEmpty()) {
-            Icon(Icons.Filled.Clear, "Clear", tint = Palette.Muted, modifier = Modifier.size(20.dp).clickable { onChange("") })
+            Icon(Icons.Filled.Clear, "Clear", tint = Palette.Icon, modifier = Modifier.size(20.dp).clickable { onChange("") })
         }
         trailing?.invoke()
     }
@@ -775,7 +775,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
                 Text("${c.setCode.uppercase()} #${c.collectorNumber} · ${c.typeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (slot != null || c.pinned) Row(verticalAlignment = Alignment.CenterVertically) {
-                if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Muted, modifier = Modifier.size(12.dp).padding(end = 2.dp))
+                if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Icon, modifier = Modifier.size(12.dp).padding(end = 2.dp))
                 if (slot != null) Text(slot, style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
             }
         }
@@ -957,7 +957,7 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                 saved.forEach { sv ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(sv.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).clickable { vm.applySaved(sv); onDismiss() }.padding(vertical = 8.dp))
-                        IconButton(onClick = { vm.deleteSaved(sv.name) }) { Icon(Icons.Filled.DeleteOutline, "Delete saved search", tint = Palette.Muted) }
+                        IconButton(onClick = { vm.deleteSaved(sv.name) }) { Icon(Icons.Filled.DeleteOutline, "Delete saved search", tint = Palette.Icon) }
                     }
                 }
             }

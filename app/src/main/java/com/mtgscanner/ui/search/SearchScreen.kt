@@ -153,7 +153,7 @@ private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
 private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Column(modifier.clickable(onClick = onClick)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (selected) Palette.Text else Palette.Muted, modifier = Modifier.size(22.dp))
+            Icon(icon, null, tint = if (selected) Palette.Text else Palette.Icon, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(10.dp))
             Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) Palette.Text else Palette.Muted)
         }
@@ -186,7 +186,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     )
                 }
                 if (ui.query.isNotEmpty()) {
-                    IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear search", tint = Palette.Muted, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
                 } else {
                     Spacer(Modifier.width(16.dp))
                 }
@@ -200,14 +200,14 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     .padding(horizontal = 16.dp, vertical = 14.dp),
             ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
             IconButton(onClick = vm::toggleGrid) {
-                Icon(if (ui.grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Text)
+                Icon(if (ui.grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Icon)
             }
         }
         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             val n = ui.filters.activeCount
             SelectPill(
                 if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
-                leading = { Icon(Icons.Filled.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Text) },
+                leading = { Icon(Icons.Filled.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
             )
             Spacer(Modifier.width(8.dp))
             SavedMenu(ui.saved, onSave = { saveName = ui.query.trim() }, onLoad = { focus.clearFocus(); vm.loadSaved(it) }, onDelete = vm::deleteSaved)
@@ -241,7 +241,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.pickSuggestion(name) }.padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Filled.Search, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(14.dp))
                         Text(name, style = MaterialTheme.typography.bodyLarge)
                     }
@@ -273,7 +273,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${ui.results.size}${if (ui.hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear results", tint = Palette.Muted) }
+                IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear results", tint = Palette.Icon) }
             }
         }
         itemsIndexed(ui.results, key = { _, c -> c.id }) { i, c ->
@@ -366,7 +366,7 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
                     Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.History, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Text(q.text.ifEmpty { "Filtered" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -507,7 +507,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
-                    Icon(if (auto) Icons.AutoMirrored.Filled.Sort else boxIcon(box!!.kind), null, tint = Palette.Accent, modifier = Modifier.size(14.dp))
+                    Icon(if (auto) Icons.AutoMirrored.Filled.Sort else boxIcon(box!!.kind), null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Price check · not adding"
@@ -523,7 +523,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Icon(Icons.Filled.ExpandMore, null, tint = Palette.Muted, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.ExpandMore, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
                 }
                 DropdownMenu(expanded = boxMenu, onDismissRequest = { boxMenu = false }) {
                     DropdownMenuItem(
@@ -552,7 +552,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     HorizontalDivider(color = Palette.Outline)
                     DropdownMenuItem(
                         text = { Text("New box…") },
-                        leadingIcon = { Icon(Icons.Filled.Add, null, tint = Palette.Accent) },
+                        leadingIcon = { Icon(Icons.Filled.Add, null, tint = Palette.Icon) },
                         onClick = { boxMenu = false; vm.showNewBox(true) },
                     )
                 }
@@ -585,7 +585,7 @@ private fun PresetSwitcher() {
         ) {
             Text(active ?: "Custom", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 110.dp))
-            Icon(Icons.Filled.ExpandMore, "Scan presets", tint = Palette.Muted, modifier = Modifier.size(16.dp))
+            Icon(Icons.Filled.ExpandMore, "Scan presets", tint = Palette.Icon, modifier = Modifier.size(16.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             presets.forEach { p ->

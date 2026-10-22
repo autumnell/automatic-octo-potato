@@ -278,7 +278,7 @@ private fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> 
         color = Palette.SurfaceHigh,
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.CheckBoxOutlineBlank, null, tint = Palette.Accent)
+            Icon(Icons.Outlined.CheckBoxOutlineBlank, null, tint = Palette.Icon)
             Spacer(Modifier.width(12.dp))
             Column {
                 Text("Blank box", style = MaterialTheme.typography.titleSmall)
@@ -296,7 +296,7 @@ private fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> 
             ) {
                 Column(Modifier.width(150.dp).padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(boxIcon(p.kind), null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+                        Icon(boxIcon(p.kind), null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                     }
@@ -571,7 +571,7 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
                     Text(title, style = MaterialTheme.typography.titleSmall)
                     Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.AccentText else Palette.Muted, maxLines = 1)
                 }
-                Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Muted)
+                Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Icon)
             }
             AnimatedVisibility(expanded) {
                 Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) { content() }

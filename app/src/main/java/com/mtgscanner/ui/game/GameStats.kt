@@ -100,7 +100,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                             )
                         }
                         IconButton(onClick = { vm.deleteRecord(r) }) {
-                            Icon(Icons.Filled.DeleteOutline, "Delete this game", tint = Palette.Muted, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Filled.DeleteOutline, "Delete this game", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                         }
                     }
                 }

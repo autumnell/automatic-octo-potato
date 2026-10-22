@@ -72,7 +72,7 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
         modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.CloudUpload, null, tint = Palette.Accent, modifier = Modifier.size(20.dp))
+        Icon(Icons.Filled.CloudUpload, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(
             if (days == null) "No backup yet" else "Last backup ${days}d ago",

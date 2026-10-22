@@ -728,7 +728,7 @@ private fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClick
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
         if (icon != null) {
-            Icon(icon, null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+            Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
         Text(label, style = MaterialTheme.typography.bodyMedium)
@@ -738,7 +738,7 @@ private fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClick
 @Composable
 private fun Action(icon: ImageVector, title: String, body: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = Palette.Accent)
+        Icon(icon, null, tint = Palette.Icon)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)

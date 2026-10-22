@@ -200,7 +200,7 @@ fun GradientButton(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
-            Icon(icon, null, tint = if (enabled) Palette.OnAccent else Palette.Muted, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = if (enabled) Palette.OnAccent else Palette.Icon, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
         Text(text, color = if (enabled) Palette.OnAccent else Palette.Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)

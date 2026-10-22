@@ -138,7 +138,7 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
                         ) {
                             Icon(
                                 if (isDone) Icons.Filled.CheckCircle else Icons.Outlined.CheckBoxOutlineBlank, null,
-                                tint = if (isDone) Palette.Success else Palette.Muted, modifier = Modifier.size(18.dp),
+                                tint = if (isDone) Palette.Success else Palette.Icon, modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(4.dp))
                             Text("Done", style = MaterialTheme.typography.labelLarge, color = if (isDone) Palette.Success else Palette.Text)

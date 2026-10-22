@@ -230,7 +230,7 @@ private fun PackRow(p: PackOpening, cost: Double?, onPrice: () -> Unit, onDelete
                 Text(if (cost != null) "Paid ${formatUsd(cost)}" else "Add price", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             }
         }
-        IconButton(onClick = onDelete) { Icon(Icons.Filled.DeleteOutline, "Delete pack", tint = Palette.Muted) }
+        IconButton(onClick = onDelete) { Icon(Icons.Filled.DeleteOutline, "Delete pack", tint = Palette.Icon) }
     }
 }
 

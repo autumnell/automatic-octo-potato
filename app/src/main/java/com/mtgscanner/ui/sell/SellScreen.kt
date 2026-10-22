@@ -150,7 +150,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(Intent.EXTRA_SUBJECT, "For sale").putExtra(Intent.EXTRA_TEXT, sellText(shown))
                     ctx.startActivity(Intent.createChooser(send, "Share sell list"))
-                }) { Icon(Icons.Filled.Share, "Share", tint = Palette.Text) }
+                }) { Icon(Icons.Filled.Share, "Share", tint = Palette.Icon) }
             }
         }
         val list = cards ?: return@Column

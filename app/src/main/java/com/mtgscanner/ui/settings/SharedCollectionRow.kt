@@ -81,7 +81,7 @@ internal fun SharedCollectionRow() {
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Devices, null, tint = Palette.Accent)
+            Icon(Icons.Filled.Devices, null, tint = Palette.Icon)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -221,11 +221,11 @@ fun AddCardSheet(
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
-                        Icon(Icons.AutoMirrored.Filled.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Muted)
+                        Icon(Icons.AutoMirrored.Filled.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Icon)
                     })
                     boxes.forEach { b ->
                         SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {
-                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.AccentText else Palette.Muted)
+                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.AccentText else Palette.Icon)
                         })
                     }
                 }

@@ -435,7 +435,7 @@ private fun TradeRow(item: TradeItem, vm: TradeViewModel, onEdit: (() -> Unit)? 
             Text((if (item.card != null) item.getLabel() else item.set) + prices, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         QuantityStepper(item.qty, onChange = { vm.setQty(item, it.coerceAtMost(item.owned?.quantity ?: 99)) })
-        IconButton(onClick = { vm.setQty(item, 0) }) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Muted) }
+        IconButton(onClick = { vm.setQty(item, 0) }) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Icon) }
     }
 }
 

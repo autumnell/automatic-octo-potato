@@ -270,7 +270,7 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
                         value = filter,
                         onValueChange = { filter = it.take(40) },
                         placeholder = { Text("Filter sets") },
-                        leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Muted) },
+                        leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )

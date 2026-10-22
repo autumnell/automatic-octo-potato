@@ -147,7 +147,7 @@ private fun PhotoRow(item: PhotoItem, onPrinting: () -> Unit, onRemove: () -> Un
         }
         if (c != null) TextButton(onClick = onPrinting) { Text("Printing") }
         IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Filled.Close, "Remove", tint = Palette.Muted, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Close, "Remove", tint = Palette.Icon, modifier = Modifier.size(18.dp))
         }
     }
 }

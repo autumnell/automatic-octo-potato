@@ -103,7 +103,7 @@ internal fun ImportPreviewDialog(
                     ) {
                         Icon(
                             if (box == null) Icons.Filled.AddBox else boxIcon(box.kind), null,
-                            tint = Palette.Accent, modifier = Modifier.size(18.dp),
+                            tint = Palette.Icon, modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
@@ -112,7 +112,7 @@ internal fun ImportPreviewDialog(
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.AccentText)
-                        Icon(if (isOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Muted)
+                        Icon(if (isOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Icon)
                     }
                     if (isOpen) {
                         val inBox = plan.rows.indices.filter { plan.targets[it] == id }
@@ -164,8 +164,8 @@ internal fun ImportPreviewDialog(
                                 r.setCode?.let { Text(it.uppercase() + (r.collectorNumber?.let { n -> " #$n" } ?: ""), style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
                             }
                             IconButton(onClick = { onRetry(i, null) }, enabled = idle) { Icon(Icons.Filled.Refresh, "Retry", tint = Palette.Accent) }
-                            IconButton(onClick = { editing = i }, enabled = idle) { Icon(Icons.Filled.Edit, "Edit name", tint = Palette.Muted) }
-                            IconButton(onClick = { onRemove(i) }, enabled = idle) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Muted) }
+                            IconButton(onClick = { editing = i }, enabled = idle) { Icon(Icons.Filled.Edit, "Edit name", tint = Palette.Icon) }
+                            IconButton(onClick = { onRemove(i) }, enabled = idle) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Icon) }
                         }
                     }
                 }

@@ -78,7 +78,7 @@ fun FirstRunTour(onDone: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(Modifier.size(110.dp).clip(CircleShape).background(Palette.Surface), contentAlignment = Alignment.Center) {
-                    Icon(page.icon, null, tint = Palette.Accent, modifier = Modifier.size(52.dp))
+                    Icon(page.icon, null, tint = Palette.Icon, modifier = Modifier.size(52.dp))
                 }
                 Spacer(Modifier.height(28.dp))
                 Text(page.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)

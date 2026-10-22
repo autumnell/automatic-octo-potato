@@ -117,13 +117,13 @@ fun ArtIndexSection(vm: ScanViewModel) {
                     Text(names[s.set] ?: s.set.uppercase(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${s.set.uppercase()} · ${s.cards} cards" + if (s.set == lock) " · locked" else "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
-                IconButton(onClick = { vm.deleteArt(s.set) }) { Icon(Icons.Filled.Close, "Remove ${s.set.uppercase()}", tint = Palette.Muted, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = { vm.deleteArt(s.set) }) { Icon(Icons.Filled.Close, "Remove ${s.set.uppercase()}", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
             }
         }
 
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectPill("Add set", false, { vm.loadSets(); picking = true }, leading = {
-                Icon(Icons.Filled.Add, null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Add, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
             })
             SelectPill("Sets I own", false, {
                 vm.loadSets()

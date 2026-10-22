@@ -123,7 +123,7 @@ fun FilterSheet(
                 Spacer(Modifier.width(8.dp))
                 SelectPill("Add", false, {
                     if (otherType.isNotBlank()) { onChange(f.copy(types = f.types + TypeTerm(otherType.trim()))); otherType = "" }
-                }, leading = { Icon(Icons.Filled.Add, null, Modifier.size(14.dp), tint = Palette.Text) })
+                }, leading = { Icon(Icons.Filled.Add, null, Modifier.size(14.dp), tint = Palette.Icon) })
             }
 
             Heading("Stats")
@@ -270,7 +270,7 @@ fun SavedMenu(
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
-        SelectPill("Saved", false, { open = true }, leading = { Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(16.dp), tint = Palette.Text) })
+        SelectPill("Saved", false, { open = true }, leading = { Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(16.dp), tint = Palette.Icon) })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text("Save search…", color = Palette.AccentText) },
@@ -282,7 +282,7 @@ fun SavedMenu(
                     text = { Text(s.name) },
                     onClick = { open = false; onLoad(s) },
                     trailingIcon = {
-                        Icon(Icons.Filled.Close, "Delete ${s.name}", tint = Palette.Muted, modifier = Modifier.size(18.dp).clickable { onDelete(s.name) })
+                        Icon(Icons.Filled.Close, "Delete ${s.name}", tint = Palette.Icon, modifier = Modifier.size(18.dp).clickable { onDelete(s.name) })
                     },
                 )
             }

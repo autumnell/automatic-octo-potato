@@ -363,10 +363,10 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { grid = !grid }) {
-                Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Text)
+                Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Icon)
             }
             if (toWish.isNotEmpty()) IconButton(onClick = { confirmWish = true }) {
-                Icon(Icons.Filled.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Accent)
+                Icon(Icons.Filled.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Icon)
             }
         }
         SetHeader(

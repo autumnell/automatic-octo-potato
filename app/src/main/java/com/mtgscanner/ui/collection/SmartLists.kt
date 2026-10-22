@@ -80,7 +80,7 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
                     Text(l.search.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${l.cards} cards${priceSuffix(l.value)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
-                IconButton(onClick = { onDelete(l.search) }) { Icon(Icons.Filled.DeleteOutline, "Delete list", tint = Palette.Muted) }
+                IconButton(onClick = { onDelete(l.search) }) { Icon(Icons.Filled.DeleteOutline, "Delete list", tint = Palette.Icon) }
             }
         }
     }

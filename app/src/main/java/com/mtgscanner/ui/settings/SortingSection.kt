@@ -118,7 +118,7 @@ private fun BoxChoice(label: String, boxes: List<CardBox>, current: Long?, onPic
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = if (here != null) Palette.AccentText else Palette.Muted)
+            Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = if (here != null) Palette.AccentText else Palette.Icon)
             Spacer(Modifier.width(6.dp))
             Text(
                 "$label → ${here?.name ?: "pick a box"}",
@@ -126,14 +126,14 @@ private fun BoxChoice(label: String, boxes: List<CardBox>, current: Long?, onPic
                 color = if (here != null) Palette.Text else Palette.Danger,
                 maxLines = 1,
             )
-            Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Muted)
+            Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             if (boxes.isEmpty()) DropdownMenuItem(text = { Text("No boxes yet", color = Palette.Muted) }, onClick = { open = false })
             boxes.forEach { b ->
                 DropdownMenuItem(
                     text = { Text(b.name, color = if (b.id == current) Palette.AccentText else Palette.Text) },
-                    leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Muted) },
+                    leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Icon) },
                     onClick = { open = false; onPick(b.id) },
                 )
             }

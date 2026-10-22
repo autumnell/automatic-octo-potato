@@ -170,7 +170,7 @@ fun MoveListHost(modifier: Modifier = Modifier) {
         color = Palette.BoxCard,
     ) {
         Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Filled.DriveFileMove, null, tint = Palette.Accent, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Filled.DriveFileMove, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Text(if (left == 0) "Move list done" else "Move list · $left to move", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             TextButton(onClick = { MoveList.open = true }) { Text("Open") }

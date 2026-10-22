@@ -570,13 +570,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
                                     onClick = { editingNotes = true },
-                                    leading = { Icon(Icons.Filled.Edit, null, Modifier.size(16.dp), tint = Palette.Muted) },
+                                    leading = { Icon(Icons.Filled.Edit, null, Modifier.size(16.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                                 DropChip(
                                     "Tag",
                                     onClick = { addingTag = true },
-                                    leading = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp), tint = Palette.AccentText) },
+                                    leading = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                             }
@@ -591,7 +591,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                         ) {
                                             Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
                                             IconButton(onClick = { vm.removeTag(t) }) {
-                                                Icon(Icons.Filled.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Muted)
+                                                Icon(Icons.Filled.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Icon)
                                             }
                                         }
                                     }
@@ -1084,7 +1084,7 @@ private fun DropChip(label: String, onClick: () -> Unit, leading: (@Composable (
             Spacer(Modifier.width(6.dp))
         }
         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-        if (trailing) Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Muted)
+        if (trailing) Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
     }
 }
 
@@ -1206,13 +1206,13 @@ private fun BoxPicker(boxes: List<CardBox>, current: Long, onPick: (CardBox) -> 
         DropChip(
             here?.name ?: "Box",
             onClick = { open = true },
-            leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = Palette.AccentText) },
+            leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = Palette.Icon) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             boxes.forEach { b ->
                 DropdownMenuItem(
                     text = { Text(b.name, color = if (b.id == current) Palette.AccentText else Palette.Text) },
-                    leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Muted) },
+                    leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Icon) },
                     onClick = { open = false; if (b.id != current) onPick(b) },
                 )
             }

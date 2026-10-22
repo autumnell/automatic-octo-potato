@@ -208,7 +208,7 @@ private fun PickRow(icon: ImageVector?, label: String, selected: Boolean, onClic
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
-            Icon(icon, null, tint = Palette.Muted, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
         }
         Text(
