@@ -652,7 +652,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
             val k = picked ?: return@AnimatedVisibility
             val n = colors.firstOrNull { it.first == k }?.second ?: 0
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(colorFor(k)))
+                ColorPip(k[0])
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "${label(k)} · ${sharePercent(n, total)} · ${"%,d".format(n)} cards",

@@ -886,7 +886,7 @@ private fun ToolsTab(
             ToolGroup("Fun")
             ToolRow(Icons.Filled.BarChart, "Pull rates") { pulls = true }
             ToolRow(Icons.Filled.Quiz, "Quiz") { quiz = true }
-            SectionHeader("Trade binders")
+            ToolGroup("Trade binders")
             if (trade.isEmpty()) {
                 Text(
                     "Make a Trade binder box to trade.",
