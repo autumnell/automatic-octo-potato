@@ -133,6 +133,18 @@ data class PageSlot(
     val lang: String? = null,
 )
 
+/** One card found in a photo. [card] is null when it couldn't be read or found. */
+data class PhotoItem(
+    val key: Int, val read: String?, val card: ScryfallCard?,
+    /** Language read off the card, when not English. */
+    val lang: String? = null,
+    /** The card as cut out of the photo. */
+    val thumb: android.graphics.Bitmap? = null,
+)
+
+/** Cards read from a photo, to check before adding. */
+data class PhotoRun(val loading: Boolean = true, val items: List<PhotoItem> = emptyList(), val failed: Boolean = false)
+
 /** What the camera read, for the status line: the name, else the footer ("MOM #123"). */
 fun readLabel(g: CardTextGuess): String? =
     g.nameCandidates.firstOrNull() ?: g.printedName ?: listOfNotNull(g.setCode, g.collectorNumber?.let { "#$it" }).joinToString(" ").ifEmpty { null }
@@ -193,6 +205,8 @@ data class ScanUiState(
     val wantPage: Boolean = false,
     val pageLoading: Boolean = false,
     val page: List<PageSlot>? = null,
+    /** Cards read from a photo picked from the gallery, while the review sheet is open. */
+    val photo: PhotoRun? = null,
     /** Foil picked on the result card for the card on screen; null follows the Foil setting. */
     val cardFoil: Boolean? = null,
     /** Stack mode: hands-free auto-add with a beep per card and a double beep when unsure. */
@@ -429,7 +443,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         get() = _state.value.let {
             // The first-run hints cover the screen: don't add cards behind them.
             if (it.showSort || it.showSetLock || it.showDeckPick || it.showSkipped || it.showUnknown || it.showBoxPick || it.showBoxCheck ||
-                !ScanBarPrefs.hintsSeen) true
+                it.photo != null || !ScanBarPrefs.hintsSeen) true
             else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading || it.page != null || it.showSettings || it.showList ||
                 it.showNewBox || boxes.value.isNullOrEmpty()
             else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp ||
@@ -1489,6 +1503,96 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
                 )
             }
             // One Undo for the whole page.
+            if (added.isNotEmpty()) Undo.offer(if (n == 1) "Added 1 card" else "Added $n cards") {
+                added.asReversed().forEach { (key, q) -> takeBack(key, q) }
+            }
+        }
+    }
+
+    // From a photo: every card in a picture from the gallery
+
+    private var photoJob: Job? = null
+
+    /** Reads every card in the picture at [uri], then looks each one up. */
+    fun readPhoto(uri: android.net.Uri) {
+        photoJob?.cancel()
+        _state.update { it.copy(photo = PhotoRun()) }
+        photoJob = viewModelScope.launch {
+            val reads = withContext(Dispatchers.Default) {
+                runCatching {
+                    val bmp = com.mtgscanner.scan.PhotoCards.decode(repo.appContext, uri)
+                    if (bmp == null) null
+                    else try {
+                        com.mtgscanner.scan.PhotoCards.read(bmp, { b -> repo.artEmbedder.embed(b) }, repo.artIndex.hasAny)
+                    } finally {
+                        bmp.recycle()
+                    }
+                }.getOrNull()
+            }
+            if (reads == null) {
+                _state.update { it.copy(photo = PhotoRun(loading = false, failed = true)) }
+                return@launch
+            }
+            val items = reads.mapIndexed { i, r -> async { photoItem(i, r) } }.awaitAll()
+            _state.update { s -> s.photo?.let { s.copy(photo = PhotoRun(loading = false, items = items)) } ?: s }
+        }
+    }
+
+    /** Looks up one card read from a photo: by its text, else by its art. */
+    private suspend fun photoItem(i: Int, r: com.mtgscanner.scan.PhotoRead): PhotoItem {
+        val g = r.guess
+        val card = when {
+            g.key != null -> runCatching { repo.identify(g)?.card }.getOrNull()
+            g.artOnly.isNotEmpty() -> {
+                val embeddings = g.artOnlyEmbeddings
+                val model = embeddings.firstOrNull()?.model
+                val hit = runCatching {
+                    repo.artIndex.match(g.artOnly.toLongArray(), SortPrefs.setLock, embeddings.filter { it.model == model }.map { it.values }, model)
+                }.getOrNull()
+                hit?.let { h -> runCatching { repo.api.byId(h.id) }.getOrNull() }
+            }
+            else -> null
+        }
+        return PhotoItem(i, readLabel(g), card, g.lang?.takeIf { card == null || card.lang == "en" }, r.thumb)
+    }
+
+    /** Swaps a photo card for the printing picked. */
+    fun photoPrinting(key: Int, card: ScryfallCard) = _state.update {
+        it.copy(photo = it.photo?.let { p -> p.copy(items = p.items.map { x -> if (x.key == key) x.copy(card = card) else x }) })
+    }
+
+    /** Takes a card off the photo's list (nothing was added yet). */
+    fun photoRemove(key: Int) = _state.update {
+        it.copy(photo = it.photo?.let { p -> p.copy(items = p.items.filterNot { x -> x.key == key }) })
+    }
+
+    fun closePhoto() {
+        photoJob?.cancel()
+        _state.update { it.copy(photo = null) }
+    }
+
+    /** Adds every found card from the photo, with the scan bar's copies, one after another; one Undo for all. */
+    fun addPhoto() {
+        val st = _state.value
+        val items = st.photo?.items.orEmpty().filter { it.card != null }
+        _state.update { it.copy(photo = null) }
+        if (st.target == ScanTarget.CHECK || items.isEmpty()) return
+        val qty = ScanBarPrefs.quantity
+        viewModelScope.launch {
+            val added = mutableListOf<Pair<Long, Int>>()
+            items.forEach { item ->
+                val card = item.card ?: return@forEach
+                val lang = (item.lang?.takeIf { card.lang == "en" }) ?: ScanBarPrefs.langOrNull
+                val now = _state.value
+                addNow(card, qty, now, now.isFoil(card), lang, fromReview = false, auto = true, fromPage = true)
+                    ?.let { added += it.key to qty }
+            }
+            if (st.target != ScanTarget.COLLECTION) return@launch
+            val n = added.sumOf { it.second }
+            val missed = items.size - added.size
+            _state.update {
+                it.copy(status = (if (n == 1) "Added 1 card" else "Added $n cards") + (if (missed > 0) " · $missed not added" else ""))
+            }
             if (added.isNotEmpty()) Undo.offer(if (n == 1) "Added 1 card" else "Added $n cards") {
                 added.asReversed().forEach { (key, q) -> takeBack(key, q) }
             }
