@@ -247,10 +247,12 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
         var syntaxHelp by remember { mutableStateOf(false) }
         SearchField(
             f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            placeholder = "r:rare t:creature",
+            mono = true,
             trailing = {
                 Text(
                     "?",
-                    color = if (syntaxHelp) Palette.Accent else Palette.Muted,
+                    color = if (syntaxHelp) Palette.Text else Palette.Muted,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { syntaxHelp = !syntaxHelp }.padding(horizontal = 8.dp),
                 )
@@ -595,16 +597,21 @@ fun SearchField(
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "Search name, type, text, tag",
+    /** Scryfall-syntax search: placeholder and text in Plex Mono, no search icon. */
+    mono: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val textStyle = if (mono) monoStyle(14.sp) else MaterialTheme.typography.bodyLarge
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier.fillMaxWidth().heightIn(min = 44.dp).clip(LookShape).background(Palette.Surface).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(10.dp))
+        if (!mono) {
+            Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+        }
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = textStyle, maxLines = 1)
             // Results update as you type: the keyboard's Search key just puts the keyboard away.
             val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
             val focus = androidx.compose.ui.platform.LocalFocusManager.current
@@ -614,7 +621,7 @@ fun SearchField(
                 singleLine = true,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide(); focus.clearFocus() }),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
+                textStyle = textStyle.copy(color = Palette.Text),
                 cursorBrush = SolidColor(Palette.Accent),
                 modifier = Modifier.fillMaxWidth(),
             )
