@@ -467,7 +467,7 @@ private fun RowScope.ScanTab(selected: Boolean, onClick: () -> Unit) {
                 .border(3.dp, Palette.NavBar, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(28.dp))
+            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(28.dp))
         }
         Text(
             "Scan",

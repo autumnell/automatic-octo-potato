@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.QuestionMark
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.QuestionMark
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -137,7 +137,7 @@ internal fun ToSortSection(
                         style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Palette.Icon, modifier = Modifier.size(14.dp).padding(horizontal = 2.dp))
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Palette.Icon, modifier = Modifier.size(14.dp).padding(horizontal = 2.dp))
                     Text(
                         listOfNotNull(ui.boxNames[item.to], item.spot).joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1,
@@ -162,10 +162,10 @@ internal fun ToSortSection(
                     Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.QuestionMark, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.QuestionMark, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(10.dp))
                     Text("\"${p.name}\"", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.Search, "Find", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Search, "Find", tint = Palette.Icon, modifier = Modifier.size(18.dp))
                 }
             }
             if (ui.unknown.size > 5) {
@@ -238,7 +238,7 @@ internal fun UnknownScanDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
         dismissButton = {
-            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, "Delete scan", tint = Palette.Danger) }
+            IconButton(onClick = onDelete) { Icon(Icons.Outlined.Delete, "Delete scan", tint = Palette.Danger) }
         },
     )
 }

@@ -17,8 +17,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DriveFileMove
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -170,7 +170,7 @@ fun MoveListHost(modifier: Modifier = Modifier) {
         color = Palette.BoxCard,
     ) {
         Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Filled.DriveFileMove, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Text(if (left == 0) "Move list done" else "Move list · $left to move", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             TextButton(onClick = { MoveList.open = true }) { Text("Open") }
@@ -192,7 +192,7 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Move list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                IconButton(onClick = { share(ctx, MoveLists.text(lines, MoveList.done)) }) { Icon(Icons.Filled.Share, "Share or print") }
+                IconButton(onClick = { share(ctx, MoveLists.text(lines, MoveList.done)) }) { Icon(Icons.Outlined.Share, "Share or print") }
                 TextButton(onClick = { MoveList.clear() }) { Text("Clear") }
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {

@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DoneAll
 import com.mtgscanner.ui.scan.SetIcon
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,7 +71,7 @@ fun BoxCheckNudge(onCheck: (Long) -> Unit, modifier: Modifier = Modifier) {
     val box = live.firstOrNull { it.id == due.first } ?: return
 
     Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.DoneAll, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Icon(Icons.Outlined.DoneAll, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(
             BoxReminders.label(box.name, due.second.coerceAtLeast(months)),
@@ -132,7 +132,7 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = { closed = true; BoxPrefs.markOffered(ctx, set.code) }) {
-                    Icon(Icons.Filled.Close, "Not now", tint = Palette.Icon)
+                    Icon(Icons.Outlined.Close, "Not now", tint = Palette.Icon)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

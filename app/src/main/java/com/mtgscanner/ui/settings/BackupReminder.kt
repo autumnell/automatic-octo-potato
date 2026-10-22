@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -72,7 +72,7 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
         modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.CloudUpload, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Icon(Icons.Outlined.CloudUpload, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(
             if (days == null) "No backup yet" else "Last backup ${days}d ago",

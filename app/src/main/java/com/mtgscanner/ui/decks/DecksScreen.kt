@@ -31,19 +31,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -324,21 +325,21 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
         item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (folder != null) {
-                    IconButton(onClick = { folderId = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "All decks") }
+                    IconButton(onClick = { folderId = null }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "All decks") }
                     Text(
                         folder.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, "Rename folder", tint = Palette.Icon) }
+                    IconButton(onClick = { renaming = true }) { Icon(Icons.Outlined.Edit, "Rename folder", tint = Palette.Icon) }
                     IconButton(onClick = { vm.deleteFolder(folder); folderId = null }) {
-                        Icon(Icons.Filled.DeleteOutline, "Delete folder", tint = Palette.Icon)
+                        Icon(Icons.Outlined.DeleteOutline, "Delete folder", tint = Palette.Icon)
                     }
                 } else {
                     Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { naming = true }) { Icon(Icons.Filled.CreateNewFolder, "New folder", tint = Palette.AccentText) }
+                    IconButton(onClick = { naming = true }) { Icon(Icons.Outlined.CreateNewFolder, "New folder", tint = Palette.AccentText) }
                     Box {
                         TextButton(onClick = { newMenu = true }) {
-                            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("New")
                         }
@@ -360,9 +361,9 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     value = query,
                     onValueChange = { query = it },
                     placeholder = { Text("Search decks") },
-                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Icon) },
                     trailingIcon = {
-                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear") }
+                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Close, "Clear") }
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(Corners.Medium),
@@ -440,7 +441,7 @@ private fun TileArt(url: String?, modifier: Modifier = Modifier) {
         if (url != null) {
             AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         } else {
-            Icon(Icons.Filled.Style, null, tint = Palette.Icon, modifier = Modifier.align(Alignment.Center).size(36.dp))
+            Icon(Icons.Outlined.Style, null, tint = Palette.Icon, modifier = Modifier.align(Alignment.Center).size(36.dp))
         }
     }
 }
@@ -487,7 +488,7 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                 }
                 Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Filled.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
@@ -523,7 +524,7 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, onOpen: () -> U
                     TileArt(arts.firstOrNull(), Modifier.matchParentSize())
                 }
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-                Icon(Icons.Filled.Folder, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
+                Icon(Icons.Outlined.Folder, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
             }
             Column(Modifier.padding(12.dp)) {
                 Text(
@@ -1009,7 +1010,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text(
                     if (ui.editing) (if (ui.id == 0L) "New deck" else "Edit deck") else ui.name,
                     style = MaterialTheme.typography.titleLarge,
@@ -1018,12 +1019,12 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!ui.editing) {
-                    IconButton(onClick = vm::edit) { Icon(Icons.Filled.Edit, "Edit list") }
+                    IconButton(onClick = vm::edit) { Icon(Icons.Outlined.Edit, "Edit list") }
                     IconButton(onClick = { if (inDeck > 0) confirmDelete = true else vm.delete(false, onBack) }) {
-                        Icon(Icons.Filled.DeleteOutline, "Delete deck")
+                        Icon(Icons.Outlined.DeleteOutline, "Delete deck")
                     }
                     Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Deck options") }
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Deck options") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
                             DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
@@ -1206,11 +1207,11 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(Corners.Medium),
                     ) {
-                        Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Wishlist missing")
                     }
-                    IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share missing cards", tint = Palette.Icon) }
+                    IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share missing cards", tint = Palette.Icon) }
                 }
             }
             SearchField(find, { find = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Find in deck")
@@ -1302,6 +1303,6 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> U
             }
         }
         if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText) }
-        else Icon(Icons.Filled.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
+        else Icon(Icons.Outlined.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
     }
 }

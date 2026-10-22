@@ -52,20 +52,20 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FlashOff
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.FlashOff
+import androidx.compose.material.icons.outlined.FlashOn
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -363,7 +363,7 @@ fun ScanScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        RoundIconButton(Icons.Filled.Settings, "Scan settings", { vm.showSettings(true) }, modifier = Modifier.hintTarget("settings"))
+                        RoundIconButton(Icons.Outlined.Settings, "Scan settings", { vm.showSettings(true) }, modifier = Modifier.hintTarget("settings"))
                         ModesButton(state, vm)
                     }
 
@@ -451,7 +451,7 @@ private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         RoundIconButton(
-            icon = if (state.torch) Icons.Filled.FlashOn else Icons.Filled.FlashOff,
+            icon = if (state.torch) Icons.Outlined.FlashOn else Icons.Outlined.FlashOff,
             label = "Flashlight",
             onClick = { vm.setTorch(!state.torch) },
             tint = if (state.torch) Palette.Gold else Color.White,
@@ -468,14 +468,14 @@ private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
         ) {
             Box(Modifier.size(44.dp).clip(CircleShape).border(3.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
                 Icon(
-                    if (state.paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                    if (state.paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
                     contentDescription = if (state.paused) "Resume scanning" else "Pause scanning",
                     tint = Color.White,
                 )
             }
         }
         Box(Modifier.hintTarget("list")) {
-            RoundIconButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Scan list", { vm.showList(true) })
+            RoundIconButton(Icons.AutoMirrored.Outlined.FormatListBulleted, "Scan list", { vm.showList(true) })
             val count = state.sessionCount
             if (count > 0) Text(
                 if (count > 99) "99+" else "$count",
@@ -510,7 +510,7 @@ private fun OfflineCard(name: String, vm: ScanViewModel) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface.copy(alpha = 0.97f)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             }
@@ -522,7 +522,7 @@ private fun OfflineCard(name: String, vm: ScanViewModel) {
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(Corners.Medium), modifier = Modifier.heightIn(min = 48.dp)) { Text("Skip") }
-                GradientButton("Save for later", { vm.saveOffline() }, Modifier.weight(1f).heightIn(min = 48.dp), icon = Icons.Filled.Schedule)
+                GradientButton("Save for later", { vm.saveOffline() }, Modifier.weight(1f).heightIn(min = 48.dp), icon = Icons.Outlined.Schedule)
             }
         }
     }
@@ -544,7 +544,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
-                    Icon(if (auto) Icons.AutoMirrored.Filled.Sort else boxIcon(box!!.kind), null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+                    Icon(if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Just checking · not adding"
@@ -560,7 +560,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Icon(Icons.Filled.ExpandMore, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.ExpandMore, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
                 }
                 DropdownMenu(expanded = boxMenu, onDismissRequest = { boxMenu = false }) {
                     DropdownMenuItem(
@@ -570,7 +570,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                                 Text("Each card goes to the box whose rules fit", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                             }
                         },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null) },
                         onClick = { vm.setBox(CardBox.AUTO_SORT); boxMenu = false },
                     )
                     HorizontalDivider(color = Palette.Outline)
@@ -589,7 +589,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                     HorizontalDivider(color = Palette.Outline)
                     DropdownMenuItem(
                         text = { Text("New box…") },
-                        leadingIcon = { Icon(Icons.Filled.Add, null, tint = Palette.Icon) },
+                        leadingIcon = { Icon(Icons.Outlined.Add, null, tint = Palette.Icon) },
                         onClick = { boxMenu = false; vm.showNewBox(true) },
                     )
                 }
@@ -933,7 +933,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                         )
                     }
                     if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Accent)
-                    IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
+                    IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
                 }
             }
           }
@@ -1164,7 +1164,7 @@ private fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = Mo
         )
         TextButton(onClick = vm::saveUnknown) { Text("Save for later", color = Palette.Gold) }
         IconButton(onClick = vm::dismissUnknown, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Filled.Close, "Dismiss", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Close, "Dismiss", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
         }
     }
 }

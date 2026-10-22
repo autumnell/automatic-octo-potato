@@ -11,13 +11,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddBox
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.AddBox
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -89,7 +89,7 @@ internal fun ImportPreviewDialog(
                 }
                 if (offline) {
                     Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.CloudOff, null, tint = Palette.Danger, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Outlined.CloudOff, null, tint = Palette.Danger, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Offline. Retry when back online.", style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                     }
@@ -103,7 +103,7 @@ internal fun ImportPreviewDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            if (box == null) Icons.Filled.AddBox else boxIcon(box.kind), null,
+                            if (box == null) Icons.Outlined.AddBox else boxIcon(box.kind), null,
                             tint = Palette.Icon, modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(10.dp))
@@ -113,7 +113,7 @@ internal fun ImportPreviewDialog(
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.AccentText)
-                        Icon(if (isOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Icon)
+                        Icon(if (isOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Icon)
                     }
                     if (isOpen) {
                         val inBox = plan.rows.indices.filter { plan.targets[it] == id }
@@ -164,9 +164,9 @@ internal fun ImportPreviewDialog(
                                 Text("${r.quantity}  ${r.name}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 r.setCode?.let { Text(it.uppercase() + (r.collectorNumber?.let { n -> " #$n" } ?: ""), style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
                             }
-                            IconButton(onClick = { onRetry(i, null) }, enabled = idle) { Icon(Icons.Filled.Refresh, "Retry", tint = Palette.Accent) }
-                            IconButton(onClick = { editing = i }, enabled = idle) { Icon(Icons.Filled.Edit, "Edit name", tint = Palette.Icon) }
-                            IconButton(onClick = { onRemove(i) }, enabled = idle) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Icon) }
+                            IconButton(onClick = { onRetry(i, null) }, enabled = idle) { Icon(Icons.Outlined.Refresh, "Retry", tint = Palette.Accent) }
+                            IconButton(onClick = { editing = i }, enabled = idle) { Icon(Icons.Outlined.Edit, "Edit name", tint = Palette.Icon) }
+                            IconButton(onClick = { onRemove(i) }, enabled = idle) { Icon(Icons.Outlined.Close, "Remove", tint = Palette.Icon) }
                         }
                     }
                 }

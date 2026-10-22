@@ -25,9 +25,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -418,7 +417,7 @@ private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
         Text("Grimoire", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.weight(1f))
         TextButton(onClick = onEdit) { Text("Edit", color = Palette.Muted) }
-        IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings", tint = Palette.Icon) }
+        IconButton(onClick = onSettings) { Icon(Icons.Outlined.Settings, "Settings", tint = Palette.Icon) }
     }
 }
 
@@ -473,7 +472,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                 )
                 if (onClick != null) {
                     Text("Stats", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                 }
             }
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)

@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +67,7 @@ fun WhatsNewLine(modifier: Modifier = Modifier) {
             Text(text, style = MaterialTheme.typography.bodyMedium)
         }
         IconButton(onClick = { WhatsNew.markSeen(ctx, code); line = null }) {
-            Icon(Icons.Filled.Close, "Close", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Close, "Close", tint = Palette.Icon, modifier = Modifier.size(18.dp))
         }
     }
 }

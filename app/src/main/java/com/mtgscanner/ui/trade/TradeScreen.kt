@@ -21,10 +21,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -303,13 +303,13 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text(
                     if (binderName.isEmpty()) "Trade" else "Trade · $binderName",
                     style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = { wants = true }) { Text("Wants") }
-                IconButton(onClick = onSellList) { Icon(Icons.Filled.Sell, "Sell list", tint = Palette.Text) }
+                IconButton(onClick = onSellList) { Icon(Icons.Outlined.Sell, "Sell list", tint = Palette.Text) }
                 if (ui.give.isNotEmpty() || ui.get.isNotEmpty()) TextButton(onClick = vm::clear) { Text("Clear") }
             }
             if (AppSettings.showPrices && (ui.give.isNotEmpty() || ui.get.isNotEmpty())) {
@@ -415,7 +415,7 @@ private fun SideHeader(title: String, onAdd: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
         TextButton(onClick = onAdd) {
-            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
             Text("Add card")
         }
@@ -436,7 +436,7 @@ private fun TradeRow(item: TradeItem, vm: TradeViewModel, onEdit: (() -> Unit)? 
             Text((if (item.card != null) item.getLabel() else item.set) + prices, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         QuantityStepper(item.qty, onChange = { vm.setQty(item, it.coerceAtMost(item.owned?.quantity ?: 99)) })
-        IconButton(onClick = { vm.setQty(item, 0) }) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Icon) }
+        IconButton(onClick = { vm.setQty(item, 0) }) { Icon(Icons.Outlined.Close, "Remove", tint = Palette.Icon) }
     }
 }
 

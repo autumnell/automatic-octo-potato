@@ -23,9 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -123,7 +121,7 @@ fun FilterSheet(
                 Spacer(Modifier.width(8.dp))
                 SelectPill("Add", false, {
                     if (otherType.isNotBlank()) { onChange(f.copy(types = f.types + TypeTerm(otherType.trim()))); otherType = "" }
-                }, leading = { Icon(Icons.Filled.Add, null, Modifier.size(14.dp), tint = Palette.Icon) })
+                }, leading = { Icon(Icons.Outlined.Add, null, Modifier.size(14.dp), tint = Palette.Icon) })
             }
 
             Heading("Stats")

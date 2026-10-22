@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
@@ -128,7 +128,7 @@ fun PullListView(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(Corners.Medium),
                 ) {
-                    Icon(Icons.Filled.Style, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Style, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Move checked to deck")
                 }

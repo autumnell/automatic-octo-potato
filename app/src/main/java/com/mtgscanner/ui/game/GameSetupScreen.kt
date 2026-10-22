@@ -24,8 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -109,7 +108,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                         )
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            GradientButton("Resume", onPlay, Modifier.weight(1f), icon = Icons.Filled.PlayArrow)
+                            GradientButton("Resume", onPlay, Modifier.weight(1f), icon = Icons.Outlined.PlayArrow)
                             Spacer(Modifier.width(8.dp))
                             TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
                         }
@@ -170,7 +169,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                 else { vm.start(format, players, life, names.take(players), partners); onPlay() }
             },
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            icon = Icons.Filled.PlayArrow,
+            icon = Icons.Outlined.PlayArrow,
         )
     }
 

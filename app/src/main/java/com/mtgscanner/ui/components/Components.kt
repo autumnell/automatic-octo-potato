@@ -28,12 +28,12 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -327,7 +327,7 @@ fun CardTile(
                 Box(
                     Modifier.align(Alignment.TopStart).padding(6.dp).size(24.dp).clip(CircleShape).background(Palette.Accent),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.Check, "Selected", tint = Palette.OnAccent, modifier = Modifier.size(16.dp)) }
+                ) { Icon(Icons.Outlined.Check, "Selected", tint = Palette.OnAccent, modifier = Modifier.size(16.dp)) }
             }
             if (quantity != null && quantity > 1) {
                 Box(
@@ -359,7 +359,7 @@ fun OwnedBadge(count: Int, modifier: Modifier = Modifier) {
             .semantics(mergeDescendants = true) { contentDescription = "You own $count" },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Check, null, tint = Palette.OnAccent, modifier = Modifier.size(12.dp))
+        Icon(Icons.Outlined.Check, null, tint = Palette.OnAccent, modifier = Modifier.size(12.dp))
         Spacer(Modifier.width(2.dp))
         Text("$count", color = Palette.OnAccent, style = MaterialTheme.typography.labelSmall)
     }
@@ -369,11 +369,11 @@ fun OwnedBadge(count: Int, modifier: Modifier = Modifier) {
 fun priceSuffix(v: Double?): String = if (AppSettings.showPrices) " · ${formatUsd(v)}" else ""
 
 fun boxIcon(kind: String): ImageVector = when (kind) {
-    "binder" -> Icons.AutoMirrored.Filled.MenuBook
-    "deck" -> Icons.Filled.Style
-    "wishlist" -> Icons.Filled.FavoriteBorder
-    "trade" -> Icons.Filled.SwapHoriz
-    else -> Icons.Filled.Inventory2
+    "binder" -> Icons.AutoMirrored.Outlined.MenuBook
+    "deck" -> Icons.Outlined.Style
+    "wishlist" -> Icons.Outlined.FavoriteBorder
+    "trade" -> Icons.Outlined.SwapHoriz
+    else -> Icons.Outlined.Inventory2
 }
 
 /**

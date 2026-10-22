@@ -19,7 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -76,7 +76,7 @@ internal fun GetCardSheet(
                         item.buyPrice?.let { Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted) }
                     }
                     TextButton(onClick = onPrintings, contentPadding = PaddingValues(0.dp)) {
-                        Icon(Icons.Filled.SwapHoriz, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.SwapHoriz, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Other printings")
                     }

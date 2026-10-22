@@ -41,10 +41,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -239,9 +237,9 @@ fun GamePlayScreen(onExit: () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) {
                     if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.Bold)
-                    else Icon(Icons.Filled.MoreHoriz, "Game menu", tint = Palette.Accent)
+                    else Icon(Icons.Outlined.MoreHoriz, "Game menu", tint = Palette.Accent)
                 }
-                QuickButton(Icons.AutoMirrored.Filled.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
+                QuickButton(Icons.AutoMirrored.Outlined.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
             }
             if (g.dayNight != null) {
                 Spacer(Modifier.height(6.dp))
@@ -440,7 +438,7 @@ private fun PlayerPanel(
                     }
                 }
                 IconButton(onClick = onMore) {
-                    Icon(Icons.Filled.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
+                    Icon(Icons.Outlined.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
                 }
             }
         }

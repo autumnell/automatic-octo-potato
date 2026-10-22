@@ -17,9 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -270,7 +270,7 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
                         value = filter,
                         onValueChange = { filter = it.take(40) },
                         placeholder = { Text("Filter sets") },
-                        leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
+                        leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Icon) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -365,7 +365,7 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             DropdownMenuItem(
                 text = { Text("Open on Scryfall") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.OpenInNew, null) },
                 onClick = {
                     menu = false
                     if (p.scryfallUri.isNotBlank()) runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(p.scryfallUri))) }
@@ -373,7 +373,7 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
             )
             if (!current) DropdownMenuItem(
                 text = { Text("Switch to this") },
-                leadingIcon = { Icon(Icons.Filled.SwapHoriz, null) },
+                leadingIcon = { Icon(Icons.Outlined.SwapHoriz, null) },
                 onClick = { menu = false; onSwitch() },
             )
         }

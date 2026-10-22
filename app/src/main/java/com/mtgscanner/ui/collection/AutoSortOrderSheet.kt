@@ -18,11 +18,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -105,8 +105,8 @@ fun AutoSortOrderSheet(
                                 Text(it, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1)
                             }
                         }
-                        IconButton(onClick = { move(i, i - 1) }, enabled = i > 0) { Icon(Icons.Filled.KeyboardArrowUp, "Move up") }
-                        IconButton(onClick = { move(i, i + 1) }, enabled = i < order.lastIndex) { Icon(Icons.Filled.KeyboardArrowDown, "Move down") }
+                        IconButton(onClick = { move(i, i - 1) }, enabled = i > 0) { Icon(Icons.Outlined.KeyboardArrowUp, "Move up") }
+                        IconButton(onClick = { move(i, i + 1) }, enabled = i < order.lastIndex) { Icon(Icons.Outlined.KeyboardArrowDown, "Move down") }
                     }
                 }
             }
@@ -225,7 +225,7 @@ private fun BoxChoice(label: String, boxes: List<BoxSummary>, current: Long?, on
                 color = if (here != null) Palette.Text else Palette.Danger,
                 maxLines = 1,
             )
-            Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
+            Icon(Icons.Outlined.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             if (boxes.isEmpty()) DropdownMenuItem(text = { Text("No boxes yet", color = Palette.Muted) }, onClick = { open = false })

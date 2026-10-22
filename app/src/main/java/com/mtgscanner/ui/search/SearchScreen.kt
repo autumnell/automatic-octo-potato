@@ -27,14 +27,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -143,7 +143,7 @@ fun SearchScreen(
 @Composable
 private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().background(Palette.Background)) {
-        listOf("Cards" to Icons.Filled.Style, "Sets" to Icons.AutoMirrored.Filled.ViewList).forEachIndexed { i, (label, icon) ->
+        listOf("Cards" to Icons.Outlined.Style, "Sets" to Icons.AutoMirrored.Outlined.ViewList).forEachIndexed { i, (label, icon) ->
             TabItem(label, icon, selected == i, Modifier.weight(1f)) { onSelect(i) }
         }
     }
@@ -187,7 +187,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     )
                 }
                 if (ui.query.isNotEmpty()) {
-                    IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
                 } else {
                     Spacer(Modifier.width(16.dp))
                 }
@@ -201,14 +201,14 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     .padding(horizontal = 16.dp, vertical = 14.dp),
             ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
             IconButton(onClick = vm::toggleGrid) {
-                Icon(if (ui.grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Icon)
+                Icon(if (ui.grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
             }
         }
         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             val n = ui.filters.activeCount
             SelectPill(
                 if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
-                leading = { Icon(Icons.Filled.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
+                leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
             )
             Spacer(Modifier.width(8.dp))
             SelectPill("Price a list", false, { pricing = true })
@@ -232,7 +232,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.pickSuggestion(name) }.padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Filled.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(14.dp))
                         Text(name, style = MaterialTheme.typography.bodyLarge)
                     }
@@ -261,7 +261,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${ui.results.size}${if (ui.hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear results", tint = Palette.Icon) }
+                IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
             }
         }
         itemsIndexed(ui.results, key = { _, c -> c.id }) { i, c ->
@@ -354,7 +354,7 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
                     Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Text(q.text.ifEmpty { "Filtered" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)

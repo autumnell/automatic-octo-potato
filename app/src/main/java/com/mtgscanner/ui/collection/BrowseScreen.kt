@@ -3,15 +3,15 @@ package com.mtgscanner.ui.collection
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.automirrored.filled.DriveFileMove
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.automirrored.filled.Label
-import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SwipeToDismissBox
@@ -48,13 +48,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.FilterAlt
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
@@ -82,7 +82,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.outlined.Style
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
@@ -94,8 +94,8 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.RarityMark
 import com.mtgscanner.ui.components.PriceSparkline
 import com.mtgscanner.ui.components.foilShimmer
-import androidx.compose.material.icons.filled.ViewAgenda
-import androidx.compose.material.icons.filled.ViewHeadline
+import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.outlined.ViewHeadline
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -119,8 +119,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalConfiguration
@@ -182,7 +182,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             },
         )
         else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
                 Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
                 Text(
@@ -197,22 +197,22 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             IconButton(onClick = vm::cycleView) {
                 // Shows the view you get next.
                 when {
-                    grid -> Icon(Icons.Filled.ViewAgenda, "List view")
-                    !dense -> Icon(Icons.Filled.ViewHeadline, "Compact list")
-                    else -> Icon(Icons.Filled.GridView, "Grid view")
+                    grid -> Icon(Icons.Outlined.ViewAgenda, "List view")
+                    !dense -> Icon(Icons.Outlined.ViewHeadline, "Compact list")
+                    else -> Icon(Icons.Outlined.GridView, "Grid view")
                 }
             }
             if (ui.binder) Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
+                IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
                         text = { Text("Pages") },
-                        trailingIcon = { if (pagesOn) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
+                        trailingIcon = { if (pagesOn) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
                         onClick = { menu = false; vm.togglePages() },
                     )
                     DropdownMenuItem(
                         text = { Text("Pocket per copy") },
-                        trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Filled.Check, null, tint = Palette.Accent) },
+                        trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
                         onClick = { menu = false; vm.setPocketPerCopy(!ui.pocketPerCopy) },
                     )
                     if (ui.unslotted > 0) DropdownMenuItem(
@@ -252,7 +252,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                     color = Palette.Muted,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = vm::dismissTip) { Icon(Icons.Filled.Close, "Hide tip", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
+                IconButton(onClick = vm::dismissTip) { Icon(Icons.Outlined.Close, "Hide tip", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
             }
         }
         if (f.query.isEmpty() && f.activeCount == 0 && (saved.isNotEmpty() || recent.isNotEmpty())) {
@@ -267,7 +267,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 }
                 recent.forEach { q ->
                     SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
-                        Icon(Icons.Filled.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
                     })
                 }
                 if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
@@ -283,7 +283,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             var sortMenu by remember { mutableStateOf(false) }
             var groupMenu by remember { mutableStateOf(false) }
             Box {
-                ToolChip(f.sort.label, Icons.AutoMirrored.Filled.Sort, { sortMenu = true })
+                ToolChip(f.sort.label, Icons.AutoMirrored.Outlined.Sort, { sortMenu = true })
                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                     SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
                         DropdownMenuItem(
@@ -294,7 +294,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 }
             }
             Box {
-                ToolChip(if (f.group == GroupBy.NONE) "Group" else f.group.label, Icons.AutoMirrored.Filled.FormatListBulleted, { groupMenu = true }, active = f.group != GroupBy.NONE)
+                ToolChip(if (f.group == GroupBy.NONE) "Group" else f.group.label, Icons.AutoMirrored.Outlined.FormatListBulleted, { groupMenu = true }, active = f.group != GroupBy.NONE)
                 DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
                     GroupBy.entries.forEach { g ->
                         DropdownMenuItem(
@@ -305,10 +305,10 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 }
             }
             BadgedBox(badge = { if (f.activeCount > 0) Badge(containerColor = Palette.Accent) { Text("${f.activeCount}") } }) {
-                ToolChip("Filters", Icons.Filled.FilterAlt, { showFilters = true }, active = f.activeCount > 0)
+                ToolChip("Filters", Icons.Outlined.FilterAlt, { showFilters = true }, active = f.activeCount > 0)
             }
             if (f.query.isNotBlank() || f.activeCount > 0) {
-                ToolChip("Save search", Icons.Filled.StarBorder, { savingSearch = true })
+                ToolChip("Save search", Icons.Outlined.StarBorder, { savingSearch = true })
             }
         }
 
@@ -367,13 +367,13 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm
         Modifier.fillMaxWidth().background(Palette.Surface).padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = vm::clearSelection) { Icon(Icons.Filled.Close, "Stop picking") }
+        IconButton(onClick = vm::clearSelection) { Icon(Icons.Outlined.Close, "Stop picking") }
         Text(
             if (value != null) "$count selected · ${formatUsd(value)}" else "$count selected",
             style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = vm::selectAll) { Icon(Icons.Filled.SelectAll, "Select all") }
+        IconButton(onClick = vm::selectAll) { Icon(Icons.Outlined.SelectAll, "Select all") }
         Box {
-            IconButton(onClick = { moveMenu = true }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "Move to box") }
+            IconButton(onClick = { moveMenu = true }) { Icon(Icons.AutoMirrored.Outlined.DriveFileMove, "Move to box") }
             DropdownMenu(expanded = moveMenu, onDismissRequest = { moveMenu = false }) {
                 boxes.forEach { b ->
                     DropdownMenuItem(
@@ -387,23 +387,23 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm
                     decks.forEach { d ->
                         DropdownMenuItem(
                             text = { Text(d.name) },
-                            leadingIcon = { Icon(Icons.Filled.Style, null, tint = Palette.Icon) },
+                            leadingIcon = { Icon(Icons.Outlined.Style, null, tint = Palette.Icon) },
                             onClick = { moveMenu = false; vm.moveSelectedToDeck(d.id) },
                         )
                     }
                 }
             }
         }
-        IconButton(onClick = vm::deleteSelected) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
+        IconButton(onClick = vm::deleteSelected) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
         Box {
-            IconButton(onClick = { more = true }) { Icon(Icons.Filled.MoreVert, "More") }
+            IconButton(onClick = { more = true }) { Icon(Icons.Outlined.MoreVert, "More") }
             DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                 DropdownMenuItem(
-                    text = { Text("Add a tag") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
+                    text = { Text("Add a tag") }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, null) },
                     onClick = { more = false; onTag() },
                 )
                 DropdownMenuItem(
-                    text = { Text("For sale") }, leadingIcon = { Icon(Icons.Filled.Sell, null) },
+                    text = { Text("For sale") }, leadingIcon = { Icon(Icons.Outlined.Sell, null) },
                     onClick = { more = false; vm.sellSelected() },
                 )
                 DropdownMenuItem(text = { Text(if (count == 1) "Copy name" else "Copy names") }, onClick = { more = false; onCopy() })
@@ -532,7 +532,7 @@ fun BoxPickerDialog(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPickDeck(d.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.Style, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.Style, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(10.dp))
                             Text(d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
@@ -581,7 +581,7 @@ fun SearchField(
         modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
@@ -600,7 +600,7 @@ fun SearchField(
             )
         }
         if (value.isNotEmpty()) {
-            Icon(Icons.Filled.Clear, "Clear", tint = Palette.Icon, modifier = Modifier.size(20.dp).clickable { onChange("") })
+            Icon(Icons.Outlined.Clear, "Clear", tint = Palette.Icon, modifier = Modifier.size(20.dp).clickable { onChange("") })
         }
         trailing?.invoke()
     }
@@ -779,13 +779,13 @@ private fun SwipeRow(onMove: () -> Unit, onSell: () -> Unit, content: @Composabl
                 horizontalArrangement = if (toEnd) Arrangement.Start else Arrangement.End,
             ) {
                 if (toEnd) {
-                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null, tint = Palette.AccentText)
+                    Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null, tint = Palette.AccentText)
                     Spacer(Modifier.width(8.dp))
                     Text("Move", color = Palette.AccentText)
                 } else {
                     Text("Sell", color = Palette.Gold)
                     Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Filled.Sell, null, tint = Palette.Gold)
+                    Icon(Icons.Outlined.Sell, null, tint = Palette.Gold)
                 }
             }
         },
@@ -1003,7 +1003,7 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                 saved.forEach { sv ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(sv.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).clickable { vm.applySaved(sv); onDismiss() }.padding(vertical = 8.dp))
-                        IconButton(onClick = { vm.deleteSaved(sv.name) }) { Icon(Icons.Filled.DeleteOutline, "Delete saved search", tint = Palette.Icon) }
+                        IconButton(onClick = { vm.deleteSaved(sv.name) }) { Icon(Icons.Outlined.DeleteOutline, "Delete saved search", tint = Palette.Icon) }
                     }
                 }
             }

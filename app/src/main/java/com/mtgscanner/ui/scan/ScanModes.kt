@@ -27,22 +27,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.CollectionsBookmark
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Sell
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.GridOn
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.CollectionsBookmark
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.ViewModule
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -92,65 +93,65 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             contentAlignment = Alignment.Center,
         ) {
             val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.target != ScanTarget.COLLECTION
-            Icon(Icons.Filled.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
+            Icon(Icons.Outlined.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             val target = INTO.firstOrNull { it.target == state.target }
             DropdownMenuItem(
                 text = { ModeText("Scan into", if (state.target == ScanTarget.BOX) "Box check" else target?.label.orEmpty()) },
-                leadingIcon = { Icon(target?.icon ?: Icons.Filled.Checklist, null, tint = if (state.target != ScanTarget.COLLECTION) Palette.Gold else Palette.Text) },
+                leadingIcon = { Icon(target?.icon ?: Icons.Outlined.Checklist, null, tint = if (state.target != ScanTarget.COLLECTION) Palette.Gold else Palette.Text) },
                 onClick = { open = false; into = true },
             )
             DropdownMenuItem(
                 text = { if (state.stack) ModeText("Stop stack mode", "Back to normal") else ModeText("Stack mode", "Hands-free, beeps on each card") },
-                leadingIcon = { Icon(Icons.Filled.Layers, null, tint = if (state.stack) Palette.Gold else Palette.Text) },
+                leadingIcon = { Icon(Icons.Outlined.Layers, null, tint = if (state.stack) Palette.Gold else Palette.Text) },
                 onClick = { open = false; vm.setStack(!state.stack) },
             )
             if (state.boxCheck == null) DropdownMenuItem(
                 text = { ModeText("Box check", "Scan a box, see what's missing") },
-                leadingIcon = { Icon(Icons.Filled.Checklist, null) },
+                leadingIcon = { Icon(Icons.Outlined.Checklist, null) },
                 onClick = { open = false; vm.showBoxPick(true) },
             ) else {
                 DropdownMenuItem(
                     text = { ModeText("Box check result", state.boxCheck.boxName) },
-                    leadingIcon = { Icon(Icons.Filled.Checklist, null, tint = Palette.Accent) },
+                    leadingIcon = { Icon(Icons.Outlined.Checklist, null, tint = Palette.Accent) },
                     onClick = { open = false; vm.showBoxCheck(true) },
                 )
                 DropdownMenuItem(
                     text = { ModeText("End box check", "Clears the scanned list") },
-                    leadingIcon = { Icon(Icons.Filled.Close, null) },
+                    leadingIcon = { Icon(Icons.Outlined.Close, null) },
                     onClick = { open = false; vm.endBoxCheck() },
                 )
             }
             if (state.sort == null) DropdownMenuItem(
                 text = { ModeText("Sort a pile", "Scan all, then file by box") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null) },
                 onClick = { open = false; vm.startSort() },
             ) else {
                 DropdownMenuItem(
                     text = { ModeText("Sort now", "See stacks by box") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Accent) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Accent) },
                     onClick = { open = false; vm.showSort(true) },
                 )
                 DropdownMenuItem(
                     text = { ModeText("Stop sorting", "Cards stay in their boxes") },
-                    leadingIcon = { Icon(Icons.Filled.Close, null) },
+                    leadingIcon = { Icon(Icons.Outlined.Close, null) },
                     onClick = { open = false; vm.endSort() },
                 )
             }
             if (state.pack == null) DropdownMenuItem(
                 text = { ModeText("Open a pack", "Running total as you scan") },
-                leadingIcon = { Icon(Icons.Filled.Inventory2, null) },
+                leadingIcon = { Icon(Icons.Outlined.Inventory2, null) },
                 onClick = { open = false; vm.showPackStart(true) },
             ) else {
                 DropdownMenuItem(
                     text = { ModeText("Finish pack", "Cards stay added") },
-                    leadingIcon = { Icon(Icons.Filled.CheckCircle, null, tint = Palette.Accent) },
+                    leadingIcon = { Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Accent) },
                     onClick = { open = false; vm.finishPack() },
                 )
                 DropdownMenuItem(
                     text = { ModeText("Stop pack mode", "Cards stay added") },
-                    leadingIcon = { Icon(Icons.Filled.Close, null) },
+                    leadingIcon = { Icon(Icons.Outlined.Close, null) },
                     onClick = { open = false; vm.cancelPack() },
                 )
             }
@@ -159,7 +160,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                     if (state.pageMode) ModeText("Back to single cards", "One card at a time")
                     else ModeText("Many cards at once", "Binder page or a photo")
                 },
-                leadingIcon = { Icon(Icons.Filled.GridOn, null, tint = if (state.pageMode) Palette.Gold else Palette.Text) },
+                leadingIcon = { Icon(Icons.Outlined.GridOn, null, tint = if (state.pageMode) Palette.Gold else Palette.Text) },
                 onClick = { open = false; vm.setPageMode(!state.pageMode) },
             )
         }
@@ -190,10 +191,10 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
 private class IntoChoice(val target: ScanTarget, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val INTO = listOf(
-    IntoChoice(ScanTarget.COLLECTION, "Collection", Icons.Filled.CollectionsBookmark),
-    IntoChoice(ScanTarget.DECK, "Deck", Icons.Filled.Style),
-    IntoChoice(ScanTarget.CHECK, "Just check", Icons.Filled.Sell),
-    IntoChoice(ScanTarget.REMOVE, "Remove", Icons.Filled.RemoveCircleOutline),
+    IntoChoice(ScanTarget.COLLECTION, "Collection", Icons.Outlined.CollectionsBookmark),
+    IntoChoice(ScanTarget.DECK, "Deck", Icons.Outlined.Style),
+    IntoChoice(ScanTarget.CHECK, "Just check", Icons.Outlined.Sell),
+    IntoChoice(ScanTarget.REMOVE, "Remove", Icons.Outlined.RemoveCircleOutline),
 )
 
 /** Picks the deck list that scanned cards go to, or makes a new one. */
@@ -318,7 +319,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
             TextButton(onClick = vm::cancelCapture) { Text("Cancel", color = Color.White) }
         }
         else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            GradientButton("Capture page", vm::capturePage, Modifier.weight(1f), icon = Icons.Filled.GridOn)
+            GradientButton("Capture page", vm::capturePage, Modifier.weight(1f), icon = Icons.Outlined.GridOn)
             Spacer(Modifier.width(8.dp))
             Row(
                 Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
@@ -326,7 +327,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
                     .padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.PhotoLibrary, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.PhotoLibrary, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Photo", color = Color.White, style = MaterialTheme.typography.labelLarge)
             }

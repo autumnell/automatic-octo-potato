@@ -24,12 +24,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -175,13 +175,13 @@ fun GoalsScreen(
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (open != null) openId = -1L else onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            IconButton(onClick = { if (open != null) openId = -1L else onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text(
                 open?.goal?.name ?: "Goals", style = MaterialTheme.typography.headlineSmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
-            if (open == null) IconButton(onClick = { adding = true }) { Icon(Icons.Filled.Add, "Add goal") }
-            else IconButton(onClick = { vm.delete(open.goal); openId = -1L }) { Icon(Icons.Filled.DeleteOutline, "Delete goal") }
+            if (open == null) IconButton(onClick = { adding = true }) { Icon(Icons.Outlined.Add, "Add goal") }
+            else IconButton(onClick = { vm.delete(open.goal); openId = -1L }) { Icon(Icons.Outlined.DeleteOutline, "Delete goal") }
         }
         val list = goals
         when {
@@ -218,7 +218,7 @@ fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 when {
-                    p.error -> Icon(Icons.Filled.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                    p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
                     !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
                     else -> Text(
                         "${p.have}/${p.total}", style = MaterialTheme.typography.labelLarge,
@@ -265,7 +265,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                     }
                 }
                 TextButton(onClick = { vm.wishlistAll(p.missing) }) {
-                    Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Wishlist all")
                 }
@@ -291,7 +291,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                     Spacer(Modifier.width(8.dp))
                 }
                 Icon(
-                    if (isWished) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    if (isWished) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                     null,
                     tint = if (isWished) Palette.AccentText else Palette.Icon,
                     modifier = Modifier.size(20.dp),

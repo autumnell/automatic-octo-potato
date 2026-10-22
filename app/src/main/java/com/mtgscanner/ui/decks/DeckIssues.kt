@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,7 +52,7 @@ fun DeckIssuesLine(issues: CommanderRules.Issues) {
     if (issues.isEmpty) return
     var open by remember { mutableStateOf(false) }
     Row(Modifier.clickable { open = true }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.Warning, null, tint = Palette.Danger, modifier = Modifier.size(14.dp))
+        Icon(Icons.Outlined.Warning, null, tint = Palette.Danger, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(4.dp))
         Text(DeckIssueText.count(issues.count), style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
     }

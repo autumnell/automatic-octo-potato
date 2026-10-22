@@ -26,10 +26,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -237,7 +237,7 @@ private fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (In
                         .background(if (n == step) Palette.Accent else if (done) Palette.Accent.copy(alpha = 0.25f) else Palette.SurfaceHigh),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (done) Icon(Icons.Filled.Check, null, tint = Palette.AccentText, modifier = Modifier.size(14.dp))
+                    if (done) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(14.dp))
                     else Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = if (n == step) Palette.OnAccent else Palette.Muted)
                 }
                 Spacer(Modifier.width(6.dp))
@@ -351,7 +351,7 @@ private fun DetailsStep(draft: BoxDraft, onChange: (BoxDraft) -> Unit) {
                         .border(if (selected) 3.dp else 0.dp, if (selected) Palette.Text else Color.Transparent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (selected) Icon(Icons.Filled.Check, null, tint = if (fill.luminance() > 0.45f) Color(0xFF141414) else Color.White, modifier = Modifier.size(18.dp))
+                    if (selected) Icon(Icons.Outlined.Check, null, tint = if (fill.luminance() > 0.45f) Color(0xFF141414) else Color.White, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -571,7 +571,7 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
                     Text(title, style = MaterialTheme.typography.titleSmall)
                     Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.AccentText else Palette.Muted, maxLines = 1)
                 }
-                Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Icon)
+                Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Icon)
             }
             AnimatedVisibility(expanded) {
                 Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) { content() }
@@ -621,7 +621,7 @@ private fun LivePreview(rules: BoxRules, editingId: Long?) {
                 Spacer(Modifier.height(10.dp))
                 val names = result.takenBy.take(3).joinToString(", ") { (b, idx) -> "${b.name} (${idx.sumOf { all[it].quantity }})" }
                 Row(verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Filled.Warning, null, tint = Palette.Gold, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Warning, null, tint = Palette.Gold, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "$takenCount of these go to $names first, because ${if (result.takenBy.size == 1) "that box is" else "those boxes are"} checked " +

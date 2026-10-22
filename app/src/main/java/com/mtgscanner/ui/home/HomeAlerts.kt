@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +67,7 @@ internal fun AlertsList(rows: List<AlertRow>, onOpenCard: (Long) -> Unit) {
                     val gone = r.alert
                     CardAlertStore.remove(ctx, gone.key)
                     Undo.offer("Alert removed") { CardAlertStore.put(ctx, gone) }
-                }) { Icon(Icons.Filled.DeleteOutline, "Delete alert", tint = Palette.Icon) }
+                }) { Icon(Icons.Outlined.DeleteOutline, "Delete alert", tint = Palette.Icon) }
             }
         }
     }

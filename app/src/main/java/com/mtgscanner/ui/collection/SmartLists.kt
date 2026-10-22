@@ -13,7 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -81,7 +81,7 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
                     Text(l.search.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${l.cards} cards${priceSuffix(l.value)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                 }
-                IconButton(onClick = { onDelete(l.search) }) { Icon(Icons.Filled.DeleteOutline, "Delete list", tint = Palette.Icon) }
+                IconButton(onClick = { onDelete(l.search) }) { Icon(Icons.Outlined.DeleteOutline, "Delete list", tint = Palette.Icon) }
             }
         }
     }

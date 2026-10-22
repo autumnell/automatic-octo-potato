@@ -23,9 +23,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,9 +52,9 @@ object Tour {
 private data class TourPage(val icon: ImageVector, val title: String, val body: String)
 
 private val PAGES = listOf(
-    TourPage(Icons.Filled.Inventory2, "Make a box", "One for each real box or binder. Add rules, or let it take anything."),
-    TourPage(Icons.Filled.CameraAlt, "Scan", "Hold a card up. The app says which box it goes in."),
-    TourPage(Icons.Filled.Search, "Find a card", "Search your collection to see which box it's in."),
+    TourPage(Icons.Outlined.Inventory2, "Make a box", "One for each real box or binder. Add rules, or let it take anything."),
+    TourPage(Icons.Outlined.CameraAlt, "Scan", "Hold a card up. The app says which box it goes in."),
+    TourPage(Icons.Outlined.Search, "Find a card", "Search your collection to see which box it's in."),
 )
 
 /** Three swipeable pages shown on first launch. Can be shown again from Settings. */
