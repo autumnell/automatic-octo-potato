@@ -207,6 +207,9 @@ fun ScanScreen(
         }
         onDispose { VolumeKeys.handler = null }
     }
+    // Face down on the table: pause, and pick back up where it left off when lifted.
+    var faceDown by remember { mutableStateOf(false) }
+    if (hasPermission) FaceDownPause(state.paused, onPause = vm::togglePause, onResume = vm::togglePause, onFaceDown = { faceDown = it })
     val hintTargets = remember { mutableStateMapOf<String, Rect>() }
     // Lines added since the screen opened slide into the pile; older ones are already there.
     val startKey = remember { state.session.maxOfOrNull { it.key } ?: 0L }
@@ -311,6 +314,13 @@ fun ScanScreen(
                             RemoveChip(state, vm)
                         }
                         BoxCallout(state, addTick, Modifier.align(Alignment.Center))
+                        if (faceDown && state.paused) Text(
+                            "Paused",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(Corners.Medium))
+                                .background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
                         Column(
                             Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
                             horizontalAlignment = Alignment.End,
