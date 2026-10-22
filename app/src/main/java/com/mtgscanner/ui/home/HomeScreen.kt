@@ -224,7 +224,12 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val tiles: StateFlow<TileData> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeWishlist(), searches.saved) { all, boxes, wish, saved ->
         TileData(
             values = TileMath.counts(all, boxes.size, wish.sumOf { it.wanted }, System.currentTimeMillis()),
-            lists = saved.associate { s -> s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters) }.sumOf { it.quantity } },
+            lists = run {
+                // box: in a saved search needs the box names.
+                val boxNames = boxes.associate { it.id to it.name }
+                val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] })
+                saved.associate { s -> s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters, null, env) }.sumOf { it.quantity } }
+            },
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TileData())
 

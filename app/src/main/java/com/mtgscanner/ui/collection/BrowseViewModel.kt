@@ -45,6 +45,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.catch
 import com.mtgscanner.data.db.nearMintPrice
 import java.time.LocalDate
+import com.mtgscanner.data.LoanMath
+import com.mtgscanner.data.ScryfallQueryException
+import com.mtgscanner.data.observeLoans
+import com.mtgscanner.data.search.ScryfallQuery
+import com.mtgscanner.data.search.ScryfallQueryCache
+import com.mtgscanner.data.search.RemoteAsk
+import com.mtgscanner.data.search.SearchEnv
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collectLatest
 
 @Serializable
 enum class SortBy(val label: String) {
@@ -119,6 +128,8 @@ data class BrowseUi(
     val pocketPerCopy: Boolean = false,
     /** How the box is laid out inside. */
     val layout: BoxLayout = BoxLayout(),
+    /** A short line under the search box about Scryfall syntax: read as text, waiting on Scryfall… */
+    val searchNote: String? = null,
 )
 
 /** The card list for one box, or the whole collection when [boxId] is -1. */
@@ -269,8 +280,18 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         if (f.query != lastQuery) { lastQuery = f.query; 150L } else 0L
     }
 
-    val ui: StateFlow<BrowseUi> = combine(scope, applied) { sc, f ->
-        val hits = sc.inScope.indices.filter { matches(sc.inScope[it], f, sc.hay[it]) }
+    /** Bumped when Scryfall answers part of a search, so the list is worked out again. */
+    private val remoteTick = MutableStateFlow(0)
+
+    private val loans = repo.observeLoans().catch { emit(emptyList()) }
+
+    val ui: StateFlow<BrowseUi> = combine(scope, applied, loans, remoteTick) { sc, f, loanList, _ ->
+        val compiled = ScryfallQuery.compile(f.query)
+        val env = if (compiled.plain != null) null else {
+            val boxNames = sc.boxes.associate { it.id to it.name }
+            SearchEnv(boxName = { boxNames[it] }, lent = LoanMath.outByRow(loanList, sc.all).keys)
+        }
+        val hits = sc.inScope.indices.filter { matches(sc.inScope[it], f, sc.hay[it], env) }
         // Name order uses the keys worked out once per card, not once per comparison.
         val shown = if (f.sort == SortBy.NAME) hits.sortedBy { sc.nameKeys[it] }.map { sc.inScope[it] }
         else hits.map { sc.inScope[it] }.sortedWith(comparator(f.sort))
@@ -308,6 +329,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             unslotted = if (binder) Binder.numberSlots(sc.inScope, { it.id }, { it.name }, { it.binderSlot }, { Binder.span(it.quantity, perCopy) }).size else 0,
             pocketPerCopy = perCopy,
             layout = layout,
+            searchNote = searchNote(compiled),
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
 
@@ -357,12 +379,50 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         viewModelScope.launch {
             _filters.map { it.query }.distinctUntilChanged().debounce(1500).collect { searches.addRecent(it) }
         }
+        // Search terms only Scryfall can answer (f:, otag:…) are asked once the typing stops.
+        viewModelScope.launch {
+            _filters.map { ScryfallQuery.compile(it.query).asks.map { a -> a.first }.distinct() }
+                .distinctUntilChanged().debounce(600)
+                .collectLatest { asks -> asks.forEach { askScryfall(it) } }
+        }
         // Remember the filters (not the search words) for next time, unless opened from a list or Home.
         if (!launched) viewModelScope.launch {
             _filters.map { it.copy(query = "") }.distinctUntilChanged().drop(1).debounce(400).collect { f ->
                 try { prefs?.edit()?.putString(stickyKey, json.encodeToString(Filters.serializer(), f))?.apply() } catch (e: Exception) { }
             }
         }
+    }
+
+    /**
+     * Asks Scryfall for one part of a search, up to 10 pages, unless it's already answered. Scryfall's own
+     * pause between requests is kept by [com.mtgscanner.data.ScryfallApi].
+     */
+    private suspend fun askScryfall(a: RemoteAsk) {
+        if (ScryfallQueryCache.state(a) is ScryfallQueryCache.State.Done) return
+        ScryfallQueryCache.put(a, ScryfallQueryCache.State.Loading)
+        remoteTick.update { it + 1 }
+        val result = try {
+            val keys = HashSet<String>()
+            var page = 1
+            var partial = false
+            while (true) {
+                val list = repo.api.searchPage(a.query, order = "name", page = page, unique = if (a.prints) "prints" else "cards")
+                list.data.forEach { keys += ScryfallQueryCache.keysOf(it.oracleId, it.name, it.set, it.collectorNumber, a.prints) }
+                if (!list.hasMore) break
+                if (page >= MAX_PAGES) { partial = true; break }
+                page++
+            }
+            ScryfallQueryCache.State.Done(keys, partial)
+        } catch (e: CancellationException) {
+            ScryfallQueryCache.remove(a)
+            throw e
+        } catch (e: ScryfallQueryException) {
+            ScryfallQueryCache.State.Failed(e.message)
+        } catch (e: Exception) {
+            ScryfallQueryCache.State.Failed(null)
+        }
+        ScryfallQueryCache.put(a, result)
+        remoteTick.update { it + 1 }
     }
 
     /** Where a card sits: its box, divider and neighbors, or binder page and slot. */
@@ -501,11 +561,35 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
 
         fun matches(c: CollectionCard, f: Filters): Boolean = matches(c, f, null)
 
-        /** [hay] is the card's [searchText], when already worked out. */
-        fun matches(c: CollectionCard, f: Filters, hay: String?): Boolean {
+        /** Scryfall pages read for one search term; 175 cards each. */
+        private const val MAX_PAGES = 10
+
+        /** The line under the search box for [q], or null when there's nothing to say. */
+        fun searchNote(q: com.mtgscanner.data.search.CompiledQuery): String? {
+            if (q.invalid) return "Searched as plain text"
+            val states = q.asks.map { (a, label) -> label to ScryfallQueryCache.state(a) }
+            val bad = states.filter { it.second is ScryfallQueryCache.State.Failed }
+            return when {
+                bad.any { (it.second as ScryfallQueryCache.State.Failed).message != null } ->
+                    "Scryfall can't read " + bad.map { it.first }.distinct().joinToString(", ")
+                bad.isNotEmpty() -> "Needs Scryfall for " + bad.map { it.first }.distinct().joinToString(", ")
+                states.any { it.second == null || it.second is ScryfallQueryCache.State.Loading } -> "Checking Scryfall…"
+                states.any { (it.second as? ScryfallQueryCache.State.Done)?.partial == true } -> "Too many Scryfall hits; some left out"
+                else -> null
+            }
+        }
+
+        /**
+         * [hay] is the card's [searchText], when already worked out. Plain words search it as before; Scryfall
+         * syntax (t:elf c:g, box:, tag:…) is read by [ScryfallQuery], with [env] for box names, loans and Scryfall's answers.
+         */
+        fun matches(c: CollectionCard, f: Filters, hay: String?, env: SearchEnv? = null): Boolean {
             if (f.query.isNotBlank()) {
-                val q = f.query.trim().lowercase()
-                if (!(hay ?: searchText(c)).contains(q)) return false
+                val q = ScryfallQuery.compile(f.query)
+                val plain = q.plain
+                if (plain != null) {
+                    if (!(hay ?: searchText(c)).contains(plain)) return false
+                } else if (!q.matches(c, env ?: SearchEnv())) return false
             }
             if (f.colors.isNotEmpty() && !CardColors.matches(f.colors, f.colorMatch, if (f.byIdentity) c.colorIdentity else c.colors)) return false
             if (f.rarities.isNotEmpty() && c.rarity !in f.rarities) {

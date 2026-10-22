@@ -300,8 +300,11 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     // Smart lists: saved Browse searches that update themselves
 
     private val searches = SavedSearchStore(repo.appContext)
-    val lists: StateFlow<List<SmartList>> = combine(repo.observeAll(), searches.saved) { all, saved ->
-        saved.map { s -> SmartList.of(s, all) }
+    val lists: StateFlow<List<SmartList>> = combine(repo.observeAll(), searches.saved, repo.observeBoxes()) { all, saved, boxes ->
+        // box: in a saved search needs the box names.
+        val boxNames = boxes.associate { it.id to it.name }
+        val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] })
+        saved.map { s -> SmartList.of(s, all, env) }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun deleteList(s: SavedSearch) {
