@@ -282,6 +282,8 @@ fun HomeScreen(
     onGoals: () -> Unit = {},
     /** Opens collection stats (value by set, color, rarity). */
     onStats: () -> Unit = {},
+    /** Opens a set's page (new set offer). */
+    onOpenSet: (String) -> Unit = {},
     vm: HomeViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ctx = LocalContext.current
@@ -367,6 +369,10 @@ fun HomeScreen(
         HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
         Spacer(Modifier.height(12.dp))
         com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
+        if (ui.loaded && ui.totalCards > 0) {
+            BoxCheckNudge(onCheck = { id -> com.mtgscanner.util.OpenRequests.boxCheck.value = id; onScan() })
+            NewSetOffer(onOpenSet)
+        }
 
         if (ui.loaded && ui.totalCards == 0) {
             if (ui.boxCount == 0) EmptyState("Start with a box", action = "Make a box", onAction = onCollection)

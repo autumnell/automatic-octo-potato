@@ -1677,6 +1677,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Starts checking a real box against what the app has in it. */
     fun startBoxCheck(box: Box) {
+        // For the "not checked in 3 months" nudge.
+        com.mtgscanner.data.BoxPrefs.markChecked(repo.appContext, box.id)
         changeMode {
             it.copy(
                 target = ScanTarget.BOX, deck = null, showBoxPick = false, current = null, awaiting = false, owned = null,

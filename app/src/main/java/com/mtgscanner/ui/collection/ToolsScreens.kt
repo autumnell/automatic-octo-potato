@@ -334,7 +334,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     val sets by vm.sets.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val variants by vm.includeVariants.collectAsStateWithLifecycle()
-    var show by remember { mutableStateOf("all") }
+    var show by remember { mutableStateOf(if (SetLaunch.takeMissing()) "missing" else "all") }
     var query by remember { mutableStateOf("") }
     var grid by remember { mutableStateOf(true) }
     var confirmWish by remember { mutableStateOf(false) }
