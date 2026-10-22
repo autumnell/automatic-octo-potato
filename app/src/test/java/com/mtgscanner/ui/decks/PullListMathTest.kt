@@ -79,4 +79,58 @@ class PullListMathTest {
         assertEquals(emptyList<Pair<Long, Int>>(), p.movesFor(setOf(boltKey), deckBoxId = 1))
         assertEquals(emptyList<Pair<Long, Int>>(), p.movesFor(emptySet()))
     }
+
+    // Decks hold cards: this deck's row (id 9) and another deck's (id 10) come after the boxes.
+    private val places = boxes + listOf(
+        Box(id = 9, name = "Burn", kind = "deck", deckId = 70),
+        Box(id = 10, name = "Mono Red", kind = "deck", deckId = 71),
+    )
+
+    @Test
+    fun copiesKeptInTheDeckAreInPlaceAndOtherDecksGoLast() {
+        val cards = listOf(
+            card("Lightning Bolt", 9, qty = 2),
+            card("Lightning Bolt", 10, qty = 1, price = 0.1),
+            card("Lightning Bolt", 1, qty = 1, price = 5.0),
+            card("Shock", 10, qty = 1),
+        )
+        val lines = listOf(DeckLine(4, "Lightning Bolt"), DeckLine(1, "Shock"))
+        val p = PullListMath.build(lines, cards, places, "Burn deck", deckSlotId = 9)
+        assertEquals(2, p.inDeckBox)
+        // Boxes first, even when another deck's copy is cheaper; that deck is named as one.
+        assertEquals(listOf("Bulk", "Deck: Mono Red"), p.groups.map { it.boxName })
+        assertEquals(1, p.groups[0].items.single().qty)
+        assertEquals(2, p.groups[1].items.sumOf { it.qty })
+        assertEquals(3, p.toPull)
+        // Without the deck's own row (a deck that never held cards) nothing is in place.
+        assertEquals(0, PullListMath.build(lines, cards, places, "Burn deck").inDeckBox)
+    }
+
+    @Test
+    fun commanderComesFirst() {
+        val atraxa = card("Atraxa, Praetors' Voice", 2)
+        val sol = card("Sol Ring", 1)
+        val lines = listOf(
+            DeckLine(1, "Sol Ring"), DeckLine(1, "Atraxa, Praetors' Voice", section = "Commander"),
+            DeckLine(1, "Yorion, Sky Nomad", section = "Companion"), DeckLine(1, "Arcane Signet"),
+        )
+        val p = PullListMath.build(lines, listOf(atraxa, sol), boxes, "Atraxa")
+        val (leads, rest) = PullListMath.splitLeads(p, listOf("Atraxa, Praetors' Voice", "Yorion, Sky Nomad"), DeckNames::key)
+        assertEquals(listOf("Binder" to "Atraxa, Praetors' Voice"), leads.items.map { (box, it) -> box to it.name })
+        assertEquals(listOf(PullMissing("Yorion, Sky Nomad", 1)), leads.missing)
+        // The Binder group held only the commander, so it's gone from the rest.
+        assertEquals(listOf("Bulk"), rest.groups.map { it.boxName })
+        assertEquals(listOf("Arcane Signet"), rest.missing.map { it.name })
+        // No leads: nothing moves.
+        assertEquals(p, PullListMath.splitLeads(p, emptyList(), DeckNames::key).second)
+    }
+
+    @Test
+    fun leadsFirstKeepsLeadOrder() {
+        val names = listOf("Sol Ring", "Tymna the Weaver", "Arcane Signet", "Thrasios, Triton Hero")
+        val (leads, rest) = PullListMath.leadsFirst(names, listOf("Thrasios, Triton Hero", "Tymna the Weaver"), { it }, DeckNames::key)
+        assertEquals(listOf("Thrasios, Triton Hero", "Tymna the Weaver"), leads)
+        assertEquals(listOf("Sol Ring", "Arcane Signet"), rest)
+        assertEquals(emptyList<String>() to names, PullListMath.leadsFirst(names, emptyList(), { it }, DeckNames::key))
+    }
 }

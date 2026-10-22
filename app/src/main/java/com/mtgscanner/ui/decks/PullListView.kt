@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -95,8 +96,10 @@ fun PullListView(
     checked: Set<String>,
     onToggle: (String) -> Unit,
     onClear: () -> Unit,
-    /** Files the checked cards into the deck's box. */
+    /** Moves the checked cards into the deck. */
     onMoveChecked: (() -> Unit)? = null,
+    /** A commander deck's commanders (and companion, signature spell), listed first. */
+    leads: List<String> = emptyList(),
 ) {
     if (list == null) {
         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
@@ -104,6 +107,7 @@ fun PullListView(
     }
     val total = list.toPull
     val done = list.groups.sumOf { g -> g.items.filter { it.key in checked }.sumOf { it.qty } }
+    val (first, rest) = PullListMath.splitLeads(list, leads, DeckNames::key)
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -113,7 +117,7 @@ fun PullListView(
                         style = MaterialTheme.typography.titleMedium,
                     )
                     if (list.inDeckBox > 0) {
-                        Text("${list.inDeckBox} already in deck box", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        Text("${list.inDeckBox} already in the deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
                 }
                 if (checked.isNotEmpty()) TextButton(onClick = onClear) { Text("Clear") }
@@ -126,33 +130,43 @@ fun PullListView(
                 ) {
                     Icon(Icons.Filled.Style, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Move checked to deck box")
+                    Text("Move checked to deck")
                 }
             }
         }
-        for (g in list.groups) {
+        if (!first.isEmpty) {
+            item(key = "leads") { SectionHeader("Commander") }
+            items(first.items, key = { "l" + it.second.key }) { (box, p) -> PullRow(p, p.key in checked, where = box) { onToggle(p.key) } }
+            items(first.missing, key = { "lm" + it.name }) { m -> MissingRow(m, note = "Missing") }
+            item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
+        }
+        for (g in rest.groups) {
             item(key = "b${g.boxId}") { SectionHeader("${g.boxName} (${g.items.sumOf { it.qty }})") }
             items(g.items, key = { "i" + it.key }) { p -> PullRow(p, p.key in checked) { onToggle(p.key) } }
         }
-        if (list.missing.isNotEmpty()) {
-            item(key = "missing") { SectionHeader("Missing (${list.missing.sumOf { it.qty }})") }
-            items(list.missing, key = { "m" + it.name }) { m ->
-                Text(
-                    "${m.qty}× ${m.name}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Palette.Muted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
-                )
-            }
+        if (rest.missing.isNotEmpty()) {
+            item(key = "missing") { SectionHeader("Missing (${rest.missing.sumOf { it.qty }})") }
+            items(rest.missing, key = { "m" + it.name }) { m -> MissingRow(m) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
 @Composable
-private fun PullRow(p: PullItem, ticked: Boolean, onToggle: () -> Unit) {
+private fun MissingRow(m: PullMissing, note: String? = null) {
+    Text(
+        "${m.qty}× ${m.name}" + (note?.let { " · $it" } ?: ""),
+        style = MaterialTheme.typography.titleSmall,
+        color = Palette.Muted,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+    )
+}
+
+/** [where] names the box, for rows listed outside their box's group. */
+@Composable
+private fun PullRow(p: PullItem, ticked: Boolean, where: String? = null, onToggle: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 8.dp, end = 16.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -170,6 +184,7 @@ private fun PullRow(p: PullItem, ticked: Boolean, onToggle: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             val bits = buildList {
+                where?.let { add(it) }
                 add("${p.setCode.uppercase()} ${p.collectorNumber}".trim())
                 if (p.foil) add("Foil")
                 if (p.proxy) add("Proxy")

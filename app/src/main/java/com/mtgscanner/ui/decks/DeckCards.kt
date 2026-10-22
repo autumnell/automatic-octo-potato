@@ -17,6 +17,8 @@ data class DeckCardInfo(
     val colorIdentity: String,
     val oracleText: String,
     val imageUrl: String?,
+    /** Scryfall's link to the card on EDHREC; null when not looked up there. */
+    val edhrec: String? = null,
 )
 
 object DeckNames {
@@ -69,7 +71,7 @@ suspend fun CollectionRepository.deckCardInfo(names: Collection<String>): Map<St
                 val info = DeckCardInfo(
                     name = c.name, cmc = c.cmc, manaCost = c.effectiveManaCost, typeLine = c.effectiveTypeLine,
                     colors = c.effectiveColors.joinToString(""), colorIdentity = c.colorIdentity.joinToString(""),
-                    oracleText = c.effectiveOracleText, imageUrl = c.imageUrl,
+                    oracleText = c.effectiveOracleText, imageUrl = c.imageUrl, edhrec = c.relatedUris["edhrec"],
                 )
                 val k = DeckNames.key(n)
                 cardCache[k] = info

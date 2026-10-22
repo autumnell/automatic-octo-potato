@@ -22,6 +22,18 @@ class BackupCodecTest {
     private fun encode(b: Backup) = ByteArrayOutputStream().also { BackupCodec.encode(b, it) }.toByteArray()
     private fun decode(text: String) = BackupCodec.decode(ByteArrayInputStream(text.toByteArray()))
 
+    @Test fun deckCardsRowRoundTripsAndOldBoxesHaveNone() {
+        val b = Backup(
+            version = Backup.CURRENT, exportedAt = 1,
+            boxes = listOf(Box(id = 1, name = "Red", createdAt = 5), Box(id = 2, name = "Atraxa", kind = "deck", createdAt = 6, deckId = 4)),
+            cards = listOf(card.copy(boxId = 2)),
+        )
+        assertEquals(b, BackupCodec.decode(ByteArrayInputStream(encode(b))))
+        // Saved before decks held cards: no deckId, so every box is a box.
+        val old = decode("""{"version":3,"exportedAt":1,"boxes":[{"id":1,"name":"Burn","kind":"deck","createdAt":5}],"cards":[]}""")
+        assertEquals(0L, old.boxes.single().deckId)
+    }
+
     @Test fun roundTrip() {
         val b = Backup(
             version = Backup.CURRENT, exportedAt = 1234,

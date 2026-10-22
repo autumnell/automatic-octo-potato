@@ -119,7 +119,7 @@ fun SearchScreen(
                 card = card,
                 boxes = boxes,
                 // Default to where you already keep this card.
-                defaultBoxId = mine?.boxId ?: vm.lastBoxId,
+                defaultBoxId = mine?.boxId?.takeIf { id -> boxes.any { it.id == id } } ?: vm.lastBoxId,
                 onAdd = vm::add,
                 onChangePrinting = vm::openPrintings,
                 onDismiss = { vm.select(null) },

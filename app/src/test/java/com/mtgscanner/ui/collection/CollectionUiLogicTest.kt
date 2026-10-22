@@ -60,6 +60,14 @@ class CollectionUiLogicTest {
         assertFalse(BrowseViewModel.matches(card, Filters(query = "boltinstant"), hay))
     }
 
+    @Test fun deckFilterKeepsOnlyThatDecksCards() {
+        // The card sits in box 1; deck 9's cards are in row 9.
+        assertTrue(BrowseViewModel.matches(card, Filters(), null))
+        assertFalse(BrowseViewModel.matches(card, Filters(deckBox = 9), null))
+        assertTrue(BrowseViewModel.matches(card.copy(boxId = 9), Filters(deckBox = 9), null))
+        assertEquals(1, Filters(deckBox = 9).activeCount)
+    }
+
     @Test fun searchReadsScryfallSyntax() {
         for (q in listOf("t:instant c:r", "bolt mv=1", "-t:creature tag:trade", "s:m10 or s:2xm", "!\"lightning bolt\"")) {
             assertTrue(q, BrowseViewModel.matches(card, Filters(query = q)))

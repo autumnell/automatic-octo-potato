@@ -17,6 +17,7 @@ import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.data.db.boxRules
 import com.mtgscanner.data.db.facts
 import com.mtgscanner.data.db.mergedWith
+import com.mtgscanner.data.db.placeName
 import com.mtgscanner.data.db.sameCopyAs
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
@@ -87,10 +88,17 @@ data class DeckCheckLine(
     val collectorNumber: String? = null,
     /** The list named a printing Scryfall doesn't have, so the picture and price are another printing's. */
     val otherPrinting: Boolean = false,
+    /** Of [owned], copies kept in the deck itself; the rest are in boxes or other decks. */
+    val inDeck: Int = 0,
 ) {
     val missing: Int get() = (needed - owned).coerceAtLeast(0)
     /** In a section that's played (main deck, commander, companion); sideboard, maybeboard and tokens aren't. */
     val played: Boolean get() = section in DeckCheck.PLAYED
+
+    companion object {
+        /** [boxes] name for the copies kept in the deck being checked. */
+        const val IN_DECK = "In deck"
+    }
 }
 
 /** Totals count only played lines; the other lines are kept in [lines] for showing. */
@@ -356,7 +364,7 @@ class CollectionRepository(
     private suspend fun ownedInMain(oracleId: String?, boxes: List<BoxInfo>, policy: SortPolicy, exclude: Long? = null): Int {
         if (oracleId == null || policy.playsetLimit <= 0) return 0
         val notMain = (boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id } + listOfNotNull(exclude)).ifEmpty { listOf(Long.MIN_VALUE) }
-        return dao.ownedOutside(oracleId, notMain)
+        return dao.ownedInBoxesOutside(oracleId, notMain)
     }
 
     /** Where a card goes and why, using box rules, capacity, the bulk floor and the playset limit. */
@@ -787,7 +795,7 @@ class CollectionRepository(
 
     // History
 
-    private suspend fun boxName(id: Long): String = dao.box(id)?.name ?: "?"
+    private suspend fun boxName(id: Long): String = dao.box(id)?.placeName() ?: "?"
 
     /** Records something that happened to a card, for its history. Never fails the change itself. */
     suspend fun logEvent(scryfallId: String, name: String, kind: String, detail: String = "") {
@@ -1052,15 +1060,20 @@ class CollectionRepository(
             format = format ?: existing.format, commanders = commanders ?: existing.commanders,
         ) ?: Deck(name = name.trim(), text = text, format = format.orEmpty(), commanders = commanders.orEmpty())
         val r = dao.putDeck(deck)
+        // The cards kept in the deck go by its name.
+        if (existing != null && existing.name != deck.name) dao.deckSlot(existing.id)?.let { dao.updateBox(it.copy(name = deck.name)) }
         return if (existing != null) existing.id else r
     }
 
     suspend fun deleteDeck(id: Long) = dao.deleteDeck(id)
 
-    /** Compares a decklist with the collection: what's owned, where it is, and what's missing. */
-    suspend fun checkDeck(text: String, cards: List<CollectionCard>, boxes: List<Box>): DeckCheck {
+    /**
+     * Compares a decklist with the collection: what's owned, where it is, and what's missing. [places] are boxes
+     * and decks' card rows; copies kept in [deckSlotId] (this deck's own cards) count as in the deck.
+     */
+    suspend fun checkDeck(text: String, cards: List<CollectionCard>, places: List<Box>, deckSlotId: Long? = null): DeckCheck {
         val lines = DecklistParser.parse(text)
-        val boxNames = boxes.associate { it.id to it.name }
+        val boxNames = places.associate { it.id to (if (it.id == deckSlotId) DeckCheckLine.IN_DECK else it.placeName()) }
         fun key(n: String) = CardTextParser.normalize(n.substringBefore(" // "))
         val byName = cards.groupBy { key(it.name) }
         // Hand owned copies out line by line, so a card in both the main deck and sideboard isn't counted twice.
@@ -1074,6 +1087,16 @@ class CollectionRepository(
             val have = minOf(left[k] ?: 0, l.quantity)
             left[k] = (left[k] ?: 0) - have
             ownedFor[i] = have
+        }
+        // Of those, the copies already kept in this deck, handed out the same way.
+        val inDeckLeft: MutableMap<String, Int> = if (deckSlotId == null) HashMap() else
+            byName.mapValues { (_, cs) -> cs.filter { it.boxId == deckSlotId }.sumOf { it.quantity } }.toMutableMap()
+        val inDeckFor = IntArray(lines.size)
+        for (i in order) {
+            val k = key(lines[i].name)
+            val n = minOf(inDeckLeft[k] ?: 0, ownedFor[i])
+            inDeckLeft[k] = (inDeckLeft[k] ?: 0) - n
+            inDeckFor[i] = n
         }
         // Copies of the exact printing a line names, for its picture and price.
         val samePrinting = lines.map { l ->
@@ -1100,7 +1123,9 @@ class CollectionRepository(
                 section = l.section,
                 needed = l.quantity,
                 owned = ownedFor[i],
-                boxes = owned.groupBy { it.boxId }.map { (b, cs) -> (boxNames[b] ?: "Unsorted") to cs.sumOf { it.quantity } },
+                boxes = owned.groupBy { it.boxId }.map { (b, cs) -> (boxNames[b] ?: "Unsorted") to cs.sumOf { it.quantity } }
+                    .sortedBy { it.first != DeckCheckLine.IN_DECK },
+                inDeck = inDeckFor[i],
                 price = exact.mapNotNull { it.priceUsd }.minOrNull()
                     ?: (if (named) sc?.prices?.usd?.toDoubleOrNull() else null)
                     ?: owned.mapNotNull { it.priceUsd }.minOrNull() ?: sc?.prices?.usd?.toDoubleOrNull(),

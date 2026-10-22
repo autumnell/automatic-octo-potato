@@ -14,6 +14,7 @@ import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.data.db.PricePoint
 import com.mtgscanner.data.db.ValueSnapshot
 import com.mtgscanner.data.db.WishlistItem
+import com.mtgscanner.data.db.placeName
 import com.mtgscanner.util.ImportRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -123,7 +124,7 @@ internal object BackupIO {
         val dao = repo.dao
         return Backup(
             version = Backup.CURRENT, exportedAt = System.currentTimeMillis(),
-            boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
+            boxes = dao.allPlaces(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
             packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(), loans = dao.allLoans(),
             prefs = BACKED_UP_PREFS.associateWith { name ->
@@ -339,7 +340,7 @@ internal object BackupIO {
         val owned = HashMap<String, Int>()
         if (pick == Box.AUTO_SORT && policy.playsetLimit > 0) {
             val notMain = boxes.filterNot { Sorting.isMainBox(it, policy) }.map { it.id }.ifEmpty { listOf(Long.MIN_VALUE) }
-            items.mapNotNull { it?.oracleId }.distinct().forEach { owned[it] = repo.dao.ownedOutside(it, notMain) }
+            items.mapNotNull { it?.oracleId }.distinct().forEach { owned[it] = repo.dao.ownedInBoxesOutside(it, notMain) }
         }
         val targets = ImportPlanner.targets(items, pick, boxes, policy) { owned[it] ?: 0 }
         return ImportPlan(rows, found, targets, choice)
@@ -358,7 +359,8 @@ internal object BackupIO {
         withContext(NonCancellable) {
             repo.db.withTransaction {
                 var fallbackBoxId: Long? = null
-                val boxNames = dao.allBoxes().associate { it.id to it.name }.toMutableMap()
+                // Decks' card rows too: a deck's "Add to collection" plans its cards into the deck.
+                val boxNames = dao.allPlaces().associate { it.id to it.placeName() }.toMutableMap()
                 val now = System.currentTimeMillis()
                 plan.rows.forEachIndexed { i, r ->
                     val c = plan.found.getOrNull(i)

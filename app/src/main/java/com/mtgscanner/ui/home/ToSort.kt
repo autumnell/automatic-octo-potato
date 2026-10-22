@@ -85,7 +85,8 @@ internal suspend fun CollectionRepository.cardsToSort(cards: List<CollectionCard
     val inMain = HashMap<String, Int>()
     for (c in cards) {
         val o = c.oracleId ?: continue
-        if (c.boxId !in notMain) inMain[o] = (inMain[o] ?: 0) + c.quantity
+        // Copies kept in a deck aren't in any box (see DeckSlots.kt), so they don't count.
+        if (c.boxId !in notMain && c.boxId in byId) inMain[o] = (inMain[o] ?: 0) + c.quantity
     }
     for (c in cards) {
         if (c.boxId !in catchAll || c.id in moves) continue

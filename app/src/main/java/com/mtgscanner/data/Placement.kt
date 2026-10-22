@@ -4,6 +4,8 @@ import androidx.room.withTransaction
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.facts
+import com.mtgscanner.data.db.isDeckSlot
+import com.mtgscanner.data.db.placeName
 
 /** Binder pages: 9 pockets each, slots numbered from 1. */
 object Binder {
@@ -117,6 +119,8 @@ object Placement {
         boxContents: List<Pair<String, CardFacts>>? = null,
     ): String {
         val boxName = box?.name ?: "No box"
+        // A deck has no spots inside.
+        if (box != null && box.isDeckSlot) return box.placeName()
         if (box != null && Binder.isBinder(box.kind) && card.binderSlot > 0) {
             return "$boxName → ${Binder.label(card.binderSlot, Binder.span(card.quantity, box.pocketPerCopy))}"
         }
@@ -142,7 +146,7 @@ object Placement {
                 val box = byId[c.boxId]
                 val inBox = byBox[c.boxId].orEmpty()
                 val list = boxContents.getOrPut(c.boxId) { contents(BoxLayout.of(box?.divider.orEmpty()), inBox) }
-                Found(c, box?.name ?: "No box", whereIs(c, box, inBox, list))
+                Found(c, box?.placeName() ?: "No box", whereIs(c, box, inBox, list))
             }
     }
 }
@@ -158,8 +162,8 @@ suspend fun CollectionRepository.positionFor(boxId: Long, name: String, facts: C
     return Sorting.where(b.name, Sorting.position(layout, name, facts, contents))
 }
 
-/** Card search on the Boxes page: every box a card is in, with its spot. */
-suspend fun CollectionRepository.findCard(query: String): List<Found> = Placement.find(query, dao.all(), dao.allBoxes())
+/** Card search on the Boxes page: every box (or deck) a card is in, with its spot. */
+suspend fun CollectionRepository.findCard(query: String): List<Found> = Placement.find(query, dao.all(), dao.allPlaces())
 
 /** Gives binder slots to the cards in [boxId] that have none. Returns how many were numbered. */
 suspend fun CollectionRepository.numberBinderSlots(boxId: Long): Int = db.withTransaction {

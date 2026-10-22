@@ -45,6 +45,8 @@ data class ScryfallCard(
     @SerialName("illustration_id") val illustrationId: String? = null,
     /** The name as printed on a non-English printing ("稲妻"); null on English ones. */
     @SerialName("printed_name") val printedName: String? = null,
+    /** Links to other sites about the card ("edhrec", "gatherer"…). */
+    @SerialName("related_uris") val relatedUris: Map<String, String> = emptyMap(),
 ) {
     /** Special printings, used by box rules: borderless, showcase, extended art, full art, etched, promo. */
     val treatments: List<String>

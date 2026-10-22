@@ -920,6 +920,14 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                     }
                 }
             }
+            if (ui.decks.isNotEmpty() || f.deckBox != null) {
+                FilterGroup("Deck") {
+                    SelectPill("Any", f.deckBox == null, onClick = { vm.update { it.copy(deckBox = null) } })
+                    ui.decks.forEach { (id, name) ->
+                        SelectPill(name, f.deckBox == id, onClick = { vm.update { it.copy(deckBox = if (it.deckBox == id) null else id) } })
+                    }
+                }
+            }
             if (saved.isNotEmpty()) {
                 Text("Saved searches", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
                 saved.forEach { sv ->

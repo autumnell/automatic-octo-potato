@@ -6,6 +6,9 @@ import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.db.Box
+import com.mtgscanner.data.db.isDeckSlot
+import com.mtgscanner.data.db.placeName
+import com.mtgscanner.data.observePlaces
 import com.mtgscanner.data.db.userTagList
 import com.mtgscanner.ui.components.Undo
 import kotlinx.coroutines.FlowPreview
@@ -92,9 +95,11 @@ data class Filters(
     val flags: Set<String> = emptySet(),
     /** Only cards added at or after this time in ms (Home's "This week"); 0 for any. */
     val addedSince: Long = 0L,
+    /** Only cards kept in this deck: the id of its card row (see DeckSlots.kt); null for any. */
+    val deckBox: Long? = null,
 ) {
     val activeCount: Int get() = colors.size + rarities.size + types.size + roles.size + treatments.size + userTags.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0) +
-        flags.size + (if (addedSince > 0) 1 else 0)
+        flags.size + (if (addedSince > 0) 1 else 0) + (if (deckBox != null) 1 else 0)
 }
 
 data class BrowseUi(
@@ -112,6 +117,8 @@ data class BrowseUi(
     /** Your own tags on cards in view. */
     val userTags: List<String> = emptyList(),
     val boxes: List<Box> = emptyList(),
+    /** Decks holding cards in view: (card row id, deck name), for the Deck filter. */
+    val decks: List<Pair<Long, String>> = emptyList(),
     /** Ids of every card shown, for "select all". */
     val shownIds: List<Long> = emptyList(),
     val loaded: Boolean = false,
@@ -214,6 +221,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     private class Scope(
         val all: List<CollectionCard>,
         val boxes: List<Box>,
+        val decks: List<Pair<Long, String>>,
         val box: Box?,
         val inScope: List<CollectionCard>,
         /** Lower-case search text per card, same order as [inScope]. */
@@ -240,8 +248,11 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         return Cached(c.updatedAt, c.tags, c.userTags, c.name, searchText(c), NameKey.of(c.name)).also { textCache[c.id] = it }
     }
 
-    private val scope = combine(repo.observeAll(), repo.observeBoxes()) { all, boxes ->
+    private val scope = combine(repo.observeAll(), repo.observePlaces()) { all, places ->
+        // Decks' card rows aren't boxes: they're only for the Deck filter and for opening one deck's cards.
+        val boxes = places.filter { !it.isDeckSlot }
         val inScope = if (boxId < 0) all else all.filter { it.boxId == boxId }
+        val used = inScope.mapTo(HashSet()) { it.boxId }
         val texts = inScope.map(::cached)
         // Rows that are gone don't stay in the cache.
         if (textCache.size > inScope.size + 64) {
@@ -251,7 +262,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         Scope(
             all = all,
             boxes = boxes,
-            box = if (boxId < 0) null else boxes.firstOrNull { it.id == boxId },
+            decks = places.filter { it.isDeckSlot && it.id in used }.map { it.id to it.name }.sortedBy { it.second.lowercase() },
+            box = if (boxId < 0) null else places.firstOrNull { it.id == boxId },
             inScope = inScope,
             hay = texts.map { it.hay },
             nameKeys = texts.map { it.key },
@@ -296,7 +308,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         val shownSet = shownIds.toHashSet()
         _selected.update { sel -> if (sel.all { it in shownSet }) sel else sel.filterTo(HashSet()) { it in shownSet } }
         BrowseUi(
-            title = listTitle ?: if (boxId < 0) "All cards" else box?.name ?: "Box",
+            title = listTitle ?: if (boxId < 0) "All cards" else box?.placeName() ?: "Box",
             groups = when {
                 f.group == GroupBy.NONE && layout.hasDividers -> bySpot(shown, layout, byNumber = layout.byNumber && f.sort == SortBy.NAME)
                 // Long plain lists get headers by letter or set.
@@ -312,6 +324,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             treatments = sc.treatments,
             userTags = sc.userTags,
             boxes = sc.boxes,
+            decks = sc.decks,
             shownIds = shownIds,
             loaded = true,
             all = sc.all,
@@ -378,7 +391,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
         // Remember the filters (not the search words) for next time, unless opened from a list or Home.
         if (!launched) viewModelScope.launch {
-            _filters.map { it.copy(query = "") }.distinctUntilChanged().drop(1).debounce(400).collect { f ->
+            _filters.map { it.copy(query = "", deckBox = null) }.distinctUntilChanged().drop(1).debounce(400).collect { f ->
                 try { prefs?.edit()?.putString(stickyKey, json.encodeToString(Filters.serializer(), f))?.apply() } catch (e: Exception) { }
             }
         }
@@ -588,6 +601,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             if (f.userTags.isNotEmpty() && f.userTags.none { it in c.userTagList() }) return false
             if (f.flags.isNotEmpty() && !f.flags.all { com.mtgscanner.ui.home.TileFlags.matches(c, it) }) return false
             if (f.addedSince > 0 && c.addedAt < f.addedSince) return false
+            if (f.deckBox != null && c.boxId != f.deckBox) return false
             return true
         }
 

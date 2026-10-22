@@ -1,9 +1,11 @@
 package com.mtgscanner.ui.collection
 
-/** A block of the Boxes page that can be shown, hidden and moved. */
+/**
+ * A block of the Boxes page that can be shown, hidden and moved. "browse" was one until Browse all moved above
+ * the tabs ([CollectionPart.BROWSE]); saved orders that still name it just drop it.
+ */
 enum class CollectionSection(val key: String, val label: String) {
     RING("ring", "Value ring"),
-    BROWSE("browse", "Browse all"),
     TO_SORT("sort", "To sort"),
     BOXES("boxes", "Boxes"),
     LISTS("lists", "Lists"),
@@ -16,6 +18,8 @@ enum class CollectionSection(val key: String, val label: String) {
 
 /** A smaller part of the Collection tab that can be turned off. Saved as the hidden ones, so new parts start shown. */
 enum class CollectionPart(val key: String, val label: String, val group: Group) {
+    /** "Browse entire collection", above the tabs on every tab. */
+    BROWSE("browseAll", "Browse all", Group.TOP),
     LEGEND("legend", "Ring legend", Group.PAGE),
     SEARCH("search", "Search", Group.PAGE),
     BOX_TOOLS("boxTools", "Shelf & order", Group.PAGE),
@@ -31,7 +35,7 @@ enum class CollectionPart(val key: String, val label: String, val group: Group) 
     TRADE("trade", "Trade binders", Group.TABS),
     ;
 
-    enum class Group { PAGE, BOX, TABS }
+    enum class Group { TOP, PAGE, BOX, TABS }
 
     companion object {
         fun of(key: String): CollectionPart? = entries.firstOrNull { it.key == key }

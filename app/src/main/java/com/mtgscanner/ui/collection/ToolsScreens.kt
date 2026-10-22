@@ -226,8 +226,10 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val policy = SortPrefs.policy
         val skip = bs.filter { it.kind == "trade" || it.kind == "deck" || it.id == policy.extrasBoxId || it.id == policy.bulkBoxId }
             .map { it.id }.toSet()
+        // Copies kept in a deck are in no box (see DeckSlots.kt): not counted or moved either.
+        val inBoxes = bs.mapTo(HashSet()) { it.id }
         ExtrasFinder.find(
-            all.map {
+            all.filter { it.boxId in inBoxes }.map {
                 ExtraRow(it.id, it.oracleId ?: it.name, it.name, it.quantity, it.boxId, it.addedAt, it.typeLine, it.unitPrice(), it.condition, it.lang)
             },
             k, skip,

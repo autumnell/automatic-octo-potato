@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.decks
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -41,7 +43,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Style
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -71,6 +75,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,7 +91,12 @@ import com.mtgscanner.data.DeckAdd
 import com.mtgscanner.data.DeckCommanders
 import com.mtgscanner.data.DeckFormats
 import com.mtgscanner.data.RulesCard
+import com.mtgscanner.data.Edhrec
 import com.mtgscanner.data.addDeckRows
+import com.mtgscanner.data.deckSlotId
+import com.mtgscanner.data.deleteDeckAndCards
+import com.mtgscanner.data.observePlaces
+import com.mtgscanner.data.undoDeckDelete
 import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
@@ -545,6 +555,8 @@ data class DeckUi(
     val pickerLoading: Boolean = false,
     val pickerOptions: List<PickOption> = emptyList(),
     val adding: Boolean = false,
+    /** The commander's EDHREC page; null when the deck has no commander. */
+    val edhrec: String? = null,
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -576,9 +588,15 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
-    /** Boxes for "Add to collection". */
-    val boxes: StateFlow<List<com.mtgscanner.data.db.Box>> = repo.observeBoxes()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Boxes, then decks' card rows (see DeckSlots.kt), with this deck's own row id once it holds cards. */
+    private val places = combine(_ui.map { it.id }.distinctUntilChanged(), repo.observePlaces()) { id, places ->
+        places to places.firstOrNull { id != 0L && it.deckId == id }?.id
+    }
+
+    /** Copies kept in this deck. */
+    val inDeck: StateFlow<Int> = combine(places, repo.observeAll()) { (_, slot), cards ->
+        if (slot == null) 0 else cards.filter { it.boxId == slot }.sumOf { it.quantity }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** Copies "Add to collection" would add: every card listed, and only those you don't own. */
     val addCounts: StateFlow<Pair<Int, Int>?> = combine(_ui.map { it.text }.distinctUntilChanged(), repo.observeAll()) { text, cards ->
@@ -589,11 +607,12 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
-     * Adds the list's cards to the collection in one go, with one Undo: the printing and foil each line names,
-     * into [boxId] or Auto-sort. With [onlyMissing], copies already owned (any printing) are left out.
+     * Adds the list's cards to the collection in one go, kept in this deck, with one Undo: the printing and foil
+     * each line names. With [onlyMissing], copies already owned (any printing, anywhere) are left out.
      */
-    fun addToCollection(onlyMissing: Boolean, boxId: Long, onDone: () -> Unit) {
-        if (_ui.value.adding) return
+    fun addToCollection(onlyMissing: Boolean, onDone: () -> Unit) {
+        val deckId = _ui.value.id
+        if (_ui.value.adding || deckId == 0L) return
         _ui.update { it.copy(adding = true) }
         viewModelScope.launch {
             try {
@@ -601,7 +620,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 val owned = repo.observeAll().first().groupBy { DeckNames.key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
                 val rows = DeckAdd.rows(lines, owned, onlyMissing, DeckNames::key)
                 val r = try {
-                    repo.addDeckRows(rows, boxId)
+                    repo.addDeckRows(rows, deckId)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -635,7 +654,9 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val leads = s.commanders.all.mapNotNull { n -> rulesOf(n)?.let { n.lowercase() to it } }.toMap()
             val art = s.commanders.commanders.mapNotNull { artCropUrl(info[DeckNames.key(it)]?.imageUrl) }
             val issues = CommanderRules.issues(lines, s.format, s.commanders) { n -> rulesOf(n) }
-            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues) }
+            val leadNames = if (DeckFormats.isCommander(s.format)) s.commanders.commanders else emptyList()
+            val edhrec = Edhrec.linkFor(leadNames, leadNames.singleOrNull()?.let { info[DeckNames.key(it)]?.edhrec })
+            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec) }
         }
     }
 
@@ -719,9 +740,9 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 
     /** Owned copies to take out of boxes for the saved list, kept up to date with the collection. */
     val pull: StateFlow<PullList?> = combine(
-        _ui.map { it.text to it.name }.distinctUntilChanged(), repo.observeAll(), repo.observeBoxes(),
-    ) { (text, name), cards, boxes ->
-        PullListMath.build(DecklistParser.parse(text), cards, boxes, name)
+        _ui.map { it.text to it.name }.distinctUntilChanged(), repo.observeAll(), places,
+    ) { (text, name), cards, (all, slot) ->
+        PullListMath.build(DecklistParser.parse(text), cards, all, name, slot)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Pull list checkmarks for this deck. */
@@ -733,27 +754,24 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 
     private var filing = false
 
-    /** Moves the checked cards into this deck's deck box (made if there isn't one), with Undo. */
-    fun moveCheckedToDeckBox() {
+    /** Moves the checked cards into this deck (out of their boxes), with Undo. */
+    fun moveCheckedToDeck() {
         val id = _ui.value.id
-        val name = _ui.value.name.ifBlank { "Untitled deck" }
         val list = pull.value ?: return
         val checks = pullChecks.value
         if (filing || id == 0L || checks.isEmpty()) return
         filing = true
         viewModelScope.launch {
             try {
-                val existing = repo.observeBoxes().first().firstOrNull { PullListMath.isDeckBoxFor(it, name) }
-                val moves = list.movesFor(checks, existing?.id)
+                val slot = repo.deckSlotId(id)
+                val moves = list.movesFor(checks, slot)
                 if (moves.isEmpty()) return@launch
                 val before = repo.snapshot(moves.map { it.first })
-                val boxId = existing?.id ?: repo.createBox(name, "deck")
-                repo.moveCopiesMany(moves, boxId)
+                repo.moveCopiesMany(moves, slot)
                 PullChecksStore.clear(id)
                 val n = moves.sumOf { it.second }
-                Undo.offer(if (n == 1) "Moved 1 card to $name" else "Moved $n cards to $name") {
+                Undo.offer(if (n == 1) "Moved 1 card to the deck" else "Moved $n cards to the deck") {
                     repo.restore(before)
-                    if (existing == null) repo.deleteBox(boxId, com.mtgscanner.data.db.Box.AUTO_SORT)
                     PullChecksStore.set(id, checks)
                 }
             } finally {
@@ -812,11 +830,11 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         checkJob?.cancel()
         checkJob = viewModelScope.launch {
             var initial = true
-            combine(repo.observeAll(), repo.observeBoxes()) { cards, boxes -> cards to boxes }.collectLatest { (cards, boxes) ->
+            combine(repo.observeAll(), places) { cards, p -> cards to p }.collectLatest { (cards, p) ->
                 // Later changes come in bursts (a scan, a bulk move): wait for them to settle.
                 if (!initial) delay(400)
                 initial = false
-                val result = repo.checkDeck(text, cards, boxes)
+                val result = repo.checkDeck(text, cards, p.first, p.second)
                 _ui.update { it.copy(checking = false, check = result) }
             }
         }
@@ -847,21 +865,23 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
-    /** Deletes the deck, with Undo bringing it back in its folder with its cover. */
-    fun delete(onDone: () -> Unit) {
+    /**
+     * Deletes the deck. Cards kept in it go to boxes by Auto-sort, or leave the collection with [removeCards].
+     * Undo brings the deck back in its folder with its cover, and its cards as they were.
+     */
+    fun delete(removeCards: Boolean, onDone: () -> Unit) {
         val id = _ui.value.id
         if (deleting || id == 0L) return
         deleting = true
         viewModelScope.launch {
-            val deck = repo.observeDeck(id).first()
             val shelf = DeckShelfStore.state.value
             val folder = shelf.folderOf[id]
             val cover = shelf.cover[id]
-            repo.deleteDeck(id)
-            if (deck != null) Undo.offer("Deck deleted") {
-                val newId = repo.saveDeck(0L, deck.name, deck.text, deck.format, deck.commanders)
-                if (folder != null) DeckShelfStore.moveDeck(newId, folder)
-                if (cover != null) DeckShelfStore.setCover(newId, cover)
+            val undo = repo.deleteDeckAndCards(id, removeCards)
+            if (undo != null) Undo.offer(if (removeCards) "Deck and cards deleted" else "Deck deleted") {
+                repo.undoDeckDelete(undo)
+                if (folder != null) DeckShelfStore.moveDeck(id, folder)
+                if (cover != null) DeckShelfStore.setCover(id, cover)
             }
             onDone()
         }
@@ -879,6 +899,8 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     var view by rememberSaveable { mutableIntStateOf(0) }
     var menu by remember { mutableStateOf(false) }
     var addingAll by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -894,7 +916,9 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                 )
                 if (!ui.editing) {
                     IconButton(onClick = vm::edit) { Icon(Icons.Filled.Edit, "Edit list") }
-                    IconButton(onClick = { vm.delete(onBack) }) { Icon(Icons.Filled.DeleteOutline, "Delete deck") }
+                    IconButton(onClick = { if (inDeck > 0) confirmDelete = true else vm.delete(false, onBack) }) {
+                        Icon(Icons.Filled.DeleteOutline, "Delete deck")
+                    }
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Deck options") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -906,7 +930,12 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
             if (!ui.loaded) return@Column
             if (ui.editing) Editor(ui, vm)
             else {
-                DeckHeader(ui.format, ui.commanders, ui.leadArt, ui.issues)
+                val ctx = LocalContext.current
+                val edhrec = ui.edhrec
+                DeckHeader(
+                    ui.format, ui.commanders, ui.leadArt, ui.issues,
+                    onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
+                )
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Cards", view == 0, { view = 0 })
                     SelectPill("Pull list", view == 1, { view = 1 })
@@ -915,7 +944,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                     1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
                         val checks by vm.pullChecks.collectAsStateWithLifecycle()
-                        PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeckBox)
+                        PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeck, leads = leadsOf(ui))
                     }
                     else -> Results(ui, vm)
                 }
@@ -937,13 +966,50 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     }
     if (addingAll) {
         val counts by vm.addCounts.collectAsStateWithLifecycle()
-        val boxes by vm.boxes.collectAsStateWithLifecycle()
         AddDeckSheet(
-            counts = counts, boxes = boxes, busy = ui.adding,
-            onAdd = { onlyMissing, boxId -> vm.addToCollection(onlyMissing, boxId) { addingAll = false } },
+            counts = counts, busy = ui.adding,
+            onAdd = { onlyMissing -> vm.addToCollection(onlyMissing) { addingAll = false } },
             onDismiss = { addingAll = false },
         )
     }
+    if (confirmDelete) {
+        DeleteDeckDialog(
+            inDeck,
+            onDelete = { removeCards -> confirmDelete = false; vm.delete(removeCards, onBack) },
+            onDismiss = { confirmDelete = false },
+        )
+    }
+}
+
+/** Opens [url] in the browser; nothing happens when no app can. */
+private fun openLink(ctx: android.content.Context, url: String) {
+    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+}
+
+/** A commander-style deck's commanders, companion and signature spell, shown first in its card lists. */
+private fun leadsOf(ui: DeckUi): List<String> = if (DeckFormats.isCommander(ui.format)) ui.commanders.all else emptyList()
+
+/** Deleting a deck that holds cards: they go back to boxes (Auto-sort), or leave the collection. */
+@Composable
+private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Unit, onDismiss: () -> Unit) {
+    var remove by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Delete deck?") },
+        text = {
+            Column {
+                Text(if (copies == 1) "1 card is in this deck." else "$copies cards are in this deck.", color = Palette.Muted)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectPill("Move to boxes", !remove, { remove = false })
+                    SelectPill("Remove cards", remove, { remove = true })
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onDelete(remove) }) { Text("Delete", color = Palette.Danger) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -991,9 +1057,12 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
     val needed = played.sumOf { it.needed }
     val have = played.sumOf { minOf(it.owned, it.needed) }
     val missingCost = played.sumOf { (it.price ?: 0.0) * it.missing }
-    val missing = played.filter { it.missing > 0 }
-    val otherMissing = check.lines.filter { it.section !in PLAYED && it.missing > 0 }
-    val owned = check.lines.filter { it.owned > 0 }
+    // A commander deck lists its commanders (and companion, signature spell) first.
+    val (leads, rest) = PullListMath.leadsFirst(check.lines, leadsOf(ui), { it.name }, DeckNames::key)
+    val missing = rest.filter { it.section in PLAYED && it.missing > 0 }
+    val otherMissing = rest.filter { it.section !in PLAYED && it.missing > 0 }
+    val owned = rest.filter { it.owned > 0 }
+    val inDeck = played.sumOf { minOf(it.inDeck, it.needed) }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1001,7 +1070,14 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                 if (AppSettings.showPrices) Stat("Missing cost", formatUsd(missingCost), Modifier.weight(1f))
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
             }
-            if (missing.isNotEmpty()) {
+            if (have > 0) {
+                Text(
+                    "$inDeck in the deck · ${have - inDeck} elsewhere",
+                    style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
+                    modifier = Modifier.padding(start = 20.dp, end = 16.dp, bottom = 6.dp),
+                )
+            }
+            if (played.any { it.missing > 0 }) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(
                         onClick = vm::wishlistMissing,
@@ -1015,6 +1091,11 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share missing cards", tint = Palette.Icon) }
                 }
             }
+        }
+        if (leads.isNotEmpty()) {
+            item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
+            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0) }
+            item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
         }
         // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {
@@ -1032,7 +1113,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
         item { Spacer(Modifier.height(24.dp)) }
     }
     if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {
-        missing.map { it.shareLine() }
+        played.filter { it.missing > 0 }.map { it.shareLine() }
     }
 }
 
@@ -1064,9 +1145,10 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
                 missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, printing).joinToString(" · ")
                 else -> l.boxes.joinToString(" · ") { (b, n) -> "$b ×$n" }
             }
+            // Green once every copy is kept in the deck; owned copies elsewhere still need pulling.
             Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText) }
-        else Icon(Icons.Filled.CheckCircle, null, tint = if (l.owned >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
+        else Icon(Icons.Filled.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
     }
 }

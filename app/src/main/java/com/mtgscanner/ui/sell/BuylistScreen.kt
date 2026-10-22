@@ -52,6 +52,8 @@ import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Loan
 import com.mtgscanner.data.observeLoans
+import com.mtgscanner.data.observePlaces
+import com.mtgscanner.data.db.placeName
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
@@ -74,7 +76,8 @@ class BuylistViewModel(private val repo: CollectionRepository) : ViewModel() {
     init { CardKingdom.init(repo.appContext) }
 
     /** Null until loaded. */
-    val input: StateFlow<BuylistInput?> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeLoans()) { cards, boxes, loans ->
+    // Decks' card rows too, so a copy kept in a deck says which deck.
+    val input: StateFlow<BuylistInput?> = combine(repo.observeAll(), repo.observePlaces(), repo.observeLoans()) { cards, boxes, loans ->
         BuylistInput(cards, boxes, loans)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -111,7 +114,7 @@ internal fun ColumnScope.BuylistContent(onOpenCard: (Long) -> Unit) {
         val data = input ?: return@run
         // Reading CardKingdom.version redraws once the list has loaded.
         val listVersion = CardKingdom.version
-        val boxNames = data.boxes.associate { it.id to it.name }
+        val boxNames = data.boxes.associate { it.id to it.placeName() }
         val pulls = remember(data, min, listVersion) {
             val out = LoanMath.outByRow(data.loans, data.cards)
             BuylistMath.pullList(
