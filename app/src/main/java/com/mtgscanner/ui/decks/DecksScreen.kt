@@ -110,6 +110,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -808,7 +809,7 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
             }
             Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText) }
+        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText) }
         else Icon(Icons.Filled.CheckCircle, null, tint = if (l.owned >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
     }
 }

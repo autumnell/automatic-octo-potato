@@ -127,6 +127,7 @@ import com.mtgscanner.ui.components.CardPreviewSheet
 import com.mtgscanner.ui.detail.CardDetailScreen
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.CardShape
+import com.mtgscanner.ui.theme.TabularNums
 
 @Composable
 fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, onTrade: (binderId: Long) -> Unit = {}) {
@@ -783,7 +784,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
         Column(horizontalAlignment = Alignment.End) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (c.foil) { FoilTag(); Spacer(Modifier.width(4.dp)) }
-                Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall)
+                Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall.merge(TabularNums))
             }
             if (AppSettings.showPrices) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

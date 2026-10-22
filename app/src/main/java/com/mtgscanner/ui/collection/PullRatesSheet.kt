@@ -57,6 +57,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
 import java.util.Locale
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Prices typed in later for logged packs that were opened without one, by pack id. Saved on the phone. */
 object PackCosts {
@@ -226,7 +227,7 @@ private fun PackRow(p: PackOpening, cost: Double?, onPrice: () -> Unit, onDelete
         }
         if (AppSettings.showPrices) {
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatUsd(p.value), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                Text(formatUsd(p.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
                 Text(if (cost != null) "Paid ${formatUsd(cost)}" else "Add price", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             }
         }

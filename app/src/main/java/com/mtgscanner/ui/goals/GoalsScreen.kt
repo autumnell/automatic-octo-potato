@@ -85,6 +85,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -259,7 +260,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                 Column(Modifier.weight(1f)) {
                     Text("Missing ${p.missing.size}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
                     if (AppSettings.showPrices && p.cost > 0) {
-                        Text("${formatUsd(p.cost)} to complete", style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
+                        Text("${formatUsd(p.cost)} to complete", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.AccentText)
                     }
                 }
                 TextButton(onClick = { vm.wishlistAll(p.missing) }) {
@@ -285,7 +286,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                     )
                 }
                 if (AppSettings.showPrices) Goals.cheapest(c)?.let {
-                    Text(formatUsd(it), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text(formatUsd(it), style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                     Spacer(Modifier.width(8.dp))
                 }
                 Icon(

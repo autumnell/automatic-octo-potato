@@ -71,6 +71,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 class StatsViewModel(repo: CollectionRepository) : ViewModel() {
     /** Null until the collection has loaded. */
@@ -251,11 +252,11 @@ private fun PaidPanel(p: PaidSummary) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Text("Paid", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text(formatUsd(p.paid), style = MaterialTheme.typography.titleMedium)
+                Text(formatUsd(p.paid), style = MaterialTheme.typography.titleMedium.merge(TabularNums))
             }
             Column(Modifier.weight(1f)) {
                 Text("Worth", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text(formatUsd(p.worth), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)
+                Text(formatUsd(p.worth), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(if (p.copies == 1) "1 card" else "${p.copies} cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)

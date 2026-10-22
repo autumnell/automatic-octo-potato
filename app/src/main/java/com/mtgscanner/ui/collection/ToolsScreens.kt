@@ -104,6 +104,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** How much of a set you own: different collector numbers, out of the main set (or every printing, with variants). */
 data class SetProgress(
@@ -576,7 +577,7 @@ private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
         }
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
-            Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+            Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
         }
     }
 }
@@ -621,7 +622,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
                         Text(g.name, style = MaterialTheme.typography.titleSmall)
                         Text("You have ${g.owned} · keep ${g.keep} · ${g.extra} extra", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(g.extraValue), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
+                    if (AppSettings.showPrices) Text(formatUsd(g.extraValue), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Accent)
                 }
             }
         }

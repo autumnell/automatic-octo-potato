@@ -47,6 +47,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Lost card finder: type a name, see every box it's in and exactly where. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -165,7 +166,7 @@ fun DuplicatesSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                                 Text("${c.setCode} #${c.collectorNumber}" + if (c.foil) " · Foil" else "", style = MaterialTheme.typography.bodyMedium)
                                 Text(boxNames[c.boxId] ?: "No box", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
                             }
-                            Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall)
+                            Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall.merge(TabularNums))
                             if (AppSettings.showPrices) {
                                 Spacer(Modifier.width(10.dp))
                                 Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)

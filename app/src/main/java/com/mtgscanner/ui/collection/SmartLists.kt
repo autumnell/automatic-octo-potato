@@ -40,6 +40,7 @@ import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** A saved Browse search shown like a box: it holds no cards itself, it just counts what matches. */
 data class SmartList(val search: SavedSearch, val cards: Int, val value: Double) {
@@ -78,7 +79,7 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(l.search.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${l.cards} cards${priceSuffix(l.value)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text("${l.cards} cards${priceSuffix(l.value)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                 }
                 IconButton(onClick = { onDelete(l.search) }) { Icon(Icons.Filled.DeleteOutline, "Delete list", tint = Palette.Icon) }
             }

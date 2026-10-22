@@ -61,6 +61,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Year in review, full screen over Stats: cards added, best pull, biggest gain, top set, value. */
 @Composable
@@ -133,7 +134,7 @@ private fun YearReviewScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
                                 Text("Value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text("${formatUsd(r.valueStart)} → ${formatUsd(r.valueEnd)}", style = MaterialTheme.typography.titleMedium)
+                                Text("${formatUsd(r.valueStart)} → ${formatUsd(r.valueEnd)}", style = MaterialTheme.typography.titleMedium.merge(TabularNums))
                             }
                             ChangeText(r.valueEnd - r.valueStart, r.valueStart)
                         }

@@ -86,6 +86,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** A card on one side of a trade. [owned] is set for cards you give away. */
 @kotlinx.serialization.Serializable
@@ -316,8 +317,8 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                     Column(Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("You give ${formatUsd(ui.giveValue)}", style = MaterialTheme.typography.bodyMedium)
-                                Text("You get ${formatUsd(ui.getValue)}", style = MaterialTheme.typography.bodyMedium)
+                                Text("You give ${formatUsd(ui.giveValue)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
+                                Text("You get ${formatUsd(ui.getValue)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
                             }
                             ChangeText(ui.getValue - ui.giveValue, ui.giveValue, MaterialTheme.typography.titleMedium)
                         }

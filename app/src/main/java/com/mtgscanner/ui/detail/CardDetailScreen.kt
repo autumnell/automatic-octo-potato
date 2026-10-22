@@ -129,6 +129,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : ViewModel() {
@@ -629,7 +630,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("You own", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text("${c.quantity} · ${cardTotal(c)}", style = MaterialTheme.typography.titleMedium)
+                                Text("${c.quantity} · ${cardTotal(c)}", style = MaterialTheme.typography.titleMedium.merge(TabularNums))
                             }
                         }
                         PriceAlertRow(c)
@@ -932,7 +933,7 @@ private fun SplitDialog(c: CollectionCard, onSplit: (SplitChange) -> Unit, onDis
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     QuantityStepper(qty, onChange = { qty = it.coerceIn(1, c.quantity - 1) })
                     Spacer(Modifier.width(12.dp))
-                    Text("of ${c.quantity}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                    Text("of ${c.quantity}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Muted)
                 }
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

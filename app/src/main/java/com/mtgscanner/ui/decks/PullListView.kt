@@ -44,6 +44,7 @@ import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Pull list checkmarks per deck (deck id to [PullItem.key]s), kept in SharedPreferences. */
 object PullChecksStore {
@@ -175,6 +176,6 @@ private fun PullRow(p: PullItem, ticked: Boolean, onToggle: () -> Unit) {
             }
             Text(bits.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
         }
-        Text("×${p.qty}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = if (ticked) Palette.Muted else Palette.Text)
+        Text("×${p.qty}", style = MaterialTheme.typography.titleSmall.merge(TabularNums), fontWeight = FontWeight.SemiBold, color = if (ticked) Palette.Muted else Palette.Text)
     }
 }

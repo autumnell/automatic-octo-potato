@@ -41,6 +41,7 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Details of a card you get: printing, foil, condition and language. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -71,8 +72,8 @@ internal fun GetCardSheet(
                     }
                     if (AppSettings.showPrices) {
                         Spacer(Modifier.height(6.dp))
-                        Text(formatUsd(item.price), style = MaterialTheme.typography.headlineSmall, color = Palette.AccentText)
-                        item.buyPrice?.let { Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
+                        Text(formatUsd(item.price), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.AccentText)
+                        item.buyPrice?.let { Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted) }
                     }
                     TextButton(onClick = onPrintings, contentPadding = PaddingValues(0.dp)) {
                         Icon(Icons.Filled.SwapHoriz, null, modifier = Modifier.size(18.dp))
