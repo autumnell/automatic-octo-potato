@@ -6,6 +6,8 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Box
+import com.mtgscanner.data.db.placeName
+import com.mtgscanner.data.observePlaces
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,8 +86,8 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Cards already in the collection, for "You own 3" and the owned badge on results. */
-    val owned: StateFlow<Map<String, Owned>> = combine(repo.observeAll(), repo.observeBoxes()) { cards, boxList ->
-        val names = boxList.associate { it.id to it.name }
+    val owned: StateFlow<Map<String, Owned>> = combine(repo.observeAll(), repo.observePlaces()) { cards, places ->
+        val names = places.associate { it.id to it.placeName() }
         fun summarize(rows: List<com.mtgscanner.data.db.CollectionCard>): Owned {
             val byBox = rows.groupBy { it.boxId }.mapValues { (_, r) -> r.sumOf { it.quantity } }
             val top = byBox.maxByOrNull { it.value }?.key

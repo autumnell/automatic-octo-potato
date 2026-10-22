@@ -91,6 +91,13 @@ interface CardDao {
     @Query("SELECT COALESCE(SUM(quantity), 0) FROM cards WHERE oracleId = :oracleId AND boxId NOT IN (:excluded)")
     suspend fun ownedOutside(oracleId: String, excluded: List<Long>): Int
 
+    /** Like [ownedOutside], but copies kept in decks ([Box.deckId]) don't count either: for the sorting rules. */
+    @Query(
+        "SELECT COALESCE(SUM(quantity), 0) FROM cards WHERE oracleId = :oracleId AND boxId NOT IN (:excluded) " +
+            "AND boxId NOT IN (SELECT id FROM boxes WHERE deckId != 0)"
+    )
+    suspend fun ownedInBoxesOutside(oracleId: String, excluded: List<Long>): Int
+
     @Query("SELECT boxId, COALESCE(SUM(quantity), 0) AS n FROM cards GROUP BY boxId")
     suspend fun boxCounts(): List<BoxCount>
 
@@ -154,13 +161,24 @@ interface CardDao {
     @Query("DELETE FROM cards")
     suspend fun deleteAllCards()
 
-    // Boxes
+    // Boxes. Rows holding a deck's cards (deckId != 0) aren't boxes: only the "places" queries and box(id) return them.
 
-    @Query("SELECT * FROM boxes ORDER BY sortOrder, createdAt, id")
+    @Query("SELECT * FROM boxes WHERE deckId = 0 ORDER BY sortOrder, createdAt, id")
     fun observeBoxes(): Flow<List<Box>>
 
-    @Query("SELECT * FROM boxes ORDER BY sortOrder, createdAt, id")
+    @Query("SELECT * FROM boxes WHERE deckId = 0 ORDER BY sortOrder, createdAt, id")
     suspend fun allBoxes(): List<Box>
+
+    /** Boxes, then the rows holding decks' cards: everywhere a card can be. */
+    @Query("SELECT * FROM boxes ORDER BY (deckId != 0), sortOrder, createdAt, id")
+    fun observePlaces(): Flow<List<Box>>
+
+    @Query("SELECT * FROM boxes ORDER BY (deckId != 0), sortOrder, createdAt, id")
+    suspend fun allPlaces(): List<Box>
+
+    /** The row holding the cards kept in a deck, if it has one. */
+    @Query("SELECT * FROM boxes WHERE deckId = :deckId ORDER BY id LIMIT 1")
+    suspend fun deckSlot(deckId: Long): Box?
 
     @Query("UPDATE boxes SET sortOrder = :order WHERE id = :id")
     suspend fun setBoxOrder(id: Long, order: Int)

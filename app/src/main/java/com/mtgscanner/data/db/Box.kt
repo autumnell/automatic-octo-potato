@@ -27,6 +27,11 @@ data class Box(
     val divider: String = "",
     /** A binder where each copy gets its own pocket, so 3 copies fill 3 pockets. */
     val pocketPerCopy: Boolean = false,
+    /**
+     * Not 0: this row isn't a box but holds the cards kept in that deck (DB v14). Box lists, pickers and sorting
+     * never see it: [CardDao.observeBoxes] and [CardDao.allBoxes] leave it out.
+     */
+    val deckId: Long = 0,
 ) {
     companion object {
         /** The "Bulk" box made by older versions. New installs start with no boxes. */
@@ -43,6 +48,15 @@ data class Box(
 }
 
 fun Box.boxRules(): com.mtgscanner.data.BoxRules = com.mtgscanner.data.BoxRules.fromJson(rules)
+
+/** Holds the cards kept in a deck rather than being a box. */
+val Box.isDeckSlot: Boolean get() = deckId != 0L
+
+/** "Deck: Atraxa" for a deck's cards, else the box name. */
+fun Box.placeName(): String = if (isDeckSlot) deckPlaceName(name) else name
+
+/** How a deck reads as the place a card is in. */
+fun deckPlaceName(deckName: String): String = "Deck: $deckName"
 
 /** A box with its totals, for the collection overview. */
 data class BoxSummary(

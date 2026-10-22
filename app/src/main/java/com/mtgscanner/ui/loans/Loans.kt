@@ -52,6 +52,8 @@ import com.mtgscanner.data.LoanMath
 import com.mtgscanner.data.cancelLoan
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Loan
+import com.mtgscanner.data.db.placeName
+import com.mtgscanner.data.observePlaces
 import com.mtgscanner.data.lend
 import com.mtgscanner.data.observeLoans
 import com.mtgscanner.data.putLoanBack
@@ -80,8 +82,8 @@ data class LoanRow(val loan: Loan, val card: CollectionCard?, val boxName: Strin
 class LoansViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Loans by person, oldest first. Null until loaded. */
     val people: StateFlow<List<Pair<String, List<LoanRow>>>?> =
-        combine(repo.observeLoans(), repo.observeAll(), repo.observeBoxes()) { loans, cards, boxes ->
-            val names = boxes.associate { it.id to it.name }
+        combine(repo.observeLoans(), repo.observeAll(), repo.observePlaces()) { loans, cards, places ->
+            val names = places.associate { it.id to it.placeName() }
             LoanMath.byPerson(loans).map { (who, list) ->
                 who to list.map { l -> LoanMath.rowFor(l, cards).let { c -> LoanRow(l, c, c?.let { names[it.boxId] }) } }
             }
