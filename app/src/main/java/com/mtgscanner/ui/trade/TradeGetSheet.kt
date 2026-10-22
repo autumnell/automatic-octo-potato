@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.trade
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.CardImage
@@ -114,10 +116,11 @@ private fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
     Text(
         label,
         style = MaterialTheme.typography.labelLarge,
-        color = if (selected) Palette.AccentText else Palette.Text,
+        color = Palette.Text,
         modifier = Modifier
             .clip(RoundedCornerShape(Corners.Small))
-            .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
+            .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
+            .border(1.dp, if (selected) Palette.Text else Palette.Outline, RoundedCornerShape(Corners.Small))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )
