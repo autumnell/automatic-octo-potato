@@ -151,10 +151,10 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab("home", "Home", Icons.Outlined.Home, Icons.Filled.Home),
-    Tab("game", "Game", Icons.Outlined.Casino, Icons.Filled.Casino),
-    Tab("scan", "Scan", Icons.Outlined.CameraAlt, Icons.Filled.CameraAlt),
     Tab("search", "Search", Icons.Outlined.Search, Icons.Filled.Search),
+    Tab("scan", "Scan", Icons.Outlined.CameraAlt, Icons.Filled.CameraAlt),
     Tab("collection", "Collection", Icons.Outlined.CollectionsBookmark, Icons.Filled.CollectionsBookmark),
+    Tab("game", "Game", Icons.Outlined.Casino, Icons.Filled.Casino),
 )
 
 /** Whether [this] screen is the one showing, not one already on its way out. */

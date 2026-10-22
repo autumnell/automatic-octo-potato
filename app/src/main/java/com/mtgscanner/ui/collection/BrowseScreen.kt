@@ -923,18 +923,6 @@ private fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: Li
                     SelectPill(t, t in f.types, onClick = { vm.update { it.copy(types = it.types.toggle(t)) } })
                 }
             }
-            FilterGroup("Role") {
-                if (ui.roles.isEmpty()) {
-                    Text(
-                        "Roles appear once cards are looked up.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Palette.Muted,
-                    )
-                }
-                ui.roles.forEach { r ->
-                    SelectPill(r, r in f.roles, onClick = { vm.update { it.copy(roles = it.roles.toggle(r)) } })
-                }
-            }
             if (ui.userTags.isNotEmpty()) {
                 FilterGroup("Your tags") {
                     ui.userTags.forEach { t ->

@@ -156,7 +156,7 @@ data class ScanUiState(
     val confident: Boolean = false,
     val lookingUp: Boolean = false,
     val paused: Boolean = false,
-    /** Auto-add level, unsure action, skip rules, feedback. Saved, and switchable with presets. */
+    /** Auto-add level, unsure action, skip rules, feedback. Saved. */
     val settings: ScanSettings = ScanSettings(),
     /** Auto-add is waiting for you to confirm a card it wasn't sure about. */
     val awaiting: Boolean = false,
@@ -314,7 +314,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
         viewModelScope.launch {
             ScanPrefs.settings.collect { raw ->
-                // A preset can choose the box too.
+                // The saved box (picked in the header) comes back with the settings.
                 if (raw.boxId != null && raw.boxId != _state.value.boxId) repo.lastBoxId = raw.boxId
                 _state.update {
                     val s = effective(raw, it)
@@ -1118,7 +1118,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             val condition = ScanBarPrefs.condition
             val wish = if (fromReview || fromPage) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
             val facts = card.facts(isFoil)
-            // A box that was deleted (say, saved in a preset) falls back to auto-sort.
+            // A box that was deleted falls back to auto-sort.
             val chosen = chooseBox(card, facts, s.boxId)
             if (chosen == null) {
                 _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card.") }
@@ -1448,7 +1448,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         pageJob?.cancel()
         _state.update {
             it.copy(pageMode = on, wantPage = false, pageLoading = false, page = null, current = null, awaiting = false, wish = null,
-                status = if (on) "Fill the frame with a binder page, then tap Capture page" else "Point your camera at a card")
+                status = if (on) "Binder page in the frame, or pick a photo" else "Point your camera at a card")
         }
         resetTracking()
     }
@@ -1459,7 +1459,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Stops waiting for a page read, if it's taking too long. */
     fun cancelCapture() = _state.update {
         pageJob?.cancel()
-        it.copy(wantPage = false, pageLoading = false, status = "Fill the frame with a binder page, then tap Capture page")
+        it.copy(wantPage = false, pageLoading = false, status = "Binder page in the frame, or pick a photo")
     }
 
     /** Called by the analyzer with one guess per pocket, left to right, top to bottom. */
@@ -1490,7 +1490,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         it.copy(page = it.page?.map { s -> if (s.index == index && s.card != null) s.copy(selected = !s.selected) else s })
     }
 
-    fun closePage() = _state.update { it.copy(page = null, status = "Fill the frame with a binder page, then tap Capture page") }
+    fun closePage() = _state.update { it.copy(page = null, status = "Binder page in the frame, or pick a photo") }
 
     /** Adds the ticked pockets, with the scan bar's copies, one after another so box capacity stays right. */
     fun addPage() {

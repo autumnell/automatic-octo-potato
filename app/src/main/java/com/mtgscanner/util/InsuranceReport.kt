@@ -136,7 +136,7 @@ object InsuranceReport {
         canvas.drawText("Total ${money.format(total)}", xTotal, y, bold)
         bold.textAlign = Paint.Align.LEFT
         y += 16f
-        canvas.drawText("Prices are market prices (Scryfall, or JustTCG by condition when set up).", MARGIN, y, muted)
+        canvas.drawText("Prices are market prices from Scryfall.", MARGIN, y, muted)
         doc.finishPage(page!!)
         doc.writeTo(out)
         doc.close()

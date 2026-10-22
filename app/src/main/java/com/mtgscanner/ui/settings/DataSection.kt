@@ -20,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -429,11 +428,6 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         _importOffline.value = false
     }
 
-    fun refreshRoles() = run("Looking up card roles…") {
-        repo.refreshAllRoles()
-        "Card roles updated"
-    }
-
     fun resolvePending() = run("Looking up saved scans…") {
         val n = repo.resolvePending()
         "Added $n saved cards"
@@ -532,8 +526,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 }
             }
             HorizontalDivider(color = Palette.Outline)
-            SharedCollectionRow()
-            HorizontalDivider(color = Palette.Outline)
             ToggleRow("Quiet at night", "No sound 10 pm to 8 am", quietNights) { on ->
                 quietNights = on
                 Notifications.setQuietNights(ctx.applicationContext, on)
@@ -548,8 +540,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.AutoMirrored.Filled.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
             }
-            HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Sell, "Refresh card roles", "Removal, ramp, draw tags") { vm.refreshRoles() }
             if (pending.isNotEmpty()) {
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.Filled.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }

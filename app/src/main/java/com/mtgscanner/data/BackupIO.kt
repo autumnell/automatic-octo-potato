@@ -398,10 +398,9 @@ internal object BackupIO {
                 if (points.isNotEmpty()) dao.putPricePoints(points)
             }
         }
-        // One value snapshot and one role lookup for the whole import, not one per row.
+        // One value snapshot for the whole import, not one per row.
         repo.appScope.launch {
             runCatching { repo.recordSnapshot() }
-            runCatching { repo.fetchRoles() }
         }
         return ImportResult(added, notFound)
     }

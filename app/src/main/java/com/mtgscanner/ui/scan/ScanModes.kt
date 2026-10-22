@@ -33,7 +33,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Style
@@ -75,20 +75,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.GradientButton
-import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.CardShape
 
-/** The modes button over the camera: sort a pile, open a pack, scan a binder page, lock to a set. */
+/** The modes button over the camera: where cards go, stack, box check, sort a pile, a pack, many cards at once. */
 @Composable
 fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
     var open by remember { mutableStateOf(false) }
-    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) vm.readPhoto(uri)
-    }
+    var into by remember { mutableStateOf(false) }
     Box {
         Box(
             Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
@@ -98,37 +95,16 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             Icon(Icons.Filled.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            val target = INTO.firstOrNull { it.target == state.target }
+            DropdownMenuItem(
+                text = { ModeText("Scan into", if (state.target == ScanTarget.BOX) "Box check" else target?.label.orEmpty()) },
+                leadingIcon = { Icon(target?.icon ?: Icons.Filled.Checklist, null, tint = if (state.target != ScanTarget.COLLECTION) Palette.Gold else Palette.Text) },
+                onClick = { open = false; into = true },
+            )
             DropdownMenuItem(
                 text = { if (state.stack) ModeText("Stop stack mode", "Back to normal") else ModeText("Stack mode", "Hands-free, beeps on each card") },
                 leadingIcon = { Icon(Icons.Filled.Layers, null, tint = if (state.stack) Palette.Gold else Palette.Text) },
                 onClick = { open = false; vm.setStack(!state.stack) },
-            )
-            if (state.target == ScanTarget.DECK) DropdownMenuItem(
-                text = { ModeText("Stop deck: ${state.deck?.name.orEmpty()}", "Add to the collection again") },
-                leadingIcon = { Icon(Icons.Filled.Style, null, tint = Palette.Gold) },
-                onClick = { open = false; vm.stopTarget() },
-            ) else DropdownMenuItem(
-                text = { ModeText("Scan to a deck", "Add to a deck list") },
-                leadingIcon = { Icon(Icons.Filled.Style, null) },
-                onClick = { open = false; vm.showDeckPick(true) },
-            )
-            if (state.target == ScanTarget.CHECK) DropdownMenuItem(
-                text = { ModeText("Stop price check", "Add cards again") },
-                leadingIcon = { Icon(Icons.Filled.Sell, null, tint = Palette.Gold) },
-                onClick = { open = false; vm.stopTarget() },
-            ) else DropdownMenuItem(
-                text = { ModeText("Price check", "Value and owned, no adding") },
-                leadingIcon = { Icon(Icons.Filled.Sell, null) },
-                onClick = { open = false; vm.startCheck() },
-            )
-            if (state.target == ScanTarget.REMOVE) DropdownMenuItem(
-                text = { ModeText("Stop removing", "Add cards again") },
-                leadingIcon = { Icon(Icons.Filled.RemoveCircleOutline, null, tint = Palette.Gold) },
-                onClick = { open = false; vm.stopTarget() },
-            ) else DropdownMenuItem(
-                text = { ModeText("Scan to remove", "Sold or traded cards out") },
-                leadingIcon = { Icon(Icons.Filled.RemoveCircleOutline, null) },
-                onClick = { open = false; vm.startRemove() },
             )
             if (state.boxCheck == null) DropdownMenuItem(
                 text = { ModeText("Box check", "Scan a box, see what's missing") },
@@ -180,32 +156,45 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             }
             DropdownMenuItem(
                 text = {
-                    if (state.pageMode) ModeText("Back to single cards", "Scan one card at a time")
-                    else ModeText("Binder page", "Read a 9-pocket page in one go")
+                    if (state.pageMode) ModeText("Back to single cards", "One card at a time")
+                    else ModeText("Many cards at once", "Binder page or a photo")
                 },
-                leadingIcon = { Icon(Icons.Filled.GridOn, null) },
+                leadingIcon = { Icon(Icons.Filled.GridOn, null, tint = if (state.pageMode) Palette.Gold else Palette.Text) },
                 onClick = { open = false; vm.setPageMode(!state.pageMode) },
             )
-            DropdownMenuItem(
-                text = { ModeText("From photo", "Read every card in a picture") },
-                leadingIcon = { Icon(Icons.Filled.PhotoLibrary, null) },
-                onClick = {
-                    open = false
-                    runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-                },
-            )
-            DropdownMenuItem(
-                text = {
-                    val lock = SortPrefs.setLock
-                    if (lock != null) ModeText("Set: ${lock.uppercase()}", "Change or unlock")
-                    else ModeText("Lock to a set", "Faster reads for one set")
-                },
-                leadingIcon = { Icon(Icons.Filled.Lock, null, tint = if (SortPrefs.setLock != null) Palette.Gold else Palette.Text) },
-                onClick = { open = false; vm.showSetLock(true) },
-            )
+        }
+        // Where scanned cards go.
+        DropdownMenu(expanded = into, onDismissRequest = { into = false }) {
+            INTO.forEach { t ->
+                val on = state.target == t.target
+                DropdownMenuItem(
+                    text = { Text(if (t.target == ScanTarget.DECK && on) "Deck: ${state.deck?.name.orEmpty()}" else t.label, color = if (on) Palette.Accent else Palette.Text) },
+                    leadingIcon = { Icon(t.icon, null, tint = if (on) Palette.Accent else Palette.Icon) },
+                    onClick = {
+                        when {
+                            t.target == ScanTarget.DECK -> vm.showDeckPick(true)
+                            on -> {}
+                            t.target == ScanTarget.CHECK -> vm.startCheck()
+                            t.target == ScanTarget.REMOVE -> vm.startRemove()
+                            else -> vm.stopTarget()
+                        }
+                        into = false
+                    },
+                )
+            }
         }
     }
 }
+
+/** One "Scan into" choice. */
+private class IntoChoice(val target: ScanTarget, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
+private val INTO = listOf(
+    IntoChoice(ScanTarget.COLLECTION, "Collection", Icons.Filled.CollectionsBookmark),
+    IntoChoice(ScanTarget.DECK, "Deck", Icons.Filled.Style),
+    IntoChoice(ScanTarget.CHECK, "Just check", Icons.Filled.Sell),
+    IntoChoice(ScanTarget.REMOVE, "Remove", Icons.Filled.RemoveCircleOutline),
+)
 
 /** Picks the deck list that scanned cards go to, or makes a new one. */
 @Composable
@@ -215,7 +204,7 @@ fun DeckPickDialog(vm: ScanViewModel) {
     AlertDialog(
         onDismissRequest = { vm.showDeckPick(false) },
         containerColor = Palette.Surface,
-        title = { Text("Scan to a deck") },
+        title = { Text("Scan into a deck") },
         text = {
             Column {
                 if (decks.isEmpty()) {
@@ -311,9 +300,12 @@ fun PageGuide(modifier: Modifier) {
     }
 }
 
-/** The capture button and status shown at the bottom in binder page mode. */
+/** Many cards at once: capture a binder page with the camera, or read every card in a photo from the gallery. */
 @Composable
 fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.readPhoto(uri)
+    }
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             state.status, color = Color.White, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center,
@@ -325,7 +317,20 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
             Spacer(Modifier.width(12.dp))
             TextButton(onClick = vm::cancelCapture) { Text("Cancel", color = Color.White) }
         }
-        else GradientButton("Capture page", vm::capturePage, Modifier.fillMaxWidth(), icon = Icons.Filled.GridOn)
+        else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            GradientButton("Capture page", vm::capturePage, Modifier.weight(1f), icon = Icons.Filled.GridOn)
+            Spacer(Modifier.width(8.dp))
+            Row(
+                Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
+                    .clickable { runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) } }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.PhotoLibrary, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Photo", color = Color.White, style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 
