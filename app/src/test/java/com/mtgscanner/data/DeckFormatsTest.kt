@@ -169,4 +169,51 @@ class DeckFormatsTest {
         assertTrue(CommanderRules.issues(lines, "modern", DeckCommanders(), info).isEmpty)
         assertTrue(CommanderRules.issues(lines, "", DeckCommanders(), info).isEmpty)
     }
+
+    @Test fun legality() {
+        fun card(name: String, type: String, legal: Map<String, String>, text: String = "", id: String = "") = RulesCard(name, type, text, id, legal)
+        val cards = listOf(
+            card("Atraxa, Praetors' Voice", atraxa.typeLine, mapOf("commander" to "legal", "modern" to "not_legal"), id = "WUBG"),
+            card("Mana Crypt", "Artifact", mapOf("commander" to "banned", "vintage" to "restricted", "modern" to "not_legal")),
+            card("Sol Ring", "Artifact", mapOf("commander" to "legal", "vintage" to "restricted", "modern" to "banned")),
+            card("Brainstorm", "Instant", mapOf("commander" to "legal", "vintage" to "restricted", "modern" to "not_legal"), id = "U"),
+            card("Lightning Bolt", "Instant", mapOf("commander" to "legal", "modern" to "legal", "vintage" to "legal"), id = "R"),
+            card("Rhystic Study", "Enchantment", emptyMap(), id = "U"),
+            card("Kodama", "Creature — Spirit", mapOf("paupercommander" to "restricted")),
+        ).associateBy { com.mtgscanner.util.CardNames.key(it.name) }
+        val info = { n: String -> cards[com.mtgscanner.util.CardNames.key(n)] }
+        val edh = listOf(
+            DeckLine(1, "Atraxa, Praetors' Voice", section = "Commander"),
+            DeckLine(1, "Mana Crypt"),
+            DeckLine(1, "Sol Ring"),
+            DeckLine(1, "Rhystic Study"),
+            DeckLine(1, "Mana Crypt", section = "Maybeboard"),
+        )
+        val i = CommanderRules.issues(edh, "commander", DeckCommanders(listOf("Atraxa, Praetors' Voice")), info)
+        assertEquals(listOf("Mana Crypt"), i.banned)
+        assertTrue(i.notLegal.isEmpty())
+        assertEquals(1, i.count)
+
+        val modern = listOf(
+            DeckLine(4, "Lightning Bolt"),
+            DeckLine(1, "Sol Ring"),
+            DeckLine(2, "Brainstorm", section = "Sideboard"),
+            DeckLine(4, "Rhystic Study"),
+        )
+        val m = CommanderRules.issues(modern, "modern", DeckCommanders(), info)
+        assertEquals(listOf("Sol Ring"), m.banned)
+        assertEquals(listOf("Brainstorm"), m.notLegal)
+        assertTrue(m.overLimit.isEmpty())
+        assertEquals(2, m.count)
+
+        // Vintage: restricted cards are one copy.
+        val v = CommanderRules.issues(listOf(DeckLine(2, "Brainstorm"), DeckLine(1, "Sol Ring"), DeckLine(4, "Lightning Bolt")), "vintage", DeckCommanders(), info)
+        assertEquals(listOf("Brainstorm"), v.overLimit)
+        assertTrue(v.banned.isEmpty() && v.notLegal.isEmpty())
+
+        // PDH: a restricted card is fine as the commander, not in the deck.
+        val pdh = listOf(DeckLine(1, "Kodama", section = "Commander"))
+        assertTrue(CommanderRules.issues(pdh, "paupercommander", DeckCommanders(listOf("Kodama")), info).isEmpty)
+        assertEquals(listOf("Kodama"), CommanderRules.issues(listOf(DeckLine(1, "Kodama")), "paupercommander", DeckCommanders(), info).notLegal)
+    }
 }

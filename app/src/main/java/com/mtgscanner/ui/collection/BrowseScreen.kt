@@ -81,6 +81,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.Deck
+import androidx.compose.material.icons.filled.Style
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
@@ -139,6 +141,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     val showTip by vm.showTip.collectAsStateWithLifecycle()
     val dense by vm.dense.collectAsStateWithLifecycle()
     val pagesOn by vm.pages.collectAsStateWithLifecycle()
+    val deckChoices by vm.deckChoices.collectAsStateWithLifecycle()
     val sparks by vm.sparks.collectAsStateWithLifecycle()
     /** Wide screens show the card beside the list. */
     val wide = LocalConfiguration.current.screenWidthDp >= 840
@@ -159,11 +162,18 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     /** A card swiped right, waiting for a box to move to. */
     var moving by remember { mutableStateOf<CollectionCard?>(null) }
     val picking = selecting || selected.isNotEmpty()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
-        if (picking) SelectionBar(selected.size, ui.boxes, vm, onTag = { tagging = true }, onEdit = { editing = true })
+        if (picking) SelectionBar(
+            selected.size, ui.boxes, deckChoices, vm, onTag = { tagging = true }, onEdit = { editing = true },
+            onCopy = {
+                val names = ui.groups.flatMap { it.second }.filter { it.id in selected }.map { it.name }.distinct()
+                com.mtgscanner.util.CopyText.copy(ctx, names.joinToString("\n"), if (names.size == 1) "Card name" else "Card names")
+            },
+        )
         else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
@@ -256,6 +266,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
             }
         }
+        // Card pages opened last, hidden while searching or filtering.
+        if (f.query.isEmpty() && f.activeCount == 0 && !picking) RecentCardsStrip(ui.totalCards, onOpen = { tap(it) })
 
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
@@ -310,6 +322,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 onSwipeSell = { c -> vm.sellOne(c) },
                 // A box with dividers lists its cards by divider: draw the headers as divider tabs.
                 tabs = f.group == GroupBy.NONE && ui.boxes.any { it.id == boxId && com.mtgscanner.data.BoxLayout.of(it.divider).hasDividers },
+                byName = f.sort == SortBy.NAME && f.group == GroupBy.NONE,
             )
         }
     }
@@ -331,13 +344,16 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
         onDismiss = { editing = false },
     )
     moving?.let { c ->
-        BoxPickerDialog("Move ${c.name} to", ui.boxes.filter { it.id != c.boxId }, onPick = { vm.moveOne(c.id, it); moving = null }, onDismiss = { moving = null })
+        BoxPickerDialog(
+            "Move ${c.name} to", ui.boxes.filter { it.id != c.boxId }, onPick = { vm.moveOne(c.id, it); moving = null }, onDismiss = { moving = null },
+            decks = deckChoices, onPickDeck = { vm.moveOneToDeck(c.id, it); moving = null },
+        )
     }
 }
 
 /** Top bar while picking cards: how many, and what to do with them. */
 @Composable
-private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit) {
+private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, onCopy: () -> Unit) {
     var moveMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
@@ -357,6 +373,16 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
                         onClick = { moveMenu = false; vm.moveSelected(b.id) },
                     )
                 }
+                if (decks.isNotEmpty()) {
+                    DecksHeader(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                    decks.forEach { d ->
+                        DropdownMenuItem(
+                            text = { Text(d.name) },
+                            leadingIcon = { Icon(Icons.Filled.Style, null, tint = Palette.Icon) },
+                            onClick = { moveMenu = false; vm.moveSelectedToDeck(d.id) },
+                        )
+                    }
+                }
             }
         }
         IconButton(onClick = vm::deleteSelected) { Icon(Icons.Filled.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
@@ -371,6 +397,7 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
                     text = { Text("For sale") }, leadingIcon = { Icon(Icons.Filled.Sell, null) },
                     onClick = { more = false; vm.sellSelected() },
                 )
+                DropdownMenuItem(text = { Text(if (count == 1) "Copy name" else "Copy names") }, onClick = { more = false; onCopy() })
                 DropdownMenuItem(text = { Text("Condition, language, foil") }, onClick = { more = false; onEdit() })
                 DropdownMenuItem(text = { Text("Stay in this box") }, onClick = { more = false; vm.pinSelected(true) })
                 DropdownMenuItem(text = { Text("Let re-sort move") }, onClick = { more = false; vm.pinSelected(false) })
@@ -463,7 +490,14 @@ fun TagDialog(existing: List<String>, onDone: (String) -> Unit, onDismiss: () ->
 }
 
 @Composable
-fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+fun BoxPickerDialog(
+    title: String,
+    boxes: List<CardBox>,
+    onPick: (Long) -> Unit,
+    onDismiss: () -> Unit,
+    decks: List<Deck> = emptyList(),
+    onPickDeck: (Long) -> Unit = {},
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
@@ -471,7 +505,7 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
         text = {
             // Long box lists scroll instead of running off the dialog.
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (boxes.isEmpty()) Text("Make another box first.", color = Palette.Muted)
+                if (boxes.isEmpty() && decks.isEmpty()) Text("Make another box first.", color = Palette.Muted)
                 boxes.forEach { b ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPick(b.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
@@ -482,11 +516,30 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
                         Text(b.name, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
+                if (decks.isNotEmpty()) {
+                    DecksHeader(Modifier.padding(top = 10.dp, bottom = 2.dp, start = 4.dp))
+                    decks.forEach { d ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPickDeck(d.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Style, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
             }
         },
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/** "Decks", above the decks in a Move picker. */
+@Composable
+private fun DecksHeader(modifier: Modifier = Modifier) {
+    Text("Decks", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = modifier)
 }
 
 /** A few examples of Scryfall search syntax, which the collection search reads too. */
@@ -523,10 +576,15 @@ fun SearchField(
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            // Results update as you type: the keyboard's Search key just puts the keyboard away.
+            val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            val focus = androidx.compose.ui.platform.LocalFocusManager.current
             BasicTextField(
                 value = value,
                 onValueChange = onChange,
                 singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide(); focus.clearFocus() }),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
                 cursorBrush = SolidColor(Palette.Accent),
                 modifier = Modifier.fillMaxWidth(),
@@ -553,11 +611,13 @@ private fun CardGrid(
     onSwipeMove: (CollectionCard) -> Unit,
     onSwipeSell: (CollectionCard) -> Unit,
     tabs: Boolean = false,
+    byName: Boolean = false,
 ) {
     val state = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val headers = remember(groups) { ListSections.headerIndices(groups) }
     val rail = remember(groups, headers) { ListSections.rail(groups, headers) }
+    val jumpBar = remember(groups, rail, byName) { JumpBar.shows(byName, groups.sumOf { it.second.size }, rail) }
     /** The section pinned to the top, or -1 while its own header is in place. */
     val pinned by remember(groups, headers) {
         derivedStateOf {
@@ -570,7 +630,7 @@ private fun CardGrid(
         LazyVerticalGrid(
             state = state,
             columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
-            contentPadding = PaddingValues(start = 10.dp, end = if (rail.isNotEmpty()) 28.dp else 10.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 10.dp, end = if (jumpBar) 28.dp else 10.dp, bottom = 24.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             groups.forEachIndexed { gi, (title, cards) ->
@@ -607,7 +667,7 @@ private fun CardGrid(
                 Modifier.fillMaxWidth().background(Palette.Background).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
             )
         }
-        if (rail.isNotEmpty()) {
+        if (jumpBar) {
             LetterRail(
                 rail, Modifier.align(Alignment.CenterEnd),
                 onLetter = { railLetter = it },
@@ -633,10 +693,11 @@ private fun SectionHead(title: String, count: Int, modifier: Modifier = Modifier
     }
 }
 
-/** A-Z down the right edge: touch or drag to jump to a letter. */
+/** A-Z down the right edge: touch or drag to jump to a letter. Letters with no cards are dimmed and jump to the next one. */
 @Composable
 private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onLetter: (String?) -> Unit, onJump: (Int) -> Unit) {
     var heightPx by remember { mutableIntStateOf(1) }
+    val present = remember(entries) { entries.map { it.first }.toSet() }
     Column(
         modifier
             .fillMaxHeight()
@@ -644,13 +705,13 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
             .width(26.dp)
             .onSizeChanged { heightPx = it.height.coerceAtLeast(1) }
             .pointerInput(entries) {
-                var last = -1
+                var last: String? = null
                 fun pick(y: Float) {
-                    val i = ((y / heightPx) * entries.size).toInt().coerceIn(0, entries.lastIndex)
-                    if (i != last) {
-                        last = i
-                        onLetter(entries[i].first)
-                        onJump(entries[i].second)
+                    val letter = JumpBar.letterAt(y, heightPx.toFloat())
+                    if (letter != last) {
+                        last = letter
+                        onLetter(letter)
+                        JumpBar.firstIndex(entries, letter)?.let(onJump)
                         com.mtgscanner.util.Haptics.tick()
                     }
                 }
@@ -665,15 +726,15 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
                         change.consume()
                         pick(change.position.y)
                     }
-                    last = -1
+                    last = null
                     onLetter(null)
                 }
             },
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        entries.forEach { (letter, _) ->
-            Text(letter, fontSize = 10.sp, lineHeight = 11.sp, color = Palette.Muted)
+        JumpBar.LETTERS.forEach { letter ->
+            Text(letter, fontSize = 10.sp, lineHeight = 11.sp, color = if (letter in present) Palette.Muted else Palette.Muted.copy(alpha = 0.35f))
         }
     }
 }

@@ -156,6 +156,8 @@ data class RulesCard(
     val oracleText: String = "",
     /** Color identity letters. */
     val identity: String = "",
+    /** Scryfall's legality by format key ("legal", "not_legal", "banned", "restricted"); empty = unknown. */
+    val legalities: Map<String, String> = emptyMap(),
 )
 
 /** How a commander takes a second one. */
@@ -172,6 +174,7 @@ object CommanderRules {
     private val BACKGROUND = Regex("""(?m)^(?:[^:\n]*: )?Choose a Background""", RegexOption.IGNORE_CASE)
     private val COMPANION_OF_DOCTOR = Regex("""(?m)^(?:[^:\n]*: )?Doctor['’]s companion""", RegexOption.IGNORE_CASE)
     private val ANY_NUMBER = Regex("""A deck can have any number of cards named""", RegexOption.IGNORE_CASE)
+    private val LEGAL_CHECKED = setOf("Main", "Commander", "Companion", "Signature")
     private val UP_TO = Regex("""A deck can have up to (\w+) cards named""", RegexOption.IGNORE_CASE)
 
     private fun front(type: String) = type.substringBefore(" // ")
@@ -275,25 +278,50 @@ object CommanderRules {
         "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     ).indexOf(w.lowercase()).takeIf { it >= 0 }
 
-    /** Cards outside the commanders' colors, and cards over the copy limit. */
-    data class Issues(val offColor: List<String> = emptyList(), val overLimit: List<String> = emptyList()) {
-        val isEmpty: Boolean get() = offColor.isEmpty() && overLimit.isEmpty()
+    /** Cards outside the commanders' colors, over the copy limit, banned, or not in the format. */
+    data class Issues(
+        val offColor: List<String> = emptyList(),
+        val overLimit: List<String> = emptyList(),
+        val banned: List<String> = emptyList(),
+        val notLegal: List<String> = emptyList(),
+    ) {
+        val isEmpty: Boolean get() = count == 0
+        val count: Int get() = offColor.size + overLimit.size + banned.size + notLegal.size
     }
 
     /**
-     * Checks a list against [format]: copies over the limit, and (for commander formats, when every commander
-     * is known) cards outside the commanders' color identity. [info] gives what's known about a card by name;
-     * cards it doesn't know are skipped. Banned cards aren't checked.
+     * Checks a list against [format]: banned cards and cards not in the format (when the card's legality is
+     * known), copies over the limit, and (for commander formats, when every commander is known) cards outside
+     * the commanders' color identity. [info] gives what's known about a card by name; cards it doesn't know are
+     * skipped.
      */
     fun issues(lines: List<DeckLine>, format: String, commanders: DeckCommanders, info: (String) -> RulesCard?): Issues {
         val f = DeckFormats.of(format)
         if (f.id.isEmpty()) return Issues()
+        fun key(n: String) = com.mtgscanner.util.CardNames.key(n)
         val played = lines.filter { it.section == "Main" || it.section == "Commander" || it.section == "Signature" }
-        val byName = played.groupBy { com.mtgscanner.util.CardNames.key(it.name) }
+        val byName = played.groupBy { key(it.name) }
+        // Restricted (Vintage): one copy.
+        fun restricted(c: RulesCard?) = !f.commander && c?.legalities?.get(f.id) == "restricted"
         val over = byName.values.mapNotNull { ls ->
             val n = ls.sumOf { it.quantity }
-            val limit = copyLimit(info(ls.first().name), format) ?: return@mapNotNull null
+            val c = info(ls.first().name)
+            val limit = if (restricted(c)) 1 else copyLimit(c, format) ?: return@mapNotNull null
             if (n > limit) ls.first().name else null
+        }
+        // Sideboards count in constructed formats; maybeboards and tokens never do.
+        val checked = lines.filter { it.section in LEGAL_CHECKED || (!f.commander && it.section == "Sideboard") }
+            .map { it.name } + commanders.all
+        val leadKeys = commanders.commanders.map(::key).toSet()
+        val banned = mutableListOf<String>()
+        val notLegal = mutableListOf<String>()
+        checked.distinctBy(::key).forEach { n ->
+            when (info(n)?.legalities?.get(f.id)) {
+                "banned" -> banned += n
+                "not_legal" -> notLegal += n
+                // In commander formats (PDH), restricted means it may only be the commander.
+                "restricted" -> if (f.commander && key(n) !in leadKeys) notLegal += n
+            }
         }
         val off = if (!f.commander || commanders.commanders.isEmpty()) emptyList() else {
             val leads = commanders.commanders.map { info(it) }
@@ -306,6 +334,6 @@ object CommanderRules {
                 }
             }
         }
-        return Issues(off, over)
+        return Issues(off, over, banned, notLegal)
     }
 }

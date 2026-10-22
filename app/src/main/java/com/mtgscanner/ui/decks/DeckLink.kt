@@ -28,17 +28,18 @@ suspend fun CollectionRepository.saveDeckFromLink(url: String) {
     val lines = com.mtgscanner.util.DecklistParser.parse(deck.text)
     val format = deck.format.ifEmpty { com.mtgscanner.data.DeckFormats.guess(lines) }
     val id = saveDeck(0L, deck.name, deck.text, format, com.mtgscanner.data.DeckCommanders.fromLines(lines).encode())
-    Undo.offer("Saved deck: ${deck.name}") { deleteDeck(id) }
+    DeckLinkStore.set(appContext, id, url.trim())
+    Undo.offer("Saved deck: ${deck.name}") { deleteDeck(id); DeckLinkStore.set(appContext, id, null) }
 }
 
 /** Decks › New › From a link: paste a Moxfield or Archidekt link. */
 @Composable
-fun DeckLinkDialog(onDismiss: () -> Unit, onGet: (String) -> Unit) {
+fun DeckLinkDialog(onDismiss: () -> Unit, title: String = "Deck from a link", action: String = "Get deck", onGet: (String) -> Unit) {
     var url by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
-        title = { Text("Deck from a link") },
+        title = { Text(title) },
         text = {
             OutlinedTextField(
                 value = url, onValueChange = { url = it }, singleLine = true,
@@ -47,7 +48,7 @@ fun DeckLinkDialog(onDismiss: () -> Unit, onGet: (String) -> Unit) {
         },
         confirmButton = {
             val link = DeckLinks.find(url.trim().let { if (it.startsWith("http")) it else "https://$it" })
-            TextButton(onClick = { link?.let(onGet) }, enabled = link != null) { Text("Get deck") }
+            TextButton(onClick = { link?.let(onGet) }, enabled = link != null) { Text(action) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

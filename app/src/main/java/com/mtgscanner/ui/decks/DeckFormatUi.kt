@@ -64,11 +64,11 @@ import com.mtgscanner.ui.theme.Palette
 /** A card offered in the commander picker. */
 data class PickOption(val name: String, val typeLine: String, val imageUrl: String?, val rules: RulesCard)
 
-fun DeckCardInfo.rules() = RulesCard(name, typeLine, oracleText, colorIdentity)
+fun DeckCardInfo.rules() = RulesCard(name, typeLine, oracleText, colorIdentity, legalities)
 fun DeckCardInfo.option() = PickOption(name, typeLine, imageUrl, rules())
 fun ScryfallCard.option() = PickOption(
     name, effectiveTypeLine, smallImageUrl ?: imageUrl,
-    RulesCard(name, effectiveTypeLine, effectiveOracleText, colorIdentity.joinToString("")),
+    RulesCard(name, effectiveTypeLine, effectiveOracleText, colorIdentity.joinToString(""), legalities),
 )
 
 /** Common formats as pills, the rest under "More…". */
@@ -236,18 +236,7 @@ fun DeckHeader(format: String, commanders: DeckCommanders, art: List<String>, is
                 listOf(f.label.takeIf { f.id.isNotEmpty() }, who.ifEmpty { null }).filterNotNull().joinToString(" · "),
                 style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-            if (issues.offColor.isNotEmpty()) {
-                Text(
-                    "Off-color: " + issues.offColor.joinToString(", "), style = MaterialTheme.typography.bodySmall,
-                    color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (issues.overLimit.isNotEmpty()) {
-                Text(
-                    "Too many: " + issues.overLimit.joinToString(", "), style = MaterialTheme.typography.bodySmall,
-                    color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
+            DeckIssuesLine(issues)
         }
         if (onEdhrec != null && f.commander) {
             TextButton(onClick = onEdhrec) {
