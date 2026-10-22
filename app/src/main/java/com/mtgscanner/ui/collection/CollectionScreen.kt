@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
@@ -405,7 +406,11 @@ fun CollectionScreen(
     val message by vm.message.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    remember { CollectionPrefs.load(ctx) }
+    val layout = CollectionPrefs.layout
+    var editingLayout by remember { mutableStateOf(false) }
+    var tabName by rememberSaveable { mutableStateOf(CollectionTab.BOXES.name) }
+    val tab = CollectionTab.entries.firstOrNull { it.name == tabName } ?: CollectionTab.BOXES
     var scanningLabel by remember { mutableStateOf(false) }
     var sharingAll by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -416,7 +421,7 @@ fun CollectionScreen(
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
     // Home's "See all" lands here when it can't open Browse itself.
     LaunchedEffect(Unit) {
-        if (com.mtgscanner.ui.home.WishlistLaunch.take()) tab = 2
+        if (com.mtgscanner.ui.home.WishlistLaunch.take()) tabName = CollectionTab.WISHLIST.name
         if (BrowseLaunch.openAll) {
             BrowseLaunch.openAll = false
             onBrowse(-1L)
@@ -432,6 +437,11 @@ fun CollectionScreen(
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More", tint = Palette.Icon) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Edit page") },
+                            leadingIcon = { Icon(Icons.Filled.Tune, null) },
+                            onClick = { menu = false; editingLayout = true },
+                        )
                         DropdownMenuItem(
                             text = { Text("Settings, backup & import") },
                             leadingIcon = { Icon(Icons.Filled.Settings, null) },
@@ -451,18 +461,26 @@ fun CollectionScreen(
                 }
             }
             if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Boxes", "Decks", "Wishlist", "Tools").forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
+            // A hidden tab still shows while it's open (Home's wishlist link lands on it).
+            val tabs = CollectionTab.shown(layout).let { if (tab in it) it else it + tab }
+            if (tabs.size > 1) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tabs.forEach { t -> SelectPill(t.label, tab == t, { tabName = t.name }) }
+                }
             }
             MoveListHost()
             when (tab) {
-                0 -> BoxesTab(ui, vm, onBrowse, onTrade, onOpenCard)
-                1 -> DecksTab(onOpenDeck)
-                2 -> WishlistTab(vm)
-                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist)
+                CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true })
+                CollectionTab.DECKS -> DecksTab(onOpenDeck)
+                CollectionTab.WISHLIST -> WishlistTab(vm)
+                CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE))
             }
         }
     }
+    if (editingLayout) EditCollectionDialog(onDismiss = {
+        editingLayout = false
+        if (tab !in CollectionTab.shown(CollectionPrefs.layout)) tabName = CollectionTab.BOXES.name
+    })
     if (sharingAll) ShareDialog("My collection", scope, onDismiss = { sharingAll = false }) { vm.allCards().map { it.shareLine() } }
     if (scanningLabel) BoxQrScanSheet(
         onBox = { id ->
@@ -476,7 +494,10 @@ fun CollectionScreen(
 }
 
 @Composable
-private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit, onOpenCard: (Long) -> Unit) {
+private fun BoxesTab(
+    ui: OverviewUi, vm: CollectionViewModel, layout: CollectionLayout,
+    onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit, onOpenCard: (Long) -> Unit, onEditPage: () -> Unit,
+) {
     val lists by vm.lists.collectAsStateWithLifecycle()
     val toSort by vm.toSort.collectAsStateWithLifecycle()
     val boxRows by vm.boxRows.collectAsStateWithLifecycle()
@@ -508,80 +529,95 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     // Boxes whose rules never get a card because an earlier box takes them all.
     val dead = remember(ui.boxes) { deadBoxNotes(ui.boxes) }
 
+    // Search hidden: nothing typed earlier keeps filtering the boxes.
+    val searching = layout.shows(CollectionPart.SEARCH)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue, totalEur = ui.totalEur)
-
-        Surface(
-            onClick = { onBrowse(-1L) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(Corners.Medium),
-            color = Palette.Surface,
-        ) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Search, null, tint = Palette.Icon)
-                Spacer(Modifier.width(12.dp))
-                Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
-            }
-        }
-        val toMove = toSort.sumOf { it.card.quantity }
-        if (toMove > 0) {
-            Surface(
-                onClick = { sortingOpen = true },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(Corners.Medium),
-                color = Palette.Surface,
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Icon)
-                    Spacer(Modifier.width(12.dp))
-                    Text("$toMove to sort", style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.weight(1f))
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
+        val q = if (searching) query.trim() else ""
+        if (layout.sections.isEmpty()) EmptyState("All hidden", action = "Edit page", onAction = onEditPage)
+        for (section in layout.sections) {
+            when (section) {
+                CollectionSection.RING ->
+                    ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue, totalEur = ui.totalEur, legend = layout.shows(CollectionPart.LEGEND))
+                CollectionSection.BROWSE -> Surface(
+                    onClick = { onBrowse(-1L) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(Corners.Medium),
+                    color = Palette.Surface,
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Search, null, tint = Palette.Icon)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
+                    }
+                }
+                CollectionSection.TO_SORT -> {
+                    val toMove = toSort.sumOf { it.card.quantity }
+                    if (toMove > 0) {
+                        Surface(
+                            onClick = { sortingOpen = true },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(Corners.Medium),
+                            color = Palette.Surface,
+                        ) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Icon)
+                                Spacer(Modifier.width(12.dp))
+                                Text("$toMove to sort", style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.weight(1f))
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
+                            }
+                        }
+                    }
+                }
+                CollectionSection.BOXES -> {
+                    SectionHeader("Boxes") {
+                        if (layout.shows(CollectionPart.BOX_TOOLS)) {
+                            if (ui.boxes.isNotEmpty()) TextButton(onClick = { shelf = true }) { Text("Shelf") }
+                            if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
+                        }
+                        TextButton(onClick = { creating = true }) {
+                            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("New")
+                        }
+                    }
+                    if (ui.boxes.isEmpty()) {
+                        EmptyState(title = "No boxes yet", action = "New box", onAction = { creating = true })
+                    }
+                    // Finds boxes by name, and cards with their box, divider and shelf spot.
+                    if (searching && (ui.boxes.isNotEmpty() || ui.totalCards > 0)) {
+                        SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Find a box or card")
+                    }
+                    val shown = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
+                    val cardsFound = if (searching) found.second else emptyList()
+                    if (q.isNotEmpty() && shown.isEmpty() && cardsFound.isEmpty() && found.first == query && q.length >= 2) {
+                        EmptyState("No matches", action = "Clear", onAction = { query = "" })
+                    }
+                    shown.forEach { b ->
+                        BoxCard(
+                            b, ui.stats[b.id], colors[b.id] ?: boxColor(b.color),
+                            onClick = { onBrowse(b.id) }, onCover = { covering = b }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
+                            onSplit = { splitting = b }, onTrade = { onTrade(b.id) }, onLayout = { laying = b }, warning = dead[b.id],
+                            onNfc = if (nfc) ({ tagging = b }) else null,
+                            onShare = { sharing = b },
+                            layout = layout,
+                        )
+                    }
+                    if (q.length >= 2 && cardsFound.isNotEmpty()) {
+                        SectionHeader("Cards")
+                        // Where it is on the shelf, when the boxes are laid out there.
+                        ShelfSpot(boxRows, cardsFound.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                        cardsFound.forEach { f -> FoundRow(f.card, f.where) { onOpenCard(f.card.id) } }
+                    }
+                }
+                CollectionSection.LISTS -> if (q.isEmpty()) {
+                    SmartListsSection(lists, onOpen = { s ->
+                        BrowseLaunch.open(s)
+                        onBrowse(s.boxId ?: -1L)
+                    }, onDelete = vm::deleteList)
                 }
             }
         }
-
-        SectionHeader("Boxes") {
-            if (ui.boxes.isNotEmpty()) TextButton(onClick = { shelf = true }) { Text("Shelf") }
-            if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
-            TextButton(onClick = { creating = true }) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("New")
-            }
-        }
-        if (ui.boxes.isEmpty()) {
-            EmptyState(title = "No boxes yet", action = "New box", onAction = { creating = true })
-        }
-        // Finds boxes by name, and cards with their box, divider and shelf spot.
-        if (ui.boxes.isNotEmpty() || ui.totalCards > 0) {
-            SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Find a box or card")
-        }
-        val q = query.trim()
-        val shown = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
-        val cardsFound = found.second
-        if (q.isNotEmpty() && shown.isEmpty() && cardsFound.isEmpty() && found.first == query && q.length >= 2) {
-            EmptyState("No matches", action = "Clear", onAction = { query = "" })
-        }
-        shown.forEach { b ->
-            BoxCard(
-                b, ui.stats[b.id], colors[b.id] ?: boxColor(b.color),
-                onClick = { onBrowse(b.id) }, onCover = { covering = b }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
-                onSplit = { splitting = b }, onTrade = { onTrade(b.id) }, onLayout = { laying = b }, warning = dead[b.id],
-                onNfc = if (nfc) ({ tagging = b }) else null,
-                onShare = { sharing = b },
-            )
-        }
-        if (q.length >= 2 && cardsFound.isNotEmpty()) {
-            SectionHeader("Cards")
-            // Where it is on the shelf, when the boxes are laid out there.
-            ShelfSpot(boxRows, cardsFound.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-            cardsFound.forEach { f -> FoundRow(f.card, f.where) { onOpenCard(f.card.id) } }
-        }
-        if (q.isEmpty()) SmartListsSection(lists, onOpen = { s ->
-            BrowseLaunch.open(s)
-            onBrowse(s.boxId ?: -1L)
-        }, onDelete = vm::deleteList)
         Spacer(Modifier.height(24.dp))
     }
 
@@ -761,11 +797,10 @@ private fun BoxCard(
     /** Writes the box's link to an NFC tag; null on phones without NFC. */
     onNfc: (() -> Unit)? = null,
     onShare: () -> Unit = {},
+    /** Which details show, and full or compact. */
+    layout: CollectionLayout = CollectionLayout.DEFAULT,
 ) {
     var menu by remember { mutableStateOf(false) }
-    val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
-    val fill = BoxFillMath.state(b.cards, b.capacity)
-    val art = if (b.cards > 0) stats?.artUrl else null
     val shape = RoundedCornerShape(Corners.Medium)
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(
@@ -777,59 +812,7 @@ private fun BoxCard(
                     drawRect(stripe, size = Size(5.dp.toPx(), size.height))
                 },
         ) {
-            if (art != null) {
-                // The cover's art as a cropped strip, dimmed toward the bottom so the name reads on it.
-                Box(Modifier.fillMaxWidth().height(68.dp).background(Color(0xFF15161A))) {
-                    AsyncImage(
-                        model = art,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        alignment = BiasAlignment(0f, -0.35f),
-                        modifier = Modifier.matchParentSize(),
-                    )
-                    Box(
-                        Modifier.matchParentSize().background(
-                            Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.5f), Color.Black.copy(alpha = 0.82f))),
-                        ),
-                    )
-                    BoxTitle(b, stripe, onArt = true, Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 18.dp, bottom = 8.dp))
-                }
-            }
-            Column(Modifier.padding(start = 22.dp, end = 18.dp, top = if (art != null) 10.dp else 16.dp, bottom = 14.dp)) {
-                if (art == null) BoxTitle(b, stripe, onArt = false)
-                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        when {
-                            b.capacity > 0 -> "${b.cards} / ${b.capacity}"
-                            b.cards == 0 -> "No cards"
-                            else -> "${b.cards} cards"
-                        } + (if (fill == BoxFill.FULL) " · Full" else ""),
-                        style = MaterialTheme.typography.bodyLarge.merge(TabularNums),
-                        color = fillColor(fill, Palette.Text),
-                        modifier = Modifier.weight(1f).padding(bottom = 4.dp),
-                    )
-                    if (AppSettings.showPrices) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
-                            val pct = stats?.changePercent
-                            if (stats != null && pct != null) {
-                                Text(
-                                    boxChangeLabel(stats.change, pct),
-                                    style = MaterialTheme.typography.labelMedium.merge(TabularNums),
-                                    color = boxChangeColor(stats.change),
-                                )
-                            }
-                        }
-                    }
-                }
-                if (b.capacity > 0) {
-                    Spacer(Modifier.height(8.dp))
-                    BoxFillMeter(b.cards, b.capacity, stripe)
-                }
-            }
+            if (layout.compact) BoxCardCompact(b, stripe, warning, layout) else BoxCardFull(b, stats, stripe, warning, layout)
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options", tint = Palette.Icon) }
@@ -844,6 +827,103 @@ private fun BoxCard(
                 if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { menu = false; onNfc() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
+        }
+    }
+}
+
+/** "12 / 400 · Full", "No cards" or "57 cards". */
+private fun boxCountText(b: BoxSummary, fill: BoxFill): String = when {
+    b.capacity > 0 -> "${b.cards} / ${b.capacity}"
+    b.cards == 0 -> "No cards"
+    else -> "${b.cards} cards"
+} + (if (fill == BoxFill.FULL) " · Full" else "")
+
+/** One line: the name, then count and value. */
+@Composable
+private fun BoxCardCompact(b: BoxSummary, stripe: Color, warning: String?, layout: CollectionLayout) {
+    val fill = BoxFillMath.state(b.cards, b.capacity)
+    Row(Modifier.padding(start = 22.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        BoxTitle(b, stripe, onArt = false, modifier = Modifier.weight(1f))
+        if (layout.shows(CollectionPart.COUNT)) {
+            Spacer(Modifier.width(8.dp))
+            Text(boxCountText(b, fill), style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = fillColor(fill, Palette.Muted), maxLines = 1)
+        }
+        if (AppSettings.showPrices && layout.shows(CollectionPart.VALUE)) {
+            Spacer(Modifier.width(10.dp))
+            Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text, maxLines = 1)
+        }
+    }
+    if (warning != null) {
+        Text(
+            warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
+        )
+    }
+}
+
+/** The full card: cover art strip, rules, count, value with change, and the fill meter, each when turned on. */
+@Composable
+private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout) {
+    val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
+    val fill = BoxFillMath.state(b.cards, b.capacity)
+    val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
+    val showCount = layout.shows(CollectionPart.COUNT)
+    val showValue = AppSettings.showPrices && layout.shows(CollectionPart.VALUE)
+    val showChange = AppSettings.showPrices && layout.shows(CollectionPart.CHANGE)
+    if (art != null) {
+        // The cover's art as a cropped strip, dimmed toward the bottom so the name reads on it.
+        Box(Modifier.fillMaxWidth().height(68.dp).background(Color(0xFF15161A))) {
+            AsyncImage(
+                model = art,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alignment = BiasAlignment(0f, -0.35f),
+                modifier = Modifier.matchParentSize(),
+            )
+            Box(
+                Modifier.matchParentSize().background(
+                    Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.5f), Color.Black.copy(alpha = 0.82f))),
+                ),
+            )
+            BoxTitle(b, stripe, onArt = true, Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 18.dp, bottom = 8.dp))
+        }
+    }
+    Column(Modifier.padding(start = 22.dp, end = 18.dp, top = if (art != null) 10.dp else 16.dp, bottom = 14.dp)) {
+        if (art == null) BoxTitle(b, stripe, onArt = false)
+        if (layout.shows(CollectionPart.RULES)) {
+            Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (showCount || showValue || showChange) {
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                // Keeps the value on the right when the count is off.
+                Box(Modifier.weight(1f)) {
+                    if (showCount) {
+                        Text(
+                            boxCountText(b, fill),
+                            style = MaterialTheme.typography.bodyLarge.merge(TabularNums),
+                            color = fillColor(fill, Palette.Text),
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    if (showValue) Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
+                    val pct = stats?.changePercent
+                    if (showChange && stats != null && pct != null) {
+                        Text(
+                            boxChangeLabel(stats.change, pct),
+                            style = MaterialTheme.typography.labelMedium.merge(TabularNums),
+                            color = boxChangeColor(stats.change),
+                        )
+                    }
+                }
+            }
+        }
+        if (b.capacity > 0 && layout.shows(CollectionPart.FILL)) {
+            Spacer(Modifier.height(8.dp))
+            BoxFillMeter(b.cards, b.capacity, stripe)
         }
     }
 }
@@ -868,8 +948,9 @@ private fun ToolsTab(
     ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit,
     onSets: () -> Unit, onExtras: () -> Unit,
     onLoans: () -> Unit = {}, onSell: () -> Unit = {},
+    showTrade: Boolean = true,
 ) {
-    val trade = ui.boxes.filter { it.kind == "trade" }
+    val trade = if (showTrade) ui.boxes.filter { it.kind == "trade" } else emptyList()
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf<BoxSummary?>(null) }
     sharing?.let { b ->
@@ -881,8 +962,8 @@ private fun ToolsTab(
             ToolRow(Icons.Filled.GridView, "Set tracker") { onSets() }
             ToolRow(Icons.Filled.Sell, "Sell") { onSell() }
             ToolRow(Icons.Filled.Person, "Loans") { onLoans() }
-            ToolGroup("Trade binders")
-            if (trade.isEmpty()) {
+            if (showTrade) ToolGroup("Trade binders")
+            if (showTrade && trade.isEmpty()) {
                 Text(
                     "Make a Trade binder box to trade.",
                     style = MaterialTheme.typography.bodySmall,
