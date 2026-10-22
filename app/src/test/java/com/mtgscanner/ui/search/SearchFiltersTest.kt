@@ -45,6 +45,20 @@ class SearchFiltersTest {
         assertEquals("sword f:modern", f.combine("sword"))
     }
 
+    @Test fun typedSyntaxIsKeptWhole() {
+        val f = SearchFilters(format = "modern")
+        assertEquals("t:elf -c:g o:\"draw a card\" f:modern", f.combine("t:elf -c:g o:\"draw a card\""))
+        assertEquals("!\"Sol Ring\" f:modern", f.combine("!\"Sol Ring\""))
+        assertEquals("(t:elf (c:g OR c:b)) f:modern", f.combine("t:elf (c:g OR c:b)"))
+        // Curly quotes from a phone keyboard are made straight.
+        assertEquals("o:\"draw a card\" f:modern", f.combine("o:“draw a card”"))
+        // A quote or ( left open doesn't swallow the filters.
+        assertEquals("o:\"draw a\" f:modern", f.combine("o:\"draw a"))
+        assertEquals("((t:elf or t:goblin)) f:modern", f.combine("(t:elf or t:goblin"))
+        assertEquals("t:\"(\" f:modern", f.combine("t:\"(\""))
+        assertEquals("o:\"say \\\"hi\\\"\" f:modern", f.combine("o:\"say \\\"hi\\\"\""))
+    }
+
     @Test fun opSticksBeforeValueTyped() {
         val f = SearchFilters().withStat(StatTerm("mv", "<", ""))
         assertEquals("<", f.stat("mv").op)

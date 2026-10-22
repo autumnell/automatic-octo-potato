@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.data.search.ScryfallQuery
 import com.mtgscanner.ui.collection.CardColors
 import com.mtgscanner.ui.collection.ColorMatch
 import kotlinx.serialization.Serializable
@@ -73,7 +74,7 @@ data class SearchFilters(
      * parentheses so the filters apply to every branch, not just the last one.
      */
     fun combine(text: String): String {
-        val t = text.trim()
+        val t = tidy(text)
         val q = toQuery()
         val words = if (q.isNotEmpty() && OR.containsMatchIn(t)) "($t)" else t
         return listOf(words, q).filter { it.isNotEmpty() }.joinToString(" ")
@@ -102,6 +103,28 @@ data class SearchFilters(
         val STATS = listOf("mv", "pow", "tou")
         val OPS = listOf("=", "<", ">", "<=", ">=")
         private val OR = Regex("""(?i)(^|\s)or(\s|$)""")
+
+        /**
+         * Typed text made safe to send with filters after it: curly quotes from phone keyboards made straight,
+         * and a quote or ( left open closed, so it doesn't swallow the filters.
+         */
+        fun tidy(text: String): String {
+            val t = ScryfallQuery.straightenQuotes(text).trim()
+            var inQuote = false
+            var depth = 0
+            var i = 0
+            while (i < t.length) {
+                val ch = t[i]
+                when {
+                    ch == '\\' && inQuote -> i++
+                    ch == '"' -> inQuote = !inQuote
+                    !inQuote && ch == '(' -> depth++
+                    !inQuote && ch == ')' && depth > 0 -> depth--
+                }
+                i++
+            }
+            return t + (if (inQuote) "\"" else "") + ")".repeat(depth)
+        }
 
         /** A number (may be negative or have a decimal point), or "*" with "=". */
         private fun validValue(op: String, v: String): Boolean =
