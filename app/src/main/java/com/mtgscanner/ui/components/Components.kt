@@ -30,7 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Style
@@ -63,7 +63,10 @@ import androidx.compose.ui.graphics.painter.ColorPainter
 import coil.compose.AsyncImage
 import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.AppSettings
+import com.mtgscanner.ui.theme.CardShape
+import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.TabularNums
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -125,20 +128,22 @@ fun Shimmer(modifier: Modifier = Modifier) {
 }
 
 /**
- * A card image with rounded corners like a real card, and a plain placeholder while loading.
+ * A card image with a real card's corners ([CardShape]), and a plain placeholder while loading.
  * Uses AsyncImage (no subcomposition) so long lists and grids stay smooth.
  */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun CardImage(
     url: String?,
     modifier: Modifier = Modifier,
-    corner: Dp = 8.dp,
+    /** Ignored: every card image uses [CardShape]. Kept so older calls still compile. */
+    corner: Dp? = null,
     /** Tap and hold shows the card big (see [cardZoom]). */
     zoom: Boolean = false,
     /** With [zoom]: the image handles taps itself, so a parent's own long press doesn't also fire. */
     onTap: (() -> Unit)? = null,
 ) {
-    val shape = RoundedCornerShape(corner)
+    val shape = CardShape
     val fill = Palette.SurfaceHigh
     val placeholder = remember(fill) { ColorPainter(fill) }
     // If the stored link fails, ask Scryfall for the card's current image instead.
@@ -165,7 +170,10 @@ fun scryfallImageFallback(url: String?): String? {
     return "https://api.scryfall.com/cards/$id?format=image&version=$size" + if (face == "back") "&face=back" else ""
 }
 
-/** Big orange gradient button, the main action on a screen. */
+/**
+ * The main button on a screen: flat, filled with the accent. [hero] adds the accent gradient; it is kept for
+ * one button in the app, the Add after a scan.
+ */
 @Composable
 fun GradientButton(
     text: String,
@@ -173,12 +181,19 @@ fun GradientButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     enabled: Boolean = true,
+    hero: Boolean = false,
 ) {
     Row(
         modifier
             .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (enabled) Palette.AccentGradient else Brush.horizontalGradient(listOf(Palette.SurfaceHigh, Palette.SurfaceHigh)))
+            .clip(RoundedCornerShape(Corners.Medium))
+            .then(
+                when {
+                    !enabled -> Modifier.background(Palette.SurfaceHigh)
+                    hero -> Modifier.background(Palette.AccentGradient)
+                    else -> Modifier.background(Palette.Accent)
+                },
+            )
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.Center,
@@ -192,20 +207,20 @@ fun GradientButton(
     }
 }
 
-/** Rounded dark tile with a label and a big orange number, like a dashboard stat. */
+/** Rounded tile with a label and a big number. */
 @Composable
 fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, icon: ImageVector? = null) {
-    Surface(modifier, shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
-                    Icon(icon, null, tint = Palette.Muted, modifier = Modifier.size(16.dp))
+                    Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                 }
                 Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
             }
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.headlineSmall, color = Palette.AccentText, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.AccentText, maxLines = 1)
             if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
     }
@@ -225,12 +240,12 @@ fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
     Surface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(Corners.Small),
         color = if (active) Palette.Accent.copy(alpha = 0.16f) else Palette.SurfaceHigh,
         border = if (active) BorderStroke(1.dp, Palette.Accent.copy(alpha = 0.6f)) else null,
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (active) Palette.AccentText else Palette.Text, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = if (active) Palette.AccentText else Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) Palette.AccentText else Palette.Text)
         }
@@ -243,9 +258,9 @@ fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (
     Row(
         Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
-            .border(1.dp, if (selected) Palette.Accent else Color.Transparent, RoundedCornerShape(50))
+            .border(1.dp, if (selected) Palette.Accent else Color.Transparent, RoundedCornerShape(Corners.Small))
             .selectable(selected = selected, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -266,12 +281,12 @@ fun ColorPip(letter: Char, size: Dp = 12.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(MtgColors.forLetter(letter)).border(1.dp, Color.Black.copy(alpha = 0.3f), CircleShape))
 }
 
-/** Little gradient "FOIL" tag. */
+/** Little "FOIL" tag; the rainbow stands for the foil sheen. */
 @Composable
 fun FoilTag(modifier: Modifier = Modifier) {
     Box(
         modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(Brush.linearGradient(listOf(Color(0xFF7DD3FC), Color(0xFFC4B5FD), Color(0xFFF9A8D4), Color(0xFFFDE68A))))
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
@@ -301,14 +316,14 @@ fun CardTile(
 ) {
     Column(
         modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(Corners.Small))
             .then(if (selected) Modifier.background(Palette.Accent.copy(alpha = 0.22f)) else Modifier)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(4.dp),
     ) {
         Box {
             // Holding the picture shows it big; with a tile long press (picking), the rest of the tile keeps it.
-            CardImage(imageUrl, Modifier.fillMaxWidth().then(imageModifier), corner = 9.dp, zoom = true, onTap = if (onLongClick != null) onClick else null)
+            CardImage(imageUrl, Modifier.fillMaxWidth().then(imageModifier), zoom = true, onTap = if (onLongClick != null) onClick else null)
             if (selected) {
                 Box(
                     Modifier.align(Alignment.TopStart).padding(6.dp).size(24.dp).clip(CircleShape).background(Palette.Accent),
@@ -320,7 +335,7 @@ fun CardTile(
                     Modifier
                         .align(Alignment.TopEnd)
                         .padding(6.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(Corners.Small))
                         .background(Color.Black.copy(alpha = 0.75f))
                         .padding(horizontal = 7.dp, vertical = 2.dp),
                 ) { Text("×$quantity", color = Color.White, style = MaterialTheme.typography.labelMedium) }
@@ -330,7 +345,7 @@ fun CardTile(
         }
         Spacer(Modifier.height(4.dp))
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
+        if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.AccentText)
     }
 }
 
@@ -339,7 +354,7 @@ fun CardTile(
 fun OwnedBadge(count: Int, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(Palette.Accent)
             .padding(horizontal = 6.dp, vertical = 2.dp)
             .semantics(mergeDescendants = true) { contentDescription = "You own $count" },
@@ -357,7 +372,7 @@ fun priceSuffix(v: Double?): String = if (AppSettings.showPrices) " · ${formatU
 fun boxIcon(kind: String): ImageVector = when (kind) {
     "binder" -> Icons.AutoMirrored.Filled.MenuBook
     "deck" -> Icons.Filled.Style
-    "wishlist" -> Icons.Filled.AutoAwesome
+    "wishlist" -> Icons.Filled.FavoriteBorder
     "trade" -> Icons.Filled.SwapHoriz
     else -> Icons.Filled.Inventory2
 }
