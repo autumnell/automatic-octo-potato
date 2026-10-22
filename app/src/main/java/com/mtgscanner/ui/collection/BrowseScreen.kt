@@ -310,6 +310,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 onSwipeSell = { c -> vm.sellOne(c) },
                 // A box with dividers lists its cards by divider: draw the headers as divider tabs.
                 tabs = f.group == GroupBy.NONE && ui.boxes.any { it.id == boxId && com.mtgscanner.data.BoxLayout.of(it.divider).hasDividers },
+                byName = f.sort == SortBy.NAME && f.group == GroupBy.NONE,
             )
         }
     }
@@ -553,11 +554,13 @@ private fun CardGrid(
     onSwipeMove: (CollectionCard) -> Unit,
     onSwipeSell: (CollectionCard) -> Unit,
     tabs: Boolean = false,
+    byName: Boolean = false,
 ) {
     val state = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val headers = remember(groups) { ListSections.headerIndices(groups) }
     val rail = remember(groups, headers) { ListSections.rail(groups, headers) }
+    val jumpBar = remember(groups, rail, byName) { JumpBar.shows(byName, groups.sumOf { it.second.size }, rail) }
     /** The section pinned to the top, or -1 while its own header is in place. */
     val pinned by remember(groups, headers) {
         derivedStateOf {
@@ -570,7 +573,7 @@ private fun CardGrid(
         LazyVerticalGrid(
             state = state,
             columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
-            contentPadding = PaddingValues(start = 10.dp, end = if (rail.isNotEmpty()) 28.dp else 10.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 10.dp, end = if (jumpBar) 28.dp else 10.dp, bottom = 24.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             groups.forEachIndexed { gi, (title, cards) ->
@@ -607,7 +610,7 @@ private fun CardGrid(
                 Modifier.fillMaxWidth().background(Palette.Background).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
             )
         }
-        if (rail.isNotEmpty()) {
+        if (jumpBar) {
             LetterRail(
                 rail, Modifier.align(Alignment.CenterEnd),
                 onLetter = { railLetter = it },
@@ -633,10 +636,11 @@ private fun SectionHead(title: String, count: Int, modifier: Modifier = Modifier
     }
 }
 
-/** A-Z down the right edge: touch or drag to jump to a letter. */
+/** A-Z down the right edge: touch or drag to jump to a letter. Letters with no cards are dimmed and jump to the next one. */
 @Composable
 private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onLetter: (String?) -> Unit, onJump: (Int) -> Unit) {
     var heightPx by remember { mutableIntStateOf(1) }
+    val present = remember(entries) { entries.map { it.first }.toSet() }
     Column(
         modifier
             .fillMaxHeight()
@@ -644,13 +648,13 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
             .width(26.dp)
             .onSizeChanged { heightPx = it.height.coerceAtLeast(1) }
             .pointerInput(entries) {
-                var last = -1
+                var last: String? = null
                 fun pick(y: Float) {
-                    val i = ((y / heightPx) * entries.size).toInt().coerceIn(0, entries.lastIndex)
-                    if (i != last) {
-                        last = i
-                        onLetter(entries[i].first)
-                        onJump(entries[i].second)
+                    val letter = JumpBar.letterAt(y, heightPx.toFloat())
+                    if (letter != last) {
+                        last = letter
+                        onLetter(letter)
+                        JumpBar.firstIndex(entries, letter)?.let(onJump)
                         com.mtgscanner.util.Haptics.tick()
                     }
                 }
@@ -665,15 +669,15 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
                         change.consume()
                         pick(change.position.y)
                     }
-                    last = -1
+                    last = null
                     onLetter(null)
                 }
             },
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        entries.forEach { (letter, _) ->
-            Text(letter, fontSize = 10.sp, lineHeight = 11.sp, color = Palette.Muted)
+        JumpBar.LETTERS.forEach { letter ->
+            Text(letter, fontSize = 10.sp, lineHeight = 11.sp, color = if (letter in present) Palette.Muted else Palette.Muted.copy(alpha = 0.35f))
         }
     }
 }
