@@ -8,6 +8,7 @@ import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.Goal
+import com.mtgscanner.data.db.Loan
 import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.data.db.PricePoint
@@ -51,6 +52,8 @@ data class Backup(
     val packs: List<PackOpening> = emptyList(),
     val events: List<CardEvent> = emptyList(),
     val goals: List<Goal> = emptyList(),
+    /** Copies lent out (DB v12). Older backups have none. */
+    val loans: List<Loan> = emptyList(),
     /** Settings that hold your organisation (deck folders, saved searches, sorting…): file name to values. Added in version 2. */
     val prefs: Map<String, Map<String, PrefValue>> = emptyMap(),
     /** Where a zip backup's price history and photos were unpacked when read; not part of the file. */
@@ -125,7 +128,7 @@ internal object BackupIO {
             version = Backup.CURRENT, exportedAt = System.currentTimeMillis(),
             boxes = dao.allBoxes(), cards = dao.all(), snapshots = dao.allSnapshots(),
             decks = dao.allDecks(), wishlist = dao.allWishlist(), pending = dao.allPending(),
-            packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(),
+            packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(), loans = dao.allLoans(),
             prefs = BACKED_UP_PREFS.associateWith { name ->
                 BackupCodec.prefValues(repo.appContext.getSharedPreferences(name, Context.MODE_PRIVATE).all)
             }.filterValues { it.isNotEmpty() },
@@ -212,12 +215,12 @@ internal object BackupIO {
         val dao = repo.dao
         repo.db.withTransaction {
             dao.deleteAllCards(); dao.deleteAllBoxes(); dao.deleteSnapshots()
-            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteEvents(); dao.deleteGoals()
+            dao.deleteDecks(); dao.deleteWishlist(); dao.deleteAllPending(); dao.deletePriceHistory(); dao.deletePacks(); dao.deleteEvents(); dao.deleteGoals(); dao.deleteLoans()
             dao.putBoxes(b.boxes); dao.putCards(cards); dao.putSnapshots(b.snapshots)
             dao.putDecks(b.decks); dao.putWishlist(b.wishlist); dao.putPending(b.pending)
             b.priceHistory.chunked(2000).forEach { dao.putPricePoints(it) }
             BackupArchive.forEachPriceChunk(b) { dao.putPricePoints(it) }
-            dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals)
+            dao.putPacks(b.packs); dao.putEvents(b.events); dao.putGoals(b.goals); dao.putLoans(b.loans)
         }
         b.staged?.let { runCatching { File(it).deleteRecursively() } }
         // Old backups have no settings: keep the current ones.

@@ -1,6 +1,7 @@
 package com.mtgscanner.util
 
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.unitEur
 import com.mtgscanner.data.db.unitPrice
 import java.io.Writer
 import java.time.Instant
@@ -23,7 +24,7 @@ enum class CsvFormat(val label: String, val fileTag: String) {
 object CsvExporter {
     private val header = listOf(
         "Count", "Name", "Edition", "Condition", "Language", "Foil", "Collector Number",
-        "Edition Name", "Rarity", "Type", "Mana Cost", "Mana Value", "Colors", "Price USD", "Tags", "Scryfall ID",
+        "Edition Name", "Rarity", "Type", "Mana Cost", "Mana Value", "Colors", "Price USD", "Tags", "Scryfall ID", "Price EUR",
     )
 
     private val manaboxHeader = listOf(
@@ -66,6 +67,7 @@ object CsvExporter {
         c.quantity.toString(), c.name, c.setCode.lowercase(), conditionName(c.condition), c.lang,
         if (c.foil) "foil" else "", c.collectorNumber, c.setName, c.rarity, c.typeLine, c.manaCost,
         c.cmc.toString(), c.colors, price(c), c.tags.replace(",", "; "), c.scryfallId,
+        c.unitEur()?.let { "%.2f".format(Locale.US, it) } ?: "",
     )
 
     /** ManaBox: lower-case set code, "foil"/"normal", Cardmarket-style condition keys, language codes. */

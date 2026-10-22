@@ -91,6 +91,7 @@ data class Prices(
     @SerialName("usd_foil") val usdFoil: String? = null,
     @SerialName("usd_etched") val usdEtched: String? = null,
     val eur: String? = null,
+    @SerialName("eur_foil") val eurFoil: String? = null,
 )
 
 @Serializable

@@ -56,10 +56,12 @@ data class BoxSummary(
     val fallback: Boolean = false,
     val capacity: Int = 0,
     val divider: String = "",
+    /** [value] in euros (Cardmarket prices). */
+    val valueEur: Double = 0.0,
 )
 
-/** Cards in a box and what they're worth, added up by the database. */
-data class BoxTotal(val boxId: Long, val n: Int, val value: Double)
+/** Cards in a box and what they're worth (dollars and euros), added up by the database. */
+data class BoxTotal(val boxId: Long, val n: Int, val value: Double, val valueEur: Double)
 
 /** Copies in a box, for capacity checks. */
 data class BoxCount(val boxId: Long, val n: Int)

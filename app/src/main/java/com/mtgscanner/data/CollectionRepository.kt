@@ -169,7 +169,7 @@ class CollectionRepository(
         val byBox = totals.associateBy { it.boxId }
         boxes.map { b ->
             val t = byBox[b.id]
-            BoxSummary(b.id, b.name, b.kind, t?.n ?: 0, t?.value ?: 0.0, b.rules, b.color, b.fallback, b.capacity, b.divider)
+            BoxSummary(b.id, b.name, b.kind, t?.n ?: 0, t?.value ?: 0.0, b.rules, b.color, b.fallback, b.capacity, b.divider, valueEur = t?.valueEur ?: 0.0)
         }
     }.shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
@@ -977,6 +977,7 @@ class CollectionRepository(
                         f.id, f.prices.usd?.toDoubleOrNull(),
                         (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
                     )
+                    dao.setEurPrices(f.id, f.prices.eur?.toDoubleOrNull(), f.prices.eurFoil?.toDoubleOrNull())
                     dao.setStats(f.id, f.power ?: f.cardFaces?.firstOrNull()?.power, f.toughness ?: f.cardFaces?.firstOrNull()?.toughness, f.reserved)
                     // Bans and rarity changes reach box rules.
                     dao.setPrintingInfo(f.id, f.rarity, f.scryfallTags().joinToString(","))
@@ -1349,6 +1350,8 @@ fun ScryfallCard.toEntity(foil: Boolean, qty: Int, now: Long) = CollectionCard(
     reserved = reserved,
     addedAt = now,
     updatedAt = now,
+    priceEur = prices.eur?.toDoubleOrNull(),
+    priceEurFoil = prices.eurFoil?.toDoubleOrNull(),
 )
 
 fun ScryfallCard.pricePoint() = PricePoint(

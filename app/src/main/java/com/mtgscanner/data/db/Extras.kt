@@ -118,3 +118,23 @@ data class Goal(
     val rarities: String = "",
     val createdAt: Long = System.currentTimeMillis(),
 )
+
+/**
+ * Copies of a card lent to someone (DB v12). The copies stay in the collection and its value; they just
+ * show as out. [cardId] is the row they were lent from; [scryfallId] and [foil] find the copies again if
+ * that row was merged into another.
+ */
+@Entity(tableName = "loans", indices = [Index("cardId")])
+@Serializable
+data class Loan(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val cardId: Long,
+    val scryfallId: String,
+    val name: String,
+    val foil: Boolean = false,
+    val quantity: Int = 1,
+    /** Who has them. */
+    val who: String,
+    /** When they were lent. */
+    val at: Long = System.currentTimeMillis(),
+)
