@@ -534,10 +534,15 @@ fun SearchField(
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            // Results update as you type: the keyboard's Search key just puts the keyboard away.
+            val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            val focus = androidx.compose.ui.platform.LocalFocusManager.current
             BasicTextField(
                 value = value,
                 onValueChange = onChange,
                 singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide(); focus.clearFocus() }),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
                 cursorBrush = SolidColor(Palette.Accent),
                 modifier = Modifier.fillMaxWidth(),
