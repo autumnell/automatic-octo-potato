@@ -443,6 +443,7 @@ fun CollectionScreen(
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
     // Home's "See all" lands here when it can't open Browse itself.
     LaunchedEffect(Unit) {
+        if (com.mtgscanner.ui.home.WishlistLaunch.take()) tab = 2
         if (BrowseLaunch.openAll) {
             BrowseLaunch.openAll = false
             onBrowse(-1L)

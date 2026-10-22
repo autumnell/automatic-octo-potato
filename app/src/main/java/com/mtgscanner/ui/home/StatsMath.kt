@@ -26,6 +26,8 @@ data class CollectionStats(
     /** Priciest single copies, proxies left out. */
     val top: List<CollectionCard> = emptyList(),
     val paid: PaidSummary = PaidSummary(),
+    /** Commons and uncommons under 50¢, for the bulk estimate. */
+    val bulkCards: Int = 0,
 )
 
 /** Collection breakdowns for the Stats screen, kept free of Android so they can be tested. Proxies count as cards but are worth $0. */
@@ -83,6 +85,7 @@ object StatsMath {
             byRarity = byRarity,
             top = top,
             paid = paid,
+            bulkCards = HomeMath.bulk(cards, 0.0).cards,
         )
     }
 }

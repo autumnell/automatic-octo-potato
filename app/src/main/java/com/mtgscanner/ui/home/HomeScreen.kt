@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,13 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -75,13 +67,12 @@ import com.mtgscanner.ui.collection.GroupBy
 import com.mtgscanner.ui.collection.SavedSearchStore
 import com.mtgscanner.ui.collection.SortBy
 import com.mtgscanner.ui.components.CardTile
-import com.mtgscanner.ui.components.ColorPip
+import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.cardPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
-import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.CardAlertStore
 import kotlinx.coroutines.Dispatchers
@@ -103,14 +94,10 @@ import com.mtgscanner.ui.components.RollingText
 import com.mtgscanner.ui.theme.PriceStyle
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
-import androidx.compose.foundation.shape.CircleShape
 import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.AccentMath
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.ui.detail.sharedCard
-import androidx.compose.foundation.border
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 
 data class HomeUi(
     val loaded: Boolean = false,
@@ -122,19 +109,13 @@ data class HomeUi(
     val sets: Int = 0,
     val foils: Int = 0,
     val recent: List<CollectionCard> = emptyList(),
-    val valuable: List<CollectionCard> = emptyList(),
-    /** Copies per color (W, U, B, R, G) and "C" colorless. A multicolor card counts once for each of its colors. */
-    val colors: List<Pair<String, Int>> = emptyList(),
-    /** Multicolor copies per color pair ("WU"…), then "3+" for three or more colors. */
-    val pairs: List<Pair<String, Int>> = emptyList(),
     /** What the cards were worth when added (only cards with a known price then). */
     val valueAtAdd: Double = 0.0,
     /** Today's value of those same cards. */
     val valueNowTracked: Double = 0.0,
     val history: List<ValueSnapshot> = emptyList(),
+    /** Biggest gains since added, for the "Since added" side of Price moves. */
     val gainers: List<CollectionCard> = emptyList(),
-    /** Commons and uncommons under 50¢, for the bulk estimate. */
-    val bulkCards: Int = 0,
     val boxCount: Int = 0,
     /** Art crop of the most valuable card, shown faintly behind the value card. */
     val heroArt: String? = null,
@@ -142,20 +123,12 @@ data class HomeUi(
     val colorLetter: Char? = null,
 )
 
-/** Worked out from price history: this week's movers and each box's value by day. */
-data class PriceData(
-    val movers: List<PriceMover> = emptyList(),
-    val boxValues: BoxValues = BoxValues(emptyList(), emptyMap()),
-)
+/** Worked out from price history: this week's movers. */
+data class PriceData(val movers: List<PriceMover> = emptyList())
 
 class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val ui: StateFlow<HomeUi> = combine(repo.observeAll(), repo.observeSnapshots(), repo.observeBoxes()) { all, history, boxes ->
-        val colorCounts = linkedMapOf("W" to 0, "U" to 0, "B" to 0, "R" to 0, "G" to 0, "C" to 0)
-        all.forEach { c ->
-            val keys = if (c.colors.isEmpty()) listOf("C") else c.colors.map { it.toString() }.filter { it in colorCounts }
-            keys.forEach { key -> colorCounts[key] = (colorCounts[key] ?: 0) + c.quantity }
-        }
-        val valuable = all.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0 }.sortedByDescending { it.unitPrice() }.take(12)
+        val top = all.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0 }.maxByOrNull { it.unitPrice() ?: 0.0 }
         HomeUi(
             loaded = true,
             totalCards = all.sumOf { it.quantity },
@@ -165,27 +138,17 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             sets = all.map { it.setCode }.distinct().size,
             foils = all.filter { it.foil }.sumOf { it.quantity },
             recent = all.sortedByDescending { it.addedAt }.take(12),
-            valuable = valuable,
-            colors = colorCounts.toList(),
-            pairs = ColorPairs.count(all.map { it.colors to it.quantity }),
             // Proxies are worth $0 today, so leave them out of "since added" on both sides.
             valueAtAdd = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { (it.priceWhenAdded() ?: 0.0) * it.quantity },
             valueNowTracked = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { it.totalPrice() },
             history = history,
             gainers = all.filter { !it.proxy && (it.changeSinceAdded() ?: 0.0) > 0.0 }
                 .sortedByDescending { (it.changeSinceAdded() ?: 0.0) * it.quantity }.take(12),
-            bulkCards = HomeMath.bulk(all, 0.0).cards,
             boxCount = boxes.size,
-            heroArt = artCropUrl(valuable.firstOrNull()?.imageUrl),
+            heroArt = artCropUrl(top?.imageUrl),
             colorLetter = AccentMath.dominant(all.map { it.colorIdentity to it.quantity }),
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
-
-    val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    /** One random card of yours, the same all day, with where it lives. */
-    val cardOfDay: StateFlow<DayCard?> = combine(repo.observeAll(), repo.observeBoxes()) { all, boxes -> CardOfDay.of(repo.appContext, all, boxes) }
-        .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Cards to move and unknown scans, for "To be sorted". */
     val toSort: StateFlow<ToSortUi> = combine(repo.observeAll(), repo.observeBoxes(), repo.observePending()) { cards, boxes, pending ->
@@ -212,7 +175,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 ?: runCatching { repo.dao.pricePointsSince(today.minusDays(120).toString()) }.getOrNull()?.also { pointsCache = key to it }
                 ?: emptyList()
             val weekAgo = today.minusDays(7).toString()
-            PriceData(HomeMath.movers(all, points, weekAgo), HomeMath.boxValues(all, points))
+            PriceData(HomeMath.movers(all, points, weekAgo))
         }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PriceData())
@@ -311,28 +274,23 @@ fun HomeScreen(
     val toSort by vm.toSort.collectAsStateWithLifecycle()
     val prices by vm.prices.collectAsStateWithLifecycle()
     val goals by vm.goals.collectAsStateWithLifecycle()
-    val boxes by vm.boxes.collectAsStateWithLifecycle()
     val tiles by vm.tiles.collectAsStateWithLifecycle()
     val alerts by vm.alerts.collectAsStateWithLifecycle()
     val listNames by vm.listNames.collectAsStateWithLifecycle()
-    val cardOfDay by vm.cardOfDay.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf(false) }
     var editingTiles by remember { mutableStateOf(false) }
     var unknown by remember { mutableStateOf<PendingScan?>(null) }
     // Which section's picture of a card grows into the card page: the first one showing it, so a card in two
     // carousels doesn't have two pictures claiming the same transition.
     val showPricesNow = AppSettings.showPrices
-    val sharedIds: Map<HomeSection, Set<Long>> = remember(HomePrefs.sections, ui, toSort, prices.movers, showPricesNow, cardOfDay) {
+    val sharedIds: Map<HomeSection, Set<Long>> = remember(HomePrefs.sections, ui, toSort, prices.movers, showPricesNow) {
         val seen = HashSet<Long>()
         HomePrefs.sections.associateWith { s ->
             val ids = when (s) {
                 HomeSection.NEWEST -> ui.recent.map { it.id }
                 HomeSection.TO_SORT -> toSort.items.take(4).map { it.card.id }
-                HomeSection.CARD_OF_DAY -> listOfNotNull(cardOfDay?.card?.id)
                 HomeSection.RECENT -> ui.recent.map { it.id }
-                HomeSection.MOVERS -> if (showPricesNow) prices.movers.map { it.card.id } else emptyList()
-                HomeSection.VALUABLE -> if (showPricesNow) ui.valuable.map { it.id } else emptyList()
-                HomeSection.GAINERS -> if (showPricesNow) ui.gainers.map { it.id } else emptyList()
+                HomeSection.MOVERS -> if (showPricesNow) prices.movers.map { it.card.id } + ui.gainers.map { it.id } else emptyList()
                 else -> emptyList()
             }
             ids.filter { seen.add(it) }.toSet()
@@ -374,8 +332,8 @@ fun HomeScreen(
             TileMetric.VALUE, TileMetric.AVERAGE -> onStats()
             TileMetric.BOXES -> onCollection()
             TileMetric.CUSTOM -> HomePrefs.tileList?.let { n -> vm.savedFilters(n)?.let { browseWith(it, n) } }
-            // The wishlist lives on the Collection tab.
-            TileMetric.WISHLIST -> onCollection()
+            // The wishlist is a page of the Collection tab.
+            TileMetric.WISHLIST -> { WishlistLaunch.open(); onCollection() }
             TileMetric.COMMANDERS, TileMetric.BULK, TileMetric.FOR_SALE, TileMetric.PROXIES, TileMetric.SIGNED, TileMetric.GRADED ->
                 TileFlags.of(m)?.let { flag -> browseWith(Filters(flags = setOf(flag), sort = SortBy.PRICE), m.label) }
         }
@@ -424,41 +382,12 @@ fun HomeScreen(
                         HomeHeading("Goals", if (goals.isNotEmpty()) "See all" else null, onGoals)
                         GoalsPreview(goals, onGoals)
                     }
-                    HomeSection.CARD_OF_DAY -> cardOfDay?.let { day ->
-                        HomeHeading("Card of the day")
-                        CardOfDaySection(day, onOpenCard, shared = day.card.id in shared(section))
-                    }
                     HomeSection.RECENT -> if (ui.recent.isNotEmpty()) {
                         HomeHeading("Recently added", "See all") { browse(SortBy.RECENT) }
                         CardCarousel(ui.recent, onOpenCard, shared = shared(section))
                     }
-                    HomeSection.MOVERS -> if (showPrices && prices.movers.isNotEmpty()) {
-                        HomeHeading("Moves this week")
-                        MoversCarousel(prices.movers, onOpenCard, shared = shared(section))
-                    }
-                    HomeSection.VALUABLE -> if (showPrices && ui.valuable.isNotEmpty()) {
-                        HomeHeading("Most valuable", "See all") { browse(SortBy.PRICE) }
-                        CardCarousel(ui.valuable, onOpenCard, shared = shared(section))
-                    }
-                    HomeSection.GAINERS -> if (showPrices && ui.gainers.isNotEmpty()) {
-                        HomeHeading("Biggest gains", "See all") { browse(SortBy.GAIN) }
-                        CardCarousel(ui.gainers, onOpenCard, showGain = true, shared = shared(section))
-                    }
-                    HomeSection.BOX_VALUES -> if (showPrices && prices.boxValues.days.size >= 2 && boxes.isNotEmpty()) {
-                        HomeHeading("Value by box")
-                        BoxValueChart(prices.boxValues, boxes)
-                    }
-                    HomeSection.BULK -> if (showPrices && ui.bulkCards > 0) {
-                        HomeHeading("Bulk estimate")
-                        BulkCard(ui.bulkCards)
-                    }
-                    HomeSection.COLORS -> {
-                        HomeHeading("Colors")
-                        ColorBreakdown(ui.colors, onColor = { browse(color = it) })
-                    }
-                    HomeSection.PAIRS -> {
-                        HomeHeading("Color pairs")
-                        PairBreakdown(ui.pairs, onPair = { browse(color = it) })
+                    HomeSection.MOVERS -> if (showPrices && (prices.movers.isNotEmpty() || ui.gainers.isNotEmpty())) {
+                        PriceMovesSection(prices.movers, ui.gainers, onOpenCard, onSeeGains = { browse(SortBy.GAIN) }, shared = shared(section))
                     }
                     HomeSection.ALERTS -> if (showPrices && alerts.isNotEmpty()) {
                         HomeHeading("Price alerts")
@@ -596,164 +525,33 @@ private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
     }
 }
 
-/**
- * One bar of the six colors, then one line of pips with their share. Tapping a slice or a pip picks that color:
- * the others fade and a line under the bar gives its name, share and card count, with a link to Browse.
- */
+/** This week's movers or the biggest gains since added, picked with two pills. */
 @Composable
-private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) -> Unit) {
-    val total = colors.sumOf { it.second }
-    var picked by rememberSaveable { mutableStateOf<String?>(null) }
-    val toggle = { k: String -> picked = if (picked == k) null else k }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
-        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(Corners.Small)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            colors.filter { it.second > 0 }.forEach { (k, n) ->
-                val alpha by animateFloatAsState(if (picked == null || picked == k) 1f else 0.3f, label = "slice")
-                val fill = colorFor(k)
-                Box(
-                    Modifier.weight(n.toFloat()).fillMaxHeight()
-                        .graphicsLayer { this.alpha = alpha }
-                        .background(fill)
-                        // White would vanish on the light background: give it an edge.
-                        .then(if (!Palette.dark && k == "W") Modifier.border(1.dp, MtgColors.SliceEdge, RoundedCornerShape(Corners.Small)) else Modifier)
-                        .clickable(onClickLabel = "Show ${label(k)}") { toggle(k) }
-                        .semantics { contentDescription = "${label(k)}, ${sharePercent(n, total)}" },
-                )
-            }
-            if (total == 0) Box(Modifier.weight(1f).fillMaxHeight().background(Palette.SurfaceHigh))
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth()) {
-            colors.forEach { (k, n) ->
-                Row(
-                    Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(Corners.Small))
-                        .clickable(enabled = n > 0, onClickLabel = "Show ${label(k)}") { toggle(k) }
-                        .semantics(mergeDescendants = true) { contentDescription = "${label(k)}, ${sharePercent(n, total)}" }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    ColorPip(k[0])
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        sharePercent(n, total),
-                        style = MaterialTheme.typography.labelMedium.merge(TabularNums),
-                        color = when {
-                            n == 0 -> Palette.Muted
-                            picked == null || picked == k -> Palette.Text
-                            else -> Palette.Muted
-                        },
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-        AnimatedVisibility(visible = picked != null) {
-            val k = picked ?: return@AnimatedVisibility
-            val n = colors.firstOrNull { it.first == k }?.second ?: 0
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                ColorPip(k[0])
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "${label(k)} · ${sharePercent(n, total)} · ${"%,d".format(n)} cards",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { onColor(k) }) { Text("Browse") }
-            }
-        }
+private fun PriceMovesSection(
+    movers: List<PriceMover>,
+    gainers: List<CollectionCard>,
+    onOpenCard: (Long) -> Unit,
+    onSeeGains: () -> Unit,
+    shared: Set<Long>,
+) {
+    // Until a pill is tapped: this week when anything moved, else since added.
+    var picked by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val gains = picked ?: movers.isEmpty()
+    HomeHeading("Price moves", if (gains && gainers.isNotEmpty()) "See all" else null, onSeeGains)
+    Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SelectPill("This week", !gains, { picked = false })
+        SelectPill("Since added", gains, { picked = true })
     }
-}
-
-/**
- * Multicolor cards by color pair: one bar where each slice is split into its two colors, then the pairs owned as
- * two pips and a share. Tap a slice or pair for its guild name and count, with a Browse link.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Unit) {
-    val total = pairs.sumOf { it.second }
-    var picked by rememberSaveable { mutableStateOf<String?>(null) }
-    val toggle = { k: String -> picked = if (picked == k) null else k }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
-        if (total == 0) {
-            Text("No multicolor cards yet", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-            return@Column
-        }
-        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(Corners.Small)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            pairs.filter { it.second > 0 }.forEach { (k, n) ->
-                val alpha by animateFloatAsState(if (picked == null || picked == k) 1f else 0.3f, label = "pair")
-                Box(
-                    Modifier.weight(n.toFloat()).fillMaxHeight()
-                        .graphicsLayer { this.alpha = alpha }
-                        .background(pairBrush(k))
-                        .clickable { toggle(k) }
-                        .semantics { contentDescription = "${ColorPairs.name(k)}, ${sharePercent(n, total)}" },
-                )
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            pairs.filter { it.second > 0 }.forEach { (k, n) ->
-                Row(
-                    Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(Corners.Small)).clickable { toggle(k) }
-                        .semantics(mergeDescendants = true) { contentDescription = "${ColorPairs.name(k)}, ${sharePercent(n, total)}" }
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (k == ColorPairs.THREE_PLUS) {
-                        Text("3+", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                    } else {
-                        ColorPip(k[0]); Spacer(Modifier.width(1.dp)); ColorPip(k[1])
-                    }
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        sharePercent(n, total),
-                        style = MaterialTheme.typography.labelMedium.merge(TabularNums),
-                        color = if (picked == null || picked == k) Palette.Text else Palette.Muted,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-        AnimatedVisibility(visible = picked != null) {
-            val k = picked ?: return@AnimatedVisibility
-            val n = pairs.firstOrNull { it.first == k }?.second ?: 0
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(pairBrush(k)))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "${ColorPairs.name(k)} · ${sharePercent(n, total)} · ${"%,d".format(n)} cards",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { onPair(k) }) { Text("Browse") }
-            }
-        }
+    val empty = when {
+        gains && gainers.isEmpty() -> "No gains yet"
+        !gains && movers.isEmpty() -> "No moves this week"
+        else -> null
     }
-}
-
-/** A pair's slice: its two colors top and bottom, hard-edged. Three or more colors use the multicolor gold. */
-private fun pairBrush(k: String): Brush =
-    if (k.length == 2 && k != ColorPairs.THREE_PLUS) {
-        val a = colorFor(k.substring(0, 1)); val b = colorFor(k.substring(1, 2))
-        Brush.verticalGradient(0f to a, 0.5f to a, 0.5f to b, 1f to b)
-    } else SolidColor(MtgColors.Multi)
-
-/** A color's share of the total, rounded; tiny but non-zero shares read "<1%". */
-internal fun sharePercent(n: Int, total: Int): String = when {
-    total <= 0 || n <= 0 -> "0%"
-    n * 100 < total -> "<1%"
-    else -> "${Math.round(n * 100.0 / total)}%"
-}
-
-private fun colorFor(k: String): Color = when (k) {
-    "C" -> MtgColors.C
-    else -> MtgColors.barFor(k[0])
-}
-
-private fun label(k: String) = when (k) {
-    "W" -> "White"; "U" -> "Blue"; "B" -> "Black"; "R" -> "Red"; "G" -> "Green"; else -> "Colorless"
+    when {
+        empty != null -> Text(empty, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp))
+        gains -> CardCarousel(gainers, onOpenCard, showGain = true, shared = shared)
+        else -> MoversCarousel(movers, onOpenCard, shared = shared)
+    }
 }
 
 /** "+$1.20 (4.0%)" in green, or red when the value went down. */

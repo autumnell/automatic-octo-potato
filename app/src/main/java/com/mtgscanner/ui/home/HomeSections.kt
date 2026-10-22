@@ -1,6 +1,5 @@
 package com.mtgscanner.ui.home
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -26,25 +24,19 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.GoalProgress
-import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.components.CardTile
-import com.mtgscanner.ui.components.LineChart
-import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.Palette
 import androidx.compose.foundation.clickable
@@ -121,78 +113,6 @@ internal fun MoversCarousel(movers: List<PriceMover>, onOpenCard: (Long) -> Unit
                 onClick = { onOpenCard(m.card.id) },
             )
         }
-    }
-}
-
-/** One box's value over time; pick the box with the pills. Boxes with the most value come first. */
-@Composable
-internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
-    val ranked = boxes.filter { (data.values[it.id]?.lastOrNull() ?: 0.0) > 0.0 }
-        .sortedByDescending { data.values[it.id]?.lastOrNull() ?: 0.0 }
-    if (ranked.isEmpty()) return
-    var selected by remember { mutableLongStateOf(ranked.first().id) }
-    val box = ranked.firstOrNull { it.id == selected } ?: ranked.first()
-    val values = data.values[box.id].orEmpty()
-    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            ranked.forEach { b -> SelectPill(b.name, b.id == box.id, { selected = b.id }) }
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(formatUsd(values.lastOrNull()), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
-            Spacer(Modifier.width(10.dp))
-            val first = values.firstOrNull() ?: 0.0
-            ChangeText((values.lastOrNull() ?: 0.0) - first, first, MaterialTheme.typography.labelMedium)
-        }
-        Spacer(Modifier.height(8.dp))
-        LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            Text(shortDay(data.days.first()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
-            Text(shortDay(data.days.last()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
-        }
-    }
-}
-
-/** Bulk commons and uncommons at a per-1000 rate the user can change. */
-@Composable
-internal fun BulkCard(cards: Int) {
-    var editing by remember { mutableStateOf(false) }
-    val rate = HomePrefs.bulkRate
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text("≈ ${formatUsd(cards / 1000.0 * rate)}", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
-            Text(
-                "$cards commons and uncommons under 50¢",
-                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            )
-            Text("Estimate at ${formatUsd(rate)} per 1000", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-        }
-        TextButton(onClick = { editing = true }) { Text("Rate") }
-    }
-    if (editing) {
-        var text by remember { mutableStateOf(if (rate % 1.0 == 0.0) rate.toInt().toString() else rate.toString()) }
-        val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0 }
-        AlertDialog(
-            onDismissRequest = { editing = false },
-            containerColor = Palette.Surface,
-            title = { Text("Dollars per 1000") },
-            text = {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            },
-            confirmButton = {
-                TextButton(enabled = parsed != null, onClick = { parsed?.let { HomePrefs.updateBulkRate(it) }; editing = false }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancel") } },
-        )
     }
 }
 

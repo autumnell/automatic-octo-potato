@@ -2,6 +2,18 @@ package com.mtgscanner.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import com.mtgscanner.data.db.Box as CardBox
+import com.mtgscanner.ui.components.LineChart
+import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.theme.PriceStyle
+import kotlinx.coroutines.flow.combine
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import com.mtgscanner.ui.detail.sharedCard
@@ -71,7 +83,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.mtgscanner.ui.theme.Corners
-import com.mtgscanner.ui.theme.TabularNums
 
 class StatsViewModel(repo: CollectionRepository) : ViewModel() {
     /** Null until the collection has loaded. */
@@ -80,6 +91,16 @@ class StatsViewModel(repo: CollectionRepository) : ViewModel() {
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Each box's value by day over the last two months. A price refresh writes a snapshot, so it redraws then too. */
+    val boxValues: StateFlow<BoxValues> = combine(repo.observeAll(), repo.observeSnapshots()) { all, _ ->
+        val since = java.time.LocalDate.now().minusDays(60).toString()
+        HomeMath.boxValues(all, runCatching { repo.dao.pricePointsSince(since) }.getOrDefault(emptyList()))
+    }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BoxValues(emptyList(), emptyMap()))
+
     companion object {
         val Factory = viewModelFactory {
             initializer { StatsViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
@@ -87,7 +108,7 @@ class StatsViewModel(repo: CollectionRepository) : ViewModel() {
     }
 }
 
-/** Collection value by set, color and rarity, and the most valuable cards. */
+/** Collection value by set, color, rarity and box, money paid and sold, the most valuable cards and bulk. */
 @Composable
 fun StatsScreen(
     onBack: () -> Unit,
@@ -96,11 +117,13 @@ fun StatsScreen(
     onBrowseAll: () -> Unit,
     vm: StatsViewModel = viewModel(factory = StatsViewModel.Factory),
 ) {
+    val ctx = LocalContext.current
+    remember { HomePrefs.load(ctx) }
     val stats by vm.stats.collectAsStateWithLifecycle()
+    val boxes by vm.boxes.collectAsStateWithLifecycle()
+    val boxValues by vm.boxValues.collectAsStateWithLifecycle()
     val prices = AppSettings.showPrices
     var allSets by remember { mutableStateOf(false) }
-    var yearReview by remember { mutableStateOf(false) }
-    if (yearReview) YearReviewDialog(onDismiss = { yearReview = false }, onOpenCard = { yearReview = false; onOpenCard(it) })
 
     fun browse(filters: Filters) {
         BrowseLaunch.filters = filters
@@ -111,7 +134,6 @@ fun StatsScreen(
         Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Text("Stats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = { yearReview = true }) { Text("Year in review") }
         }
         val s = stats
         if (s == null) {
@@ -131,12 +153,12 @@ fun StatsScreen(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
 
-            if (prices && s.paid.copies > 0) {
-                SectionHeader("Paid vs worth")
-                PaidPanel(s.paid)
-            }
+            if (prices) MoneySection(s.paid)
 
-            if (prices) MoneySection()
+            if (prices && boxValues.days.size >= 2 && boxes.isNotEmpty()) {
+                SectionHeader("Value by box")
+                Panel { BoxValueChart(boxValues, boxes) }
+            }
 
             SectionHeader("By color")
             Breakdown(
@@ -190,8 +212,20 @@ fun StatsScreen(
                     }
                 }
             }
+            if (prices && s.bulkCards > 0) {
+                SectionHeader("Bulk estimate")
+                Panel { BulkCard(s.bulkCards) }
+            }
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+/** A plain rounded panel like the other Stats blocks; [content] brings its own side padding. */
+@Composable
+private fun Panel(content: @Composable () -> Unit) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+        Column(Modifier.padding(vertical = 12.dp)) { content() }
     }
 }
 
@@ -245,23 +279,74 @@ private fun Breakdown(
 
 private fun colorOf(k: String): Color = if (k == "C") MtgColors.C else MtgColors.barFor(k[0])
 
-/** What was paid for the copies with a price paid, what they're worth now, and the difference. */
+/** One box's value over time; pick the box with the pills. Boxes with the most value come first. */
 @Composable
-private fun PaidPanel(p: PaidSummary) {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(1f)) {
-                Text("Paid", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text(formatUsd(p.paid), style = MaterialTheme.typography.titleMedium.merge(TabularNums))
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Worth", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text(formatUsd(p.worth), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(if (p.copies == 1) "1 card" else "${p.copies} cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                ChangeText(p.change, p.paid)
-            }
+internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
+    val ranked = boxes.filter { (data.values[it.id]?.lastOrNull() ?: 0.0) > 0.0 }
+        .sortedByDescending { data.values[it.id]?.lastOrNull() ?: 0.0 }
+    if (ranked.isEmpty()) return
+    var selected by remember { mutableLongStateOf(ranked.first().id) }
+    val box = ranked.firstOrNull { it.id == selected } ?: ranked.first()
+    val values = data.values[box.id].orEmpty()
+    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ranked.forEach { b -> SelectPill(b.name, b.id == box.id, { selected = b.id }) }
         }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(formatUsd(values.lastOrNull()), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
+            Spacer(Modifier.width(10.dp))
+            val first = values.firstOrNull() ?: 0.0
+            ChangeText((values.lastOrNull() ?: 0.0) - first, first, MaterialTheme.typography.labelMedium)
+        }
+        Spacer(Modifier.height(8.dp))
+        LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Text(shortDay(data.days.first()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+            Text(shortDay(data.days.last()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+        }
+    }
+}
+
+/** Bulk commons and uncommons at a per-1000 rate the user can change. */
+@Composable
+internal fun BulkCard(cards: Int) {
+    var editing by remember { mutableStateOf(false) }
+    val rate = HomePrefs.bulkRate
+    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("≈ ${formatUsd(cards / 1000.0 * rate)}", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
+            Text(
+                "$cards commons and uncommons under 50¢",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            Text("Estimate at ${formatUsd(rate)} per 1000", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        }
+        TextButton(onClick = { editing = true }) { Text("Rate") }
+    }
+    if (editing) {
+        var text by remember { mutableStateOf(if (rate % 1.0 == 0.0) rate.toInt().toString() else rate.toString()) }
+        val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0 }
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            containerColor = Palette.Surface,
+            title = { Text("Dollars per 1000") },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = parsed != null, onClick = { parsed?.let { HomePrefs.updateBulkRate(it) }; editing = false }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancel") } },
+        )
     }
 }

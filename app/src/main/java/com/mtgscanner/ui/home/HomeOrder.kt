@@ -6,20 +6,17 @@ enum class HomeSection(val key: String, val label: String) {
     TILES("tiles", "Stat tiles"),
     TO_SORT("sort", "To be sorted"),
     GOALS("goals", "Goals"),
-    CARD_OF_DAY("daycard", "Card of the day"),
     RECENT("recent", "Recently added"),
-    MOVERS("movers", "Price moves this week"),
-    VALUABLE("valuable", "Most valuable"),
-    GAINERS("gainers", "Biggest gains"),
-    BOX_VALUES("boxes", "Value by box"),
-    BULK("bulk", "Bulk estimate"),
-    COLORS("colors", "Colors"),
-    PAIRS("pairs", "Color pairs"),
+    MOVERS("movers", "Price moves"),
     ALERTS("alerts", "Price alerts"),
     ;
 
     companion object {
-        fun of(key: String): HomeSection? = entries.firstOrNull { it.key == key }
+        /** Sections folded into another: "Biggest gains" is now the "Since added" side of Price moves. */
+        private val MERGED = mapOf("gainers" to "movers")
+
+        /** The section saved as [key]; null for a section that was removed (Card of the day, Colors…). */
+        fun of(key: String): HomeSection? = (MERGED[key] ?: key).let { k -> entries.firstOrNull { it.key == k } }
     }
 }
 
