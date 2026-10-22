@@ -65,6 +65,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Asking price per copy: your own, or the market price. */
 fun CollectionCard.salePrice(): Double? = askPrice ?: unitPrice()
@@ -149,20 +151,20 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(Intent.EXTRA_SUBJECT, "For sale").putExtra(Intent.EXTRA_TEXT, sellText(shown))
                     ctx.startActivity(Intent.createChooser(send, "Share sell list"))
-                }) { Icon(Icons.Filled.Share, "Share", tint = Palette.Text) }
+                }) { Icon(Icons.Filled.Share, "Share", tint = Palette.Icon) }
             }
         }
         val list = cards ?: return@Column
         if (AppSettings.showPrices && (list.isNotEmpty() || earned > 0)) {
-            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(18.dp), color = Palette.Surface) {
+            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                 Column(Modifier.padding(14.dp)) {
                     if (list.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${list.sumOf { it.quantity }} cards", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)
+                        Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
                     }
                     if (earned > 0) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Earned", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                        Text(formatUsd(earned), style = MaterialTheme.typography.titleSmall, color = Palette.Success)
+                        Text(formatUsd(earned), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Success)
                     }
                 }
             }
@@ -193,7 +195,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
 @Composable
 private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(c.smallImageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
+        CardImage(c.smallImageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -206,7 +208,7 @@ private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatUsd(c.salePrice()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                Text(formatUsd(c.salePrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
                 Text(if (c.askPrice != null) "Ask" else "Market", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             }
         }

@@ -101,6 +101,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.LaunchedEffect
 import com.mtgscanner.ui.components.RollingText
 import com.mtgscanner.ui.theme.PriceStyle
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
+import androidx.compose.foundation.shape.CircleShape
 import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.AccentMath
 import com.mtgscanner.data.db.artCropUrl
@@ -323,6 +326,7 @@ fun HomeScreen(
         val seen = HashSet<Long>()
         HomePrefs.sections.associateWith { s ->
             val ids = when (s) {
+                HomeSection.NEWEST -> ui.recent.map { it.id }
                 HomeSection.TO_SORT -> toSort.items.take(4).map { it.card.id }
                 HomeSection.CARD_OF_DAY -> listOfNotNull(cardOfDay?.card?.id)
                 HomeSection.RECENT -> ui.recent.map { it.id }
@@ -393,18 +397,25 @@ fun HomeScreen(
         }
 
         if (ui.loaded && ui.totalCards == 0) {
-            if (ui.boxCount == 0) EmptyState("Start with a box", action = "Make a box", onAction = onCollection)
-            else EmptyState("No cards yet", action = "Search by name", onAction = onSearch)
+            if (ui.boxCount == 0) EmptyState("Start with a box", action = "Make a box", onAction = onCollection, fullScreen = true)
+            else EmptyState("No cards yet", action = "Search by name", onAction = onSearch, fullScreen = true)
             // Unknown scans can exist before any card was added.
             if (!toSort.isEmpty) {
                 HomeHeading("To be sorted")
                 ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it })
             }
         } else if (ui.loaded) {
-            StatTileRow(tiles, onTap = { openTile(it) }, onEdit = { editingTiles = true })
             val showPrices = AppSettings.showPrices
             HomePrefs.sections.forEach { section ->
                 when (section) {
+                    HomeSection.NEWEST -> if (ui.recent.isNotEmpty()) {
+                        HomeHeading("Newest", "See all") { browse(SortBy.RECENT) }
+                        NewestStrip(ui.recent, onOpenCard, shared = shared(section))
+                    }
+                    HomeSection.TILES -> {
+                        Spacer(Modifier.height(8.dp))
+                        StatTileRow(tiles, onTap = { openTile(it) }, onEdit = { editingTiles = true })
+                    }
                     HomeSection.TO_SORT -> if (!toSort.isEmpty) {
                         HomeHeading("To be sorted")
                         ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it }, shared = shared(section))
@@ -478,7 +489,7 @@ private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
         Text("Grimoire", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.weight(1f))
         TextButton(onClick = onEdit) { Text("Edit", color = Palette.Muted) }
-        IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings") }
+        IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings", tint = Palette.Icon) }
     }
 }
 
@@ -503,11 +514,11 @@ internal fun HomeHeading(title: String, action: String? = null, onAction: () -> 
 /** The one hero on Home: collection value over faint art from the most valuable card. */
 @Composable
 private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(Corners.Medium)
     Box(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             .clip(shape)
-            .background(Palette.HeroGradient)
+            .background(Palette.BoxCard)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         val art = ui.heroArt?.takeIf { AppSettings.showPrices }
@@ -539,7 +550,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                 )
                 if (onClick != null) {
                     Text("Stats", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                 }
             }
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
@@ -547,7 +558,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
             if (prices) RollingText(primaryValue(ui.totalValue, ui.totalEur), { formatPrimary(it, ui.totalEur) }, big, Palette.AccentText)
             else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.AccentText)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
+                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text)
                 else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
                 if (prices && ui.valueAtAdd > 0) {
                     Spacer(Modifier.width(10.dp))
@@ -595,7 +606,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
     val toggle = { k: String -> picked = if (picked == k) null else k }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 4.dp)) {
-        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(6.dp)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(Corners.Small)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             colors.filter { it.second > 0 }.forEach { (k, n) ->
                 val alpha by animateFloatAsState(if (picked == null || picked == k) 1f else 0.3f, label = "slice")
                 val fill = colorFor(k)
@@ -604,7 +615,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
                         .graphicsLayer { this.alpha = alpha }
                         .background(fill)
                         // White would vanish on the light background: give it an edge.
-                        .then(if (!Palette.dark && k == "W") Modifier.border(1.dp, MtgColors.SliceEdge, RoundedCornerShape(6.dp)) else Modifier)
+                        .then(if (!Palette.dark && k == "W") Modifier.border(1.dp, MtgColors.SliceEdge, RoundedCornerShape(Corners.Small)) else Modifier)
                         .clickable(onClickLabel = "Show ${label(k)}") { toggle(k) }
                         .semantics { contentDescription = "${label(k)}, ${sharePercent(n, total)}" },
                 )
@@ -615,7 +626,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
         Row(Modifier.fillMaxWidth()) {
             colors.forEach { (k, n) ->
                 Row(
-                    Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
+                    Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(Corners.Small))
                         .clickable(enabled = n > 0, onClickLabel = "Show ${label(k)}") { toggle(k) }
                         .semantics(mergeDescendants = true) { contentDescription = "${label(k)}, ${sharePercent(n, total)}" }
                         .padding(vertical = 6.dp),
@@ -626,7 +637,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
                     Spacer(Modifier.width(4.dp))
                     Text(
                         sharePercent(n, total),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.merge(TabularNums),
                         color = when {
                             n == 0 -> Palette.Muted
                             picked == null || picked == k -> Palette.Text
@@ -641,7 +652,7 @@ private fun ColorBreakdown(colors: List<Pair<String, Int>>, onColor: (String) ->
             val k = picked ?: return@AnimatedVisibility
             val n = colors.firstOrNull { it.first == k }?.second ?: 0
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(colorFor(k)))
+                ColorPip(k[0])
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "${label(k)} · ${sharePercent(n, total)} · ${"%,d".format(n)} cards",
@@ -669,7 +680,7 @@ private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Un
             Text("No multicolor cards yet", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
             return@Column
         }
-        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(6.dp)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(Corners.Small)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             pairs.filter { it.second > 0 }.forEach { (k, n) ->
                 val alpha by animateFloatAsState(if (picked == null || picked == k) 1f else 0.3f, label = "pair")
                 Box(
@@ -685,7 +696,7 @@ private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Un
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             pairs.filter { it.second > 0 }.forEach { (k, n) ->
                 Row(
-                    Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { toggle(k) }
+                    Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(Corners.Small)).clickable { toggle(k) }
                         .semantics(mergeDescendants = true) { contentDescription = "${ColorPairs.name(k)}, ${sharePercent(n, total)}" }
                         .padding(horizontal = 6.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -698,7 +709,7 @@ private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Un
                     Spacer(Modifier.width(4.dp))
                     Text(
                         sharePercent(n, total),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.merge(TabularNums),
                         color = if (picked == null || picked == k) Palette.Text else Palette.Muted,
                         maxLines = 1,
                     )
@@ -709,7 +720,7 @@ private fun PairBreakdown(pairs: List<Pair<String, Int>>, onPair: (String) -> Un
             val k = picked ?: return@AnimatedVisibility
             val n = pairs.firstOrNull { it.first == k }?.second ?: 0
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(pairBrush(k)))
+                Box(Modifier.size(10.dp).clip(CircleShape).background(pairBrush(k)))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "${ColorPairs.name(k)} · ${sharePercent(n, total)} · ${"%,d".format(n)} cards",
@@ -754,7 +765,7 @@ fun ChangeText(change: Double, base: Double, style: androidx.compose.ui.text.Tex
     val sign = if (up) "+" else if (down) "−" else ""
     Text(
         "$sign${formatUsd(kotlin.math.abs(change))} (${"%.1f".format(java.util.Locale.US, kotlin.math.abs(pct))}%)",
-        style = style,
+        style = style.merge(TabularNums),
         color = when { up -> Palette.Success; down -> Palette.Danger; else -> Palette.Muted },
     )
 }

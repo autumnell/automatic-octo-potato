@@ -67,7 +67,7 @@ internal fun AlertsList(rows: List<AlertRow>, onOpenCard: (Long) -> Unit) {
                     val gone = r.alert
                     CardAlertStore.remove(ctx, gone.key)
                     Undo.offer("Alert removed") { CardAlertStore.put(ctx, gone) }
-                }) { Icon(Icons.Filled.DeleteOutline, "Delete alert", tint = Palette.Muted) }
+                }) { Icon(Icons.Filled.DeleteOutline, "Delete alert", tint = Palette.Icon) }
             }
         }
     }

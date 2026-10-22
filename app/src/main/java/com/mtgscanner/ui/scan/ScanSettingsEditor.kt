@@ -57,7 +57,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             presets.forEach { p -> SelectPill(p.name, p.name == active, { ScanPrefs.apply(p) }) }
             SelectPill("Save current", false, { saving = true }, leading = {
-                Icon(Icons.Filled.Add, null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Add, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
             })
         }
         active?.let { name ->

@@ -24,6 +24,7 @@ import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.TabularNums
 
 /**
  * A half-screen look at one card: image, name, price and where it is. "Open" goes to the full page.
@@ -57,7 +58,7 @@ fun CardPreviewContent(
 ) {
     Column(modifier) {
         Row(verticalAlignment = Alignment.Top) {
-            CardImage(card.imageUrl ?: card.smallImageUrl, Modifier.width(150.dp), corner = 9.dp)
+            CardImage(card.imageUrl ?: card.smallImageUrl, Modifier.width(150.dp))
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(card.name, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -71,7 +72,7 @@ fun CardPreviewContent(
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("×${card.quantity}", style = MaterialTheme.typography.titleMedium)
+                    Text("×${card.quantity}", style = MaterialTheme.typography.titleMedium.merge(TabularNums))
                     if (card.foil) { Spacer(Modifier.width(6.dp)); FoilTag() }
                 }
                 if (AppSettings.showPrices) {

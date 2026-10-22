@@ -39,6 +39,7 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import com.mtgscanner.ui.theme.Corners
 
 /** What can be rolled or flipped. */
 enum class DieKind(val label: String) {
@@ -115,7 +116,7 @@ fun RollStage(kind: DieKind?, result: String?, rollKey: Int, modifier: Modifier 
                             val angle = ((spinX.value % 360f) + 360f) % 360f
                             Coin(if (angle in 90f..270f) "Tails" else "Heads", flipped = angle in 90f..270f)
                         }
-                        DieKind.D6 -> DieFace(face.orEmpty(), RoundedCornerShape(22.dp), Color(0xFFF4F1EA), Color(0xFF15161A))
+                        DieKind.D6 -> DieFace(face.orEmpty(), RoundedCornerShape(Corners.Medium), Color(0xFFF4F1EA), Color(0xFF15161A))
                         DieKind.D20 -> D20Face(face.orEmpty())
                         DieKind.PLANAR -> PlanarFace(face.orEmpty())
                     }
@@ -164,7 +165,7 @@ private fun D20Face(text: String) {
 
 @Composable
 private fun PlanarFace(face: String) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(Corners.Medium)
     Box(
         Modifier.fillMaxSize().clip(shape).background(Color(0xFF2B2F3A)).border(3.dp, Color.White.copy(alpha = 0.35f), shape),
         contentAlignment = Alignment.Center,

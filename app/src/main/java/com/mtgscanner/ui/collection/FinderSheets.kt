@@ -47,6 +47,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Lost card finder: type a name, see every box it's in and exactly where. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,7 +105,7 @@ private fun FoundRow(c: CollectionCard, where: String, onClick: () -> Unit) {
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(40.dp), corner = 4.dp)
+        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(40.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -159,13 +160,13 @@ fun DuplicatesSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                             Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.padding(horizontal = 20.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(32.dp), corner = 3.dp)
+                            CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(32.dp))
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("${c.setCode} #${c.collectorNumber}" + if (c.foil) " · Foil" else "", style = MaterialTheme.typography.bodyMedium)
                                 Text(boxNames[c.boxId] ?: "No box", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
                             }
-                            Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall)
+                            Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall.merge(TabularNums))
                             if (AppSettings.showPrices) {
                                 Spacer(Modifier.width(10.dp))
                                 Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)

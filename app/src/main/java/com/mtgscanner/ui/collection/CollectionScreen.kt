@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,8 +31,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Sell
@@ -127,6 +128,8 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.util.CsvExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -450,10 +453,10 @@ fun CollectionScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Filled.QrCodeScanner, "Scan a box label") }
-                IconButton(onClick = vm::refreshPrices) { Icon(Icons.Filled.Refresh, "Refresh prices") }
+                if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Filled.QrCodeScanner, "Scan a box label", tint = Palette.Icon) }
+                IconButton(onClick = vm::refreshPrices) { Icon(Icons.Filled.Refresh, "Refresh prices", tint = Palette.Icon) }
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More", tint = Palette.Icon) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
                             text = { Text("Settings, backup & import") },
@@ -529,23 +532,19 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
         Surface(
             onClick = { onBrowse(-1L) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(Corners.Medium),
             color = Palette.Surface,
         ) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Search, null, tint = Palette.Accent)
+                Icon(Icons.Filled.Search, null, tint = Palette.Icon)
                 Spacer(Modifier.width(12.dp))
                 Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
             }
         }
 
         SectionHeader("Boxes") {
-            if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) {
-                Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Auto-sort order")
-            }
+            if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
             TextButton(onClick = { creating = true }) {
                 Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
@@ -702,7 +701,7 @@ private fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: () 
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(12.dp))
-                Surface(onClick = onNew, shape = RoundedCornerShape(14.dp), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
+                Surface(onClick = onNew, shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
                         Text("Into a new box", style = MaterialTheme.typography.titleSmall)
                         Text("Set up a box with rules, and the cards that fit move into it", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -710,7 +709,7 @@ private fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: () 
                 }
                 if (hasOtherRules) {
                     Spacer(Modifier.height(8.dp))
-                    Surface(onClick = onOthers, shape = RoundedCornerShape(14.dp), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
+                    Surface(onClick = onOthers, shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp)) {
                             Text("Into my other boxes", style = MaterialTheme.typography.titleSmall)
                             Text("Each card goes to the first box whose rules fit, in Auto-sort order", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -726,7 +725,7 @@ private fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: () 
 
 @Composable
 private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
@@ -746,7 +745,7 @@ private fun BoxCard(
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     val fill = BoxFillMath.state(b.cards, b.capacity)
     val art = if (b.cards > 0) stats?.artUrl else null
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(Corners.Medium)
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(
             Modifier.weight(1f).clip(shape)
@@ -787,18 +786,18 @@ private fun BoxCard(
                             b.cards == 0 -> "No cards"
                             else -> "${b.cards} cards"
                         } + (if (fill == BoxFill.FULL) " · Full" else ""),
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge.merge(TabularNums),
                         color = fillColor(fill, Palette.Text),
                         modifier = Modifier.weight(1f).padding(bottom = 4.dp),
                     )
                     if (AppSettings.showPrices) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall, color = Palette.Text)
+                            Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
                             val pct = stats?.changePercent
                             if (stats != null && pct != null) {
                                 Text(
                                     boxChangeLabel(stats.change, pct),
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelMedium.merge(TabularNums),
                                     color = boxChangeColor(stats.change),
                                 )
                             }
@@ -812,7 +811,7 @@ private fun BoxCard(
             }
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options") }
+            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options", tint = Palette.Icon) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
@@ -827,16 +826,13 @@ private fun BoxCard(
     }
 }
 
-/** A box's icon and name, light on the art strip or in the box's own color without one. */
+/** A box's icon and its name on label tape, as on the real box; the tape reads on the art strip too. */
 @Composable
 private fun BoxTitle(b: BoxSummary, stripe: Color, onArt: Boolean, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Icon(boxIcon(b.kind), null, tint = stripe, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(10.dp))
-        Text(
-            b.name, style = MaterialTheme.typography.titleLarge, color = if (onArt) Color.White else boxColor(b.color),
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-        )
+        LabelTape(b.name, Modifier.weight(1f, fill = false))
         if (b.fallback) {
             Spacer(Modifier.width(8.dp))
             Text("Fallback", style = MaterialTheme.typography.labelSmall, color = if (onArt) Color.White.copy(alpha = 0.72f) else Palette.Muted)
@@ -875,18 +871,22 @@ private fun ToolsTab(
     if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ToolCard(Icons.Filled.FindInPage, "Find a card", "Which box, which spot", { finding = true })
-            ToolCard(Icons.Filled.AutoFixHigh, "Re-sort", "Cards in the wrong box", { vm.findMisplaced() })
-            ToolCard(Icons.Filled.Layers, "Duplicates", "Cards in 2+ printings", { dupes = true })
-            ToolCard(Icons.Filled.ViewModule, "Shelf", "Where your boxes sit", { shelf = true })
-            ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
-            ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
-            ToolCard(Icons.Filled.Person, "Loans", "Who has what", onLoans)
-            if (AppSettings.showPrices) ToolCard(Icons.Filled.Sell, "Sell to a buylist", "Pull list and total", onBuylist)
-            ToolCard(Icons.Filled.BarChart, "Pull rates", "From your opened packs", { pulls = true })
-            ToolCard(Icons.Filled.Quiz, "Quiz", "Guess the box or price", { quiz = true })
-            ToolCard(Icons.Filled.Share, "Have list", "A web page for friends", { haveList = true })
-            SectionHeader("Trade binders")
+            ToolGroup("Find")
+            ToolRow(Icons.Filled.FindInPage, "Find a card") { finding = true }
+            ToolRow(Icons.Filled.Layers, "Duplicates") { dupes = true }
+            ToolRow(Icons.Filled.ContentCopy, "Extras finder") { onExtras() }
+            ToolRow(Icons.Filled.GridView, "Set tracker") { onSets() }
+            ToolGroup("Sort")
+            ToolRow(Icons.AutoMirrored.Filled.Sort, "Re-sort") { vm.findMisplaced() }
+            ToolRow(Icons.Filled.ViewModule, "Shelf") { shelf = true }
+            ToolGroup("Trade & sell")
+            if (AppSettings.showPrices) ToolRow(Icons.Filled.Sell, "Sell to a buylist") { onBuylist() }
+            ToolRow(Icons.Filled.Person, "Loans") { onLoans() }
+            ToolRow(Icons.Filled.Share, "Have list") { haveList = true }
+            ToolGroup("Fun")
+            ToolRow(Icons.Filled.BarChart, "Pull rates") { pulls = true }
+            ToolRow(Icons.Filled.Quiz, "Quiz") { quiz = true }
+            ToolGroup("Trade binders")
             if (trade.isEmpty()) {
                 Text(
                     "Make a Trade binder box to trade.",
@@ -900,15 +900,15 @@ private fun ToolsTab(
             Surface(
                 onClick = { onBrowse(b.id) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(Corners.Medium),
                 color = Palette.Surface,
             ) {
                 Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Accent)
+                    Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Icon)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(b.name, style = MaterialTheme.typography.titleMedium)
-                        Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
                     ShareBinderButton(b, { vm.cardsIn(it) }) { cards -> shareSheet(ctx, b.name, binderShareText(b.name, cards, AppSettings.showPrices)) }
@@ -934,14 +934,14 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     if (AppSettings.showPrices) {
                         Text(
                             formatUsd(wishlist.sumOf { (it.priceUsd ?: 0.0) * it.wanted }),
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleSmall.merge(TabularNums),
                             color = Palette.Gold,
                             modifier = Modifier.padding(end = 4.dp),
                         )
                     }
                     IconButton(onClick = {
                         shareSheet(ctx, "Wishlist", shareText("My wishlist", wishlist.map { Triple(it.wanted, it.name, it.priceUsd) }))
-                    }) { Icon(Icons.Filled.Share, "Share wishlist") }
+                    }) { Icon(Icons.Filled.Share, "Share wishlist", tint = Palette.Icon) }
                 }
             }
         }
@@ -950,14 +950,14 @@ private fun WishlistTab(vm: CollectionViewModel) {
                 Modifier.fillMaxWidth().clickable { editing = w }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CardImage(w.imageUrl, Modifier.width(44.dp), corner = 4.dp, zoom = true)
+                CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(w.name, style = MaterialTheme.typography.titleSmall)
                     Text("Want ${w.wanted}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
-                if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall, color = Palette.Accent)
-                IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Filled.DeleteOutline, "Remove", tint = Palette.Muted) }
+                if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+                IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Filled.DeleteOutline, "Remove", tint = Palette.Icon) }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -987,23 +987,25 @@ private fun WantedDialog(item: WishlistItem, onSave: (Int) -> Unit, onDismiss: (
     )
 }
 
+/** A short muted heading over a group of tools. */
 @Composable
-private fun ToolCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = Palette.BoxCard,
+private fun ToolGroup(title: String) {
+    Text(
+        title, style = MaterialTheme.typography.labelLarge, color = Palette.Muted,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 2.dp),
+    )
+}
+
+/** One tool on one line: a gray icon and its name. */
+@Composable
+private fun ToolRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Palette.Accent)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            }
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
-        }
+        Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(16.dp))
+        Text(title, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

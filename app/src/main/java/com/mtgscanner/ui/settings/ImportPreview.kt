@@ -42,6 +42,7 @@ import com.mtgscanner.data.ImportPlan
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Cards listed under an opened box before "and N more". */
 private const val SHOWN_PER_BOX = 40
@@ -103,7 +104,7 @@ internal fun ImportPreviewDialog(
                     ) {
                         Icon(
                             if (box == null) Icons.Filled.AddBox else boxIcon(box.kind), null,
-                            tint = Palette.Accent, modifier = Modifier.size(18.dp),
+                            tint = Palette.Icon, modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
@@ -112,7 +113,7 @@ internal fun ImportPreviewDialog(
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.AccentText)
-                        Icon(if (isOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Muted)
+                        Icon(if (isOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Icon)
                     }
                     if (isOpen) {
                         val inBox = plan.rows.indices.filter { plan.targets[it] == id }
@@ -139,7 +140,7 @@ internal fun ImportPreviewDialog(
                         val r = plan.rows[i]
                         val c = plan.found[i] ?: return@forEach
                         val asked = (r.setCode?.uppercase() ?: "") + (r.collectorNumber?.let { " #$it" } ?: "")
-                        Text("${r.quantity}  ${r.name}", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${r.quantity}  ${r.name}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
                             "No $asked · got ${c.set.uppercase()} #${c.collectorNumber}",
                             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -160,12 +161,12 @@ internal fun ImportPreviewDialog(
                         val r = plan.rows[i]
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("${r.quantity}  ${r.name}", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${r.quantity}  ${r.name}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 r.setCode?.let { Text(it.uppercase() + (r.collectorNumber?.let { n -> " #$n" } ?: ""), style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
                             }
                             IconButton(onClick = { onRetry(i, null) }, enabled = idle) { Icon(Icons.Filled.Refresh, "Retry", tint = Palette.Accent) }
-                            IconButton(onClick = { editing = i }, enabled = idle) { Icon(Icons.Filled.Edit, "Edit name", tint = Palette.Muted) }
-                            IconButton(onClick = { onRemove(i) }, enabled = idle) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Muted) }
+                            IconButton(onClick = { editing = i }, enabled = idle) { Icon(Icons.Filled.Edit, "Edit name", tint = Palette.Icon) }
+                            IconButton(onClick = { onRemove(i) }, enabled = idle) { Icon(Icons.Filled.Close, "Remove", tint = Palette.Icon) }
                         }
                     }
                 }

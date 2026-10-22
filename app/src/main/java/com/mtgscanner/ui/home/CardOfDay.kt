@@ -63,7 +63,7 @@ internal fun CardOfDaySection(day: DayCard, onOpenCard: (Long) -> Unit, shared: 
         CardImage(
             c.imageUrl,
             Modifier.width(112.dp).then(if (shared) Modifier.sharedCard(c.id) else Modifier),
-            corner = 7.dp, zoom = true, onTap = open,
+            zoom = true, onTap = open,
         )
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
@@ -78,7 +78,7 @@ internal fun CardOfDaySection(day: DayCard, onOpenCard: (Long) -> Unit, shared: 
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(boxIcon(day.boxKind), null, tint = Palette.Muted, modifier = Modifier.size(16.dp))
+                Icon(boxIcon(day.boxKind), null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(day.where, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }

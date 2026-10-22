@@ -61,6 +61,7 @@ import com.mtgscanner.ui.components.AutoSizeText
 import com.mtgscanner.ui.components.textInfo
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Something fetched on demand: [key] says what it was fetched for. */
 data class Fetched<T>(
@@ -137,7 +138,7 @@ fun CardInfoTabs(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewModel
 
 @Composable
 private fun TabPanel(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(14.dp)) { content() }
     }
 }
@@ -207,7 +208,7 @@ private fun LegalityCell(status: String, format: String, modifier: Modifier) {
     }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.width(74.dp).clip(RoundedCornerShape(6.dp)).background(bg).padding(vertical = 3.dp),
+            Modifier.width(74.dp).clip(RoundedCornerShape(Corners.Small)).background(bg).padding(vertical = 3.dp),
             contentAlignment = Alignment.Center,
         ) {
             // Shrinks to fit the badge with a big font, instead of cutting "RESTRICTED" off.
@@ -269,7 +270,7 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
                         value = filter,
                         onValueChange = { filter = it.take(40) },
                         placeholder = { Text("Filter sets") },
-                        leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Muted) },
+                        leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -325,16 +326,16 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
         Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(Corners.Small))
                 .then(
-                    if (current) Modifier.background(Palette.Accent.copy(alpha = 0.12f)).border(1.dp, Palette.Accent.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                    if (current) Modifier.background(Palette.Accent.copy(alpha = 0.12f)).border(1.dp, Palette.Accent.copy(alpha = 0.6f), RoundedCornerShape(Corners.Small))
                     else Modifier,
                 )
                 .clickable { menu = true }
                 .padding(horizontal = 6.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CardImage(p.smallImageUrl, Modifier.width(34.dp), corner = 3.dp, zoom = true)
+            CardImage(p.smallImageUrl, Modifier.width(34.dp), zoom = true)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

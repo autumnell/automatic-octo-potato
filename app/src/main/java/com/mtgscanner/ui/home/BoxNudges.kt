@@ -14,7 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.NewReleases
+import com.mtgscanner.ui.scan.SetIcon
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +49,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import com.mtgscanner.ui.theme.Corners
 
 /** "Rares: not checked in 3 months" with a button that starts a Box check of it. One box at a time. */
 @Composable
@@ -70,7 +71,7 @@ fun BoxCheckNudge(onCheck: (Long) -> Unit, modifier: Modifier = Modifier) {
     val box = live.firstOrNull { it.id == due.first } ?: return
 
     Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.DoneAll, null, tint = Palette.Accent, modifier = Modifier.size(20.dp))
+        Icon(Icons.Filled.DoneAll, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
         Text(
             BoxReminders.label(box.name, due.second.coerceAtLeast(months)),
@@ -119,19 +120,19 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
 
     Surface(
         modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         color = Palette.Surface,
     ) {
         Column(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.NewReleases, null, tint = Palette.Accent, modifier = Modifier.size(20.dp))
+                SetIcon(set.code, size = 20.dp, tint = Palette.Icon)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "New set: ${set.name}",
                     style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = { closed = true; BoxPrefs.markOffered(ctx, set.code) }) {
-                    Icon(Icons.Filled.Close, "Not now", tint = Palette.Muted)
+                    Icon(Icons.Filled.Close, "Not now", tint = Palette.Icon)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

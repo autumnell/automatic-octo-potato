@@ -44,6 +44,7 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlin.random.Random
+import com.mtgscanner.ui.theme.Corners
 
 /** Best quiz streak, saved on the phone. */
 private object QuizPrefs {
@@ -138,9 +139,9 @@ private fun Choice(label: String, state: Boolean?, enabled: Boolean, modifier: M
     Surface(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         color = if (state == null) Palette.SurfaceHigh else edge.copy(alpha = 0.16f),
-        modifier = modifier.border(1.dp, edge, RoundedCornerShape(14.dp)),
+        modifier = modifier.border(1.dp, edge, RoundedCornerShape(Corners.Medium)),
     ) {
         Text(
             label, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -152,7 +153,7 @@ private fun Choice(label: String, state: Boolean?, enabled: Boolean, modifier: M
 @Composable
 private fun WhichBoxView(q: QuizQuestion.WhichBox, names: Map<Long, String>, answer: Long?, onPick: (Long) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        CardImage(q.card.image, Modifier.width(170.dp), corner = 9.dp, zoom = true)
+        CardImage(q.card.image, Modifier.width(170.dp), zoom = true)
         Spacer(Modifier.height(10.dp))
         Text(q.card.name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text("Which box?", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
@@ -197,7 +198,7 @@ private fun HigherLowerView(q: QuizQuestion.HigherLower, answer: Long?, onPick: 
 @Composable
 private fun PriceCard(c: QuizCard, price: String, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        CardImage(c.image, Modifier.fillMaxWidth(), corner = 8.dp, zoom = true)
+        CardImage(c.image, Modifier.fillMaxWidth(), zoom = true)
         Spacer(Modifier.height(6.dp))
         Text(c.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         Text(price, style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)

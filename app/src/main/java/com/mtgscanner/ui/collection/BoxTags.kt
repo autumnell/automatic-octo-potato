@@ -61,6 +61,7 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.QrCodes
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
+import com.mtgscanner.ui.theme.Corners
 
 /** Whether this phone has NFC at all (it may be turned off). */
 fun hasNfc(context: Context): Boolean = NfcAdapter.getDefaultAdapter(context) != null
@@ -88,7 +89,7 @@ fun BoxQrScanSheet(onBox: (Long) -> Unit, onDismiss: () -> Unit) {
             Text("Scan a box label", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(12.dp))
             Box(
-                Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(Color.Black),
+                Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(Corners.Medium)).background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
                 if (granted) {

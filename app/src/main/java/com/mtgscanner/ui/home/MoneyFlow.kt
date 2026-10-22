@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.stateIn
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.mtgscanner.ui.theme.Corners
 
 class MoneyViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The last six months, oldest first. Empty until loaded. */
@@ -67,7 +68,7 @@ fun MoneySection(vm: MoneyViewModel = viewModel(factory = MoneyViewModel.Factory
     val months by vm.months.collectAsStateWithLifecycle()
     if (!MoneyMath.hasData(months)) return
     SectionHeader("Money in and out")
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
             MoneyRow("", "Spent", "Sold", "Worth", header = true)
             months.asReversed().forEach { m ->

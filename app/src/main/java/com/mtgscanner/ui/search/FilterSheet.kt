@@ -56,6 +56,7 @@ import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.collection.CardColors
 import com.mtgscanner.ui.collection.ColorMatch
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Scryfall filters: printings, legality, types, stats, language and sort. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -122,7 +123,7 @@ fun FilterSheet(
                 Spacer(Modifier.width(8.dp))
                 SelectPill("Add", false, {
                     if (otherType.isNotBlank()) { onChange(f.copy(types = f.types + TypeTerm(otherType.trim()))); otherType = "" }
-                }, leading = { Icon(Icons.Filled.Add, null, Modifier.size(14.dp), tint = Palette.Text) })
+                }, leading = { Icon(Icons.Filled.Add, null, Modifier.size(14.dp), tint = Palette.Icon) })
             }
 
             Heading("Stats")
@@ -201,9 +202,9 @@ private fun TypeChip(word: String, term: TypeTerm?, onClick: () -> Unit) {
     Row(
         Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(if (term == null) Palette.SurfaceHigh else color.copy(alpha = 0.18f))
-            .border(1.dp, color, RoundedCornerShape(50))
+            .border(1.dp, color, RoundedCornerShape(Corners.Small))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -226,7 +227,7 @@ private fun SmallField(
     onDone: () -> Unit = {},
 ) {
     Box(
-        modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(12.dp)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
@@ -269,7 +270,7 @@ fun SavedMenu(
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
-        SelectPill("Saved", false, { open = true }, leading = { Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(16.dp), tint = Palette.Text) })
+        SelectPill("Saved", false, { open = true }, leading = { Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(16.dp), tint = Palette.Icon) })
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text("Save search…", color = Palette.AccentText) },
@@ -281,7 +282,7 @@ fun SavedMenu(
                     text = { Text(s.name) },
                     onClick = { open = false; onLoad(s) },
                     trailingIcon = {
-                        Icon(Icons.Filled.Close, "Delete ${s.name}", tint = Palette.Muted, modifier = Modifier.size(18.dp).clickable { onDelete(s.name) })
+                        Icon(Icons.Filled.Close, "Delete ${s.name}", tint = Palette.Icon, modifier = Modifier.size(18.dp).clickable { onDelete(s.name) })
                     },
                 )
             }

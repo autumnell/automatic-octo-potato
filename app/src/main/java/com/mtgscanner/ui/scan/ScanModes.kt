@@ -79,6 +79,8 @@ import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.CardShape
 
 /** The modes button over the camera: sort a pile, open a pack, scan a binder page, lock to a set. */
 @Composable
@@ -226,7 +228,7 @@ fun DeckPickDialog(vm: ScanViewModel) {
                                 style = MaterialTheme.typography.titleSmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { vm.scanToDeck(d) }
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { vm.scanToDeck(d) }
                                     .padding(vertical = 12.dp, horizontal = 4.dp),
                             )
                         }
@@ -251,7 +253,7 @@ private fun ModeText(title: String, body: String) = Column {
 @Composable
 fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val p = state.pack ?: return
-    Surface(modifier, shape = RoundedCornerShape(14.dp), color = Color.Black.copy(alpha = 0.75f)) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
         Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text(p.name, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -315,7 +317,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             state.status, color = Color.White, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center,
-            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 12.dp, vertical = 6.dp),
         )
         Spacer(Modifier.height(10.dp))
         if (state.wantPage || state.pageLoading) Row(verticalAlignment = Alignment.CenterVertically) {
@@ -344,14 +346,14 @@ fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
             LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxHeight(0.75f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(slots, key = { it.index }) { s ->
                     Box(
-                        Modifier.clip(RoundedCornerShape(10.dp)).background(Palette.SurfaceHigh)
+                        Modifier.clip(CardShape).background(Palette.SurfaceHigh)
                             .clickable(enabled = s.card != null) { vm.togglePageSlot(s.index) }
                             .aspectRatio(63f / 88f),
                         contentAlignment = Alignment.Center,
                     ) {
                         val card = s.card
                         if (card != null) {
-                            CardImage(card.smallImageUrl ?: card.imageUrl, Modifier.fillMaxWidth().alpha(if (s.selected) 1f else 0.35f), corner = 8.dp)
+                            CardImage(card.smallImageUrl ?: card.imageUrl, Modifier.fillMaxWidth().alpha(if (s.selected) 1f else 0.35f))
                             if (s.selected) Icon(Icons.Filled.CheckCircle, null, tint = Palette.Accent, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp))
                         } else Text(
                             s.read?.let { "Couldn't find\n$it" } ?: "Empty or unreadable",

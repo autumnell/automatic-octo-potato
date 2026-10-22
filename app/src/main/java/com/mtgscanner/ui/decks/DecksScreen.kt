@@ -109,6 +109,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -279,9 +281,9 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                         folder.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, "Rename folder", tint = Palette.Muted) }
+                    IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, "Rename folder", tint = Palette.Icon) }
                     IconButton(onClick = { vm.deleteFolder(folder); folderId = null }) {
-                        Icon(Icons.Filled.DeleteOutline, "Delete folder", tint = Palette.Muted)
+                        Icon(Icons.Filled.DeleteOutline, "Delete folder", tint = Palette.Icon)
                     }
                 } else {
                     Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -296,7 +298,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
         }
         if (decks?.isEmpty() == true && shelf.folders.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
-                EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) })
+                EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) }, fullScreen = true)
             }
         } else {
             item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
@@ -304,12 +306,12 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     value = query,
                     onValueChange = { query = it },
                     placeholder = { Text("Search decks") },
-                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Muted) },
+                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
                     trailingIcon = {
                         if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear") }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(Corners.Medium),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent,
                     ),
@@ -374,16 +376,16 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     }
 }
 
-private val TileShape = RoundedCornerShape(18.dp)
+private val TileShape = RoundedCornerShape(Corners.Medium)
 
-/** Art, or a soft gradient when there's no art yet. */
+/** Art, or a plain panel with a deck icon when there's no art yet. */
 @Composable
 private fun TileArt(url: String?, modifier: Modifier = Modifier) {
-    Box(modifier.background(Palette.HeroGradient)) {
+    Box(modifier.background(Palette.SurfaceHigh)) {
         if (url != null) {
             AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         } else {
-            Icon(Icons.Filled.Style, null, tint = Palette.Accent.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.Center).size(36.dp))
+            Icon(Icons.Filled.Style, null, tint = Palette.Icon, modifier = Modifier.align(Alignment.Center).size(36.dp))
         }
     }
 }
@@ -398,7 +400,7 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                 if (row.identity.isNotEmpty()) {
                     Row(
                         Modifier.align(Alignment.TopEnd).padding(6.dp)
-                            .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
+                            .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.45f))
                             .padding(horizontal = 4.dp, vertical = 3.dp),
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
@@ -423,7 +425,7 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                 }
                 Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Filled.MoreVert, "Deck options", tint = Palette.Muted, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
@@ -459,7 +461,7 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, onOpen: () -> U
                     TileArt(arts.firstOrNull(), Modifier.matchParentSize())
                 }
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-                Icon(Icons.Filled.Folder, null, tint = Palette.Gold, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
+                Icon(Icons.Filled.Folder, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
             }
             Column(Modifier.padding(12.dp)) {
                 Text(
@@ -710,14 +712,14 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
     Column(Modifier.padding(horizontal = 16.dp)) {
         OutlinedTextField(
             value = ui.name, onValueChange = vm::setName, label = { Text("Deck name") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = colors,
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
             value = ui.text, onValueChange = vm::setText,
             placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
             modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 420.dp),
-            shape = RoundedCornerShape(14.dp), colors = colors,
+            shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
         Spacer(Modifier.height(6.dp))
         Text("One card per line.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -752,7 +754,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                 OutlinedButton(
                     onClick = vm::wishlistMissing,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(Corners.Medium),
                 ) {
                     Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
@@ -779,7 +781,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
 
 @Composable
 private fun Stat(label: String, value: String, modifier: Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(18.dp), color = Palette.Surface) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(14.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
             Text(value, style = MaterialTheme.typography.titleLarge)
@@ -790,7 +792,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 @Composable
 private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(l.imageUrl, Modifier.width(40.dp), corner = 4.dp, zoom = true)
+        CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -807,7 +809,7 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean) {
             }
             Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText) }
+        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText) }
         else Icon(Icons.Filled.CheckCircle, null, tint = if (l.owned >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
     }
 }

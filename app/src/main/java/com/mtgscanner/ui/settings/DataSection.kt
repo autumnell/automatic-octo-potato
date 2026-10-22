@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
@@ -93,6 +93,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.mtgscanner.ui.theme.Corners
 
 /** Settings jobs (backup, import, restore…) run one at a time, in the app's scope, so leaving Settings doesn't stop them. */
 object DataJobs {
@@ -498,7 +499,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         }
     }
 
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column {
             busy?.let {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -708,7 +709,7 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
                 } else {
                     Text("Where should they go?")
                     Spacer(Modifier.padding(top = 4.dp))
-                    Choice("Auto-sort by box rules", choice == Box.AUTO_SORT, Icons.Filled.AutoFixHigh) { choice = Box.AUTO_SORT }
+                    Choice("Auto-sort by box rules", choice == Box.AUTO_SORT, Icons.AutoMirrored.Filled.Sort) { choice = Box.AUTO_SORT }
                     boxes.forEach { b -> Choice(b.name, choice == b.id, null) { choice = b.id } }
                     Choice("A new box called \"Imported\"", choice == 0L, null) { choice = 0L }
                 }
@@ -727,7 +728,7 @@ private fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClick
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
         if (icon != null) {
-            Icon(icon, null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+            Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
         Text(label, style = MaterialTheme.typography.bodyMedium)
@@ -737,7 +738,7 @@ private fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClick
 @Composable
 private fun Action(icon: ImageVector, title: String, body: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = Palette.Accent)
+        Icon(icon, null, tint = Palette.Icon)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)

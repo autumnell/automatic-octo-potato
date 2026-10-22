@@ -38,12 +38,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** A summary of saved games on the Game tab. */
 @Composable
 fun StatsCard(records: List<GameRecord>, onOpen: () -> Unit) {
     val top = remember(records) { GameStats.byPlayer(records).firstOrNull() }
-    Surface(onClick = onOpen, shape = RoundedCornerShape(20.dp), color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
+    Surface(onClick = onOpen, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.EmojiEvents, null, tint = Palette.Gold)
             Spacer(Modifier.width(12.dp))
@@ -99,7 +100,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                             )
                         }
                         IconButton(onClick = { vm.deleteRecord(r) }) {
-                            Icon(Icons.Filled.DeleteOutline, "Delete this game", tint = Palette.Muted, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Filled.DeleteOutline, "Delete this game", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                         }
                     }
                 }

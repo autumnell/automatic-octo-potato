@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,6 +56,7 @@ import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Bottom sheet listing every printing of a card so the right set can be picked. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,13 +85,13 @@ fun PrintingsSheet(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 3.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(Corners.Medium))
                             .background(if (selected) Palette.Accent.copy(alpha = 0.14f) else Color.Transparent)
                             .clickable { onPick(p) }
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CardImage(p.smallImageUrl, Modifier.width(52.dp), corner = 4.dp)
+                        CardImage(p.smallImageUrl, Modifier.width(52.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(p.setName, style = MaterialTheme.typography.titleSmall, maxLines = 1)
@@ -150,7 +151,7 @@ fun AddCardSheet(
     ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
             Row {
-                CardImage(card.imageUrl, Modifier.width(130.dp), corner = 8.dp)
+                CardImage(card.imageUrl, Modifier.width(130.dp))
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(card.name, style = MaterialTheme.typography.titleLarge)
@@ -180,7 +181,7 @@ fun AddCardSheet(
             if (owned != null) {
                 Spacer(Modifier.height(12.dp))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Palette.Accent.copy(alpha = 0.14f))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Accent.copy(alpha = 0.14f))
                         .then(if (onOwned != null) Modifier.clickable(onClickLabel = "Open your copy", onClick = onOwned) else Modifier)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -209,7 +210,7 @@ fun AddCardSheet(
                 Spacer(Modifier.height(12.dp))
                 Text("Cards go into boxes. Create one to add this card.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onCreateBox, shape = RoundedCornerShape(14.dp)) {
+                OutlinedButton(onClick = onCreateBox, shape = RoundedCornerShape(Corners.Medium)) {
                     Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Create a box")
@@ -220,11 +221,11 @@ fun AddCardSheet(
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
-                        Icon(Icons.Filled.AutoFixHigh, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Muted)
+                        Icon(Icons.AutoMirrored.Filled.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Icon)
                     })
                     boxes.forEach { b ->
                         SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {
-                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.AccentText else Palette.Muted)
+                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.AccentText else Palette.Icon)
                         })
                     }
                 }
@@ -239,7 +240,7 @@ fun AddCardSheet(
             )
             if (onWishlist != null) {
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onWishlist, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                OutlinedButton(onClick = onWishlist, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium)) {
                     Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Add to wishlist")
@@ -253,7 +254,7 @@ fun AddCardSheet(
 @Composable
 fun QuantityStepper(value: Int, onChange: (Int) -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(12.dp)).background(Palette.SurfaceHigh),
+        Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = { onChange(value - 1) }) { Icon(Icons.Filled.Remove, "One fewer") }

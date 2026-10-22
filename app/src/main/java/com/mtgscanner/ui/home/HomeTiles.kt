@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import com.mtgscanner.ui.components.RollingText
 import com.mtgscanner.ui.theme.PriceStyle
+import com.mtgscanner.ui.theme.Corners
 
 /** Numbers for the stat tiles: every metric, and each saved search's card count by name. */
 data class TileData(val values: Map<TileMetric, Double> = emptyMap(), val lists: Map<String, Int> = emptyMap())
@@ -60,7 +61,7 @@ internal fun shownTiles(tiles: List<TileMetric>, data: TileData, listName: Strin
         }
     }
 
-/** The row of stat tiles under the value card. Tap opens what the number counts; hold to change the tiles. */
+/** The row of stat tiles, a Home section of its own. Tap opens what the number counts; hold to change the tiles. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun StatTileRow(data: TileData, onTap: (TileMetric) -> Unit, onEdit: () -> Unit) {
@@ -77,7 +78,7 @@ internal fun StatTileRow(data: TileData, onTap: (TileMetric) -> Unit, onEdit: ()
             val format: (Double) -> String = { v -> if (m == TileMetric.CUSTOM) TileMath.shortCount(v) else TileMath.text(m, v) }
             FlatTile(
                 label, value, format, compact,
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onClick = { onTap(m) }, onLongClick = onEdit),
+                Modifier.weight(1f).clip(RoundedCornerShape(Corners.Medium)).combinedClickable(onClick = { onTap(m) }, onLongClick = onEdit),
             )
         }
     }

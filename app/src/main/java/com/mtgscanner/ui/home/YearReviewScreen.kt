@@ -2,9 +2,7 @@ package com.mtgscanner.ui.home
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -62,6 +60,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 /** Year in review, full screen over Stats: cards added, best pull, biggest gain, top set, value. */
 @Composable
@@ -130,11 +130,11 @@ private fun YearReviewScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                 }
                 if (prices && r.valueStart != null && r.valueEnd != null) {
                     Spacer(Modifier.height(10.dp))
-                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
                                 Text("Value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text("${formatUsd(r.valueStart)} → ${formatUsd(r.valueEnd)}", style = MaterialTheme.typography.titleMedium)
+                                Text("${formatUsd(r.valueStart)} → ${formatUsd(r.valueEnd)}", style = MaterialTheme.typography.titleMedium.merge(TabularNums))
                             }
                             ChangeText(r.valueEnd - r.valueStart, r.valueStart)
                         }
@@ -156,7 +156,7 @@ private fun YearReviewScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
 
 @Composable
 private fun Tile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null) {
-    Surface(modifier, shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(16.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             Text(value, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -167,9 +167,9 @@ private fun Tile(label: String, value: String, modifier: Modifier = Modifier, su
 
 @Composable
 private fun CardTile(label: String, c: YearCard, amount: String?, onClick: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Row(Modifier.clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            CardImage(c.imageUrl, Modifier.width(64.dp), corner = 4.dp)
+            CardImage(c.imageUrl, Modifier.width(64.dp))
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
@@ -187,7 +187,7 @@ private fun shareImage(r: YearReview, prices: Boolean): Bitmap {
     val h = 1350
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
-    val bg = Paint().apply { shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), 0xFF1E1A33.toInt(), 0xFF0F1014.toInt(), Shader.TileMode.CLAMP) }
+    val bg = Paint().apply { color = 0xFF16151D.toInt() }
     c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bg)
     fun paint(size: Float, color: Int, bold: Boolean = false) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = size

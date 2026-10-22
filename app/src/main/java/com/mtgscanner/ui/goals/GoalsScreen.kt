@@ -84,6 +84,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -210,12 +212,12 @@ fun GoalsScreen(onBack: () -> Unit, vm: GoalsViewModel = viewModel(factory = Goa
 /** One goal with its progress bar. Used on Home too. */
 @Composable
 fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick), shape = RoundedCornerShape(16.dp), color = Palette.Surface) {
+    Surface(modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 when {
-                    p.error -> Icon(Icons.Filled.CloudOff, "Offline", tint = Palette.Muted, modifier = Modifier.size(16.dp))
+                    p.error -> Icon(Icons.Filled.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
                     !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
                     else -> Text(
                         "${p.have}/${p.total}", style = MaterialTheme.typography.labelLarge,
@@ -226,7 +228,7 @@ fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { p.fraction },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
                 color = if (p.done) Palette.Success else Palette.Accent,
                 trackColor = Palette.SurfaceHigh,
                 drawStopIndicator = {},
@@ -258,7 +260,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                 Column(Modifier.weight(1f)) {
                     Text("Missing ${p.missing.size}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
                     if (AppSettings.showPrices && p.cost > 0) {
-                        Text("${formatUsd(p.cost)} to complete", style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
+                        Text("${formatUsd(p.cost)} to complete", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.AccentText)
                     }
                 }
                 TextButton(onClick = { vm.wishlistAll(p.missing) }) {
@@ -274,7 +276,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                 Modifier.fillMaxWidth().clickable(onClickLabel = if (isWished) "Remove from wishlist" else "Add to wishlist") { vm.toggleWish(c) }.padding(vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CardImage(c.smallImageUrl, Modifier.width(34.dp), corner = 3.dp, zoom = true)
+                CardImage(c.smallImageUrl, Modifier.width(34.dp), zoom = true)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -284,13 +286,13 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                     )
                 }
                 if (AppSettings.showPrices) Goals.cheapest(c)?.let {
-                    Text(formatUsd(it), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text(formatUsd(it), style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                     Spacer(Modifier.width(8.dp))
                 }
                 Icon(
                     if (isWished) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     null,
-                    tint = if (isWished) Palette.AccentText else Palette.Muted,
+                    tint = if (isWished) Palette.AccentText else Palette.Icon,
                     modifier = Modifier.size(20.dp),
                 )
             }

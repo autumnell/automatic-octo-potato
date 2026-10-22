@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -52,6 +51,7 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.min
+import com.mtgscanner.ui.theme.CardShape
 
 /** Cards behind the top one that still show. */
 private const val BEHIND = 3
@@ -116,7 +116,7 @@ fun CardStack(
                                     scaleY = s
                                 }
                             }
-                            .shadow(if (top) 10.dp else 4.dp, RoundedCornerShape(12.dp))
+                            .shadow(if (top) 10.dp else 4.dp, CardShape)
                             .then(
                                 if (top) Modifier
                                     .pointerInput(i, cards.size) {
@@ -139,8 +139,8 @@ fun CardStack(
                                 else Modifier,
                             ),
                     ) {
-                        Box(Modifier.clip(RoundedCornerShape(12.dp)).foilShimmer(c.foil && top)) {
-                            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth(), corner = 12.dp)
+                        Box(Modifier.clip(CardShape).foilShimmer(c.foil && top)) {
+                            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth())
                         }
                     }
                 }

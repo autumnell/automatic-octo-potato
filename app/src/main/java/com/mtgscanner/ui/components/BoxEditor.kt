@@ -70,6 +70,7 @@ import com.mtgscanner.data.db.boxRules
 import com.mtgscanner.data.db.facts
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** What the box editor produces. */
 data class BoxDraft(
@@ -226,7 +227,7 @@ private fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (In
             val done = n < step
             val reachable = n <= step || canJump
             Row(
-                Modifier.clip(RoundedCornerShape(50)).clickable(enabled = reachable) { onStep(n) }.padding(end = 6.dp),
+                Modifier.clip(RoundedCornerShape(Corners.Small)).clickable(enabled = reachable) { onStep(n) }.padding(end = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
@@ -255,7 +256,7 @@ private fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> 
         Spacer(Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             BOX_TEMPLATES.forEach { t ->
-                Surface(onClick = { onTemplate(t) }, shape = RoundedCornerShape(14.dp), color = Palette.SurfaceHigh) {
+                Surface(onClick = { onTemplate(t) }, shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh) {
                     Column(Modifier.width(150.dp).padding(12.dp)) {
                         Text(t.name, style = MaterialTheme.typography.titleSmall, color = Palette.AccentText, maxLines = 1)
                         Text(t.blurb, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
@@ -273,11 +274,11 @@ private fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> 
     Surface(
         onClick = { onPick(BoxDraft()) },
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         color = Palette.SurfaceHigh,
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.CheckBoxOutlineBlank, null, tint = Palette.Accent)
+            Icon(Icons.Outlined.CheckBoxOutlineBlank, null, tint = Palette.Icon)
             Spacer(Modifier.width(12.dp))
             Column {
                 Text("Blank box", style = MaterialTheme.typography.titleSmall)
@@ -290,12 +291,12 @@ private fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> 
         BOX_PRESETS.forEach { p ->
             Surface(
                 onClick = { onPick(BoxDraft(p.name, p.kind, 0, p.rules, divider = p.divider)) },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(Corners.Medium),
                 color = Palette.SurfaceHigh,
             ) {
                 Column(Modifier.width(150.dp).padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(boxIcon(p.kind), null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+                        Icon(boxIcon(p.kind), null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                     }
@@ -317,7 +318,7 @@ private fun DetailsStep(draft: BoxDraft, onChange: (BoxDraft) -> Unit) {
         placeholder = { Text("e.g. Red rares, Trade binder") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         colors = fieldColors(),
     )
 
@@ -357,7 +358,7 @@ private fun DetailsStep(draft: BoxDraft, onChange: (BoxDraft) -> Unit) {
     }
 
     Spacer(Modifier.height(16.dp))
-    Surface(shape = RoundedCornerShape(16.dp), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(boxIcon(draft.kind), null, tint = boxColor(draft.color), modifier = Modifier.size(26.dp))
             Spacer(Modifier.width(10.dp))
@@ -433,12 +434,12 @@ private fun RulesStep(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = minText, onValueChange = onMin, label = { Text("At least $") },
-                    singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+                    singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
                 OutlinedTextField(
                     value = maxText, onValueChange = onMax, label = { Text("Under $") },
-                    singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+                    singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
@@ -448,7 +449,7 @@ private fun RulesStep(
         OutlinedTextField(
             value = setsText, onValueChange = onSets,
             placeholder = { Text("Set codes, e.g. MH3, BLB") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
         )
     }
     val idSummary = BoxRules(identity = rules.identity, identityMode = rules.identityMode).takeIf { rules.identity.isNotEmpty() }?.describe()
@@ -509,7 +510,7 @@ private fun StatRule(
                 OutlinedTextField(
                     value = nums[k].orEmpty(), onValueChange = { v -> onNum(k, v.filter { it.isDigit() }.take(2)) },
                     label = { Text(label) }, singleLine = true, modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+                    shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
             }
@@ -550,7 +551,7 @@ private fun LayoutCards(divider: Divider, onDivider: (Divider) -> Unit, capText:
         OutlinedTextField(
             value = capText, onValueChange = onCap,
             placeholder = { Text("No limit") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = fieldColors(),
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     }
@@ -560,7 +561,7 @@ private fun LayoutCards(divider: Divider, onDivider: (Divider) -> Unit, capText:
 private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Corners.Medium),
         color = Palette.SurfaceHigh,
         border = if (summary != null) androidx.compose.foundation.BorderStroke(1.dp, Palette.Accent.copy(alpha = 0.5f)) else null,
     ) {
@@ -570,7 +571,7 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
                     Text(title, style = MaterialTheme.typography.titleSmall)
                     Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.AccentText else Palette.Muted, maxLines = 1)
                 }
-                Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Muted)
+                Icon(if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Icon)
             }
             AnimatedVisibility(expanded) {
                 Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) { content() }
@@ -595,7 +596,7 @@ private fun LivePreview(rules: BoxRules, editingId: Long?) {
     val fitCount = result.fits.sumOf { all[it].quantity }
     val takenCount = result.takenBy.sumOf { (_, idx) -> idx.sumOf { all[it].quantity } }
 
-    Surface(shape = RoundedCornerShape(16.dp), color = Palette.Background, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Background, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             Text("Preview", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
             Text(rules.describe(), style = MaterialTheme.typography.bodyMedium, color = Palette.AccentText)
@@ -613,7 +614,7 @@ private fun LivePreview(rules: BoxRules, editingId: Long?) {
             if (thumbs.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(thumbs, key = { it.id }) { c -> CardImage(c.smallImageUrl, Modifier.height(64.dp), corner = 4.dp) }
+                    items(thumbs, key = { it.id }) { c -> CardImage(c.smallImageUrl, Modifier.height(64.dp)) }
                 }
             }
             if (result.takenBy.isNotEmpty()) {

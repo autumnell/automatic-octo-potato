@@ -68,7 +68,7 @@ internal fun PriceAlertRow(c: CollectionCard) {
     TextButton(onClick = { editing = true }) {
         Icon(
             if (alert != null) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone, null,
-            Modifier.size(18.dp), tint = if (alert != null) Palette.AccentText else Palette.Muted,
+            Modifier.size(18.dp), tint = if (alert != null) Palette.AccentText else Palette.Icon,
         )
         Spacer(Modifier.width(6.dp))
         Text(

@@ -128,6 +128,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : ViewModel() {
@@ -533,7 +535,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
 
                     // Compact editing block: quantity, foil, condition, box, notes and tags.
                     Spacer(Modifier.height(10.dp))
-                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Palette.Surface) {
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 QuantityStepper(c.quantity, onChange = { vm.changeQuantity(it - c.quantity) })
@@ -569,13 +571,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
                                     onClick = { editingNotes = true },
-                                    leading = { Icon(Icons.Filled.Edit, null, Modifier.size(16.dp), tint = Palette.Muted) },
+                                    leading = { Icon(Icons.Filled.Edit, null, Modifier.size(16.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                                 DropChip(
                                     "Tag",
                                     onClick = { addingTag = true },
-                                    leading = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp), tint = Palette.AccentText) },
+                                    leading = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                             }
@@ -585,12 +587,12 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     userTags.forEach { t ->
                                         Row(
-                                            Modifier.clip(RoundedCornerShape(50)).background(Palette.SurfaceHigh).padding(start = 12.dp),
+                                            Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(start = 12.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
                                             Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
                                             IconButton(onClick = { vm.removeTag(t) }) {
-                                                Icon(Icons.Filled.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Muted)
+                                                Icon(Icons.Filled.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Icon)
                                             }
                                         }
                                     }
@@ -628,7 +630,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("You own", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text("${c.quantity} · ${cardTotal(c)}", style = MaterialTheme.typography.titleMedium)
+                                Text("${c.quantity} · ${cardTotal(c)}", style = MaterialTheme.typography.titleMedium.merge(TabularNums))
                             }
                         }
                         PriceAlertRow(c)
@@ -731,7 +733,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     style = MaterialTheme.typography.labelMedium, color = Color.White,
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(Corners.Small))
                         .background(Color.Black.copy(alpha = 0.45f))
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 )
@@ -822,7 +824,6 @@ private fun Hero(c: CollectionCard, sharedId: Long, onPhoto: () -> Unit) {
             Modifier.align(Alignment.Center).statusBarsPadding().padding(top = 8.dp, bottom = 20.dp).height(170.dp)
                 .sharedCard(sharedId)
                 .foilShimmer(c.foil),
-            corner = 10.dp,
             zoom = true,
         )
         // Your own copy's photo, small in the corner; tap to view.
@@ -835,7 +836,7 @@ private fun Hero(c: CollectionCard, sharedId: Long, onPhoto: () -> Unit) {
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 24.dp)
                     .size(width = 48.dp, height = 64.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(Corners.Small))
                     .background(Palette.SurfaceHigh)
                     .clickable(onClick = onPhoto),
             )
@@ -846,13 +847,13 @@ private fun Hero(c: CollectionCard, sharedId: Long, onPhoto: () -> Unit) {
 @Composable
 private fun PhotoViewer(path: String, onRemove: () -> Unit, onReplace: () -> Unit, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(16.dp), color = Palette.Surface) {
+        Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
             Column(Modifier.padding(8.dp)) {
                 AsyncImage(
                     model = java.io.File(path),
                     contentDescription = "Your photo",
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onDismiss),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onDismiss),
                 )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onRemove) { Text("Remove", color = Palette.Danger) }
@@ -932,7 +933,7 @@ private fun SplitDialog(c: CollectionCard, onSplit: (SplitChange) -> Unit, onDis
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     QuantityStepper(qty, onChange = { qty = it.coerceIn(1, c.quantity - 1) })
                     Spacer(Modifier.width(12.dp))
-                    Text("of ${c.quantity}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                    Text("of ${c.quantity}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Muted)
                 }
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1033,7 +1034,7 @@ internal fun shortDate(millis: Long): String = runCatching {
 
 @Composable
 private fun Panel(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(16.dp)) { content() }
     }
 }
@@ -1041,7 +1042,7 @@ private fun Panel(content: @Composable () -> Unit) {
 @Composable
 private fun InfoChip(content: @Composable () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) { content() }
 }
@@ -1073,7 +1074,7 @@ private fun DropChip(label: String, onClick: () -> Unit, leading: (@Composable (
     Row(
         Modifier
             .heightIn(min = 40.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(Corners.Small))
             .background(Palette.SurfaceHigh)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -1084,7 +1085,7 @@ private fun DropChip(label: String, onClick: () -> Unit, leading: (@Composable (
             Spacer(Modifier.width(6.dp))
         }
         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-        if (trailing) Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Muted)
+        if (trailing) Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
     }
 }
 
@@ -1206,13 +1207,13 @@ private fun BoxPicker(boxes: List<CardBox>, current: Long, onPick: (CardBox) -> 
         DropChip(
             here?.name ?: "Box",
             onClick = { open = true },
-            leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = Palette.AccentText) },
+            leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = Palette.Icon) },
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             boxes.forEach { b ->
                 DropdownMenuItem(
                     text = { Text(b.name, color = if (b.id == current) Palette.AccentText else Palette.Text) },
-                    leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Muted) },
+                    leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Icon) },
                     onClick = { open = false; if (b.id != current) onPick(b) },
                 )
             }

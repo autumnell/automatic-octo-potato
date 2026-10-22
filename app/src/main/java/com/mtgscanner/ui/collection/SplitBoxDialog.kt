@@ -28,6 +28,7 @@ import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** Pick where a full box splits in two, with how many cards each half gets, then confirm. */
 @Composable
@@ -78,7 +79,7 @@ internal fun SplitBoxDialog(box: BoxSummary, cards: List<CollectionCard>?, onSpl
 
 @Composable
 private fun HalfRow(range: String, copies: Int) {
-    Surface(shape = RoundedCornerShape(12.dp), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(range, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(if (copies == 1) "1 card" else "$copies cards", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)

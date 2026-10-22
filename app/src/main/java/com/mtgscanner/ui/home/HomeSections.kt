@@ -54,6 +54,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.filled.CloudOff
 import com.mtgscanner.ui.theme.PriceStyle
+import androidx.compose.foundation.shape.CircleShape
 import com.mtgscanner.ui.detail.sharedCard
 
 /** Up to three goals, or a button to add the first one. */
@@ -83,7 +84,7 @@ private fun GoalRow(p: GoalProgress, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
-                p.error -> Icon(Icons.Filled.CloudOff, "Offline", tint = Palette.Muted, modifier = Modifier.size(16.dp))
+                p.error -> Icon(Icons.Filled.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
                 !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
                 else -> Text(
                     "${p.have}/${p.total}",
@@ -95,7 +96,7 @@ private fun GoalRow(p: GoalProgress, onClick: () -> Unit) {
         Spacer(Modifier.height(6.dp))
         LinearProgressIndicator(
             progress = { p.fraction },
-            modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+            modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
             color = if (p.done) Palette.Success else Palette.Accent,
             trackColor = Palette.SurfaceHigh,
             drawStopIndicator = {},

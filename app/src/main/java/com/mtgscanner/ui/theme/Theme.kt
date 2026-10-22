@@ -60,8 +60,11 @@ object Palette {
     }
     private var accentTextFor: Color = Color.Unspecified
     private var accentTextCache: Color = Color.Unspecified
-    /** Text/icon color that reads well on top of the accent. */
-    val OnAccent: Color get() = if (Accent.luminance() > 0.45f) Color(0xFF141414) else Color.White
+    /**
+     * Text/icon color for a solid accent fill (buttons, badges): white when it reads (4.5:1) or reads better,
+     * otherwise near-black. Works for any accent, including a custom one, in light and dark mode.
+     */
+    val OnAccent: Color get() = onFill(Accent)
 
     val Background: Color get() = when { black -> Color.Black; dark -> Color(0xFF111214); else -> Color(0xFFF4F4F7) }
     val Surface: Color get() = when { black -> Color(0xFF0D0D0F); dark -> Color(0xFF1A1B1F); else -> Color(0xFFFFFFFF) }
@@ -74,6 +77,8 @@ object Palette {
     val Info: Color get() = if (dark) Color(0xFF5B9BE0) else Color(0xFF2F6FB8)
     val Text: Color get() = if (dark) Color(0xFFEDEDEF) else Color(0xFF17181C)
     val Muted: Color get() = if (dark) Color(0xFF9A9BA3) else Color(0xFF666873)
+    /** Default icon tint: a quiet gray, a touch softer than [Muted]. The accent is kept for value, selection and the main action. */
+    val Icon: Color get() = if (dark) Color(0xFF8E9098) else Color(0xFF6E707B)
     val Outline: Color get() = when { black -> Color(0xFF26272C); dark -> Color(0xFF34363D); else -> Color(0xFFD3D5DC) }
     /** Hairline between plain sections: fainter than [Outline]. */
     val Hairline: Color get() = Outline.copy(alpha = if (dark) 0.7f else 0.8f)
@@ -90,6 +95,14 @@ fun contrastRatio(a: Color, b: Color): Float {
     val la = a.luminance() + 0.05f
     val lb = b.luminance() + 0.05f
     return if (la > lb) la / lb else lb / la
+}
+
+private val InkOnLight = Color(0xFF141414)
+
+/** White or near-black, whichever reads on a solid [fill]; white wins whenever it reaches 4.5:1. */
+fun onFill(fill: Color): Color {
+    val white = contrastRatio(Color.White, fill)
+    return if (white >= 4.5f || white >= contrastRatio(InkOnLight, fill)) Color.White else InkOnLight
 }
 
 /** [color] darkened toward black just enough to reach [ratio] contrast on a light [background]. */
@@ -125,6 +138,8 @@ val Cormorant = FontFamily(
 private const val HEADING_FIGURES = "lnum"
 /** Lining and tabular figures: every digit the same width, so prices line up and counters don't jiggle. */
 private const val PRICE_FIGURES = "lnum, tnum"
+/** Lining tabular figures for labels (see [TabularNums]). */
+private const val TABULAR = PRICE_FIGURES
 
 private fun scheme(): ColorScheme {
     val p = Palette
@@ -156,8 +171,8 @@ private fun scheme(): ColorScheme {
     )
 }
 
-private fun base(family: FontFamily, size: Int, weight: FontWeight, line: Int = (size * 1.35f).toInt(), spacing: Double = 0.0) =
-    TextStyle(fontFamily = family, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp)
+private fun base(family: FontFamily, size: Int, weight: FontWeight, line: Int = (size * 1.35f).toInt(), spacing: Double = 0.0, figures: String? = null) =
+    TextStyle(fontFamily = family, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp, fontFeatureSettings = figures)
 
 /** Heading sizes are set for Cormorant, which runs small; other fonts come down by their [AppFont.scale]. */
 private fun heading(font: AppFont, size: Int, weight: FontWeight = FontWeight.Bold): TextStyle {
@@ -181,9 +196,10 @@ private fun typography(headingFont: AppFont, bodyFont: AppFont): Typography {
         bodyLarge = base(f, 16, FontWeight.Normal),
         bodyMedium = base(f, 14, FontWeight.Normal),
         bodySmall = base(f, 12, FontWeight.Normal),
-        labelLarge = base(f, 14, FontWeight.Medium, spacing = 0.3),
-        labelMedium = base(f, 12, FontWeight.Medium, spacing = 0.4),
-        labelSmall = base(f, 11, FontWeight.Medium, spacing = 0.5),
+        // Labels carry counts, badges and small prices: tabular figures so they line up in lists.
+        labelLarge = base(f, 14, FontWeight.Medium, spacing = 0.3, figures = TABULAR),
+        labelMedium = base(f, 12, FontWeight.Medium, spacing = 0.4, figures = TABULAR),
+        labelSmall = base(f, 11, FontWeight.Medium, spacing = 0.5, figures = TABULAR),
     )
 }
 
@@ -225,12 +241,24 @@ private fun currentTypography(): Typography {
 val PriceStyle: TextStyle
     get() = priceCache.getOrPut(FontSettings.price to AppSettings.bigText) { priceStyle(FontSettings.price, AppSettings.bigText) }
 
+/** The two corner sizes: [Small] for chips, pills and small controls; [Medium] for cards, sheets, panels and dialogs. */
+object Corners {
+    val Small = 6.dp
+    val Medium = 12.dp
+}
+
+/** A real Magic card's corner, for card images (about 5% of the card's shorter side). */
+val CardShape = RoundedCornerShape(percent = 5)
+
+/** Tabular (and lining) figures for prices, counts and quantities in lists: `style.merge(TabularNums)`. Lining keeps Cormorant's digits on the line. */
+val TabularNums = TextStyle(fontFeatureSettings = "lnum, tnum")
+
 private val shapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    extraSmall = RoundedCornerShape(Corners.Small),
+    small = RoundedCornerShape(Corners.Small),
+    medium = RoundedCornerShape(Corners.Medium),
+    large = RoundedCornerShape(Corners.Medium),
+    extraLarge = RoundedCornerShape(Corners.Medium),
 )
 
 @Composable

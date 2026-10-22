@@ -37,6 +37,7 @@ import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.tagList
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 
 /** One face of a card as printed: name, cost, type, rules, flavor and power/toughness. */
 data class FaceText(
@@ -94,7 +95,7 @@ private val FORMATS = listOf(
 /** Card text laid out like Scryfall's: one panel, each part split by a thin line, then a legality grid. */
 @Composable
 fun CardTextBlock(info: CardTextInfo, modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Palette.Surface) {
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column {
             info.faces.forEachIndexed { i, f ->
                 if (i > 0) Divider(thick = true)
@@ -173,7 +174,7 @@ private fun Legality(status: String, format: String, modifier: Modifier) {
     }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.width(76.dp).clip(RoundedCornerShape(6.dp)).background(bg).padding(vertical = 3.dp),
+            Modifier.width(76.dp).clip(RoundedCornerShape(Corners.Small)).background(bg).padding(vertical = 3.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
