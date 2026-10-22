@@ -81,6 +81,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.Deck
+import androidx.compose.material.icons.filled.Style
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
@@ -139,6 +141,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     val showTip by vm.showTip.collectAsStateWithLifecycle()
     val dense by vm.dense.collectAsStateWithLifecycle()
     val pagesOn by vm.pages.collectAsStateWithLifecycle()
+    val deckChoices by vm.deckChoices.collectAsStateWithLifecycle()
     val sparks by vm.sparks.collectAsStateWithLifecycle()
     /** Wide screens show the card beside the list. */
     val wide = LocalConfiguration.current.screenWidthDp >= 840
@@ -163,7 +166,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
-        if (picking) SelectionBar(selected.size, ui.boxes, vm, onTag = { tagging = true }, onEdit = { editing = true })
+        if (picking) SelectionBar(selected.size, ui.boxes, deckChoices, vm, onTag = { tagging = true }, onEdit = { editing = true })
         else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
@@ -331,13 +334,16 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
         onDismiss = { editing = false },
     )
     moving?.let { c ->
-        BoxPickerDialog("Move ${c.name} to", ui.boxes.filter { it.id != c.boxId }, onPick = { vm.moveOne(c.id, it); moving = null }, onDismiss = { moving = null })
+        BoxPickerDialog(
+            "Move ${c.name} to", ui.boxes.filter { it.id != c.boxId }, onPick = { vm.moveOne(c.id, it); moving = null }, onDismiss = { moving = null },
+            decks = deckChoices, onPickDeck = { vm.moveOneToDeck(c.id, it); moving = null },
+        )
     }
 }
 
 /** Top bar while picking cards: how many, and what to do with them. */
 @Composable
-private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit) {
+private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit) {
     var moveMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
@@ -356,6 +362,16 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
                         leadingIcon = { Icon(boxIcon(b.kind), null, tint = boxColor(b.color)) },
                         onClick = { moveMenu = false; vm.moveSelected(b.id) },
                     )
+                }
+                if (decks.isNotEmpty()) {
+                    DecksHeader(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                    decks.forEach { d ->
+                        DropdownMenuItem(
+                            text = { Text(d.name) },
+                            leadingIcon = { Icon(Icons.Filled.Style, null, tint = Palette.Icon) },
+                            onClick = { moveMenu = false; vm.moveSelectedToDeck(d.id) },
+                        )
+                    }
                 }
             }
         }
@@ -463,7 +479,14 @@ fun TagDialog(existing: List<String>, onDone: (String) -> Unit, onDismiss: () ->
 }
 
 @Composable
-fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+fun BoxPickerDialog(
+    title: String,
+    boxes: List<CardBox>,
+    onPick: (Long) -> Unit,
+    onDismiss: () -> Unit,
+    decks: List<Deck> = emptyList(),
+    onPickDeck: (Long) -> Unit = {},
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
@@ -471,7 +494,7 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
         text = {
             // Long box lists scroll instead of running off the dialog.
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (boxes.isEmpty()) Text("Make another box first.", color = Palette.Muted)
+                if (boxes.isEmpty() && decks.isEmpty()) Text("Make another box first.", color = Palette.Muted)
                 boxes.forEach { b ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPick(b.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
@@ -482,11 +505,30 @@ fun BoxPickerDialog(title: String, boxes: List<CardBox>, onPick: (Long) -> Unit,
                         Text(b.name, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
+                if (decks.isNotEmpty()) {
+                    DecksHeader(Modifier.padding(top = 10.dp, bottom = 2.dp, start = 4.dp))
+                    decks.forEach { d ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPickDeck(d.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Style, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
             }
         },
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/** "Decks", above the decks in a Move picker. */
+@Composable
+private fun DecksHeader(modifier: Modifier = Modifier) {
+    Text("Decks", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = modifier)
 }
 
 /** A few examples of Scryfall search syntax, which the collection search reads too. */

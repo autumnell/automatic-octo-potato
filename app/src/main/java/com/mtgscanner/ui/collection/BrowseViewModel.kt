@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.isDeckSlot
 import com.mtgscanner.data.db.placeName
+import com.mtgscanner.data.db.deckPlaceName
+import com.mtgscanner.data.deckSlotId
 import com.mtgscanner.data.observePlaces
 import com.mtgscanner.data.db.userTagList
 import com.mtgscanner.ui.components.Undo
@@ -437,13 +439,43 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     }
 
     /** Adds the cards about to move to the physical move list; returns the lines added. */
-    private fun recordMoves(ids: List<Long>, to: Long): List<MoveLine> {
+    private fun recordMoves(ids: List<Long>, to: Long, toName: String? = null): List<MoveLine> {
         val u = ui.value
         val byId = u.boxes.associateBy { it.id }
         val wanted = ids.toHashSet()
         val cards = u.all.filter { it.id in wanted }
-        return MoveList.add(MoveList.linesFor(cards.map { it to to }) { id -> byId[id]?.let { Triple(it.name, it.kind, it.divider) } })
+        return MoveList.add(
+            MoveList.linesFor(cards.map { it to to }) { id ->
+                byId[id]?.let { Triple(it.name, it.kind, it.divider) } ?: toName?.takeIf { id == to }?.let { Triple(it, "deck", "") }
+            },
+        )
     }
+
+    /** Decks, for Move. */
+    val deckChoices: StateFlow<List<com.mtgscanner.data.db.Deck>> = repo.observeDecks()
+        .map { ds -> ds.sortedBy { it.name.lowercase() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Moves cards into a deck (its hidden slot box, see DeckSlots.kt), with Undo. */
+    private fun moveIntoDeck(ids: List<Long>, deckId: Long, message: (String) -> String) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val name = deckChoices.value.firstOrNull { it.id == deckId }?.name ?: "deck"
+            val slot = repo.deckSlotId(deckId)
+            val lines = recordMoves(ids, slot, deckPlaceName(name))
+            val before = repo.snapshot(ids)
+            repo.moveMany(ids, slot)
+            Undo.offer(message(name)) { repo.restore(before); MoveList.remove(lines) }
+        }
+    }
+
+    fun moveSelectedToDeck(deckId: Long) {
+        val ids = _selected.value.toList()
+        clearSelection()
+        moveIntoDeck(ids, deckId) { "Moved ${count(ids)} to $it" }
+    }
+
+    fun moveOneToDeck(id: Long, deckId: Long) = moveIntoDeck(listOf(id), deckId) { "Moved to $it" }
 
     /** Saved inside a box, the list remembers the box and counts only its cards. */
     fun saveSearch(name: String) = searches.save(name, _filters.value, boxId.takeIf { it >= 0 })
