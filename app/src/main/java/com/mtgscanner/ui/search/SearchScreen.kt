@@ -195,7 +195,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
             Box(
                 Modifier
                     .clip(RoundedCornerShape(Corners.Medium))
-                    .background(Palette.AccentGradient)
+                    .background(Palette.Accent)
                     .clickable { focus.clearFocus(); vm.submit() }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
             ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }

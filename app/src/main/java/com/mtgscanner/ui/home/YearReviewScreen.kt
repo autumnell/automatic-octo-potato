@@ -2,9 +2,7 @@ package com.mtgscanner.ui.home
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -188,7 +186,7 @@ private fun shareImage(r: YearReview, prices: Boolean): Bitmap {
     val h = 1350
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
-    val bg = Paint().apply { shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), 0xFF1E1A33.toInt(), 0xFF0F1014.toInt(), Shader.TileMode.CLAMP) }
+    val bg = Paint().apply { color = 0xFF16151D.toInt() }
     c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bg)
     fun paint(size: Float, color: Int, bold: Boolean = false) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = size

@@ -400,7 +400,7 @@ private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPi
 @Composable
 private fun Preview() {
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Color.Transparent) {
-        Row(Modifier.background(Palette.HeroGradient).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.background(Palette.BoxCard).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)

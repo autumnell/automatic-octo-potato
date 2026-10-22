@@ -377,14 +377,14 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
 
 private val TileShape = RoundedCornerShape(Corners.Medium)
 
-/** Art, or a soft gradient when there's no art yet. */
+/** Art, or a plain panel with a deck icon when there's no art yet. */
 @Composable
 private fun TileArt(url: String?, modifier: Modifier = Modifier) {
-    Box(modifier.background(Palette.HeroGradient)) {
+    Box(modifier.background(Palette.SurfaceHigh)) {
         if (url != null) {
             AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         } else {
-            Icon(Icons.Filled.Style, null, tint = Palette.Accent.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.Center).size(36.dp))
+            Icon(Icons.Filled.Style, null, tint = Palette.Icon, modifier = Modifier.align(Alignment.Center).size(36.dp))
         }
     }
 }

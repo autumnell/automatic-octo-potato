@@ -60,8 +60,11 @@ object Palette {
     }
     private var accentTextFor: Color = Color.Unspecified
     private var accentTextCache: Color = Color.Unspecified
-    /** Text/icon color that reads well on top of the accent. */
-    val OnAccent: Color get() = if (Accent.luminance() > 0.45f) Color(0xFF141414) else Color.White
+    /**
+     * Text/icon color for a solid accent fill (buttons, badges): white when it reads (4.5:1) or reads better,
+     * otherwise near-black. Works for any accent, including a custom one, in light and dark mode.
+     */
+    val OnAccent: Color get() = onFill(Accent)
 
     val Background: Color get() = when { black -> Color.Black; dark -> Color(0xFF111214); else -> Color(0xFFF4F4F7) }
     val Surface: Color get() = when { black -> Color(0xFF0D0D0F); dark -> Color(0xFF1A1B1F); else -> Color(0xFFFFFFFF) }
@@ -92,6 +95,14 @@ fun contrastRatio(a: Color, b: Color): Float {
     val la = a.luminance() + 0.05f
     val lb = b.luminance() + 0.05f
     return if (la > lb) la / lb else lb / la
+}
+
+private val InkOnLight = Color(0xFF141414)
+
+/** White or near-black, whichever reads on a solid [fill]; white wins whenever it reaches 4.5:1. */
+fun onFill(fill: Color): Color {
+    val white = contrastRatio(Color.White, fill)
+    return if (white >= 4.5f || white >= contrastRatio(InkOnLight, fill)) Color.White else InkOnLight
 }
 
 /** [color] darkened toward black just enough to reach [ratio] contrast on a light [background]. */

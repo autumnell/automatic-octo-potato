@@ -802,8 +802,8 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                 }
                 // Auto-add already added it: the button adds one more copy, same finish and language.
                 val justAdded = state.autoAdd && state.session.firstOrNull()?.card?.id == card.id
-                if (justAdded) GradientButton("+1", vm::sameAgain, Modifier.weight(1f).heightIn(min = 48.dp))
-                else GradientButton(if (qty > 1) "Add $qty" else "Add", { vm.add(qty) }, Modifier.weight(1f).heightIn(min = 48.dp))
+                if (justAdded) GradientButton("+1", vm::sameAgain, Modifier.weight(1f).heightIn(min = 48.dp), hero = true)
+                else GradientButton(if (qty > 1) "Add $qty" else "Add", { vm.add(qty) }, Modifier.weight(1f).heightIn(min = 48.dp), hero = true)
             }
         }
     }
