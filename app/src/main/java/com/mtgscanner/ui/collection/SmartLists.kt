@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,13 +29,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.mtgscanner.data.BoxLayout
-import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.CollectionCard
-import com.mtgscanner.data.db.facts
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.ui.components.CardImage
+import com.mtgscanner.ui.components.EmptyState
+import com.mtgscanner.ui.home.SortItem
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.priceSuffix
@@ -87,14 +87,15 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
     }
 }
 
-/** Walks through cards that now belong in another box: move each, or all at once. */
+/** "To be sorted" from the Boxes page: cards that belong in another box. Move each, or all at once. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ResortSheet(
-    moves: List<Sorting.Move<CollectionCard>>,
+fun ToSortSheet(
+    list: List<SortItem>,
     boxes: List<BoxSummary>,
-    onMove: (Sorting.Move<CollectionCard>) -> Unit,
+    onMove: (SortItem) -> Unit,
     onMoveAll: () -> Unit,
+    onOpenCard: (Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val byId = boxes.associateBy { it.id }
@@ -105,23 +106,28 @@ fun ResortSheet(
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Re-sort · ${moves.sumOf { it.item.quantity }} cards", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Text("To sort · ${list.sumOf { it.card.quantity }}", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text("Later") }
             }
+            if (list.isEmpty()) {
+                EmptyState("All sorted")
+                return@Column
+            }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
-                items(moves, key = { it.item.id }) { m ->
-                    val to = byId[m.to]
-                    val spot = to?.let { Sorting.spot(BoxLayout.of(it.divider), m.item.name, m.item.facts()) }
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 5.dp, bottom = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CardImage(m.item.smallImageUrl, Modifier.width(40.dp))
+                items(list, key = { it.card.id }) { m ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onOpenCard(m.card.id) }.padding(start = 16.dp, end = 8.dp, top = 5.dp, bottom = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CardImage(m.card.smallImageUrl, Modifier.width(40.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                (if (m.item.quantity > 1) "${m.item.quantity}× " else "") + m.item.name,
+                                (if (m.card.quantity > 1) "${m.card.quantity}× " else "") + m.card.name,
                                 style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                "${byId[m.from]?.name ?: "?"} → ${to?.name ?: "?"}" + (spot?.let { " · $it" } ?: ""),
+                                "${byId[m.card.boxId]?.name ?: "?"} → ${byId[m.to]?.name ?: "?"}" + (m.spot?.let { " · $it" } ?: ""),
                                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                         }
@@ -129,13 +135,7 @@ fun ResortSheet(
                     }
                 }
             }
-            GradientButton(
-                "Move all",
-                onMoveAll,
-                Modifier.fillMaxWidth().padding(16.dp),
-                enabled = moves.isNotEmpty(),
-            )
+            GradientButton("Move all", onMoveAll, Modifier.fillMaxWidth().padding(16.dp))
         }
     }
 }
-

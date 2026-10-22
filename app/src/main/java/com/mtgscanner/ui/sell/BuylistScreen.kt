@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -95,28 +96,19 @@ private val MINIMUMS = listOf(0.5, 1.0, 2.0, 5.0, 10.0)
 
 private fun minLabel(v: Double) = if (v < 1) "$${"%.2f".format(java.util.Locale.US, v)}" else "$${v.toInt()}"
 
-/** Pick a buylist and a minimum; get every card worth selling to it, where it lives, and the total. */
+/** Card Kingdom's offers: pick a minimum; get every card worth selling, where it lives, and the total. */
 @Composable
-fun BuylistScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
+internal fun ColumnScope.BuylistContent(onOpenCard: (Long) -> Unit) {
     val vm: BuylistViewModel = viewModel(factory = BuylistViewModel.Factory)
     val input by vm.input.collectAsStateWithLifecycle()
     var min by remember { mutableDoubleStateOf(1.0) }
     var skipped by remember { mutableStateOf(setOf<Long>()) }
-    Haptics.Attach()
 
-    Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-            Text("Sell to a buylist", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-        }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // The only buylist the app reads today.
-            SelectPill("Card Kingdom", true, {})
-        }
+    run {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MINIMUMS.forEach { m -> SelectPill("${minLabel(m)}+", min == m, { min = m; skipped = emptySet() }) }
         }
-        val data = input ?: return@Column
+        val data = input ?: return@run
         // Reading CardKingdom.version redraws once the list has loaded.
         val listVersion = CardKingdom.version
         val boxNames = data.boxes.associate { it.id to it.name }
@@ -134,7 +126,7 @@ fun BuylistScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                 Modifier.padding(top = 24.dp),
                 body = if (listVersion == 0) "It downloads once a day" else null,
             )
-            return@Column
+            return@run
         }
         val chosen = pulls.filter { it.card.id !in skipped }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {

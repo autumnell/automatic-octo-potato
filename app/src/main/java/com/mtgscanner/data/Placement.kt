@@ -98,12 +98,6 @@ object MoveLists {
 /** A card found by the lost card finder, and where it physically is. */
 data class Found(val card: CollectionCard, val boxName: String, val where: String)
 
-/** Cards owned in more than one printing. */
-data class DupGroup(val name: String, val cards: List<CollectionCard>) {
-    val printings: Int get() = cards.map { it.scryfallId }.distinct().size
-    val copies: Int get() = cards.sumOf { it.quantity }
-}
-
 object Placement {
     /** Facts stand-in for a box without dividers: placing by name alone needs none. */
     private val NO_FACTS = CardFacts("", "", "", emptySet(), false, null, "")
@@ -151,14 +145,6 @@ object Placement {
                 Found(c, box?.name ?: "No box", whereIs(c, box, inBox, list))
             }
     }
-
-    /** Cards you own in more than one printing, most printings first. */
-    fun duplicates(cards: List<CollectionCard>): List<DupGroup> =
-        cards.groupBy { it.oracleId ?: it.name.lowercase() }
-            .values
-            .map { g -> DupGroup(g.first().name, g.sortedWith(compareBy<CollectionCard>({ it.setCode }, { it.collectorNumber }))) }
-            .filter { it.printings > 1 }
-            .sortedWith(compareByDescending<DupGroup> { it.printings }.thenBy { it.name })
 }
 
 /**
@@ -172,7 +158,7 @@ suspend fun CollectionRepository.positionFor(boxId: Long, name: String, facts: C
     return Sorting.where(b.name, Sorting.position(layout, name, facts, contents))
 }
 
-/** Lost card finder: every box a card is in, with its spot. */
+/** Card search on the Boxes page: every box a card is in, with its spot. */
 suspend fun CollectionRepository.findCard(query: String): List<Found> = Placement.find(query, dao.all(), dao.allBoxes())
 
 /** Gives binder slots to the cards in [boxId] that have none. Returns how many were numbered. */

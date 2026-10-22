@@ -73,6 +73,11 @@ import com.mtgscanner.data.ExtrasFinder
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.SortPrefs
+import com.mtgscanner.data.Goals
+import com.mtgscanner.data.db.Goal
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
+import kotlinx.coroutines.flow.map
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.unitPrice
@@ -83,6 +88,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.RarityMark
 import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.PrintingsSheet
+import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
@@ -177,6 +183,23 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         loadSets()
     }
 
+    /** Codes of sets pinned to Home (kept as goals, so Home's Goals section shows their progress). */
+    val pinnedSets: StateFlow<Map<String, Goal>> = repo.observeGoals()
+        .map { gs -> gs.filter { it.kind == Goals.SET }.associateBy { it.target.lowercase() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Pins a set to Home, or unpins it. Undo either way. */
+    fun togglePin(code: String, name: String) = viewModelScope.launch {
+        val existing = pinnedSets.value[code.lowercase()]
+        if (existing != null) {
+            repo.deleteGoal(existing.id)
+            Undo.offer("Unpinned") { repo.addGoal(existing) }
+        } else {
+            val id = repo.addGoal(Goal(name = name, kind = Goals.SET, target = code.lowercase()))
+            Undo.offer("Pinned to Home") { repo.deleteGoal(id) }
+        }
+    }
+
     fun setName(code: String): String =
         _sets.value?.firstOrNull { it.code.equals(code, ignoreCase = true) }?.name
             ?: cards.value.firstOrNull { it.setCode.equals(code, ignoreCase = true) }?.setName ?: code.uppercase()
@@ -193,9 +216,10 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     // Extras
 
-    private val _keep = MutableStateFlow(4)
+    /** Copies to keep of each card: starts at your "Keep a playset" setting (4 when it's off). */
+    private val _keep = MutableStateFlow(SortPrefs.playsetLimit.takeIf { it > 0 } ?: 4)
     val keep: StateFlow<Int> = _keep
-    fun setKeep(n: Int) { _keep.value = n }
+    fun setKeep(n: Int) { _keep.value = n.coerceIn(1, 99) }
 
     val extras: StateFlow<List<ExtraGroup>> = combine(cards, boxes, _keep) { all, bs, k ->
         // Only main boxes count: not trade binders, deck boxes, or the extras and bulk boxes.
@@ -336,6 +360,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     val sets by vm.sets.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val variants by vm.includeVariants.collectAsStateWithLifecycle()
+    val pinned by vm.pinnedSets.collectAsStateWithLifecycle()
     var show by remember { mutableStateOf(if (SetLaunch.takeMissing()) "missing" else "all") }
     var query by remember { mutableStateOf("") }
     var grid by remember { mutableStateOf(true) }
@@ -363,6 +388,14 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Spacer(Modifier.weight(1f))
+            val isPinned = code.lowercase() in pinned
+            IconButton(onClick = { vm.togglePin(code, info?.name ?: vm.setName(code)) }) {
+                Icon(
+                    if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                    if (isPinned) "Unpin from Home" else "Pin to Home",
+                    tint = if (isPinned) Palette.Accent else Palette.Icon,
+                )
+            }
             IconButton(onClick = { grid = !grid }) {
                 Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Icon)
             }
@@ -598,12 +631,12 @@ fun ExtrasScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         TopBar("Extras", "Copies beyond what a deck can use", onBack)
         MoveListHost()
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SelectPill("Keep 4 (60-card)", keep == 4, { vm.setKeep(4) })
-            SelectPill("Keep 1 (Commander)", keep == 1, { vm.setKeep(1) })
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Keep", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            QuantityStepper(keep, onChange = vm::setKeep)
         }
         Text(
-            "Basic lands, trade binders and decks not counted. Worst copies move first.",
+            "Not counted: basic lands, trade binders, decks.",
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp),
         )
         if (groups.isEmpty()) {
