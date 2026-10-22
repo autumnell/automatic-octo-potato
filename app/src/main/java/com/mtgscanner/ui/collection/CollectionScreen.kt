@@ -471,11 +471,14 @@ fun CollectionScreen(
                 }
             }
             MoveListHost()
+            // Pull down to refresh prices, same as the refresh button.
+            com.mtgscanner.ui.components.PriceRefreshBox(refreshing, vm::refreshPrices, Modifier.fillMaxSize()) {
             when (tab) {
                 CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true })
                 CollectionTab.DECKS -> DecksTab(onOpenDeck)
                 CollectionTab.WISHLIST -> WishlistTab(vm)
                 CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE))
+            }
             }
         }
     }
