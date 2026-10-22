@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.components.formatMoneyShort
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +38,7 @@ import com.mtgscanner.data.db.BoxSummary
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.CardImage
+import com.mtgscanner.ui.components.cardPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -83,6 +85,8 @@ fun ValueRing(
     totalCards: Int,
     totalValue: Double,
     modifier: Modifier = Modifier,
+    /** [totalValue] in euros. */
+    totalEur: Double = 0.0,
 ) {
     val prices = AppSettings.showPrices
     val weights = boxes.map { b -> b to if (prices) b.value else b.cards.toDouble() }.filter { it.second > 0 }
@@ -113,7 +117,7 @@ fun ValueRing(
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 22.dp)) {
                 if (prices) {
-                    Text(formatUsd(totalValue), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     if (then > 0) {
                         Text(
                             boxChangeLabel(change, change / then * 100),
@@ -179,7 +183,7 @@ fun CoverPickerDialog(
                                 Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(c.setCode.uppercase(), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                             }
-                            if (AppSettings.showPrices) Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                            if (AppSettings.showPrices) Text(cardPriceShort(c), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                         }
                     }
                 }

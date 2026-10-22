@@ -76,7 +76,7 @@ fun CardPreviewContent(
                 }
                 if (AppSettings.showPrices) {
                     Spacer(Modifier.height(4.dp))
-                    Text(formatUsd(card.unitPrice()), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)
+                    Text(cardPrice(card), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText)
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {

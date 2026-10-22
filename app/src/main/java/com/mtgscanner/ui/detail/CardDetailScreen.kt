@@ -111,6 +111,8 @@ import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
+import com.mtgscanner.ui.components.cardPrice
+import com.mtgscanner.ui.components.cardTotal
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -518,7 +520,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         InfoChip { Text("${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium) }
                         c.releasedAt?.let { InfoChip { Text(it.take(4), style = MaterialTheme.typography.labelMedium) } }
-                        if (AppSettings.showPrices) InfoChip { Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
+                        if (AppSettings.showPrices) InfoChip { Text(cardPrice(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
                         InfoChip {
                             Text(
                                 listOf("Added ${shortDate(c.addedAt)}", c.acquiredFrom).filter { it.isNotBlank() }.joinToString(" · "),
@@ -603,7 +605,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText)
+                                Text(cardPrice(c), style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText)
                                 if (c.conditionPrice != null && c.condition != "NM" && c.nearMintPrice() != null) {
                                     Text("${c.condition} · near mint ${formatUsd(c.nearMintPrice())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 }
@@ -621,7 +623,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("You own", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text("${c.quantity} · ${formatUsd(c.totalPrice())}", style = MaterialTheme.typography.titleMedium)
+                                Text("${c.quantity} · ${cardTotal(c)}", style = MaterialTheme.typography.titleMedium)
                             }
                         }
                         PriceAlertRow(c)

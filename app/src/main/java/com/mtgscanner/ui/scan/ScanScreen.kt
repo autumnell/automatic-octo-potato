@@ -124,6 +124,7 @@ import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
+import com.mtgscanner.ui.components.scryfallPrice
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
@@ -714,7 +715,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        if (AppSettings.showPrices) Text(formatUsd(card.price(foil)), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
+                        if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge, color = Palette.Accent)
                         state.owned?.let { n ->
                             if (AppSettings.showPrices) Spacer(Modifier.width(10.dp))
                             Text(

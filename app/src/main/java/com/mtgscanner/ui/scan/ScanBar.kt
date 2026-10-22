@@ -54,6 +54,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.detail.sharedCard
+import com.mtgscanner.ui.components.scryfallPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -210,7 +211,7 @@ fun LastCardBar(
         }
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
-            Text(formatUsd(e.card.price(e.foil)), color = Palette.Gold, style = MaterialTheme.typography.titleSmall)
+            Text(scryfallPriceShort(e.card, e.foil), color = Palette.Gold, style = MaterialTheme.typography.titleSmall)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Open card", tint = Color.White.copy(alpha = 0.7f))
         if (onSameAgain != null) {

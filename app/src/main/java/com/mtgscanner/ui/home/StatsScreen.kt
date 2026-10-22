@@ -59,6 +59,7 @@ import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SectionHeader
+import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.MtgColors
@@ -176,7 +177,7 @@ fun StatsScreen(
                                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1,
                                     )
                                 }
-                                Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                                Text(cardPrice(c), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
                             }
                         }
                     }

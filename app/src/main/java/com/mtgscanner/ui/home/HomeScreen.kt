@@ -1,5 +1,8 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.components.formatPrimary
+import com.mtgscanner.ui.components.primaryValue
+import com.mtgscanner.data.db.totalEur
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +78,7 @@ import com.mtgscanner.ui.components.CardTile
 import com.mtgscanner.ui.components.ColorPip
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.Undo
+import com.mtgscanner.ui.components.cardPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.MtgColors
@@ -110,6 +114,8 @@ data class HomeUi(
     val totalCards: Int = 0,
     val uniqueCards: Int = 0,
     val totalValue: Double = 0.0,
+    /** [totalValue] in euros. */
+    val totalEur: Double = 0.0,
     val sets: Int = 0,
     val foils: Int = 0,
     val recent: List<CollectionCard> = emptyList(),
@@ -152,6 +158,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             totalCards = all.sumOf { it.quantity },
             uniqueCards = all.map { it.oracleId ?: it.name }.distinct().size,
             totalValue = all.sumOf { it.totalPrice() },
+            totalEur = all.sumOf { it.totalEur() },
             sets = all.map { it.setCode }.distinct().size,
             foils = all.filter { it.foil }.sumOf { it.quantity },
             recent = all.sortedByDescending { it.addedAt }.take(12),
@@ -516,7 +523,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
             }
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
             // AccentText: the raw accent is too faint on the light panel. It shrinks to fit in wide fonts.
-            if (prices) RollingText(ui.totalValue, { formatUsd(it) }, big, Palette.AccentText)
+            if (prices) RollingText(primaryValue(ui.totalValue, ui.totalEur), { formatPrimary(it, ui.totalEur) }, big, Palette.AccentText)
             else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.AccentText)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
@@ -546,7 +553,7 @@ private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
             CardTile(
                 imageUrl = c.imageUrl,
                 name = c.name,
-                price = if (showGain) "+" + formatUsd(c.changeSinceAdded()) else formatUsd(c.unitPrice()),
+                price = if (showGain) "+" + formatUsd(c.changeSinceAdded()) else cardPriceShort(c),
                 quantity = c.quantity,
                 foil = c.foil,
                 modifier = Modifier.width(118.dp),

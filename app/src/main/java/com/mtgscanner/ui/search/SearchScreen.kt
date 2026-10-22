@@ -80,6 +80,8 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.RarityMark
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.formatMoney
+import com.mtgscanner.ui.components.scryfallPriceShort
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -277,7 +279,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
             if (i >= ui.results.size - 8) LaunchedEffect(ui.results.size) { vm.loadMore() }
             val have = owned.of(c)?.count ?: 0
             if (ui.grid) {
-                CardTile(c.smallImageUrl, c.name, formatUsd(c.prices.usd ?: c.prices.usdFoil), owned = have, onClick = { vm.select(c) })
+                CardTile(c.smallImageUrl, c.name, scryfallPriceShort(c, foil = c.prices.usd == null && c.prices.usdFoil != null), owned = have, onClick = { vm.select(c) })
             } else {
                 ResultRow(c, have) { vm.select(c) }
             }
@@ -323,7 +325,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatUsd(c.prices.usd), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                Text(formatMoney(c.prices.usd?.toDoubleOrNull(), c.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
                 CardKingdom.buyPrice(c.id, foil = c.prices.usd == null && c.prices.usdFoil != null)?.let {
                     Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                 }

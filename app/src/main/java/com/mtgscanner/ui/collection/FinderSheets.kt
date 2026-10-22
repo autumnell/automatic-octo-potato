@@ -45,6 +45,7 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
 
 /** Lost card finder: type a name, see every box it's in and exactly where. */
@@ -163,7 +164,7 @@ fun DuplicatesSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                             Text("×${c.quantity}", style = MaterialTheme.typography.titleSmall)
                             if (AppSettings.showPrices) {
                                 Spacer(Modifier.width(10.dp))
-                                Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
+                                Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.AccentText)
                             }
                         }
                     }

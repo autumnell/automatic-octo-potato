@@ -1,5 +1,8 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.components.moneySuffix
+import com.mtgscanner.ui.components.formatMoneyShort
+import com.mtgscanner.data.db.totalEur
 import android.content.ContentResolver
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -132,6 +135,8 @@ import java.util.Locale
 data class OverviewUi(
     val totalCards: Int = 0,
     val totalValue: Double = 0.0,
+    /** [totalValue] in euros. */
+    val totalEur: Double = 0.0,
     val boxes: List<BoxSummary> = emptyList(),
     /** Value change and cover art per box id. */
     val stats: Map<Long, BoxStats> = emptyMap(),
@@ -143,7 +148,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     init { MoveList.init(repo.appContext) }
 
     val ui: StateFlow<OverviewUi> = combine(repo.observeAll(), repo.observeBoxSummaries(), covers.covers) { all, boxes, cv ->
-        OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, boxes, BoxArt.stats(all, cv))
+        OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, all.sumOf { it.totalEur() }, boxes, BoxArt.stats(all, cv))
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OverviewUi())
 
     /** [cardId] null goes back to the box's most valuable card. */
@@ -452,7 +457,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     val dead = remember(ui.boxes) { deadBoxNotes(ui.boxes) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue)
+        ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue, totalEur = ui.totalEur)
 
         Surface(
             onClick = { onBrowse(-1L) },
@@ -715,7 +720,7 @@ private fun BoxCard(
                     )
                     if (AppSettings.showPrices) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(formatUsd(b.value), style = MaterialTheme.typography.headlineSmall, color = Palette.Text)
+                            Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall, color = Palette.Text)
                             val pct = stats?.changePercent
                             if (stats != null && pct != null) {
                                 Text(
@@ -814,7 +819,7 @@ private fun ToolsTab(
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(b.name, style = MaterialTheme.typography.titleMedium)
-                        Text("${b.cards} cards${priceSuffix(b.value)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
                     IconButton(enabled = b.cards > 0, onClick = {

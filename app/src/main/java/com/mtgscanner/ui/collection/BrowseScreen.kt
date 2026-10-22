@@ -106,6 +106,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.ToolChip
+import com.mtgscanner.ui.components.cardPrice
+import com.mtgscanner.ui.components.cardPriceShort
+import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
@@ -167,8 +170,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             Column(Modifier.weight(1f)) {
                 Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
                 Text(
-                    if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards${priceSuffix(ui.shownValue)}"
-                    else "${ui.totalCards} cards${priceSuffix(ui.shownValue)}",
+                    if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}"
+                    else "${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                 )
@@ -558,7 +561,7 @@ private fun CardGrid(
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
                     if (grid) {
                         CardTile(
-                            c.smallImageUrl ?: c.imageUrl, c.name, formatUsd(c.unitPrice()), quantity = c.quantity, foil = c.foil,
+                            c.smallImageUrl ?: c.imageUrl, c.name, cardPriceShort(c), quantity = c.quantity, foil = c.foil,
                             onLongClick = { onLongPress(c) }, selected = c.id in selected, onClick = { onOpen(c) },
                         )
                     } else if (picking) {
@@ -743,7 +746,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
             if (AppSettings.showPrices) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (spark != null) { PriceSparkline(spark); Spacer(Modifier.width(6.dp)) }
-                    Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
+                    Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
                 }
             }
         }
@@ -778,7 +781,7 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
             Spacer(Modifier.width(6.dp))
             Box(Modifier.width(36.dp)) { if (spark != null) PriceSparkline(spark) }
             Text(
-                formatUsd(c.unitPrice()), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
+                cardPriceShort(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(64.dp),
             )
         }

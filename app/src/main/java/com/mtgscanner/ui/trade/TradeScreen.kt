@@ -67,6 +67,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.Undo
+import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.home.ChangeText
 import com.mtgscanner.ui.theme.AppSettings
@@ -492,7 +493,7 @@ private fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Col
                 matches.isEmpty() -> item { Text("No matches in this binder", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
                 else -> items(matches, key = { it.first.id }) { m ->
                     val c = m.first
-                    val sub = "${c.setCode} · ×${m.second}" + if (AppSettings.showPrices) " · ${formatUsd(c.unitPrice())}" else ""
+                    val sub = "${c.setCode} · ×${m.second}" + if (AppSettings.showPrices) " · ${cardPrice(c)}" else ""
                     PickRow(c.name, sub, c.smallImageUrl) { onAddAll(listOf(m)) }
                 }
             }

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.data.db.totalEur
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
@@ -89,6 +90,8 @@ data class BrowseUi(
     val groups: List<Pair<String, List<CollectionCard>>> = emptyList(),
     val shownCards: Int = 0,
     val shownValue: Double = 0.0,
+    /** [shownValue] in euros. */
+    val shownEur: Double = 0.0,
     val totalCards: Int = 0,
     val sets: List<Pair<String, String>> = emptyList(),
     /** Roles found on cards in view, for the filter sheet. */
@@ -286,6 +289,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             },
             shownCards = shown.sumOf { it.quantity },
             shownValue = shown.sumOf { it.totalPrice() },
+            shownEur = shown.sumOf { it.totalEur() },
             totalCards = sc.totalCards,
             sets = sc.sets,
             roles = sc.roles,

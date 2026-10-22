@@ -60,6 +60,8 @@ fun PricesSection() {
         }
         if (AppSettings.showPrices) {
             HorizontalDivider(color = Palette.Outline)
+            CurrencyRow()
+            HorizontalDivider(color = Palette.Outline)
             ToggleRow(
                 "Price alerts",
                 "Daily, for big moves",
@@ -94,6 +96,32 @@ fun PricesSection() {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Currency: USD / EUR / Both. Picking euros fetches prices once when none have euro prices yet. */
+@Composable
+private fun CurrencyRow() {
+    val ctx = LocalContext.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Currency", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            com.mtgscanner.util.PriceCurrency.entries.forEach { c ->
+                SelectPill(c.label, AppSettings.currency == c, {
+                    AppSettings.updateCurrency(c)
+                    if (c != com.mtgscanner.util.PriceCurrency.USD) {
+                        val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
+                        // On the app's scope, so leaving Settings doesn't stop it.
+                        repo.appScope.launch {
+                            runCatching {
+                                val cards = repo.allCards()
+                                if (cards.isNotEmpty() && cards.none { it.priceEur != null || it.priceEurFoil != null }) repo.refreshPrices()
+                            }
+                        }
+                    }
+                })
             }
         }
     }
