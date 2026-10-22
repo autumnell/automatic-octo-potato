@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -147,7 +147,7 @@ private fun PhotoRow(item: PhotoItem, onPrinting: () -> Unit, onRemove: () -> Un
         }
         if (c != null) TextButton(onClick = onPrinting) { Text("Printing") }
         IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Filled.Close, "Remove", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Close, "Remove", tint = Palette.Icon, modifier = Modifier.size(18.dp))
         }
     }
 }

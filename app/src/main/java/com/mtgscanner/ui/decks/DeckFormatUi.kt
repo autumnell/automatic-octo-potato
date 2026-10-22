@@ -19,10 +19,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -60,6 +60,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** A card offered in the commander picker. */
 data class PickOption(val name: String, val typeLine: String, val imageUrl: String?, val rules: RulesCard)
@@ -148,9 +149,9 @@ private fun SlotRow(label: String, value: String?, onOpen: () -> Unit, onClear: 
             )
         }
         if (value != null) {
-            IconButton(onClick = onClear) { Icon(Icons.Filled.Close, "Clear", tint = Palette.Icon) }
+            IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear", tint = Palette.Icon) }
         } else {
-            Icon(Icons.Filled.Add, null, tint = Palette.Icon, modifier = Modifier.padding(12.dp).size(20.dp))
+            Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.padding(12.dp).size(20.dp))
         }
     }
 }
@@ -177,8 +178,8 @@ fun CommanderPickerSheet(
             OutlinedTextField(
                 value = query, onValueChange = onQuery, singleLine = true,
                 placeholder = { Text("Search Scryfall") },
-                leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
-                trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }) { Icon(Icons.Filled.Close, "Clear") } },
+                leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Icon) },
+                trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }) { Icon(Icons.Outlined.Close, "Clear") } },
                 shape = RoundedCornerShape(Corners.Medium),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
                 modifier = Modifier.fillMaxWidth(),
@@ -188,7 +189,7 @@ fun CommanderPickerSheet(
         }
         Box(Modifier.fillMaxWidth().height(420.dp)) {
             when {
-                loading -> CircularProgressIndicator(color = Palette.Accent, modifier = Modifier.align(Alignment.Center))
+                loading -> PlaceholderRows(6, Modifier.padding(top = 8.dp), rowHeight = 48.dp, color = Palette.SurfaceHigh)
                 options.isEmpty() -> Text(
                     if (query.isBlank()) "None in this deck" else "No matches",
                     color = Palette.Muted, modifier = Modifier.align(Alignment.Center),
@@ -242,7 +243,7 @@ fun DeckHeader(format: String, commanders: DeckCommanders, art: List<String>, is
             TextButton(onClick = onEdhrec) {
                 Text("EDHREC")
                 Spacer(Modifier.width(2.dp))
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(14.dp))
+                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(14.dp))
             }
         }
     }
@@ -281,7 +282,7 @@ fun AddDeckSheet(
             } else {
                 GradientButton(
                     text = when (n) { null -> "Add"; 1 -> "Add 1 card"; else -> "Add $n cards" },
-                    icon = Icons.Filled.Add,
+                    icon = Icons.Outlined.Add,
                     onClick = { onAdd(onlyMissing) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = n != null && n > 0,

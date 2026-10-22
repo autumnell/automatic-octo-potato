@@ -6,7 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,12 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.CloudSync
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -469,13 +470,13 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 }
                 HorizontalDivider(color = Palette.Outline)
             }
-            Action(Icons.Filled.FileUpload, "Import CSV", "ManaBox, Moxfield, Archidekt, Deckbox…") {
+            Action(Icons.Outlined.FileUpload, "Import CSV", "ManaBox, Moxfield, Archidekt, Deckbox…") {
                 csvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
             }
             HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.FileDownload, "Export", "CSV or insurance PDF") { choosingExport = true }
+            Action(Icons.Outlined.FileDownload, "Export", "CSV or insurance PDF") { choosingExport = true }
             HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Save, "Back up", "Save everything to a file") {
+            Action(Icons.Outlined.Save, "Back up", "Save everything to a file") {
                 backupLauncher.launch("grimoire-backup-${LocalDate.now()}.zip")
             }
             HorizontalDivider(color = Palette.Outline)
@@ -494,16 +495,18 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 Notifications.setQuietNights(ctx.applicationContext, on)
             }
             HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Restore, "Restore backup", "Replaces everything in the app") {
+            Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
             }
             if (canUndoRestore) {
                 HorizontalDivider(color = Palette.Outline)
-                Action(Icons.AutoMirrored.Filled.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
+                Action(Icons.AutoMirrored.Outlined.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
             }
+            HorizontalDivider(color = Palette.Outline)
+            Action(Icons.Outlined.History, "Recent actions", "Undo any of the last 10") { com.mtgscanner.ui.components.Undo.showRecent.value = true }
             if (pending.isNotEmpty()) {
                 HorizontalDivider(color = Palette.Outline)
-                Action(Icons.Filled.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }
+                Action(Icons.Outlined.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }
             }
         }
     }
@@ -632,7 +635,7 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
                 } else {
                     Text("Where should they go?")
                     Spacer(Modifier.padding(top = 4.dp))
-                    Choice("Auto-sort by box rules", choice == Box.AUTO_SORT, Icons.AutoMirrored.Filled.Sort) { choice = Box.AUTO_SORT }
+                    Choice("Auto-sort by box rules", choice == Box.AUTO_SORT, Icons.AutoMirrored.Outlined.Sort) { choice = Box.AUTO_SORT }
                     boxes.forEach { b -> Choice(b.name, choice == b.id, null) { choice = b.id } }
                     Choice("A new box called \"Imported\"", choice == 0L, null) { choice = 0L }
                 }

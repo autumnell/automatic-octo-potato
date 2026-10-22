@@ -34,21 +34,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Brightness4
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.ScreenRotation
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -129,10 +125,10 @@ private fun TableOverlay(
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
                     IconButton(onClick = { turn = (turn + 90) % 360 }, modifier = Modifier.size(56.dp)) {
-                        Icon(Icons.Filled.ScreenRotation, "Turn this panel", tint = Color.White, modifier = Modifier.size(30.dp))
+                        Icon(Icons.Outlined.ScreenRotation, "Turn this panel", tint = Color.White, modifier = Modifier.size(30.dp))
                     }
                     IconButton(onClick = onDismiss, modifier = Modifier.size(56.dp)) {
-                        Icon(Icons.Filled.Close, "Close", tint = Color.White, modifier = Modifier.size(38.dp))
+                        Icon(Icons.Outlined.Close, "Close", tint = Color.White, modifier = Modifier.size(38.dp))
                     }
                 }
                 if (tabs.size > 1) Row(
@@ -174,10 +170,10 @@ private fun ScrollPage(state: ScrollableState, modifier: Modifier = Modifier, co
         Box(Modifier.weight(1f).fillMaxHeight()) { content() }
         if (state.canScrollBackward || state.canScrollForward) {
             Column(Modifier.fillMaxHeight().padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                PageButton(Icons.Filled.KeyboardArrowUp, "Scroll up", state.canScrollBackward, Modifier.weight(1f)) {
+                PageButton(Icons.Outlined.KeyboardArrowUp, "Scroll up", state.canScrollBackward, Modifier.weight(1f)) {
                     scope.launch { state.animateScrollBy(-step) }
                 }
-                PageButton(Icons.Filled.KeyboardArrowDown, "Scroll down", state.canScrollForward, Modifier.weight(1f)) {
+                PageButton(Icons.Outlined.KeyboardArrowDown, "Scroll down", state.canScrollForward, Modifier.weight(1f)) {
                     scope.launch { state.animateScrollBy(step) }
                 }
             }
@@ -246,7 +242,7 @@ private fun CounterTile(
                     ) { Text(if (sign < 0) "−" else "+", color = Color.White, fontSize = 28.sp) }
                 }
             }
-            if (note != null) Text(note, color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (note != null) Text(note, color = Palette.OnDarkMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -271,7 +267,7 @@ private fun ActionTile(
             Icon(icon, null, tint = tint, modifier = Modifier.size(38.dp))
             Spacer(Modifier.height(6.dp))
             Text(label, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (detail != null) Text(detail, color = Color.White.copy(alpha = 0.8f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, color = Palette.OnDarkMuted, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -333,7 +329,7 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
             }
             "Damage" -> {
                 Text("21 from one commander and you're out.",
-                    color = Color.White.copy(alpha = 0.8f), fontSize = 16.sp)
+                    color = Palette.OnDarkMuted, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 val sources = g.players.indices.filter { it != i }.flatMap { from -> listOf(from to false) + if (g.partners) listOf(from to true) else emptyList() }
                 val scroll = rememberScrollState()
@@ -390,9 +386,9 @@ private fun PlayerSettings(g: GameState, i: Int, vm: GameViewModel) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionTile(Icons.Filled.SkipNext, "Their turn", Modifier.weight(1f), if (g.active == i) "Now" else null,
+                ActionTile(Icons.Outlined.SkipNext, "Their turn", Modifier.weight(1f), if (g.active == i) "Now" else null,
                     tint = if (g.active == i) Palette.Accent else Color.White) { vm.update { Game.setActive(it, i) } }
-                ActionTile(Icons.Filled.Flag, if (p.conceded) "Back in" else "Concede", Modifier.weight(1f)) {
+                ActionTile(Icons.Outlined.Flag, if (p.conceded) "Back in" else "Concede", Modifier.weight(1f)) {
                     vm.update { Game.concede(it, i, !p.conceded) }
                 }
             }
@@ -467,9 +463,9 @@ fun MenuOverlay(
                 val tiles = buildList<@Composable (Modifier) -> Unit> {
                     when (tab) {
                         0 -> {
-                            add { m -> ActionTile(Icons.AutoMirrored.Filled.Undo, "Undo", m, g.history.lastOrNull()?.let { describe(g, it) }, enabled = g.undoStack.isNotEmpty()) { vm.undo() } }
+                            add { m -> ActionTile(Icons.AutoMirrored.Outlined.Undo, "Undo", m, g.history.lastOrNull()?.let { describe(g, it) }, enabled = g.undoStack.isNotEmpty()) { vm.undo() } }
                             add { m ->
-                                ActionTile(Icons.Filled.SkipNext, if (g.active == null) "Start turns" else "Next turn", m,
+                                ActionTile(Icons.Outlined.SkipNext, if (g.active == null) "Start turns" else "Next turn", m,
                                     g.active?.let { "Turn ${g.turn} · ${g.players[it].name}" }, tint = Palette.Accent) { vm.nextTurn() }
                             }
                             if (g.players.size > 1) {
@@ -480,7 +476,7 @@ fun MenuOverlay(
                                         roll = "${g.players[first].name} goes first"
                                     }
                                 }
-                                add { m -> ActionTile(Icons.Filled.SkipNext, "Pick first", m, "Who starts") { choosingFirst = true } }
+                                add { m -> ActionTile(Icons.Outlined.SkipNext, "Pick first", m, "Who starts") { choosingFirst = true } }
                             }
                         }
                         1 -> {
@@ -498,18 +494,18 @@ fun MenuOverlay(
                                 ActionTile(dayNightIcon(g.dayNight), dayNightLabel(g.dayNight), m, "Tap to change",
                                     tint = if (g.dayNight != null) Palette.Gold else Color.White) { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
                             }
-                            add { m -> ActionTile(Icons.Filled.Timer, elapsed(now - g.startedAt), m, "Game time", enabled = true) {} }
+                            add { m -> ActionTile(Icons.Outlined.Timer, elapsed(now - g.startedAt), m, "Game time", enabled = true) {} }
                         }
                         else -> {
                             add { m ->
-                                ActionTile(Icons.Filled.RestartAlt, if (confirmRestart) "Tap again" else "Restart", m,
+                                ActionTile(Icons.Outlined.RestartAlt, if (confirmRestart) "Tap again" else "Restart", m,
                                     if (confirmRestart) "Resets to ${g.startingLife}" else "Same players",
                                     tint = if (confirmRestart) Palette.Danger else Color.White) {
                                     if (confirmRestart) { vm.restart(); confirmRestart = false; onDismiss() } else confirmRestart = true
                                 }
                             }
-                            add { m -> ActionTile(Icons.Filled.EmojiEvents, "End game", m, "Save who won") { onEnd() } }
-                            add { m -> ActionTile(Icons.AutoMirrored.Filled.ExitToApp, "Leave table", m, "Game is kept") { onLeave() } }
+                            add { m -> ActionTile(Icons.Outlined.EmojiEvents, "End game", m, "Save who won") { onEnd() } }
+                            add { m -> ActionTile(Icons.AutoMirrored.Outlined.ExitToApp, "Leave table", m, "Game is kept") { onLeave() } }
                         }
                     }
                 }

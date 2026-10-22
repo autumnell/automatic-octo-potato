@@ -79,6 +79,8 @@ object Palette {
     val Muted: Color get() = if (dark) Color(0xFF9A9BA3) else Color(0xFF666873)
     /** Default icon tint: a quiet gray, a touch softer than [Muted]. The accent is kept for value, selection and the main action. */
     val Icon: Color get() = if (dark) Color(0xFF8E9098) else Color(0xFF6E707B)
+    /** Secondary text and icons on always-dark surfaces (camera, scrims over art, game screen), in both modes. */
+    val OnDarkMuted: Color get() = Color(0xFFB4B5BB)
     val Outline: Color get() = when { black -> Color(0xFF26272C); dark -> Color(0xFF34363D); else -> Color(0xFFD3D5DC) }
     /** Hairline between plain sections: fainter than [Outline]. */
     val Hairline: Color get() = Outline.copy(alpha = if (dark) 0.7f else 0.8f)

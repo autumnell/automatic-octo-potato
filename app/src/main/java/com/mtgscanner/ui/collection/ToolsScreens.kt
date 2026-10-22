@@ -26,16 +26,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -111,6 +109,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderCards
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** How much of a set you own: different collector numbers, out of the main set (or every printing, with variants). */
 data class SetProgress(
@@ -273,7 +273,7 @@ private fun toolsVm(): ToolsViewModel = viewModel(factory = AppViewModels.Factor
 @Composable
 private fun TopBar(title: String, subtitle: String?, onBack: () -> Unit, actions: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -306,7 +306,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
         val list = progress?.let { all -> if (q.isEmpty()) all else all.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q } }
         when {
             list != null && list.isEmpty() && q.isNotEmpty() -> EmptyState("No sets found", Modifier.padding(top = 24.dp))
-            list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+            list == null -> PlaceholderRows(8, Modifier.padding(16.dp))
             list.isEmpty() -> EmptyState("No sets yet", Modifier.padding(top = 24.dp))
             else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                 items(list, key = { it.code }) { s ->
@@ -388,7 +388,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Spacer(Modifier.weight(1f))
             val isPinned = code.lowercase() in pinned
             IconButton(onClick = { vm.togglePin(code, info?.name ?: vm.setName(code)) }) {
@@ -399,10 +399,10 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                 )
             }
             IconButton(onClick = { grid = !grid }) {
-                Icon(if (grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Icon)
+                Icon(if (grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
             }
             if (toWish.isNotEmpty()) IconButton(onClick = { confirmWish = true }) {
-                Icon(Icons.Filled.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Icon)
+                Icon(Icons.Outlined.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Icon)
             }
         }
         SetHeader(
@@ -417,7 +417,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         )
         when {
             failed && cards == null -> EmptyState("Couldn't load this set", Modifier.padding(top = 24.dp), action = "Try again", onAction = { vm.loadSet(code) })
-            cards == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+            cards == null -> PlaceholderCards(9, Modifier.padding(16.dp))
             else -> {
                 SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter this set")
                 Row(
@@ -666,7 +666,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
                 if (trade.isEmpty()) {
                     Text("Make a trade binder to move extras into.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     Spacer(Modifier.height(8.dp))
-                    GradientButton("Create a trade binder", { vm.createTradeBinder() }, Modifier.fillMaxWidth(), icon = Icons.Filled.Add)
+                    GradientButton("Create a trade binder", { vm.createTradeBinder() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Add)
                 } else {
                     if (trade.size > 1) Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         trade.forEach { b ->

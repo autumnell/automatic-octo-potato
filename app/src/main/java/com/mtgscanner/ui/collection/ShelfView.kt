@@ -19,8 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -188,9 +188,9 @@ fun ShelfSheet(onDismiss: () -> Unit) {
 private fun Stepper(label: String, value: Int, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        IconButton(onClick = { onChange(value - 1) }, enabled = value > 1) { Icon(Icons.Filled.Remove, "Fewer") }
+        IconButton(onClick = { onChange(value - 1) }, enabled = value > 1) { Icon(Icons.Outlined.Remove, "Fewer") }
         Text("$value", style = MaterialTheme.typography.titleMedium)
-        IconButton(onClick = { onChange(value + 1) }, enabled = value < ShelfLayout.MAX) { Icon(Icons.Filled.Add, "More") }
+        IconButton(onClick = { onChange(value + 1) }, enabled = value < ShelfLayout.MAX) { Icon(Icons.Outlined.Add, "More") }
     }
 }
 

@@ -15,9 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -44,7 +44,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.outlined.CloudOff
 import com.mtgscanner.ui.theme.PriceStyle
 import androidx.compose.foundation.shape.CircleShape
 import com.mtgscanner.ui.detail.sharedCard
@@ -56,7 +56,7 @@ internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("No goals yet", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
             TextButton(onClick = onGoals) {
-                Icon(Icons.Filled.Add, null)
+                Icon(Icons.Outlined.Add, null)
                 Spacer(Modifier.width(4.dp))
                 Text("Add a goal")
             }
@@ -76,7 +76,7 @@ private fun GoalRow(p: GoalProgress, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
-                p.error -> Icon(Icons.Filled.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
                 !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
                 else -> Text(
                     "${p.have}/${p.total}",
@@ -144,8 +144,8 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                             colors = CheckboxDefaults.colors(checkedColor = Palette.Accent),
                         )
                         Text(section.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { move(i, -1) }, enabled = i > 0) { Icon(Icons.Filled.KeyboardArrowUp, "Move up") }
-                        IconButton(onClick = { move(i, 1) }, enabled = i < rows.lastIndex) { Icon(Icons.Filled.KeyboardArrowDown, "Move down") }
+                        IconButton(onClick = { move(i, -1) }, enabled = i > 0) { Icon(Icons.Outlined.KeyboardArrowUp, "Move up") }
+                        IconButton(onClick = { move(i, 1) }, enabled = i < rows.lastIndex) { Icon(Icons.Outlined.KeyboardArrowDown, "Move down") }
                     }
                 }
             }

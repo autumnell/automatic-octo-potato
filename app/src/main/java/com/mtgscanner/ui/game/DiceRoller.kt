@@ -98,7 +98,7 @@ fun RollStage(kind: DieKind?, result: String?, rollKey: Int, modifier: Modifier 
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.fillMaxWidth().height(170.dp), contentAlignment = Alignment.Center) {
             if (kind == null) {
-                Text("Tap a die", color = Color.White.copy(alpha = 0.7f), fontSize = 30.sp)
+                Text("Tap a die", color = Palette.OnDarkMuted, fontSize = 30.sp)
             } else {
                 Box(
                     Modifier.size(120.dp).graphicsLayer {

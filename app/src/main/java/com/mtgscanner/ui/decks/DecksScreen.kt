@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,21 +32,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -79,6 +80,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -102,6 +104,7 @@ import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.scan.DeckText
 import com.mtgscanner.ui.components.PrintingsSheet
+import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
@@ -139,6 +142,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -324,21 +328,21 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
         item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (folder != null) {
-                    IconButton(onClick = { folderId = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "All decks") }
+                    IconButton(onClick = { folderId = null }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "All decks") }
                     Text(
                         folder.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, "Rename folder", tint = Palette.Icon) }
+                    IconButton(onClick = { renaming = true }) { Icon(Icons.Outlined.Edit, "Rename folder", tint = Palette.Icon) }
                     IconButton(onClick = { vm.deleteFolder(folder); folderId = null }) {
-                        Icon(Icons.Filled.DeleteOutline, "Delete folder", tint = Palette.Icon)
+                        Icon(Icons.Outlined.DeleteOutline, "Delete folder", tint = Palette.Icon)
                     }
                 } else {
                     Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { naming = true }) { Icon(Icons.Filled.CreateNewFolder, "New folder", tint = Palette.AccentText) }
+                    IconButton(onClick = { naming = true }) { Icon(Icons.Outlined.CreateNewFolder, "New folder", tint = Palette.AccentText) }
                     Box {
                         TextButton(onClick = { newMenu = true }) {
-                            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("New")
                         }
@@ -360,9 +364,9 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     value = query,
                     onValueChange = { query = it },
                     placeholder = { Text("Search decks") },
-                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = Palette.Icon) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Icon) },
                     trailingIcon = {
-                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear") }
+                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Close, "Clear") }
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(Corners.Medium),
@@ -440,7 +444,7 @@ private fun TileArt(url: String?, modifier: Modifier = Modifier) {
         if (url != null) {
             AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         } else {
-            Icon(Icons.Filled.Style, null, tint = Palette.Icon, modifier = Modifier.align(Alignment.Center).size(36.dp))
+            Icon(Icons.Outlined.Style, null, tint = Palette.Icon, modifier = Modifier.align(Alignment.Center).size(36.dp))
         }
     }
 }
@@ -487,7 +491,7 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                 }
                 Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Filled.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
@@ -523,7 +527,7 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, onOpen: () -> U
                     TileArt(arts.firstOrNull(), Modifier.matchParentSize())
                 }
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-                Icon(Icons.Filled.Folder, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
+                Icon(Icons.Outlined.Folder, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
             }
             Column(Modifier.padding(12.dp)) {
                 Text(
@@ -565,6 +569,8 @@ data class DeckUi(
     /** The line whose printing is being picked, and its printings (null while loading). */
     val printingLine: DeckCheckLine? = null,
     val printings: List<ScryfallCard>? = null,
+    /** Mana curve and color split of the played cards; null until looked up. */
+    val shape: DeckShape? = null,
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -672,7 +678,13 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val issues = CommanderRules.issues(lines, s.format, s.commanders) { n -> rulesOf(n) }
             val leadNames = if (DeckFormats.isCommander(s.format)) s.commanders.commanders else emptyList()
             val edhrec = Edhrec.linkFor(leadNames, leadNames.singleOrNull()?.let { info[DeckNames.key(it)]?.edhrec })
-            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec) }
+            // Curve and colors: played lines, plus commanders the list itself doesn't name.
+            val played = lines.filter { it.section in PLAYED }
+            val playedKeys = played.map { DeckNames.key(it.name) }.toSet()
+            val shapeCards = (played.map { it.name to it.quantity } + s.commanders.all.filter { DeckNames.key(it) !in playedKeys }.map { it to 1 })
+                .mapNotNull { (n, q) -> info[DeckNames.key(n)]?.let { ShapeCard(q, it.cmc, it.typeLine, it.manaCost) } }
+            val shape = DeckShapeMath.of(shapeCards)
+            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec, shape = shape) }
         }
     }
 
@@ -982,7 +994,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 
 /** One deck: paste or edit the list, then see what you own, where it is, and what's missing. */
 @Composable
-fun DeckScreen(deckId: Long, onBack: () -> Unit) {
+fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -990,6 +1002,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var addingAll by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var sampling by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     val dirty = ui.editing && ui.text.trim() != vm.savedText.trim()
@@ -1000,7 +1013,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text(
                     if (ui.editing) (if (ui.id == 0L) "New deck" else "Edit deck") else ui.name,
                     style = MaterialTheme.typography.titleLarge,
@@ -1009,15 +1022,16 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!ui.editing) {
-                    IconButton(onClick = vm::edit) { Icon(Icons.Filled.Edit, "Edit list") }
+                    IconButton(onClick = vm::edit) { Icon(Icons.Outlined.Edit, "Edit list") }
                     IconButton(onClick = { if (inDeck > 0) confirmDelete = true else vm.delete(false, onBack) }) {
-                        Icon(Icons.Filled.DeleteOutline, "Delete deck")
+                        Icon(Icons.Outlined.DeleteOutline, "Delete deck")
                     }
                     Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Deck options") }
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Deck options") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
                             DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
+                            if (ui.check != null) DropdownMenuItem(text = { Text("Sample hand") }, onClick = { menu = false; sampling = true })
                             DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
                         }
                     }
@@ -1043,7 +1057,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                         PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeck, leads = leadsOf(ui))
                     }
                     // Pull down to refresh prices.
-                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm) }
+                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm, onOpenSet) }
                 }
             }
         }
@@ -1067,6 +1081,13 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
             counts = counts, busy = ui.adding,
             onAdd = { onlyMissing -> vm.addToCollection(onlyMissing) { addingAll = false } },
             onDismiss = { addingAll = false },
+        )
+    }
+    if (sampling) ui.check?.let { check ->
+        SampleHandSheet(
+            check.lines,
+            leads = if (DeckFormats.isCommander(ui.format)) ui.commanders.commanders else emptyList(),
+            onDismiss = { sampling = false },
         )
     }
     if (confirmDelete) {
@@ -1141,13 +1162,13 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
 }
 
 @Composable
-private fun Results(ui: DeckUi, vm: DeckViewModel) {
+private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)?) {
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
     var find by rememberSaveable { mutableStateOf("") }
     val check = ui.check
     if (ui.checking || check == null) {
-        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+        PlaceholderRows(6, Modifier.padding(16.dp))
         return
     }
     // Totals count played cards only, the same as the deck tiles.
@@ -1169,6 +1190,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
     val inDeck = played.sumOf { minOf(it.inDeck, it.needed) }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
+            ui.shape?.let { DeckShapeView(it) }
             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("Owned", "$have / $needed", Modifier.weight(1f))
                 if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
@@ -1188,11 +1210,11 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(Corners.Medium),
                     ) {
-                        Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Wishlist missing")
                     }
-                    IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share missing cards", tint = Palette.Icon) }
+                    IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share missing cards", tint = Palette.Icon) }
                 }
             }
             SearchField(find, { find = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Find in deck")
@@ -1202,21 +1224,21 @@ private fun Results(ui: DeckUi, vm: DeckViewModel) {
         }
         if (leads.isNotEmpty()) {
             item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
-            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
             item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
         }
         // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {
             item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
-            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         if (otherMissing.isNotEmpty()) {
             item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
-            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         if (owned.isNotEmpty()) {
             item { SectionHeader("In your collection") }
-            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false, onClick = { vm.openPrintings(l) }) }
+            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -1242,7 +1264,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit) {
+private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     // Tap to pick the printing.
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
@@ -1255,18 +1277,45 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> U
                 overflow = TextOverflow.Ellipsis,
             )
             val listed = l.setCode?.let { it.uppercase() + (l.collectorNumber?.let { n -> " #$n" } ?: "") }
+            // "LCI #287 · Borderless" opens the set when tapped; the rest of the line picks the printing.
+            val set = l.setCode?.takeIf { onOpenSet != null && !l.otherPrinting }
+            val link = when {
+                l.otherPrinting -> null
+                missingView -> l.printing
+                l.ownedOtherPrinting -> null
+                else -> l.printing
+            }?.takeIf { set != null }
             val where = when {
                 l.otherPrinting -> "No $listed · other printing shown"
-                missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, l.printing).joinToString(" · ")
+                missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, l.printing.takeIf { link == null }).joinToString(" · ")
                 else -> listOfNotNull(
                     l.whereText.ifEmpty { null },
-                    if (l.ownedOtherPrinting) "Other printing" else l.printing,
+                    if (l.ownedOtherPrinting) "Other printing" else l.printing.takeIf { link == null },
                 ).joinToString(" · ")
             }
-            // Green once every copy is kept in the deck; owned copies elsewhere still need pulling.
-            Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // The set symbol sits next to the printing: before the link, or at the start when the printing is plain text.
+            val symbolCode = l.setCode?.takeIf { !l.otherPrinting && l.printing != null && (missingView || !l.ownedOtherPrinting) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (symbolCode != null && link == null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
+                if (where.isNotEmpty()) Text(
+                    if (link != null) "$where · " else where,
+                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (symbolCode != null && link != null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
+                if (link != null && set != null && onOpenSet != null) Text(
+                    link, style = MaterialTheme.typography.bodySmall, color = Palette.AccentText, maxLines = 1,
+                    modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { onOpenSet(set.lowercase()) },
+                )
+            }
         }
-        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText) }
-        else Icon(Icons.Filled.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
+        if (missingView) {
+            // A fixed right-aligned slot so prices line up down the list.
+            if (AppSettings.showPrices) Text(
+                formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText,
+                textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp).widthIn(min = 64.dp),
+            )
+        }
+        else Icon(Icons.Outlined.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
     }
 }

@@ -14,10 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.automirrored.filled.Subject
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,7 +56,7 @@ fun ScanLogScreen(onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
                 Text("Scan log", style = MaterialTheme.typography.titleLarge)
                 Text("Last ${ScanLogEntryLimit} lookups, kept on this phone", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -68,9 +67,9 @@ fun ScanLogScreen(onBack: () -> Unit) {
                     .putExtra(Intent.EXTRA_SUBJECT, "Grimoire scan log")
                     .putExtra(Intent.EXTRA_TEXT, text)
                 ctx.startActivity(Intent.createChooser(send, "Share scan log"))
-            }, enabled = !entries.isNullOrEmpty()) { Icon(Icons.Filled.Share, "Share") }
+            }, enabled = !entries.isNullOrEmpty()) { Icon(Icons.Outlined.Share, "Share") }
             IconButton(onClick = { scope.launch { log.clear() } }, enabled = !entries.isNullOrEmpty()) {
-                Icon(Icons.Filled.DeleteOutline, "Clear")
+                Icon(Icons.Outlined.DeleteOutline, "Clear")
             }
         }
         val list = entries

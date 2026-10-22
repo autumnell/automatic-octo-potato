@@ -14,8 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,7 +46,7 @@ fun StatsCard(records: List<GameRecord>, onOpen: () -> Unit) {
     val top = remember(records) { GameStats.byPlayer(records).firstOrNull() }
     Surface(onClick = onOpen, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.EmojiEvents, null, tint = Palette.Gold)
+            Icon(Icons.Outlined.EmojiEvents, null, tint = Palette.Gold)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("Game stats", style = MaterialTheme.typography.titleMedium)
@@ -100,7 +100,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                             )
                         }
                         IconButton(onClick = { vm.deleteRecord(r) }) {
-                            Icon(Icons.Filled.DeleteOutline, "Delete this game", tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.DeleteOutline, "Delete this game", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                         }
                     }
                 }

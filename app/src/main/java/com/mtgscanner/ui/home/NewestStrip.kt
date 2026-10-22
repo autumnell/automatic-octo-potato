@@ -64,7 +64,7 @@ internal fun NewestStrip(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
                     Spacer(Modifier.width(6.dp))
-                    SetIcon(c.setCode, size = 14.dp, tint = Color.White.copy(alpha = 0.85f))
+                    SetIcon(c.setCode, size = 14.dp, tint = Color.White)
                 }
                 if (c.quantity > 1) {
                     Text(

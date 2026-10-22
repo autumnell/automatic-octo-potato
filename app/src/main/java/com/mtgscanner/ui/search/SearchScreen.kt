@@ -27,18 +27,17 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Style
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -78,7 +77,7 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
-import com.mtgscanner.ui.components.RarityMark
+import com.mtgscanner.ui.components.SetMark
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.ui.components.scryfallPriceShort
@@ -86,6 +85,8 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlaceholderCards
+import com.mtgscanner.ui.components.PlaceholderRows
 
 @Composable
 fun SearchScreen(
@@ -143,7 +144,7 @@ fun SearchScreen(
 @Composable
 private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().background(Palette.Background)) {
-        listOf("Cards" to Icons.Filled.Style, "Sets" to Icons.AutoMirrored.Filled.ViewList).forEachIndexed { i, (label, icon) ->
+        listOf("Cards" to Icons.Outlined.Style, "Sets" to Icons.AutoMirrored.Outlined.ViewList).forEachIndexed { i, (label, icon) ->
             TabItem(label, icon, selected == i, Modifier.weight(1f)) { onSelect(i) }
         }
     }
@@ -165,6 +166,8 @@ private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifie
 private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>) {
     val focus = LocalFocusManager.current
     var showFilters by remember { mutableStateOf(false) }
+    var pricing by remember { mutableStateOf(false) }
+    if (pricing) PriceListSheet(owned, onDismiss = { pricing = false })
     Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
@@ -185,7 +188,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     )
                 }
                 if (ui.query.isNotEmpty()) {
-                    IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+                    IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
                 } else {
                     Spacer(Modifier.width(16.dp))
                 }
@@ -199,15 +202,17 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     .padding(horizontal = 16.dp, vertical = 14.dp),
             ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
             IconButton(onClick = vm::toggleGrid) {
-                Icon(if (ui.grid) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView, "Change layout", tint = Palette.Icon)
+                Icon(if (ui.grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
             }
         }
         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             val n = ui.filters.activeCount
             SelectPill(
                 if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
-                leading = { Icon(Icons.Filled.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
+                leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
             )
+            Spacer(Modifier.width(8.dp))
+            SelectPill("Price a list", false, { pricing = true })
             Spacer(Modifier.width(10.dp))
             Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -228,7 +233,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.pickSuggestion(name) }.padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Filled.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(14.dp))
                         Text(name, style = MaterialTheme.typography.bodyLarge)
                     }
@@ -236,7 +241,9 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
             }
             ui.ranQuery == null && ui.query.isEmpty() && (ui.recent.isNotEmpty() || ui.viewed.isNotEmpty()) -> History(ui, vm)
             ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            ui.results.isEmpty() && ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
+            ui.results.isEmpty() && ui.loading ->
+                if (ui.grid) PlaceholderCards(9, Modifier.align(Alignment.TopCenter).padding(16.dp))
+                else PlaceholderRows(8, Modifier.align(Alignment.TopCenter).padding(16.dp))
             ui.results.isEmpty() && ui.failed && ui.error != null ->
                 EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = 24.dp), body = ui.error.orEmpty())
             ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
@@ -257,7 +264,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${ui.results.size}${if (ui.hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                IconButton(onClick = vm::clearResults) { Icon(Icons.Filled.Close, "Clear results", tint = Palette.Icon) }
+                IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
             }
         }
         itemsIndexed(ui.results, key = { _, c -> c.id }) { i, c ->
@@ -271,7 +278,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
         }
         if (ui.loading) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+                PlaceholderRows(2, Modifier.padding(6.dp))
             }
         } else if (ui.moreFailed) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -298,7 +305,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
                 ManaCost(c.effectiveManaCost, size = 14.dp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RarityMark(c.rarity)
+                SetMark(c.set, c.rarity)
                 Spacer(Modifier.width(6.dp))
                 Text("${c.set.uppercase()} #${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -350,7 +357,7 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
                     Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Text(q.text.ifEmpty { "Filtered" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -383,7 +390,7 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, In
         return
     }
     if (sets == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+        PlaceholderRows(8, Modifier.padding(horizontal = 16.dp))
         return
     }
     val q = ui.setFilter.trim().lowercase()

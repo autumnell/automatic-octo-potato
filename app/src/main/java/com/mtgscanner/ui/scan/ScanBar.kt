@@ -21,9 +21,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -187,7 +187,7 @@ fun LastCardBar(
         if (e == null) {
             Text(
                 "Scanned cards show up here",
-                color = Color.White.copy(alpha = 0.6f),
+                color = Palette.OnDarkMuted,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 8.dp),
             )
@@ -214,7 +214,7 @@ fun LastCardBar(
             Spacer(Modifier.width(8.dp))
             Text(scryfallPriceShort(e.card, e.foil), color = Palette.Gold, style = MaterialTheme.typography.titleSmall)
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Open card", tint = Color.White.copy(alpha = 0.7f))
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Open card", tint = Palette.OnDarkMuted)
         if (onSameAgain != null) {
             Spacer(Modifier.width(4.dp))
             Box(
@@ -253,14 +253,14 @@ fun SetPickSheet(vm: ScanViewModel) {
                 item(key = "auto") {
                     SetRowItem(
                         title = "Auto", sub = "Any set", selected = lock == null,
-                        icon = { Icon(Icons.Filled.LockOpen, null, tint = if (lock == null) Palette.Accent else Palette.Icon, modifier = Modifier.size(22.dp)) },
+                        icon = { Icon(Icons.Outlined.LockOpen, null, tint = if (lock == null) Palette.Accent else Palette.Icon, modifier = Modifier.size(22.dp)) },
                         onClick = { vm.setLock(null) },
                     )
                 }
                 if (typed != null) item(key = "typed") {
                     SetRowItem(
                         title = "Lock to ${typed.uppercase()}", sub = "Set code", selected = false,
-                        icon = { Icon(Icons.Filled.Lock, null, tint = Palette.Icon, modifier = Modifier.size(22.dp)) },
+                        icon = { Icon(Icons.Outlined.Lock, null, tint = Palette.Icon, modifier = Modifier.size(22.dp)) },
                         onClick = { vm.setLock(typed) },
                     )
                 }

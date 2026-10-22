@@ -32,13 +32,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.Colorize
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Colorize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -106,7 +106,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text("Settings", style = MaterialTheme.typography.headlineSmall)
             }
             Row(
@@ -288,9 +288,9 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val (bg, fg, icon) = when (mode) {
-        ThemeMode.DARK -> Triple(Color(0xFF16171A), Color(0xFFEDEDEF), Icons.Filled.DarkMode)
-        ThemeMode.LIGHT -> Triple(Color(0xFFF4F4F7), Color(0xFF17181C), Icons.Filled.LightMode)
-        ThemeMode.SYSTEM -> Triple(Palette.SurfaceHigh, Palette.Text, Icons.Filled.PhoneAndroid)
+        ThemeMode.DARK -> Triple(Color(0xFF16171A), Color(0xFFEDEDEF), Icons.Outlined.DarkMode)
+        ThemeMode.LIGHT -> Triple(Color(0xFFF4F4F7), Color(0xFF17181C), Icons.Outlined.LightMode)
+        ThemeMode.SYSTEM -> Triple(Palette.SurfaceHigh, Palette.Text, Icons.Outlined.PhoneAndroid)
     }
     Row(
         modifier
@@ -325,7 +325,7 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
                 .background(color),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Icon(Icons.Filled.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(16.dp))
+            if (selected) Icon(Icons.Outlined.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.height(2.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -345,7 +345,7 @@ private fun CustomSwatch(onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(20.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Add, "Pick a custom color", tint = Color.White, modifier = Modifier.size(14.dp))
+                Icon(Icons.Outlined.Add, "Pick a custom color", tint = Color.White, modifier = Modifier.size(14.dp))
             }
         }
         Spacer(Modifier.height(2.dp))
@@ -415,7 +415,7 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onPick: (Co
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
-        icon = { Icon(Icons.Filled.Colorize, null, tint = color) },
+        icon = { Icon(Icons.Outlined.Colorize, null, tint = color) },
         title = { Text("Custom accent") },
         text = {
             Column {

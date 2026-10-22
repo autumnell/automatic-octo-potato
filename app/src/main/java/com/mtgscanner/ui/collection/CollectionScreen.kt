@@ -30,24 +30,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Sell
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -432,29 +432,29 @@ fun CollectionScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Filled.QrCodeScanner, "Scan a box label", tint = Palette.Icon) }
-                IconButton(onClick = vm::refreshPrices) { Icon(Icons.Filled.Refresh, "Refresh prices", tint = Palette.Icon) }
+                if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Outlined.QrCodeScanner, "Scan a box label", tint = Palette.Icon) }
+                IconButton(onClick = vm::refreshPrices) { Icon(Icons.Outlined.Refresh, "Refresh prices", tint = Palette.Icon) }
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More", tint = Palette.Icon) }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More", tint = Palette.Icon) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
                             text = { Text("Edit page") },
-                            leadingIcon = { Icon(Icons.Filled.Tune, null) },
+                            leadingIcon = { Icon(Icons.Outlined.Tune, null) },
                             onClick = { menu = false; editingLayout = true },
                         )
                         DropdownMenuItem(
                             text = { Text("Settings, backup & import") },
-                            leadingIcon = { Icon(Icons.Filled.Settings, null) },
+                            leadingIcon = { Icon(Icons.Outlined.Settings, null) },
                             onClick = { menu = false; onSettings() },
                         )
                         if (ui.totalCards > 0) DropdownMenuItem(
                             text = { Text("Share collection") },
-                            leadingIcon = { Icon(Icons.Filled.Share, null) },
+                            leadingIcon = { Icon(Icons.Outlined.Share, null) },
                             onClick = { menu = false; sharingAll = true },
                         )
                         if (ui.boxes.isNotEmpty()) DropdownMenuItem(
                             text = { Text("Print box labels") },
-                            leadingIcon = { Icon(Icons.Filled.Print, null) },
+                            leadingIcon = { Icon(Icons.Outlined.Print, null) },
                             onClick = { menu = false; labelsLauncher.launch("box-labels.pdf") },
                         )
                     }
@@ -507,10 +507,10 @@ private fun BrowseAllButton(onClick: () -> Unit) {
         color = Palette.Surface,
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Search, null, tint = Palette.Icon)
+            Icon(Icons.Outlined.Search, null, tint = Palette.Icon)
             Spacer(Modifier.width(12.dp))
             Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon)
         }
     }
 }
@@ -570,10 +570,10 @@ private fun BoxesTab(
                             color = Palette.Surface,
                         ) {
                             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Icon)
+                                Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Icon)
                                 Spacer(Modifier.width(12.dp))
                                 Text("$toMove to sort", style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.weight(1f))
-                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
+                                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon)
                             }
                         }
                     }
@@ -585,7 +585,7 @@ private fun BoxesTab(
                             if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
                         }
                         TextButton(onClick = { creating = true }) {
-                            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("New")
                         }
@@ -824,7 +824,7 @@ private fun BoxCard(
             if (layout.compact) BoxCardCompact(b, stripe, warning, layout) else BoxCardFull(b, stats, stripe, warning, layout)
         }
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Box options", tint = Palette.Icon) }
+            IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Box options", tint = Palette.Icon) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
@@ -946,7 +946,7 @@ private fun BoxTitle(b: BoxSummary, stripe: Color, onArt: Boolean, modifier: Mod
         LabelTape(b.name, Modifier.weight(1f, fill = false))
         if (b.fallback) {
             Spacer(Modifier.width(8.dp))
-            Text("Fallback", style = MaterialTheme.typography.labelSmall, color = if (onArt) Color.White.copy(alpha = 0.72f) else Palette.Muted)
+            Text("Fallback", style = MaterialTheme.typography.labelSmall, color = if (onArt) Palette.OnDarkMuted else Palette.Muted)
         }
     }
 }
@@ -967,10 +967,10 @@ private fun ToolsTab(
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ToolRow(Icons.Filled.ContentCopy, "Extras finder") { onExtras() }
-            ToolRow(Icons.Filled.GridView, "Set tracker") { onSets() }
-            ToolRow(Icons.Filled.Sell, "Sell") { onSell() }
-            ToolRow(Icons.Filled.Person, "Loans") { onLoans() }
+            ToolRow(Icons.Outlined.ContentCopy, "Extras finder") { onExtras() }
+            ToolRow(Icons.Outlined.GridView, "Set tracker") { onSets() }
+            ToolRow(Icons.Outlined.Sell, "Sell") { onSell() }
+            ToolRow(Icons.Outlined.Person, "Loans") { onLoans() }
             if (showTrade) ToolGroup("Trade binders")
             if (showTrade && trade.isEmpty()) {
                 Text(
@@ -989,14 +989,14 @@ private fun ToolsTab(
                 color = Palette.Surface,
             ) {
                 Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.SwapHoriz, null, tint = Palette.Icon)
+                    Icon(Icons.Outlined.SwapHoriz, null, tint = Palette.Icon)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(b.name, style = MaterialTheme.typography.titleMedium)
                         Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
-                    IconButton(enabled = b.cards > 0, onClick = { sharing = b }) { Icon(Icons.Filled.Share, "Share ${b.name}", tint = Palette.Icon) }
+                    IconButton(enabled = b.cards > 0, onClick = { sharing = b }) { Icon(Icons.Outlined.Share, "Share ${b.name}", tint = Palette.Icon) }
                 }
             }
         }
@@ -1011,6 +1011,12 @@ private fun WishlistTab(vm: CollectionViewModel) {
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<WishlistItem?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var sortName by rememberSaveable { mutableStateOf(WishlistSort.ADDED.name) }
+    val sort = WishlistSort.entries.firstOrNull { it.name == sortName && (AppSettings.showPrices || it != WishlistSort.PRICE) } ?: WishlistSort.ADDED
+    val shown = remember(wishlist, query, sort) {
+        WishlistSorting.apply(wishlist, query, sort, { it.name }, { it.priceUsd }, { it.addedAt })
+    }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             if (wishlist.isEmpty()) {
@@ -1025,11 +1031,18 @@ private fun WishlistTab(vm: CollectionViewModel) {
                             modifier = Modifier.padding(end = 4.dp),
                         )
                     }
-                    IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share wishlist", tint = Palette.Icon) }
+                    IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share wishlist", tint = Palette.Icon) }
                 }
+                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search wishlist")
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WishlistSort.entries.filter { AppSettings.showPrices || it != WishlistSort.PRICE }.forEach { s ->
+                        SelectPill(s.label, sort == s, { sortName = s.name })
+                    }
+                }
+                if (shown.isEmpty()) EmptyState("No matches", Modifier.padding(top = 16.dp))
             }
         }
-        items(wishlist, key = { "w${it.id}" }) { w ->
+        items(shown, key = { "w${it.id}" }) { w ->
             Row(
                 Modifier.fillMaxWidth().clickable { editing = w }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1041,7 +1054,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     Text("Want ${w.wanted}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
                 if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
-                IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Filled.DeleteOutline, "Remove", tint = Palette.Icon) }
+                IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Outlined.DeleteOutline, "Remove", tint = Palette.Icon) }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -1062,9 +1075,9 @@ private fun WantedDialog(item: WishlistItem, onSave: (Int) -> Unit, onDismiss: (
         title = { Text(item.name) },
         text = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                com.mtgscanner.ui.components.RepeatIconButton(onClick = { if (n > 1) n-- }, enabled = n > 1, repeat = n > 1) { Icon(Icons.Filled.Remove, "Fewer") }
+                com.mtgscanner.ui.components.RepeatIconButton(onClick = { if (n > 1) n-- }, enabled = n > 1, repeat = n > 1) { Icon(Icons.Outlined.Remove, "Fewer") }
                 Text("Want $n", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp))
-                com.mtgscanner.ui.components.RepeatIconButton(onClick = { n++ }) { Icon(Icons.Filled.Add, "More") }
+                com.mtgscanner.ui.components.RepeatIconButton(onClick = { n++ }) { Icon(Icons.Outlined.Add, "More") }
             }
         },
         confirmButton = { TextButton(onClick = { onSave(n) }) { Text("Save") } },

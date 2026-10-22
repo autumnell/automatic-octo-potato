@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +67,7 @@ internal fun PriceAlertRow(c: CollectionCard) {
 
     TextButton(onClick = { editing = true }) {
         Icon(
-            if (alert != null) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone, null,
+            if (alert != null) Icons.Filled.NotificationsActive else Icons.Outlined.NotificationsNone, null,
             Modifier.size(18.dp), tint = if (alert != null) Palette.AccentText else Palette.Icon,
         )
         Spacer(Modifier.width(6.dp))

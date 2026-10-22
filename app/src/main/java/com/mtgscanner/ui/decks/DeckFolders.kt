@@ -13,10 +13,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -175,9 +175,9 @@ fun MoveToFolderDialog(
         title = { Text("Move to folder") },
         text = {
             LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                item { PickRow(Icons.Filled.Style, "No folder", current == null) { onPick(null) } }
-                items(folders, key = { it.id }) { f -> PickRow(Icons.Filled.Folder, f.name, current == f.id) { onPick(f.id) } }
-                item { PickRow(Icons.Filled.CreateNewFolder, "New folder", false, onNewFolder) }
+                item { PickRow(Icons.Outlined.Style, "No folder", current == null) { onPick(null) } }
+                items(folders, key = { it.id }) { f -> PickRow(Icons.Outlined.Folder, f.name, current == f.id) { onPick(f.id) } }
+                item { PickRow(Icons.Outlined.CreateNewFolder, "New folder", false, onNewFolder) }
             }
         },
         confirmButton = {},
@@ -221,6 +221,6 @@ private fun PickRow(icon: ImageVector?, label: String, selected: Boolean, onClic
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (selected) Icon(Icons.Filled.Check, null, tint = Palette.AccentText, modifier = Modifier.size(18.dp))
+        if (selected) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(18.dp))
     }
 }

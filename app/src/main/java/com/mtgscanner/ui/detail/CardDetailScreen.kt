@@ -33,17 +33,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -119,6 +118,7 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.cardTotal
@@ -139,6 +139,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderPage
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : ViewModel() {
@@ -417,7 +418,7 @@ private val CONDITIONS = listOf("NM" to "Near mint", "LP" to "Lightly played", "
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CardDetailScreen(id: Long, onBack: () -> Unit) {
+fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     val vm: CardDetailViewModel = viewModel(key = "card-$id", factory = AppViewModels.detail(id))
     val card by vm.card.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
@@ -504,7 +505,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
             if (showMissing) {
                 EmptyState("Card not found", Modifier.align(Alignment.Center), action = "Back", onAction = onBack)
             } else {
-                CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
+                PlaceholderPage(Modifier.statusBarsPadding().padding(16.dp))
             }
         }
         if (c != null) {
@@ -555,7 +556,14 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         com.mtgscanner.ui.loans.loanLabel(c)?.let { Badge(it) }
                         if (c.forSale) Badge(if (c.askPrice != null && AppSettings.showPrices) "For sale ${formatUsd(c.askPrice)}" else "For sale")
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
-                        InfoChip { Text("${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium) }
+                        // Tap the set to open it in the set tracker.
+                        InfoChip(onClick = onOpenSet?.let { open -> { open(c.setCode.lowercase()) } }) {
+                            SetSymbol(c.setCode, c.rarity, modifier = Modifier.padding(end = 6.dp))
+                            Text(
+                                "${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium,
+                                color = if (onOpenSet != null) Palette.AccentText else Palette.Text,
+                            )
+                        }
                         c.releasedAt?.let { InfoChip { Text(it.take(4), style = MaterialTheme.typography.labelMedium) } }
                         if (AppSettings.showPrices) InfoChip { Text(cardPrice(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
                         InfoChip {
@@ -605,13 +613,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
                                     onClick = { editingNotes = true },
-                                    leading = { Icon(Icons.Filled.Edit, null, Modifier.size(16.dp), tint = Palette.Icon) },
+                                    leading = { Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                                 DropChip(
                                     "Tag",
                                     onClick = { addingTag = true },
-                                    leading = { Icon(Icons.Filled.Add, null, Modifier.size(16.dp), tint = Palette.Icon) },
+                                    leading = { Icon(Icons.Outlined.Add, null, Modifier.size(16.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                             }
@@ -626,7 +634,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                                         ) {
                                             Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
                                             IconButton(onClick = { vm.removeTag(t) }) {
-                                                Icon(Icons.Filled.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Icon)
+                                                Icon(Icons.Outlined.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Icon)
                                             }
                                         }
                                     }
@@ -744,7 +752,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         links.forEach { link ->
                             TextButton(onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url))) } }) {
-                                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text(link.label)
                             }
@@ -758,7 +766,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
         // Floating top buttons over the artwork.
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
             val btn = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.45f), contentColor = Color.White)
-            IconButton(onClick = onBack, colors = btn) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            IconButton(onClick = onBack, colors = btn) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Spacer(Modifier.weight(1f))
             if (c != null && nb.total > 1) {
                 Text(
@@ -772,7 +780,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                 )
                 Spacer(Modifier.weight(1f))
             }
-            if (c != null) IconButton(onClick = { confirmDelete = true }, colors = btn) { Icon(Icons.Filled.DeleteOutline, "Remove from collection") }
+            if (c != null) IconButton(onClick = { confirmDelete = true }, colors = btn) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection") }
         }
     }
 
@@ -1073,9 +1081,11 @@ private fun Panel(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun InfoChip(content: @Composable () -> Unit) {
+private fun InfoChip(onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) { content() }
 }
@@ -1128,7 +1138,7 @@ private fun DropChip(label: String, onClick: () -> Unit, leading: (@Composable (
             Spacer(Modifier.width(6.dp))
         }
         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-        if (trailing) Icon(Icons.Filled.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
+        if (trailing) Icon(Icons.Outlined.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
     }
 }
 
@@ -1175,12 +1185,12 @@ private fun SpecialPicker(
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text("Signed", color = if (c.signed) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.signed) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                trailingIcon = { if (c.signed) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
                 onClick = { open = false; onSigned(!c.signed) },
             )
             DropdownMenuItem(
                 text = { Text("Altered", color = if (c.altered) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.altered) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                trailingIcon = { if (c.altered) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
                 onClick = { open = false; onAltered(!c.altered) },
             )
             DropdownMenuItem(
@@ -1189,12 +1199,12 @@ private fun SpecialPicker(
             )
             DropdownMenuItem(
                 text = { Text("Proxy", color = if (c.proxy) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.proxy) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                trailingIcon = { if (c.proxy) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
                 onClick = { open = false; onProxy(!c.proxy) },
             )
             DropdownMenuItem(
                 text = { Text("For sale", color = if (c.forSale) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.forSale) Icon(Icons.Filled.Check, null, tint = Palette.AccentText) },
+                trailingIcon = { if (c.forSale) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
                 onClick = { open = false; onForSale(!c.forSale) },
             )
             DropdownMenuItem(
@@ -1261,7 +1271,7 @@ private fun BoxPicker(boxes: List<CardBox>, decks: List<Deck>, places: List<Card
             if (inDeck) {
                 DropdownMenuItem(
                     text = { Text("Auto-sort") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Icon) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Icon) },
                     onClick = { open = false; onPick(MoveDest("Auto-sort")) },
                 )
             }

@@ -22,14 +22,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -73,9 +72,7 @@ fun PrintingsSheet(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
         )
         if (printings == null) {
-            Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Palette.Accent)
-            }
+            PlaceholderRows(5, Modifier.padding(horizontal = 20.dp, vertical = 8.dp), rowHeight = 72.dp, color = Palette.SurfaceHigh)
         } else {
             LazyColumn(Modifier.fillMaxWidth().height(520.dp)) {
                 items(printings, key = { it.id }) { p ->
@@ -95,7 +92,7 @@ fun PrintingsSheet(
                         Column(Modifier.weight(1f)) {
                             Text(p.setName, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                RarityDot(p.rarity, 8.dp)
+                                SetMark(p.set, p.rarity)
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     "${p.set.uppercase()} · #${p.collectorNumber} · ${p.releasedAt.orEmpty().take(4)}",
@@ -171,7 +168,7 @@ fun AddCardSheet(
                         color = Palette.AccentText,
                     )
                     TextButton(onClick = onChangePrinting, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                        Icon(Icons.Filled.SwapHoriz, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.SwapHoriz, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Other printings")
                     }
@@ -185,7 +182,7 @@ fun AddCardSheet(
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Filled.Check, null, tint = Palette.AccentText, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.AccentText, modifier = Modifier.weight(1f))
                     if (onOwned != null) Text("Open", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
@@ -210,7 +207,7 @@ fun AddCardSheet(
                 Text("Cards go into boxes. Create one to add this card.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(onClick = onCreateBox, shape = RoundedCornerShape(Corners.Medium)) {
-                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Create a box")
                 }
@@ -220,7 +217,7 @@ fun AddCardSheet(
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
-                        Icon(Icons.AutoMirrored.Filled.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Icon)
+                        Icon(Icons.AutoMirrored.Outlined.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Icon)
                     })
                     boxes.forEach { b ->
                         SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {
@@ -232,7 +229,7 @@ fun AddCardSheet(
             Spacer(Modifier.height(20.dp))
             GradientButton(
                 text = "Add to collection",
-                icon = Icons.Filled.Add,
+                icon = Icons.Outlined.Add,
                 onClick = { onAdd(foil, qty, boxId) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = boxes.isNotEmpty(),
@@ -240,7 +237,7 @@ fun AddCardSheet(
             if (onWishlist != null) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(onClick = onWishlist, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium)) {
-                    Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Add to wishlist")
                 }
@@ -257,12 +254,12 @@ fun QuantityStepper(value: Int, onChange: (Int) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Hold either button to keep counting; holding − stops at 1.
-        RepeatIconButton(onClick = { onChange(value - 1) }, repeat = value > 1) { Icon(Icons.Filled.Remove, "One fewer") }
+        RepeatIconButton(onClick = { onChange(value - 1) }, repeat = value > 1) { Icon(Icons.Outlined.Remove, "One fewer") }
         // Grows for 100 or more instead of cutting the number off.
         Text(
             "$value", style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false,
             modifier = Modifier.widthIn(min = 32.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        RepeatIconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Filled.Add, "One more", tint = Palette.AccentText) }
+        RepeatIconButton(onClick = { onChange(value + 1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.AccentText) }
     }
 }

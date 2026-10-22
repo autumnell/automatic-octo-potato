@@ -41,10 +41,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -239,9 +237,9 @@ fun GamePlayScreen(onExit: () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) {
                     if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.Bold)
-                    else Icon(Icons.Filled.MoreHoriz, "Game menu", tint = Palette.Accent)
+                    else Icon(Icons.Outlined.MoreHoriz, "Game menu", tint = Palette.Accent)
                 }
-                QuickButton(Icons.AutoMirrored.Filled.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
+                QuickButton(Icons.AutoMirrored.Outlined.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
             }
             if (g.dayNight != null) {
                 Spacer(Modifier.height(6.dp))
@@ -400,7 +398,7 @@ private fun PlayerPanel(
                     )
                 }
                 Text("${p.life}", color = Color.White, fontSize = lifeSize, fontWeight = FontWeight.Bold)
-                Text(p.name, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.titleSmall)
+                Text(p.name, color = Color.White, style = MaterialTheme.typography.titleSmall)
                 if (out != null) Text(out, color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
             // Other counters along the top, shown only when they matter. Not scrollable, so taps and
@@ -440,7 +438,7 @@ private fun PlayerPanel(
                     }
                 }
                 IconButton(onClick = onMore) {
-                    Icon(Icons.Filled.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
+                    Icon(Icons.Outlined.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
                 }
             }
         }
@@ -519,7 +517,7 @@ private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit
         Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
             Text("Tap Done or Play again to save.",
-                color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                color = Palette.OnDarkMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
             Row {
                 TextButton(onClick = onRestart) { Text("Play again") }
                 TextButton(onClick = onDone) { Text("Done") }

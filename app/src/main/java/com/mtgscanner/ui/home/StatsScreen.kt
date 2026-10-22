@@ -15,7 +15,6 @@ import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.PriceStyle
 import kotlinx.coroutines.flow.combine
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import com.mtgscanner.ui.detail.sharedCard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +34,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -83,6 +82,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlaceholderBlock
+import com.mtgscanner.ui.components.PlaceholderRows
 
 class StatsViewModel(repo: CollectionRepository) : ViewModel() {
     /** Null until the collection has loaded. */
@@ -132,13 +133,15 @@ fun StatsScreen(
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text("Stats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
         }
         val s = stats
         if (s == null) {
-            Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp, color = Palette.Accent)
+            Column(Modifier.padding(16.dp)) {
+                PlaceholderBlock(140.dp)
+                Spacer(Modifier.height(12.dp))
+                PlaceholderRows(4)
             }
             return@Column
         }

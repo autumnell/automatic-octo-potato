@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,9 +25,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -84,9 +84,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.LaunchedEffect
@@ -419,7 +417,7 @@ private fun Header(onSettings: () -> Unit, onEdit: () -> Unit) {
         Text("Grimoire", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.weight(1f))
         TextButton(onClick = onEdit) { Text("Edit", color = Palette.Muted) }
-        IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, "Settings", tint = Palette.Icon) }
+        IconButton(onClick = onSettings) { Icon(Icons.Outlined.Settings, "Settings", tint = Palette.Icon) }
     }
 }
 
@@ -441,7 +439,9 @@ internal fun HomeHeading(title: String, action: String? = null, onAction: () -> 
     }
 }
 
-/** The one hero on Home: collection value over faint art from the most valuable card. */
+private val HeroArtWidth = 72.dp
+
+/** The one hero on Home: collection value, with a strip of art from the most valuable card on the right. */
 @Composable
 private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
     val shape = RoundedCornerShape(Corners.Medium)
@@ -453,25 +453,17 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
     ) {
         val art = ui.heroArt?.takeIf { AppSettings.showPrices }
         if (art != null) {
-            // Faint and softened (blur works on Android 12+), with a scrim on the text side so numbers stay crisp.
-            AsyncImage(
-                model = art,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                alpha = if (Palette.dark) 0.34f else 0.22f,
-                modifier = Modifier.matchParentSize().blur(4.dp),
-            )
-            Box(
-                Modifier.matchParentSize().background(
-                    Brush.horizontalGradient(
-                        0f to Palette.BoxCard.copy(alpha = 0.9f),
-                        0.55f to Palette.BoxCard.copy(alpha = 0.6f),
-                        1f to Palette.BoxCard.copy(alpha = 0.15f),
-                    ),
-                ),
-            )
+            // A sharp crop of the top card's art on the right end, like a box label. The outer clip rounds its corners.
+            Box(Modifier.matchParentSize()) {
+                AsyncImage(
+                    model = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(HeroArtWidth),
+                )
+            }
         }
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(start = 20.dp, top = 20.dp, bottom = 20.dp, end = if (art != null) HeroArtWidth + 16.dp else 20.dp)) {
             val prices = AppSettings.showPrices
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -480,7 +472,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                 )
                 if (onClick != null) {
                     Text("Stats", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                 }
             }
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
