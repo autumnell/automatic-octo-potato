@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -89,7 +88,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
     var into by remember { mutableStateOf(false) }
     Box {
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
+            Modifier.size(44.dp).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
             contentAlignment = Alignment.Center,
         ) {
             val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.target != ScanTarget.COLLECTION

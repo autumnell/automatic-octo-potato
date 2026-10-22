@@ -481,7 +481,7 @@ private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
                 if (count > 99) "99+" else "$count",
                 color = Color.Black,
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(50)).background(Palette.Gold)
+                modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold)
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             )
         }
@@ -611,7 +611,7 @@ private fun RoundIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tint: Color = Color.White, modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onClick),
+        modifier.size(44.dp).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
 }

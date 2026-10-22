@@ -150,7 +150,7 @@ private fun FanCard(e: ScanEntry, modifier: Modifier) {
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 2.dp, end = 3.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(RoundedCornerShape(Corners.Small))
                     .background(Palette.Gold)
                     .padding(horizontal = 4.dp),
             )
