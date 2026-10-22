@@ -56,7 +56,7 @@ enum class SortBy(val label: String) {
 @Serializable
 enum class GroupBy(val label: String) { NONE("No grouping"), SET("Set"), COLOR("Color"), TYPE("Card type"), RARITY("Rarity") }
 
-val COLOR_FILTERS = listOf("W", "U", "B", "R", "G", "C", "M")
+val COLOR_FILTERS = CardColors.PIPS
 val RARITIES = listOf("common", "uncommon", "rare", "mythic")
 val CARD_TYPES = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land", "Battle")
 
@@ -64,6 +64,10 @@ val CARD_TYPES = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantme
 data class Filters(
     val query: String = "",
     val colors: Set<String> = emptySet(),
+    /** How picked colors match, as on Scryfall. Filters saved before this read as Including. */
+    val colorMatch: ColorMatch = ColorMatch.INCLUDING,
+    /** Match commander color identity instead of the card's colors. */
+    val byIdentity: Boolean = false,
     val rarities: Set<String> = emptySet(),
     val types: Set<String> = emptySet(),
     val set: String? = null,
@@ -499,17 +503,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
                 val q = f.query.trim().lowercase()
                 if (!(hay ?: searchText(c)).contains(q)) return false
             }
-            if (f.colors.isNotEmpty()) {
-                val ok = f.colors.any { sel ->
-                    when (sel) {
-                        "C" -> c.colors.isEmpty()
-                        "M" -> c.colors.length > 1
-                        else -> if (com.mtgscanner.ui.home.ColorPairs.isPairKey(sel)) com.mtgscanner.ui.home.ColorPairs.matches(sel, c.colors)
-                        else c.colors.contains(sel)
-                    }
-                }
-                if (!ok) return false
-            }
+            if (f.colors.isNotEmpty() && !CardColors.matches(f.colors, f.colorMatch, if (f.byIdentity) c.colorIdentity else c.colors)) return false
             if (f.rarities.isNotEmpty() && c.rarity !in f.rarities) {
                 // Specials/bonus rarities count as mythic for filtering.
                 if (!(c.rarity !in RARITIES && "mythic" in f.rarities)) return false

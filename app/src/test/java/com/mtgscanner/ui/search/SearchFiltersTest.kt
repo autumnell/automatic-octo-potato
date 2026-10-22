@@ -21,6 +21,15 @@ class SearchFiltersTest {
         assertEquals("elf f:modern t:creature -t:legendary mv<3 lang:ja", f.combine("elf"))
     }
 
+    @Test fun colorsUseScryfallOperators() {
+        val f = SearchFilters(format = "commander", colors = setOf("U", "W"), colorMatch = com.mtgscanner.ui.collection.ColorMatch.EXACTLY)
+        assertEquals("f:commander c=wu", f.toQuery())
+        assertEquals(2, f.activeCount)
+        val id = SearchFilters(colors = setOf("G"), byIdentity = true)
+        assertEquals("id>=g", id.toQuery())
+        assertEquals(true, id.narrows)
+    }
+
     @Test fun formatMeansLegal() {
         val f = SearchFilters(format = "commander")
         assertEquals("f:commander", f.toQuery())
