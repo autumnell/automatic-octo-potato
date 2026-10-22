@@ -40,19 +40,13 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.FindInPage
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -105,6 +99,10 @@ import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.Divider
 import com.mtgscanner.data.RuleCheck
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.Found
+import com.mtgscanner.data.findCard
+import com.mtgscanner.ui.home.SortItem
+import com.mtgscanner.ui.home.cardsToSort
 import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.WishlistItem
@@ -120,7 +118,6 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.decks.DecksTab
-import com.mtgscanner.ui.trade.shareText
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.components.boxIcon
@@ -130,7 +127,6 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
-import com.mtgscanner.util.CsvExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -139,11 +135,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 data class OverviewUi(
     val totalCards: Int = 0,
@@ -178,30 +172,26 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun createBox(d: BoxDraft) = viewModelScope.launch {
         val id = repo.createBox(d.name, d.kind, d.rules, d.color)
         if (d.capacity > 0 || d.divider.isNotEmpty()) repo.setBoxLayout(id, d.capacity, d.divider)
-        if (!d.rules.isCatchAll) findMisplaced(quiet = true)
     }
 
-    /** Saves a box; when its rules or kind changed, checks for cards that now belong elsewhere. */
+    /** Saves a box. Cards that now belong elsewhere show in the "to sort" strip. */
     fun updateBox(id: Long, d: BoxDraft) = viewModelScope.launch {
-        val old = repo.box(id)
         repo.updateBox(id, d.name, d.kind, d.rules, d.color, capacity = d.capacity, divider = d.divider)
-        if (old == null || BoxRules.fromJson(old.rules) != d.rules || old.kind != d.kind) findMisplaced(quiet = true)
     }
 
-    // Re-sort: cards that should live in another box
+    /** "To be sorted": cards the rules send to another box, and cards in catch-all boxes that fit a real one. */
+    val toSort: StateFlow<List<SortItem>> = combine(repo.observeAll(), repo.observeBoxes()) { cards, boxes ->
+        runCatching { repo.cardsToSort(cards, boxes) }.getOrDefault(emptyList())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _moves = MutableStateFlow<List<Sorting.Move<CollectionCard>>?>(null)
-    /** Cards to move after a rule change; null hides the sheet. */
-    val moves: StateFlow<List<Sorting.Move<CollectionCard>>?> = _moves
+    /** Boxes as stored, for the shelf spot of cards found by the search. */
+    val boxRows: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Looks for misplaced cards. [quiet] says nothing when all is well. */
-    fun findMisplaced(quiet: Boolean = false) = viewModelScope.launch {
-        val found = repo.misplaced()
-        if (found.isNotEmpty()) _moves.value = found
-        else if (!quiet) _message.value = "All cards in place"
-    }
+    /** Cards whose name contains [query], each with its box, divider and spot. */
+    suspend fun findCards(query: String): List<Found> = withContext(Dispatchers.Default) { repo.findCard(query) }
 
-    fun closeMoves() { _moves.value = null }
+    /** Every card, by name, for sharing the whole collection. */
+    suspend fun allCards(): List<CollectionCard> = repo.allCards().sortedBy { it.name }
 
     /** Adds cards leaving their boxes to the physical move list; returns the lines added. */
     private suspend fun recordMoves(moves: List<Pair<CollectionCard, Long>>, show: Boolean): List<com.mtgscanner.data.MoveLine> {
@@ -265,23 +255,19 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         }
     }
 
-    private fun applyMoves(list: List<Sorting.Move<CollectionCard>>) = viewModelScope.launch {
+    /** Moves cards from "to sort" to their boxes, onto the move list, with Undo. */
+    fun sortCards(list: List<SortItem>) = viewModelScope.launch {
         if (list.isEmpty()) return@launch
         // Moves can merge rows, so Undo puts back a snapshot rather than moving rows back.
-        val before = repo.snapshot(list.map { it.item.id })
-        val added = recordMoves(list.map { it.item to it.to }, show = list.size > 1)
-        repo.applyMoves(list.map { it.item.id to it.to })
-        val n = list.sumOf { it.item.quantity }
+        val before = repo.snapshot(list.map { it.card.id })
+        val added = recordMoves(list.map { it.card to it.to }, show = list.size > 1)
+        repo.applyMoves(list.map { it.card.id to it.to })
+        val n = list.sumOf { it.card.quantity }
         Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") {
             repo.restore(before)
             MoveList.remove(added)
         }
-        val left = repo.misplaced()
-        _moves.value = left.ifEmpty { null }
     }
-
-    fun moveOne(m: Sorting.Move<CollectionCard>) = applyMoves(listOf(m))
-    fun moveAll() = applyMoves(_moves.value.orEmpty())
 
     /** Splits a full box in two by first letter; the second box starts at [letter] (null picks an even split). */
     fun splitBox(b: BoxSummary, letter: Char? = null) = viewModelScope.launch {
@@ -376,18 +362,6 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         }
     }
 
-    fun export(resolver: ContentResolver, uri: Uri) {
-        viewModelScope.launch {
-            _message.value = runCatching {
-                val cards = repo.allCards()
-                withContext(Dispatchers.IO) {
-                    (runCatching { resolver.openOutputStream(uri, "wt") }.getOrNull() ?: resolver.openOutputStream(uri))?.bufferedWriter()?.use { CsvExporter.write(cards, it) }
-                }
-                cards.size
-            }.fold({ "Exported $it entries" }, { "Export failed: ${it.message}" })
-        }
-    }
-
     /** Sets a box's dividers (one or two levels) and the order inside. */
     fun setLayout(b: BoxSummary, key: String) = viewModelScope.launch {
         repo.setBoxLayout(b.id, b.capacity, key)
@@ -422,6 +396,7 @@ fun CollectionScreen(
     onSets: () -> Unit = {},
     onExtras: () -> Unit = {},
     onLoans: () -> Unit = {},
+    /** Opens the Sell tool (sell list and Card Kingdom offers). */
     onBuylist: () -> Unit = {},
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
@@ -432,10 +407,8 @@ fun CollectionScreen(
     var menu by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var scanningLabel by remember { mutableStateOf(false) }
-
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) vm.export(ctx.contentResolver, uri)
-    }
+    var sharingAll by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val labelsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         if (uri != null) vm.exportLabels(ctx.contentResolver, uri)
     }
@@ -443,6 +416,7 @@ fun CollectionScreen(
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
     // Home's "See all" lands here when it can't open Browse itself.
     LaunchedEffect(Unit) {
+        if (com.mtgscanner.ui.home.WishlistLaunch.take()) tab = 2
         if (BrowseLaunch.openAll) {
             BrowseLaunch.openAll = false
             onBrowse(-1L)
@@ -463,13 +437,10 @@ fun CollectionScreen(
                             leadingIcon = { Icon(Icons.Filled.Settings, null) },
                             onClick = { menu = false; onSettings() },
                         )
-                        DropdownMenuItem(
-                            text = { Text("Export CSV") },
-                            leadingIcon = { Icon(Icons.Filled.FileDownload, null) },
-                            onClick = {
-                                menu = false
-                                exportLauncher.launch("mtg-collection-${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())}.csv")
-                            },
+                        if (ui.totalCards > 0) DropdownMenuItem(
+                            text = { Text("Share collection") },
+                            leadingIcon = { Icon(Icons.Filled.Share, null) },
+                            onClick = { menu = false; sharingAll = true },
                         )
                         if (ui.boxes.isNotEmpty()) DropdownMenuItem(
                             text = { Text("Print box labels") },
@@ -485,17 +456,14 @@ fun CollectionScreen(
             }
             MoveListHost()
             when (tab) {
-                0 -> BoxesTab(ui, vm, onBrowse, onTrade)
+                0 -> BoxesTab(ui, vm, onBrowse, onTrade, onOpenCard)
                 1 -> DecksTab(onOpenDeck)
                 2 -> WishlistTab(vm)
-                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onOpenCard, onLoans, onBuylist)
+                else -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist)
             }
         }
     }
-    val moves by vm.moves.collectAsStateWithLifecycle()
-    moves?.let { list ->
-        ResortSheet(list, ui.boxes, onMove = vm::moveOne, onMoveAll = vm::moveAll, onDismiss = vm::closeMoves)
-    }
+    if (sharingAll) ShareDialog("My collection", scope, onDismiss = { sharingAll = false }) { vm.allCards().map { it.shareLine() } }
     if (scanningLabel) BoxQrScanSheet(
         onBox = { id ->
             scanningLabel = false
@@ -508,8 +476,14 @@ fun CollectionScreen(
 }
 
 @Composable
-private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit) {
+private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit, onOpenCard: (Long) -> Unit) {
     val lists by vm.lists.collectAsStateWithLifecycle()
+    val toSort by vm.toSort.collectAsStateWithLifecycle()
+    val boxRows by vm.boxRows.collectAsStateWithLifecycle()
+    var sortingOpen by remember { mutableStateOf(false) }
+    var shelf by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf<BoxSummary?>(null) }
+    val scope = rememberCoroutineScope()
     var splitting by remember { mutableStateOf<BoxSummary?>(null) }
     var editing by remember { mutableStateOf<BoxSummary?>(null) }
     var creating by remember { mutableStateOf(false) }
@@ -522,6 +496,14 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     var tagging by remember { mutableStateOf<BoxSummary?>(null) }
     val nfc = LocalContext.current.let { c -> remember { hasNfc(c) } }
     var query by rememberSaveable { mutableStateOf("") }
+    // Cards found for which query: worked out off the main thread once typing pauses.
+    var found by remember { mutableStateOf("" to emptyList<Found>()) }
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.length < 2) { found = query to emptyList<Found>(); return@LaunchedEffect }
+        delay(150)
+        found = query to vm.findCards(q)
+    }
     val colors = remember(ui.boxes) { boxStripeColors(ui.boxes) }
     // Boxes whose rules never get a card because an earlier box takes them all.
     val dead = remember(ui.boxes) { deadBoxNotes(ui.boxes) }
@@ -542,8 +524,25 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
             }
         }
+        val toMove = toSort.sumOf { it.card.quantity }
+        if (toMove > 0) {
+            Surface(
+                onClick = { sortingOpen = true },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(Corners.Medium),
+                color = Palette.Surface,
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Palette.Icon)
+                    Spacer(Modifier.width(12.dp))
+                    Text("$toMove to sort", style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.weight(1f))
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.Icon)
+                }
+            }
+        }
 
         SectionHeader("Boxes") {
+            if (ui.boxes.isNotEmpty()) TextButton(onClick = { shelf = true }) { Text("Shelf") }
             if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
             TextButton(onClick = { creating = true }) {
                 Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
@@ -554,12 +553,15 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
         if (ui.boxes.isEmpty()) {
             EmptyState(title = "No boxes yet", action = "New box", onAction = { creating = true })
         }
-        // A search field once the list gets long.
-        val searching = ui.boxes.size > 6
-        if (searching) SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search boxes")
-        val shown = if (searching && query.isNotBlank()) ui.boxes.filter { it.name.contains(query.trim(), ignoreCase = true) } else ui.boxes
-        if (searching && shown.isEmpty()) {
-            Text("No boxes match", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+        // Finds boxes by name, and cards with their box, divider and shelf spot.
+        if (ui.boxes.isNotEmpty() || ui.totalCards > 0) {
+            SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Find a box or card")
+        }
+        val q = query.trim()
+        val shown = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
+        val cardsFound = found.second
+        if (q.isNotEmpty() && shown.isEmpty() && cardsFound.isEmpty() && found.first == query && q.length >= 2) {
+            EmptyState("No matches", action = "Clear", onAction = { query = "" })
         }
         shown.forEach { b ->
             BoxCard(
@@ -567,9 +569,16 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                 onClick = { onBrowse(b.id) }, onCover = { covering = b }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
                 onSplit = { splitting = b }, onTrade = { onTrade(b.id) }, onLayout = { laying = b }, warning = dead[b.id],
                 onNfc = if (nfc) ({ tagging = b }) else null,
+                onShare = { sharing = b },
             )
         }
-        SmartListsSection(lists, onOpen = { s ->
+        if (q.length >= 2 && cardsFound.isNotEmpty()) {
+            SectionHeader("Cards")
+            // Where it is on the shelf, when the boxes are laid out there.
+            ShelfSpot(boxRows, cardsFound.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            cardsFound.forEach { f -> FoundRow(f.card, f.where) { onOpenCard(f.card.id) } }
+        }
+        if (q.isEmpty()) SmartListsSection(lists, onOpen = { s ->
             BrowseLaunch.open(s)
             onBrowse(s.boxId ?: -1L)
         }, onDelete = vm::deleteList)
@@ -628,6 +637,17 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     laying?.let { b -> LayoutDialog(b, onSave = { vm.setLayout(b, it); laying = null }, onDismiss = { laying = null }) }
     tagging?.let { b -> NfcWriteDialog(b.id, b.name, onDismiss = { tagging = null }) }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
+    if (shelf) ShelfSheet(onDismiss = { shelf = false })
+    if (sortingOpen) ToSortSheet(
+        toSort, ui.boxes,
+        onMove = { vm.sortCards(listOf(it)) },
+        onMoveAll = { vm.sortCards(toSort) },
+        onOpenCard = { sortingOpen = false; onOpenCard(it) },
+        onDismiss = { sortingOpen = false },
+    )
+    sharing?.let { b ->
+        ShareDialog(b.name, scope, onDismiss = { sharing = null }) { vm.cardsIn(b.id).map { it.shareLine() } }
+    }
     deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id && it.kind != "trade" && it.kind != "deck" }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
     } }
@@ -740,6 +760,7 @@ private fun BoxCard(
     onSplit: () -> Unit, onTrade: () -> Unit, onLayout: () -> Unit, warning: String?,
     /** Writes the box's link to an NFC tag; null on phones without NFC. */
     onNfc: (() -> Unit)? = null,
+    onShare: () -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
@@ -819,6 +840,7 @@ private fun BoxCard(
                 DropdownMenuItem(text = { Text("Dividers") }, onClick = { menu = false; onLayout() })
                 if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
+                if (b.cards > 0) DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onShare() })
                 if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { menu = false; onNfc() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
@@ -840,52 +862,25 @@ private fun BoxTitle(b: BoxSummary, stripe: Color, onArt: Boolean, modifier: Mod
     }
 }
 
-/** Opens Android's share sheet with plain text. */
-private fun shareSheet(ctx: android.content.Context, title: String, text: String) {
-    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-        .putExtra(android.content.Intent.EXTRA_SUBJECT, title).putExtra(android.content.Intent.EXTRA_TEXT, text)
-    ctx.startActivity(android.content.Intent.createChooser(send, "Share $title"))
-}
-
 /** Tools, plus your trade binders with a share button each. */
 @Composable
 private fun ToolsTab(
     ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit,
-    onSets: () -> Unit, onExtras: () -> Unit, onOpenCard: (Long) -> Unit,
-    onLoans: () -> Unit = {}, onBuylist: () -> Unit = {},
+    onSets: () -> Unit, onExtras: () -> Unit,
+    onLoans: () -> Unit = {}, onSell: () -> Unit = {},
 ) {
     val trade = ui.boxes.filter { it.kind == "trade" }
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var finding by remember { mutableStateOf(false) }
-    var dupes by remember { mutableStateOf(false) }
-    var pulls by remember { mutableStateOf(false) }
-    var quiz by remember { mutableStateOf(false) }
-    if (pulls) PullRatesSheet(onDismiss = { pulls = false })
-    if (quiz) QuizSheet(onDismiss = { quiz = false })
-    var haveList by remember { mutableStateOf(false) }
-    if (haveList) HaveListDialog(ui.boxes, scope) { haveList = false }
-    var shelf by remember { mutableStateOf(false) }
-    if (shelf) ShelfSheet(onDismiss = { shelf = false })
-    if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
-    if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
+    var sharing by remember { mutableStateOf<BoxSummary?>(null) }
+    sharing?.let { b ->
+        ShareDialog(b.name, scope, onDismiss = { sharing = null }) { vm.cardsIn(b.id).map { it.shareLine() } }
+    }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ToolGroup("Find")
-            ToolRow(Icons.Filled.FindInPage, "Find a card") { finding = true }
-            ToolRow(Icons.Filled.Layers, "Duplicates") { dupes = true }
             ToolRow(Icons.Filled.ContentCopy, "Extras finder") { onExtras() }
             ToolRow(Icons.Filled.GridView, "Set tracker") { onSets() }
-            ToolGroup("Sort")
-            ToolRow(Icons.AutoMirrored.Filled.Sort, "Re-sort") { vm.findMisplaced() }
-            ToolRow(Icons.Filled.ViewModule, "Shelf") { shelf = true }
-            ToolGroup("Trade & sell")
-            if (AppSettings.showPrices) ToolRow(Icons.Filled.Sell, "Sell to a buylist") { onBuylist() }
+            ToolRow(Icons.Filled.Sell, "Sell") { onSell() }
             ToolRow(Icons.Filled.Person, "Loans") { onLoans() }
-            ToolRow(Icons.Filled.Share, "Have list") { haveList = true }
-            ToolGroup("Fun")
-            ToolRow(Icons.Filled.BarChart, "Pull rates") { pulls = true }
-            ToolRow(Icons.Filled.Quiz, "Quiz") { quiz = true }
             ToolGroup("Trade binders")
             if (trade.isEmpty()) {
                 Text(
@@ -911,7 +906,7 @@ private fun ToolsTab(
                         Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
-                    ShareBinderButton(b, { vm.cardsIn(it) }) { cards -> shareSheet(ctx, b.name, binderShareText(b.name, cards, AppSettings.showPrices)) }
+                    IconButton(enabled = b.cards > 0, onClick = { sharing = b }) { Icon(Icons.Filled.Share, "Share ${b.name}", tint = Palette.Icon) }
                 }
             }
         }
@@ -923,7 +918,8 @@ private fun ToolsTab(
 @Composable
 private fun WishlistTab(vm: CollectionViewModel) {
     val wishlist by vm.wishlist.collectAsStateWithLifecycle()
-    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var sharing by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<WishlistItem?>(null) }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
@@ -939,9 +935,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
                             modifier = Modifier.padding(end = 4.dp),
                         )
                     }
-                    IconButton(onClick = {
-                        shareSheet(ctx, "Wishlist", shareText("My wishlist", wishlist.map { Triple(it.wanted, it.name, it.priceUsd) }))
-                    }) { Icon(Icons.Filled.Share, "Share wishlist", tint = Palette.Icon) }
+                    IconButton(onClick = { sharing = true }) { Icon(Icons.Filled.Share, "Share wishlist", tint = Palette.Icon) }
                 }
             }
         }
@@ -962,6 +956,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
+    if (sharing) ShareDialog("Wishlist", scope, carts = true, onDismiss = { sharing = false }) { wishlist.map { it.shareLine() } }
     editing?.let { w ->
         WantedDialog(w, onSave = { n -> vm.setWanted(w, n); editing = null }, onDismiss = { editing = null })
     }

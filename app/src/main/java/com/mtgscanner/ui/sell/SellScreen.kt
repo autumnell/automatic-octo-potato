@@ -3,7 +3,9 @@ package com.mtgscanner.ui.sell
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +58,7 @@ import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.QuantityStepper
+import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -130,23 +134,24 @@ fun sellText(cards: List<CollectionCard>): String = buildString {
     append("Shared from Grimoire")
 }
 
-/** Cards marked for sale, with a total and a Share button. */
+/**
+ * The Sell tool: "My sell list" (asking price, Sold, earned) and, with prices on, "Card Kingdom offers".
+ * [startTab] 0 is the sell list, 1 the offers.
+ */
 @Composable
-fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
+fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> Unit = {}, startTab: Int = 0) {
     val vm: SellViewModel = viewModel(factory = SellViewModel.Factory)
     val cards by vm.cards.collectAsStateWithLifecycle()
-    val earned by vm.earned.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
-    var editing by remember { mutableStateOf<CollectionCard?>(null) }
-    var selling by remember { mutableStateOf<CollectionCard?>(null) }
+    var tab by rememberSaveable { mutableIntStateOf(if (AppSettings.showPrices) startTab else 0) }
     Haptics.Attach()
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-            Text("Sell list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text("Sell", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             val shown = cards.orEmpty()
-            if (shown.isNotEmpty()) {
+            if (tab == 0 && shown.isNotEmpty()) {
                 IconButton(onClick = {
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
                         .putExtra(Intent.EXTRA_SUBJECT, "For sale").putExtra(Intent.EXTRA_TEXT, sellText(shown))
@@ -154,7 +159,25 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
                 }) { Icon(Icons.Filled.Share, "Share", tint = Palette.Icon) }
             }
         }
-        val list = cards ?: return@Column
+        if (AppSettings.showPrices) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SelectPill("My sell list", tab == 0, { tab = 0 })
+                SelectPill("Card Kingdom offers", tab == 1, { tab = 1 })
+            }
+        }
+        if (tab == 1) BuylistContent(onOpenCard) else SellListContent(vm, onBrowse)
+    }
+}
+
+/** Cards marked for sale, with the total and what sales have earned. */
+@Composable
+private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit) {
+    val cards by vm.cards.collectAsStateWithLifecycle()
+    val earned by vm.earned.collectAsStateWithLifecycle()
+    var editing by remember { mutableStateOf<CollectionCard?>(null) }
+    var selling by remember { mutableStateOf<CollectionCard?>(null) }
+    run {
+        val list = cards ?: return@run
         if (AppSettings.showPrices && (list.isNotEmpty() || earned > 0)) {
             Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
                 Column(Modifier.padding(14.dp)) {
@@ -171,7 +194,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit) {
         }
         if (list.isEmpty()) {
             EmptyState("Nothing for sale", Modifier.padding(top = 24.dp), action = "Browse cards", onAction = onBrowse)
-            return@Column
+            return@run
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(list, key = { it.id }) { c -> SellRow(c) { editing = c } }

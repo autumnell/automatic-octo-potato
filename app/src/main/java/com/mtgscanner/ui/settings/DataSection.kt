@@ -20,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -55,9 +54,6 @@ import com.mtgscanner.data.BadBackupException
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.DeckLinks
 import com.mtgscanner.data.ImportPlan
-import com.mtgscanner.data.db.Deck
-import com.mtgscanner.util.BuyList
-import com.mtgscanner.util.BuyStore
 import com.mtgscanner.work.Notifications
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.PendingScan
@@ -71,9 +67,6 @@ import com.mtgscanner.ui.components.SelectPill
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableDoubleStateOf
 import com.mtgscanner.work.DriveBackup
@@ -273,31 +266,6 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    val decks: StateFlow<List<Deck>> = repo.observeDecks().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    /** Shares what's needed to buy: the wishlist ([deckId] null) or a deck's missing cards, for [store]'s cart. */
-    fun shareBuyList(ctx: android.content.Context, deckId: Long?, store: BuyStore) {
-        val app = ctx.applicationContext
-        run("Making list…") {
-            val cards: List<Pair<String, Int>> = if (deckId == null) {
-                repo.observeWishlist().first().map { it.name to it.wanted }
-            } else {
-                val deck = repo.observeDeck(deckId).first() ?: return@run "Deck not found"
-                repo.checkDeck(deck.text, repo.allCards(), repo.observeBoxes().first()).missingLines.map { it.name to it.missing }
-            }
-            if (cards.isEmpty()) return@run "Nothing to buy"
-            val send = android.content.Intent(android.content.Intent.ACTION_SEND)
-                .setType("text/plain")
-                .putExtra(android.content.Intent.EXTRA_TEXT, BuyList.text(cards, store))
-            withContext(Dispatchers.Main) {
-                app.startActivity(
-                    android.content.Intent.createChooser(send, "${store.label} list").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
-            null
-        }
-    }
-
     /** The app holds no cards and no boxes (a new install). */
     suspend fun isEmpty(): Boolean = repo.allCards().isEmpty() && repo.observeBoxes().first().isEmpty()
 
@@ -429,11 +397,6 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         _importOffline.value = false
     }
 
-    fun refreshRoles() = run("Looking up card roles…") {
-        repo.refreshAllRoles()
-        "Card roles updated"
-    }
-
     fun resolvePending() = run("Looking up saved scans…") {
         val n = repo.resolvePending()
         "Added $n saved cards"
@@ -463,15 +426,12 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     val ctx = LocalContext.current
     val busy by vm.busy.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
-    val decks by vm.decks.collectAsStateWithLifecycle()
-    var linkDialog by remember { mutableStateOf(false) }
-    var buyDialog by remember { mutableStateOf(false) }
     var quietNights by remember { mutableStateOf(Notifications.quietNights(ctx)) }
-    var weeklyDigest by remember { mutableStateOf(Notifications.weeklyDigest(ctx)) }
     val canUndoRestore by vm.canUndoRestore.collectAsStateWithLifecycle()
     var choosingExport by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf(CsvFormat.FULL) }
-    var choosingReport by remember { mutableStateOf(false) }
+    /** "Insurance PDF" picked in Export instead of a CSV format. */
+    var exportPdf by remember { mutableStateOf(false) }
     var reportMin by remember { mutableDoubleStateOf(10.0) }
     var confirmUndo by remember { mutableStateOf(false) }
     remember { DriveBackup.load(ctx.applicationContext) }
@@ -513,11 +473,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 csvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
             }
             HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.FileDownload, "Export CSV", "ManaBox, Moxfield, Archidekt") { choosingExport = true }
-            HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Link, "Deck from link", "Moxfield or Archidekt") { linkDialog = true }
-            HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.ShoppingCart, "Buy list", "Wishlist or a deck's missing cards") { buyDialog = true }
+            Action(Icons.Filled.FileDownload, "Export", "CSV or insurance PDF") { choosingExport = true }
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Save, "Back up", "Save everything to a file") {
                 backupLauncher.launch("grimoire-backup-${LocalDate.now()}.zip")
@@ -533,19 +489,10 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 }
             }
             HorizontalDivider(color = Palette.Outline)
-            SharedCollectionRow()
-            HorizontalDivider(color = Palette.Outline)
-            ToggleRow("Weekly summary", "Value and new cards", weeklyDigest) { on ->
-                weeklyDigest = on
-                Notifications.setWeeklyDigest(ctx.applicationContext, on)
-            }
-            HorizontalDivider(color = Palette.Outline)
             ToggleRow("Quiet at night", "No sound 10 pm to 8 am", quietNights) { on ->
                 quietNights = on
                 Notifications.setQuietNights(ctx.applicationContext, on)
             }
-            HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Shield, "Insurance report", "PDF of your valuable cards") { choosingReport = true }
             HorizontalDivider(color = Palette.Outline)
             Action(Icons.Filled.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
@@ -554,8 +501,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.AutoMirrored.Filled.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
             }
-            HorizontalDivider(color = Palette.Outline)
-            Action(Icons.Filled.Sell, "Refresh card roles", "Removal, ramp, draw tags") { vm.refreshRoles() }
             if (pending.isNotEmpty()) {
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.Filled.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }
@@ -576,39 +521,25 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         )
     }
 
-    if (linkDialog) DeckLinkDialog(onDismiss = { linkDialog = false }) { url -> linkDialog = false; vm.importDeckLink(url) }
-    if (buyDialog) {
-        BuyListDialog(decks, onDismiss = { buyDialog = false }) { deckId, store -> buyDialog = false; vm.shareBuyList(ctx, deckId, store) }
-    }
-
-    if (choosingReport) {
-        ReportDialog(
-            min = reportMin,
-            onMin = { reportMin = it },
-            onDismiss = { choosingReport = false },
-            onSave = {
-                choosingReport = false
-                reportLauncher.launch("mtg-insurance-${LocalDate.now()}.pdf")
-            },
-        )
-    }
-
     ImportDialogs(vm)
 
     if (choosingExport) {
         AlertDialog(
             onDismissRequest = { choosingExport = false },
             containerColor = Palette.Surface,
-            title = { Text("Export for") },
+            title = { Text("Export") },
             text = {
-                Column {
-                    CsvFormat.entries.forEach { f -> Choice(f.label, exportFormat == f, null) { exportFormat = f } }
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    CsvFormat.entries.forEach { f -> Choice(f.label, !exportPdf && exportFormat == f, null) { exportFormat = f; exportPdf = false } }
+                    Choice("Insurance PDF", exportPdf, null) { exportPdf = true }
+                    if (exportPdf) ReportMin(reportMin) { reportMin = it }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     choosingExport = false
-                    exportLauncher.launch("mtg-${exportFormat.fileTag}-${LocalDate.now()}.csv")
+                    if (exportPdf) reportLauncher.launch("mtg-insurance-${LocalDate.now()}.pdf")
+                    else exportLauncher.launch("mtg-${exportFormat.fileTag}-${LocalDate.now()}.csv")
                 }) { Text("Export") }
             },
             dismissButton = { TextButton(onClick = { choosingExport = false }) { Text("Cancel") } },
@@ -667,27 +598,19 @@ internal fun ImportDialogs(vm: SettingsViewModel) {
 
 }
 
+/** The insurance PDF's floor: cards worth at least this much a copy. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReportDialog(min: Double, onMin: (Double) -> Unit, onDismiss: () -> Unit, onSave: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Palette.Surface,
-        title = { Text("Insurance report") },
-        text = {
-            Column {
-                Text("Cards worth at least", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-                Spacer(Modifier.padding(top = 6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1.0, 5.0, 10.0, 25.0, 100.0).forEach { v ->
-                        SelectPill("$${v.toInt()}", min == v, { onMin(v) })
-                    }
-                }
+private fun ReportMin(min: Double, onMin: (Double) -> Unit) {
+    Column(Modifier.padding(start = 12.dp, top = 4.dp)) {
+        Text("Cards worth at least", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+        Spacer(Modifier.padding(top = 6.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(1.0, 5.0, 10.0, 25.0, 100.0).forEach { v ->
+                SelectPill("$${v.toInt()}", min == v, { onMin(v) })
             }
-        },
-        confirmButton = { TextButton(onClick = onSave) { Text("Save PDF") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+        }
+    }
 }
 
 private fun backupDay(millis: Long, withYear: Boolean = false): String =
@@ -747,47 +670,3 @@ private fun Action(icon: ImageVector, title: String, body: String, onClick: () -
     }
 }
 
-@Composable
-private fun DeckLinkDialog(onDismiss: () -> Unit, onGet: (String) -> Unit) {
-    var url by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Palette.Surface,
-        title = { Text("Deck from link") },
-        text = {
-            OutlinedTextField(
-                value = url, onValueChange = { url = it }, singleLine = true,
-                placeholder = { Text("moxfield.com/decks/…") }, modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            val link = DeckLinks.find(url.trim().let { if (it.startsWith("http")) it else "https://$it" })
-            TextButton(onClick = { link?.let(onGet) }, enabled = link != null) { Text("Get deck") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun BuyListDialog(decks: List<Deck>, onDismiss: () -> Unit, onShare: (deckId: Long?, store: BuyStore) -> Unit) {
-    var deckId by remember { mutableStateOf<Long?>(null) }
-    var store by remember { mutableStateOf(BuyStore.TCGPLAYER) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Palette.Surface,
-        title = { Text("Buy list") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BuyStore.entries.forEach { s -> SelectPill(s.label, store == s, { store = s }) }
-                }
-                Spacer(Modifier.padding(top = 8.dp))
-                Choice("Wishlist", deckId == null, null) { deckId = null }
-                decks.forEach { d -> Choice(d.name, deckId == d.id, null) { deckId = d.id } }
-            }
-        },
-        confirmButton = { TextButton(onClick = { onShare(deckId, store) }) { Text("Share") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}

@@ -93,7 +93,6 @@ import com.mtgscanner.ui.components.LineChart
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.data.db.changeSinceAdded
-import com.mtgscanner.data.db.roleList
 import com.mtgscanner.data.db.tagList
 import com.mtgscanner.ui.home.ChangeText
 import com.mtgscanner.data.db.totalPrice
@@ -203,16 +202,6 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         val name = boxes.value.firstOrNull { it.id == boxId }?.name ?: "box"
         Undo.offer("Moved $qty to $name") { repo.restore(before); currentId.value = from }
     }
-    init {
-        // With a JustTCG key, keep this card's condition price fresh (at most once a day per card).
-        viewModelScope.launch {
-            val c = repo.cardOnce(id) ?: return@launch
-            if (com.mtgscanner.data.JustTcg.enabled && System.currentTimeMillis() - c.conditionPriceAt > 24L * 60 * 60 * 1000) {
-                runCatching { repo.refreshConditionPrices(listOf(c.id)) }
-            }
-        }
-    }
-
     fun setCondition(c: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(condition = c)) } }
     fun setNotes(n: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(notes = n)) } }
     fun setLang(l: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(lang = l)) } }
@@ -673,16 +662,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         InfoChip {
                             Text("Identity ", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                             ManaCost(identityCost(c.colorIdentity), size = 18.dp)
-                        }
-                    }
-
-                    val roles = c.roleList()
-                    if (roles.isNotEmpty()) {
-                        Spacer(Modifier.height(12.dp))
-                        Text("What it does", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                        Spacer(Modifier.height(8.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            roles.forEach { InfoChip { Text(it, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) } }
                         }
                     }
 

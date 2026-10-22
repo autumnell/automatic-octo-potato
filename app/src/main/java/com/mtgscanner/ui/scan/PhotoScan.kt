@@ -61,7 +61,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = vm::closePhoto, containerColor = Palette.Surface) {
         Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
             val found = run.items.filter { it.card != null }
-            Text("From photo", style = MaterialTheme.typography.titleLarge)
+            Text("Photo", style = MaterialTheme.typography.titleLarge)
             if (!run.loading && !run.failed && run.items.isNotEmpty()) Text(
                 "Found ${found.size} of ${run.items.size}",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,

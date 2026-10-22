@@ -122,7 +122,8 @@ var k=b.dataset.c;on[k]=!on[k];b.setAttribute('aria-pressed',on[k]?'true':'false
             """<div class="ph">${esc(c.name)}</div>"""
         }
         val left = buildList {
-            add("${c.setCode.uppercase()} #${c.number}")
+            // Wishlist and deck lines may have no printing.
+            if (c.setCode.isNotBlank()) add(c.setCode.uppercase() + if (c.number.isNotBlank()) " #${c.number}" else "")
             if (c.foil) add("foil")
             if (c.condition.isNotBlank() && c.condition != "NM") add(c.condition)
         }.joinToString(" · ")

@@ -91,4 +91,14 @@ class StatsMathTest {
         assertEquals("999", TileMath.shortCount(999.0))
         assertEquals("12.3k", TileMath.shortCount(12_345.0))
     }
+
+    @Test fun bulkCountsCheapCommonsAndUncommons() {
+        val s = StatsMath.compute(
+            listOf(
+                card("a", qty = 3, price = 0.10), card("b", qty = 2, price = 0.20, rarity = "uncommon"),
+                card("c", price = 2.0), card("d", price = 0.10, rarity = "rare"), card("e", price = 0.10, proxy = true),
+            ),
+        )
+        assertEquals(5, s.bulkCards)
+    }
 }

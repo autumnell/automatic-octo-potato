@@ -151,10 +151,10 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab("home", "Home", Icons.Outlined.Home, Icons.Filled.Home),
-    Tab("game", "Game", Icons.Outlined.Casino, Icons.Filled.Casino),
-    Tab("scan", "Scan", Icons.Outlined.CameraAlt, Icons.Filled.CameraAlt),
     Tab("search", "Search", Icons.Outlined.Search, Icons.Filled.Search),
+    Tab("scan", "Scan", Icons.Outlined.CameraAlt, Icons.Filled.CameraAlt),
     Tab("collection", "Collection", Icons.Outlined.CollectionsBookmark, Icons.Filled.CollectionsBookmark),
+    Tab("game", "Game", Icons.Outlined.Casino, Icons.Filled.Casino),
 )
 
 /** Whether [this] screen is the one showing, not one already on its way out. */
@@ -267,7 +267,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 "goals",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popFrom(it) }) }
+            ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") }) }
             composable("scan") { ScreenAnimation(this) { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) } }
             composable("search") { SearchScreen(onOpenSet = { nav.navigate("set/$it") }, onOpenCard = { nav.navigate("card/$it") }) }
             composable("collection") {
@@ -362,7 +362,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 "buylist",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.sell.BuylistScreen(onBack = { nav.popFrom(it) }, onOpenCard = { id -> nav.navigate("card/$id") }) }
+            ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popFrom(it) }, onBrowse = { nav.navigate("browse/-1") }, onOpenCard = { id -> nav.navigate("card/$id") }) }
             composable(
                 "scanlog",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },

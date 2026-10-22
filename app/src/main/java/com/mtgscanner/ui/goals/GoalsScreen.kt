@@ -6,8 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -66,12 +64,10 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.GoalProgress
 import com.mtgscanner.data.Goals
 import com.mtgscanner.data.ScryfallCard
-import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Goal
 import com.mtgscanner.data.observeGoalProgress
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
-import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -106,8 +102,6 @@ class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun messageShown() { _message.value = null }
 
     suspend fun suggest(text: String): List<String> = runCatching { repo.api.autocomplete(text) }.getOrDefault(emptyList())
-    /** Every set, or null when they couldn't be loaded. */
-    suspend fun sets(): List<ScryfallSet>? = runCatching { repo.sets() }.getOrNull()?.takeIf { it.isNotEmpty() }
 
     /** Every printing of the card named [name]. */
     fun addCardGoal(name: String) = viewModelScope.launch {
@@ -115,12 +109,6 @@ class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val oracle = card?.oracleId
         if (card == null || oracle == null) { _message.value = "Card not found"; return@launch }
         repo.addGoal(Goal(name = "Every ${card.name}", kind = Goals.PRINTINGS, target = oracle))
-    }
-
-    fun addSetGoal(set: ScryfallSet, rarities: Set<String>) = viewModelScope.launch {
-        val label = if (rarities.isEmpty() || rarities.size == Goals.RARITIES.size) "" else
-            " " + Goals.RARITIES.filter { it in rarities }.joinToString("/") { it.replaceFirstChar(Char::uppercase) }
-        repo.addGoal(Goal(name = "${set.name}$label", kind = Goals.SET, target = set.code.lowercase(), rarities = rarities.joinToString(",")))
     }
 
     /** Oracle ids on the wishlist, for the hearts on missing cards. */
@@ -164,14 +152,25 @@ class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
 }
 
 @Composable
-fun GoalsScreen(onBack: () -> Unit, vm: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory)) {
+fun GoalsScreen(
+    onBack: () -> Unit,
+    /** Sets pinned from Set tracker open their set page. */
+    onOpenSet: (String) -> Unit = {},
+    vm: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory),
+) {
     val goals by vm.goals.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     var adding by remember { mutableStateOf(false) }
     // Home can ask for one goal to open (tapping it there).
     var openId by remember { mutableLongStateOf(com.mtgscanner.ui.home.GoalsLaunch.take()) }
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
-    val open = goals?.firstOrNull { it.goal.id == openId }
+    val found = goals?.firstOrNull { it.goal.id == openId }
+    // A pinned set has its own page in Set tracker.
+    LaunchedEffect(found) {
+        val g = found?.goal
+        if (g != null && g.kind == Goals.SET) { openId = -1L; onOpenSet(g.target) }
+    }
+    val open = found?.takeIf { it.goal.kind != Goals.SET }
     BackHandler(enabled = open != null) { openId = -1L }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
@@ -196,7 +195,9 @@ fun GoalsScreen(onBack: () -> Unit, vm: GoalsViewModel = viewModel(factory = Goa
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.navigationBarsPadding(),
             ) {
-                items(list, key = { it.goal.id }) { p -> GoalCard(p, onClick = { openId = p.goal.id }) }
+                items(list, key = { it.goal.id }) { p ->
+                    GoalCard(p, onClick = { if (p.goal.kind == Goals.SET) onOpenSet(p.goal.target) else openId = p.goal.id })
+                }
             }
         }
     }
@@ -300,29 +301,15 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AddGoalDialog(vm: GoalsViewModel, onDismiss: () -> Unit) {
-    var bySet by remember { mutableStateOf(false) }
     var text by remember { mutableStateOf("") }
     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
-    var sets by remember { mutableStateOf<List<ScryfallSet>?>(null) }
-    var chosenSet by remember { mutableStateOf<ScryfallSet?>(null) }
-    var rarities by remember { mutableStateOf(setOf("rare", "mythic")) }
     /** The suggestion just picked, so picking it doesn't look it up again. */
     var picked by remember { mutableStateOf<String?>(null) }
-    var setsFailed by remember { mutableStateOf(false) }
-    var setsTry by remember { mutableStateOf(0) }
 
-    LaunchedEffect(bySet, setsTry) {
-        if (bySet && sets == null) {
-            setsFailed = false
-            val got = vm.sets()
-            if (got == null) setsFailed = true else sets = got
-        }
-    }
-    LaunchedEffect(text, bySet) {
-        if (bySet || text.length < 2 || text == picked) { suggestions = emptyList(); return@LaunchedEffect }
+    LaunchedEffect(text) {
+        if (text.length < 2 || text == picked) { suggestions = emptyList(); return@LaunchedEffect }
         kotlinx.coroutines.delay(250)
         suggestions = vm.suggest(text).take(6)
     }
@@ -330,71 +317,28 @@ private fun AddGoalDialog(vm: GoalsViewModel, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
-        title = { Text("New goal") },
+        title = { Text("Every printing of") },
         text = {
             Column {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectPill("Every printing", !bySet, { bySet = false; text = "" })
-                    SelectPill("Set", bySet, { bySet = true; text = "" })
-                }
-                Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it; if (bySet) chosenSet = null },
-                    placeholder = { Text(if (bySet) "Set name" else "Card name") },
+                    onValueChange = { text = it },
+                    placeholder = { Text("Card name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
-                    if (!bySet) {
-                        suggestions.forEach { s ->
-                            Text(
-                                s, style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.fillMaxWidth().clickable { picked = s; text = s; suggestions = emptyList() }.padding(vertical = 8.dp),
-                            )
-                        }
-                    } else {
-                        val all = sets
-                        if (all == null && setsFailed) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Can't load sets", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                                TextButton(onClick = { setsTry++ }) { Text("Retry") }
-                            }
-                        } else if (all == null) {
-                            CircularProgressIndicator(Modifier.padding(8.dp).size(20.dp), strokeWidth = 2.dp, color = Palette.Accent)
-                        } else {
-                            val q = text.trim()
-                            all.filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) || it.code.equals(q, ignoreCase = true) }
-                                .take(30)
-                                .forEach { s ->
-                                    val picked = chosenSet?.code == s.code
-                                    Text(
-                                        "${s.name} (${s.code.uppercase()})",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = if (picked) Palette.AccentText else Palette.Text,
-                                        modifier = Modifier.fillMaxWidth().clickable { chosenSet = s }.padding(vertical = 8.dp),
-                                    )
-                                }
-                        }
-                    }
-                }
-                if (bySet) {
-                    Spacer(Modifier.height(8.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Goals.RARITIES.forEach { r ->
-                            SelectPill(r.replaceFirstChar(Char::uppercase), r in rarities, { rarities = if (r in rarities) rarities - r else rarities + r })
-                        }
+                    suggestions.forEach { s ->
+                        Text(
+                            s, style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.fillMaxWidth().clickable { picked = s; text = s; suggestions = emptyList() }.padding(vertical = 8.dp),
+                        )
                     }
                 }
             }
         },
         confirmButton = {
-            val set = chosenSet
-            val ok = if (bySet) set != null else text.isNotBlank()
-            TextButton(enabled = ok, onClick = {
-                if (bySet) { if (set != null) vm.addSetGoal(set, rarities) } else vm.addCardGoal(text.trim())
-                onDismiss()
-            }) { Text("Add") }
+            TextButton(enabled = text.isNotBlank(), onClick = { vm.addCardGoal(text.trim()); onDismiss() }) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

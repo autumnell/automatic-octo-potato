@@ -6,8 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class HomeOrderTest {
-    private val oldKnown = listOf(TO_SORT, GOALS, CARD_OF_DAY, RECENT, MOVERS, VALUABLE, GAINERS, BOX_VALUES, BULK, COLORS, PAIRS, ALERTS)
-        .joinToString(",") { it.key }
+    private val oldKnown = "sort,goals,daycard,recent,movers,valuable,gainers,boxes,bulk,colors,pairs,alerts"
 
     @Test fun newInstallStartsWithStripThenTiles() {
         val list = HomeOrder.load(null, null)
@@ -16,8 +15,8 @@ class HomeOrderTest {
     }
 
     @Test fun existingUserGetsStripFirstAndTilesUnderIt() {
-        val list = HomeOrder.load("goals,recent,colors", oldKnown)
-        assertEquals(listOf(NEWEST, TILES, GOALS, RECENT, COLORS), list)
+        val list = HomeOrder.load("goals,recent,movers", oldKnown)
+        assertEquals(listOf(NEWEST, TILES, GOALS, RECENT, MOVERS), list)
     }
 
     @Test fun hiddenStripStaysHiddenOnceSavedWithIt() {
@@ -34,5 +33,17 @@ class HomeOrderTest {
         val list = HomeOrder.load("goals", null)
         assertEquals(listOf(NEWEST, TILES, GOALS), list.take(3))
         assertEquals(HomeSection.entries.size, list.size)
+    }
+
+    @Test fun removedSectionsAreDropped() {
+        val known = "newest,tiles,sort,goals,daycard,recent,movers,valuable,gainers,boxes,bulk,colors,pairs,alerts"
+        val list = HomeOrder.load("newest,daycard,tiles,valuable,sort,colors,pairs,boxes,bulk,goals,alerts,someday", known)
+        assertEquals(listOf(NEWEST, TILES, TO_SORT, GOALS, ALERTS), list)
+    }
+
+    @Test fun biggestGainsBecomesPriceMoves() {
+        val known = "newest,tiles,sort,goals,daycard,recent,movers,valuable,gainers,boxes,bulk,colors,pairs,alerts"
+        assertEquals(listOf(NEWEST, MOVERS, GOALS), HomeOrder.load("newest,gainers,goals", known))
+        assertEquals(listOf(MOVERS, GOALS), HomeOrder.load("movers,gainers,goals", known))
     }
 }

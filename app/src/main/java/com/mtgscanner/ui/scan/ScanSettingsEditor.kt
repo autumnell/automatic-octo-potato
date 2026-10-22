@@ -7,29 +7,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,31 +31,13 @@ import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 
-/** Presets, auto-add, skip rules and feedback. Used in the scanner's settings sheet and on the Settings page. */
+/** Auto-add, skip rules and feedback: the scanner's settings sheet. Foil is on the scan bar. */
 @Composable
-fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) {
+fun ScanSettingsEditor(modifier: Modifier = Modifier) {
     val s by ScanPrefs.settings.collectAsStateWithLifecycle()
-    val presets by ScanPrefs.presets.collectAsStateWithLifecycle()
-    val active by ScanPrefs.activePreset.collectAsStateWithLifecycle()
-    var saving by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf<String?>(null) }
     val update = ScanPrefs::update
 
     Column(modifier) {
-        Heading("Presets")
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            presets.forEach { p -> SelectPill(p.name, p.name == active, { ScanPrefs.apply(p) }) }
-            SelectPill("Save current", false, { saving = true }, leading = {
-                Icon(Icons.Filled.Add, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
-            })
-        }
-        active?.let { name ->
-            TextButton(onClick = { deleting = name }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                Text("Delete “$name”", color = Palette.Muted, style = MaterialTheme.typography.labelMedium)
-            }
-        }
-        HorizontalDivider(color = Palette.Outline)
-
         Toggle("Auto-add", "Add each card as it's read.", s.autoAdd) { on ->
             update { it.copy(autoAdd = on) }
         }
@@ -106,11 +77,6 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
             HorizontalDivider(color = Palette.Outline)
         }
 
-        if (showFoil) {
-            Toggle("Foil", "Mark the next cards as foil.", s.foil) { on -> update { it.copy(foil = on) } }
-            HorizontalDivider(color = Palette.Outline)
-        }
-
         Heading("When a card is added")
         SoundPills(s.sound) { v -> update { it.copy(sound = v) } }
         if (s.autoAdd && s.unsure == UnsureAction.ASIDE) {
@@ -121,17 +87,6 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier, showFoil: Boolean = true) 
         Toggle("Flash the frame", "In the box's color.", s.flash) { on -> update { it.copy(flash = on) } }
         Toggle("Say the box", "Stack mode reads out where each card goes.", s.speakBox) { on -> update { it.copy(speakBox = on) } }
         Toggle("Auto flashlight", "On when it's too dark.", s.autoTorch) { on -> update { it.copy(autoTorch = on) } }
-    }
-
-    if (saving) SavePresetDialog(onSave = { ScanPrefs.saveAs(it); saving = false }, onDismiss = { saving = false })
-    deleting?.let { name ->
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            containerColor = Palette.Surface,
-            title = { Text("Delete “$name”?") },
-            confirmButton = { TextButton(onClick = { ScanPrefs.delete(name); deleting = null }) { Text("Delete", color = Palette.Danger) } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
-        )
     }
 }
 
@@ -148,25 +103,6 @@ private fun SoundPills(selected: ScanSound, onPick: (ScanSound) -> Unit) {
             })
         }
     }
-}
-
-@Composable
-private fun SavePresetDialog(onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Palette.Surface,
-        title = { Text("Save as preset") },
-        text = {
-            Column {
-                Text("Saves these settings and the box.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text("e.g. Sorting bulk") })
-            }
-        },
-        confirmButton = { TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
 }
 
 @Composable

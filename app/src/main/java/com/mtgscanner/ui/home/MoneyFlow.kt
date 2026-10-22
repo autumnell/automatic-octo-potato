@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +39,7 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.TabularNums
 
 class MoneyViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The last six months, oldest first. Empty until loaded. */
@@ -62,23 +64,51 @@ class MoneyViewModel(private val repo: CollectionRepository) : ViewModel() {
 
 private val monthName = DateTimeFormatter.ofPattern("MMM", Locale.US)
 
-/** Spent (prices paid for cards added) and sold (the Sold list) each month, next to what the collection was worth. */
+/**
+ * One "Money" block: what was paid for the cards with a price paid against what they're worth, then spent
+ * (prices paid for cards added) and sold (the Sold list) each month next to the collection's worth.
+ */
 @Composable
-fun MoneySection(vm: MoneyViewModel = viewModel(factory = MoneyViewModel.Factory)) {
+fun MoneySection(paid: PaidSummary, vm: MoneyViewModel = viewModel(factory = MoneyViewModel.Factory)) {
     val months by vm.months.collectAsStateWithLifecycle()
-    if (!MoneyMath.hasData(months)) return
-    SectionHeader("Money in and out")
+    val showPaid = paid.copies > 0
+    val showMonths = MoneyMath.hasData(months)
+    if (!showPaid && !showMonths) return
+    SectionHeader("Money")
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            MoneyRow("", "Spent", "Sold", "Worth", header = true)
-            months.asReversed().forEach { m ->
-                MoneyRow(
-                    m.month.format(monthName),
-                    if (m.spent > 0) formatUsd(m.spent) else "–",
-                    if (m.earned > 0) formatUsd(m.earned) else "–",
-                    m.worth?.let { formatUsd(it) } ?: "–",
-                )
+            if (showPaid) PaidRow(paid)
+            if (showPaid && showMonths) HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Palette.Hairline)
+            if (showMonths) {
+                MoneyRow("", "Spent", "Sold", "Worth", header = true)
+                months.asReversed().forEach { m ->
+                    MoneyRow(
+                        m.month.format(monthName),
+                        if (m.spent > 0) formatUsd(m.spent) else "–",
+                        if (m.earned > 0) formatUsd(m.earned) else "–",
+                        m.worth?.let { formatUsd(it) } ?: "–",
+                    )
+                }
             }
+        }
+    }
+}
+
+/** What was paid for the copies with a price paid, what they're worth now, and the difference. */
+@Composable
+private fun PaidRow(p: PaidSummary) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+        Column(Modifier.weight(1f)) {
+            Text("Paid", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+            Text(formatUsd(p.paid), style = MaterialTheme.typography.titleMedium.merge(TabularNums))
+        }
+        Column(Modifier.weight(1f)) {
+            Text("Worth", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+            Text(formatUsd(p.worth), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(if (p.copies == 1) "1 card" else "${p.copies} cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+            ChangeText(p.change, p.paid)
         }
     }
 }

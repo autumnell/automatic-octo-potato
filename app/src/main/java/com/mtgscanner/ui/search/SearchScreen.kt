@@ -165,7 +165,6 @@ private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifie
 private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>) {
     val focus = LocalFocusManager.current
     var showFilters by remember { mutableStateOf(false) }
-    var saveName by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
@@ -209,8 +208,6 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                 if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
                 leading = { Icon(Icons.Filled.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
             )
-            Spacer(Modifier.width(8.dp))
-            SavedMenu(ui.saved, onSave = { saveName = ui.query.trim() }, onLoad = { focus.clearFocus(); vm.loadSaved(it) }, onDelete = vm::deleteSaved)
             Spacer(Modifier.width(10.dp))
             Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -222,16 +219,6 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
         onApply = { showFilters = false; focus.clearFocus(); vm.submit() },
         onDismiss = { showFilters = false },
     )
-    saveName?.let { name ->
-        AlertDialog(
-            onDismissRequest = { saveName = null },
-            containerColor = Palette.Surface,
-            title = { Text("Save search") },
-            text = { OutlinedTextField(name, { saveName = it }, singleLine = true, label = { Text("Name") }) },
-            confirmButton = { TextButton(onClick = { vm.saveSearch(name); saveName = null }, enabled = name.isNotBlank()) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { saveName = null }) { Text("Cancel") } },
-        )
-    }
 
     Box(Modifier.fillMaxSize()) {
         when {

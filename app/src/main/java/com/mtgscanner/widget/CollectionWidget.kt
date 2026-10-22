@@ -36,7 +36,6 @@ class CollectionWidget : AppWidgetProvider() {
                 .putString("valueUsd", value.toString()).remove("value").putInt("cards", cards)
                 .putLong("at", System.currentTimeMillis()).apply()
             refresh(context)
-            MoversWidget.refresh(context)
         }
 
         fun refresh(context: Context) {

@@ -16,7 +16,6 @@ import com.mtgscanner.data.MoveLine
 import kotlinx.coroutines.flow.drop
 import kotlinx.serialization.json.Json
 import com.mtgscanner.data.Binder
-import com.mtgscanner.data.Placement
 import com.mtgscanner.data.numberBinderSlots
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -192,14 +191,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
     }
 
-    /** A box shown as a fanned stack of cards, one at a time. */
-    private val _stack = MutableStateFlow(boxId >= 0 && pref("stack", false))
-    val stack: StateFlow<Boolean> = _stack
-    fun toggleStack() {
-        _stack.value = !_stack.value
-        setPref("stack", _stack.value)
-    }
-
     /** Binder page view instead of the list. */
     private val _pages = MutableStateFlow(pref("pages", false))
     val pages: StateFlow<Boolean> = _pages
@@ -266,7 +257,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             nameKeys = texts.map { it.key },
             totalCards = inScope.sumOf { it.quantity },
             sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
-            roles = inScope.flatMap { it.roleList() }.distinct().sortedBy { r -> CollectionRepository.ROLES.indexOfFirst { it.label == r } },
+            roles = emptyList(),
             treatments = inScope.flatMap { it.treatments.split(',') }.filter { it.isNotBlank() }.distinct(),
             userTags = inScope.flatMap { it.userTagList() }.distinct().sortedBy { it.lowercase() },
         )
@@ -423,12 +414,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
         ScryfallQueryCache.put(a, result)
         remoteTick.update { it + 1 }
-    }
-
-    /** Where a card sits: its box, divider and neighbors, or binder page and slot. */
-    fun whereIs(c: CollectionCard): String {
-        val u = ui.value
-        return Placement.whereIs(c, u.boxes.firstOrNull { it.id == c.boxId }, u.all.filter { it.boxId == c.boxId })
     }
 
     /** Gives binder slots to cards without one, in name order after the last used slot. */
@@ -599,7 +584,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             if (f.types.isNotEmpty() && f.types.none { c.typeLine.contains(it, ignoreCase = true) }) return false
             if (f.set != null && c.setCode != f.set) return false
             if (f.foilOnly && !c.foil) return false
-            if (f.roles.isNotEmpty() && f.roles.none { it in c.roleList() }) return false
             if (f.treatments.isNotEmpty() && f.treatments.none { it in c.treatments.split(',') }) return false
             if (f.userTags.isNotEmpty() && f.userTags.none { it in c.userTagList() }) return false
             if (f.flags.isNotEmpty() && !f.flags.all { com.mtgscanner.ui.home.TileFlags.matches(c, it) }) return false
