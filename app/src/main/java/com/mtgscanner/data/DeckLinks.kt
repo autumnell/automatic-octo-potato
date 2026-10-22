@@ -13,8 +13,8 @@ import okhttp3.Request
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/** A deck read from a Moxfield or Archidekt link: its name and a decklist the app can read. */
-data class LinkedDeck(val name: String, val text: String)
+/** A deck read from a Moxfield or Archidekt link: its name, a decklist the app can read and its format id ("" = unknown). */
+data class LinkedDeck(val name: String, val text: String, val format: String = "")
 
 /** Public decks from Moxfield and Archidekt links, through their public JSON. Parsing is pure, for tests. */
 object DeckLinks {
@@ -73,11 +73,12 @@ object DeckLinks {
         val sections = listOf(
             "Commander" to board("commanders"),
             "Companion" to board("companions"),
+            "Signature Spell" to board("signatureSpells"),
             "Deck" to board("mainboard"),
             "Sideboard" to board("sideboard"),
         )
         if (sections.all { it.second.isEmpty() }) return null
-        return LinkedDeck(o.str("name") ?: "Moxfield deck", text(sections))
+        return LinkedDeck(o.str("name") ?: "Moxfield deck", text(sections), DeckFormats.fromMoxfield(o.str("format")))
     }
 
     /** Archidekt's deck JSON: cards with categories; categories left out of the deck (maybeboard) are skipped. */
@@ -88,14 +89,19 @@ object DeckLinks {
             val co = c as? JsonObject ?: return@mapNotNull null
             co.str("name")?.takeIf { (co["includedInDeck"] as? JsonPrimitive)?.booleanOrNull == false }
         }.toSet()
-        val bySection = linkedMapOf<String, MutableList<Entry>>("Commander" to mutableListOf(), "Deck" to mutableListOf(), "Sideboard" to mutableListOf())
+        val bySection = linkedMapOf<String, MutableList<Entry>>(
+            "Commander" to mutableListOf(), "Companion" to mutableListOf(), "Signature Spell" to mutableListOf(),
+            "Deck" to mutableListOf(), "Sideboard" to mutableListOf(),
+        )
         for (c in cards) {
             val co = c as? JsonObject ?: continue
             val card = co["card"] as? JsonObject ?: continue
             val name = (card["oracleCard"] as? JsonObject)?.str("name") ?: card.str("name") ?: continue
             val cats = (co["categories"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content }
             val section = when {
-                cats.any { it.equals("Commander", true) } -> "Commander"
+                cats.any { it.equals("Commander", true) || it.equals("Oathbreaker", true) } -> "Commander"
+                cats.any { it.equals("Companion", true) } -> "Companion"
+                cats.any { it.equals("Signature Spell", true) } -> "Signature Spell"
                 cats.any { it.equals("Sideboard", true) } -> "Sideboard"
                 cats.any { it.equals("Maybeboard", true) } || (cats.isNotEmpty() && cats.first() in outOfDeck) -> continue
                 else -> "Deck"
@@ -108,7 +114,10 @@ object DeckLinks {
             )
         }
         if (bySection.values.all { it.isEmpty() }) return null
-        return LinkedDeck(o.str("name") ?: "Archidekt deck", text(bySection.toList()))
+        return LinkedDeck(
+            o.str("name") ?: "Archidekt deck", text(bySection.toList()),
+            DeckFormats.fromArchidekt((o["deckFormat"] as? JsonPrimitive)?.intOrNull),
+        )
     }
 
     /** "Commander\n1 Atraxa (ONE) 196\n\nDeck\n…" with each section that has cards. */
