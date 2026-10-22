@@ -96,6 +96,8 @@ fun StatsScreen(
     val stats by vm.stats.collectAsStateWithLifecycle()
     val prices = AppSettings.showPrices
     var allSets by remember { mutableStateOf(false) }
+    var yearReview by remember { mutableStateOf(false) }
+    if (yearReview) YearReviewDialog(onDismiss = { yearReview = false }, onOpenCard = { yearReview = false; onOpenCard(it) })
 
     fun browse(filters: Filters) {
         BrowseLaunch.filters = filters
@@ -106,6 +108,7 @@ fun StatsScreen(
         Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Text("Stats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = { yearReview = true }) { Text("Year in review") }
         }
         val s = stats
         if (s == null) {
