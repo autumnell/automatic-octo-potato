@@ -59,6 +59,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -160,10 +161,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> U
             }
         }
         if (AppSettings.showPrices) {
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectPill("My sell list", tab == 0, { tab = 0 })
-                SelectPill("Card Kingdom offers", tab == 1, { tab = 1 })
-            }
+            UnderlineTabs(listOf("My sell list", "Card Kingdom offers"), tab, { tab = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
         }
         if (tab == 1) BuylistContent(onOpenCard) else SellListContent(vm, onBrowse)
     }

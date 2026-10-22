@@ -43,6 +43,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.home.UnknownScanDialog
 import com.mtgscanner.ui.theme.Palette
@@ -188,14 +189,10 @@ fun BoxCheckSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> U
             TextButton(onClick = { ending = true }) { Text("End") }
         }
         val r = result
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SelectPill("Missing ${r?.missingCount ?: 0}", tab == CheckTab.MISSING, { tab = CheckTab.MISSING })
-            SelectPill("Not recorded ${r?.notRecordedCount ?: 0}", tab == CheckTab.NOT_RECORDED, { tab = CheckTab.NOT_RECORDED })
-            SelectPill("Found ${r?.foundCount ?: 0}", tab == CheckTab.FOUND, { tab = CheckTab.FOUND })
-        }
+        UnderlineTabs(
+            listOf("Missing ${r?.missingCount ?: 0}", "Not recorded ${r?.notRecordedCount ?: 0}", "Found ${r?.foundCount ?: 0}"),
+            tab.ordinal, { tab = CheckTab.entries[it] }, Modifier.padding(bottom = 4.dp),
+        )
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
             if (r == null) {
                 item(key = "loading") { Text("…", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }

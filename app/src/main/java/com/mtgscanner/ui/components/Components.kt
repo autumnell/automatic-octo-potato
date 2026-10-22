@@ -233,33 +233,33 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Compos
     }
 }
 
-/** Dark rounded pill with an icon, used for Sort / Group / Filter buttons. */
+/** Small outlined button with an icon, used for Sort / Group / Filter. Active: a filled panel with a text-colored edge. */
 @Composable
 fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, active: Boolean = false) {
     Surface(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(Corners.Small),
-        color = if (active) Palette.Accent.copy(alpha = 0.16f) else Palette.SurfaceHigh,
-        border = if (active) BorderStroke(1.dp, Palette.Accent.copy(alpha = 0.6f)) else null,
+        color = if (active) Palette.SurfaceHigh else Color.Transparent,
+        border = BorderStroke(1.dp, if (active) Palette.Text else Palette.Outline),
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (active) Palette.AccentText else Palette.Icon, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = if (active) Palette.Text else Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) Palette.AccentText else Palette.Text)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
         }
     }
 }
 
-/** Small selectable pill used in filter rows. */
+/** Small selectable chip used in filter rows: outlined; selected is filled with a text-colored edge (no accent). */
 @Composable
 fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
     Row(
         Modifier
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(Corners.Small))
-            .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
-            .border(1.dp, if (selected) Palette.Accent else Color.Transparent, RoundedCornerShape(Corners.Small))
+            .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
+            .border(1.dp, if (selected) Palette.Text else Palette.Outline, RoundedCornerShape(Corners.Small))
             .selectable(selected = selected, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -268,7 +268,7 @@ fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (
             leading()
             Spacer(Modifier.width(6.dp))
         }
-        Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) Palette.AccentText else Palette.Text)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Text, fontWeight = if (selected) FontWeight.SemiBold else null)
     }
 }
 

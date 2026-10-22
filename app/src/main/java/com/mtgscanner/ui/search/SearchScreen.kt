@@ -79,6 +79,7 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.SetMark
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.ui.components.scryfallPriceShort
 import com.mtgscanner.ui.components.formatUsd
@@ -143,23 +144,7 @@ fun SearchScreen(
 
 @Composable
 private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Palette.Background)) {
-        listOf("Cards" to Icons.Outlined.Style, "Sets" to Icons.AutoMirrored.Outlined.ViewList).forEachIndexed { i, (label, icon) ->
-            TabItem(label, icon, selected == i, Modifier.weight(1f)) { onSelect(i) }
-        }
-    }
-}
-
-@Composable
-private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clickable(onClick = onClick)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (selected) Palette.Text else Palette.Icon, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) Palette.Text else Palette.Muted)
-        }
-        Box(Modifier.fillMaxWidth().height(3.dp).background(if (selected) Palette.Accent else Palette.Outline.copy(alpha = 0.4f)))
-    }
+    UnderlineTabs(listOf("Cards", "Sets"), selected, onSelect, Modifier.background(Palette.Background))
 }
 
 @Composable

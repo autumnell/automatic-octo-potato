@@ -55,6 +55,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.AutoSizeText
 import com.mtgscanner.ui.components.textInfo
@@ -128,10 +129,10 @@ private fun rulingDate(day: String): String = runCatching {
 @Composable
 fun CardInfoTabs(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewModel) {
     var tab by rememberSaveable { mutableStateOf("rules") }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SelectPill("Rules", tab == "rules", onClick = { tab = "rules" })
-        SelectPill("Versions", tab == "versions", onClick = { tab = "versions" })
-    }
+    UnderlineTabs(
+        listOf("Rules", "Versions"), if (tab == "rules") 0 else 1,
+        { tab = if (it == 0) "rules" else "versions" }, horizontalPadding = 0.dp,
+    )
     Spacer(Modifier.height(10.dp))
     if (tab == "rules") RulesTab(c, live, vm) else VersionsTab(c, vm)
 }

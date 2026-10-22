@@ -119,6 +119,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.Mana
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -1046,10 +1047,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                     ui.format, ui.commanders, ui.leadArt, ui.issues,
                     onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
                 )
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectPill("Cards", view == 0, { view = 0 })
-                    SelectPill("Pull list", view == 1, { view = 1 })
-                }
+                UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
                 when (view) {
                     1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()

@@ -78,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.theme.AppSettings
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
@@ -109,12 +110,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text("Settings", style = MaterialTheme.typography.headlineSmall)
             }
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                settingsTabs.forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
-            }
+            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = 4.dp, bottom = 6.dp), horizontalPadding = 16.dp)
             // Each branch is its own call site, so each tab keeps its own scroll position.
             when (tab) {
                 0 -> Page { LookTab() }
