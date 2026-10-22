@@ -192,7 +192,8 @@ fun ScanScreen(
             val st = latest
             val card = st.current ?: return@handler false
             if (st.pageMode || st.showPrintings || st.showSettings || st.showList || st.showReview || st.showSort || st.showBoxPick ||
-                st.showDeckPick || st.showNewBox || st.showSkipped || st.showUnknown || st.showBoxCheck || st.showSetLock || st.showPackStart
+                st.showDeckPick || st.showNewBox || st.showSkipped || st.showUnknown || st.showBoxCheck || st.showSetLock || st.showPackStart ||
+                st.page != null || st.photo != null
             ) return@handler false
             if (!up) {
                 vm.skip()
