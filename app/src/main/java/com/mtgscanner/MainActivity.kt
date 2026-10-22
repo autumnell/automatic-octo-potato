@@ -52,7 +52,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.mutableStateOf
@@ -206,7 +205,11 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 actionLabel = if (e.undo != null) "Undo" else null,
                 duration = SnackbarDuration.Short,
             )
-            if (result == SnackbarResult.ActionPerformed) e.undo?.let { u -> scope.launch { runCatching { u() } } }
+            if (result == SnackbarResult.ActionPerformed) {
+                // Listed changes undo through Recent actions' history, so the list stays right.
+                if (e.id != 0L) scope.launch { Undo.undoThrough(e.id) }
+                else e.undo?.let { u -> scope.launch { runCatching { u() } } }
+            }
         }
     }
     // A message saved before a restart (restoring a backup), with its Undo.
@@ -229,7 +232,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         containerColor = Palette.Background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         // On Scan the bottom is busy (result card, controls, strip), so the snackbar shows at the top instead.
-        snackbarHost = { if (route != "scan") SnackbarHost(snackbar) },
+        snackbarHost = { if (route != "scan") com.mtgscanner.ui.components.UndoSnackbarHost(snackbar) },
         bottomBar = {
             if (tabs.any { it.route == route }) AppTabBar(route) { nav.goToTab(it) }
         },
@@ -391,12 +394,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
        }
       }
     }
-    if (route == "scan") SnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 64.dp))
+    if (route == "scan") com.mtgscanner.ui.components.UndoSnackbarHost(snackbar, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 64.dp))
     if (showTour) FirstRunTour(onDone = { Tour.setSeen(ctx, true); showTour = false })
     // Tap and hold any card picture to see it big; drawn over everything.
     com.mtgscanner.ui.components.CardZoomHost()
     // Imports shared from other apps, and the offer to restore a backup on a new phone.
     com.mtgscanner.ui.settings.DataHost()
+    // Recent actions, from Settings › Data or by holding the snackbar.
+    com.mtgscanner.ui.components.RecentActionsHost()
     }
 }
 
