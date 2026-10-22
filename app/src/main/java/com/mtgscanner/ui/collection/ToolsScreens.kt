@@ -34,7 +34,6 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -110,6 +109,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderCards
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** How much of a set you own: different collector numbers, out of the main set (or every printing, with variants). */
 data class SetProgress(
@@ -305,7 +306,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
         val list = progress?.let { all -> if (q.isEmpty()) all else all.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q } }
         when {
             list != null && list.isEmpty() && q.isNotEmpty() -> EmptyState("No sets found", Modifier.padding(top = 24.dp))
-            list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+            list == null -> PlaceholderRows(8, Modifier.padding(16.dp))
             list.isEmpty() -> EmptyState("No sets yet", Modifier.padding(top = 24.dp))
             else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                 items(list, key = { it.code }) { s ->
@@ -416,7 +417,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         )
         when {
             failed && cards == null -> EmptyState("Couldn't load this set", Modifier.padding(top = 24.dp), action = "Try again", onAction = { vm.loadSet(code) })
-            cards == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+            cards == null -> PlaceholderCards(9, Modifier.padding(16.dp))
             else -> {
                 SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter this set")
                 Row(

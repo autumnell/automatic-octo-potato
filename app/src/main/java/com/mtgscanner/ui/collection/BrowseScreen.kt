@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -92,6 +93,7 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.RarityMark
+import com.mtgscanner.ui.components.SetMark
 import com.mtgscanner.ui.components.PriceSparkline
 import com.mtgscanner.ui.components.foilShimmer
 import androidx.compose.material.icons.outlined.ViewAgenda
@@ -820,7 +822,7 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
             }
             Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RarityMark(c.rarity)
+                SetMark(c.setCode, c.rarity)
                 Spacer(Modifier.width(6.dp))
                 Text("${c.setCode.uppercase()} #${c.collectorNumber} · ${c.typeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -838,7 +840,11 @@ private fun CardRow(c: CollectionCard, selected: Boolean, slot: String?, spark: 
             if (AppSettings.showPrices) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (spark != null) { PriceSparkline(spark); Spacer(Modifier.width(6.dp)) }
-                    Text(cardPrice(c), style = MaterialTheme.typography.bodySmall, color = Palette.Accent)
+                    // A fixed right-aligned slot so prices line up down the list.
+                    Text(
+                        cardPrice(c), style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Accent,
+                        textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.widthIn(min = 64.dp),
+                    )
                 }
             }
         }
@@ -855,7 +861,7 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
             .combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RarityMark(c.rarity)
+        SetMark(c.setCode, c.rarity)
         Spacer(Modifier.width(8.dp))
         Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (c.foil) { Spacer(Modifier.width(4.dp)); FoilTag() }
@@ -873,7 +879,7 @@ private fun DenseRow(c: CollectionCard, selected: Boolean, slot: String?, spark:
             Spacer(Modifier.width(6.dp))
             Box(Modifier.width(36.dp)) { if (spark != null) PriceSparkline(spark) }
             Text(
-                cardPriceShort(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
+                cardPriceShort(c), style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.AccentText,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(64.dp),
             )
         }

@@ -60,6 +60,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** A card offered in the commander picker. */
 data class PickOption(val name: String, val typeLine: String, val imageUrl: String?, val rules: RulesCard)
@@ -188,7 +189,7 @@ fun CommanderPickerSheet(
         }
         Box(Modifier.fillMaxWidth().height(420.dp)) {
             when {
-                loading -> CircularProgressIndicator(color = Palette.Accent, modifier = Modifier.align(Alignment.Center))
+                loading -> PlaceholderRows(6, Modifier.padding(top = 8.dp), rowHeight = 48.dp, color = Palette.SurfaceHigh)
                 options.isEmpty() -> Text(
                     if (query.isBlank()) "None in this deck" else "No matches",
                     color = Palette.Muted, modifier = Modifier.align(Alignment.Center),

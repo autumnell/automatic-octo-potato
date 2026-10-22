@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,7 +47,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -80,6 +80,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -103,6 +104,7 @@ import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.scan.DeckText
 import com.mtgscanner.ui.components.PrintingsSheet
+import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
@@ -140,6 +142,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -1165,7 +1168,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     var find by rememberSaveable { mutableStateOf("") }
     val check = ui.check
     if (ui.checking || check == null) {
-        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+        PlaceholderRows(6, Modifier.padding(16.dp))
         return
     }
     // Totals count played cards only, the same as the deck tiles.
@@ -1290,19 +1293,29 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> U
                     if (l.ownedOtherPrinting) "Other printing" else l.printing.takeIf { link == null },
                 ).joinToString(" · ")
             }
+            // The set symbol sits next to the printing: before the link, or at the start when the printing is plain text.
+            val symbolCode = l.setCode?.takeIf { !l.otherPrinting && l.printing != null && (missingView || !l.ownedOtherPrinting) }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (symbolCode != null && link == null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
                 if (where.isNotEmpty()) Text(
                     if (link != null) "$where · " else where,
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
+                if (symbolCode != null && link != null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
                 if (link != null && set != null && onOpenSet != null) Text(
                     link, style = MaterialTheme.typography.bodySmall, color = Palette.AccentText, maxLines = 1,
                     modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { onOpenSet(set.lowercase()) },
                 )
             }
         }
-        if (missingView) { if (AppSettings.showPrices) Text(formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText) }
+        if (missingView) {
+            // A fixed right-aligned slot so prices line up down the list.
+            if (AppSettings.showPrices) Text(
+                formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText,
+                textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp).widthIn(min = 64.dp),
+            )
+        }
         else Icon(Icons.Outlined.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
     }
 }

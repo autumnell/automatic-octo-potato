@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SwapHoriz
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -62,6 +61,7 @@ import com.mtgscanner.ui.components.textInfo
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** Something fetched on demand: [key] says what it was fetched for. */
 data class Fetched<T>(
@@ -224,9 +224,7 @@ private fun LegalityCell(status: String, format: String, modifier: Modifier) {
 
 @Composable
 private fun Loading() {
-    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(Modifier.size(24.dp), color = Palette.Accent, strokeWidth = 2.dp)
-    }
+    PlaceholderRows(3, Modifier.padding(vertical = 12.dp), rowHeight = 44.dp)
 }
 
 @Composable

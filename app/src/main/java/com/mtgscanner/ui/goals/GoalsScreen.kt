@@ -82,6 +82,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderRows
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -185,9 +186,7 @@ fun GoalsScreen(
         }
         val list = goals
         when {
-            list == null -> Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp, color = Palette.Accent)
-            }
+            list == null -> PlaceholderRows(3, Modifier.padding(16.dp), rowHeight = 72.dp)
             open != null -> MissingList(open, vm, onRetry = { vm.retry() })
             list.isEmpty() -> EmptyState("No goals yet", action = "Add goal", onAction = { adding = true })
             else -> LazyColumn(
@@ -249,9 +248,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
         return
     }
     if (!p.loaded) {
-        Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp, color = Palette.Accent)
-        }
+        PlaceholderRows(6, Modifier.padding(16.dp))
         return
     }
     val wished by vm.wished.collectAsStateWithLifecycle()

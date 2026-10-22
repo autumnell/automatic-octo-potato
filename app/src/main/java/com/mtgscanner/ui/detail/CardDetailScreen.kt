@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -119,6 +118,7 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.cardTotal
@@ -139,6 +139,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderPage
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : ViewModel() {
@@ -504,7 +505,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             if (showMissing) {
                 EmptyState("Card not found", Modifier.align(Alignment.Center), action = "Back", onAction = onBack)
             } else {
-                CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
+                PlaceholderPage(Modifier.statusBarsPadding().padding(16.dp))
             }
         }
         if (c != null) {
@@ -557,6 +558,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         // Tap the set to open it in the set tracker.
                         InfoChip(onClick = onOpenSet?.let { open -> { open(c.setCode.lowercase()) } }) {
+                            SetSymbol(c.setCode, c.rarity, modifier = Modifier.padding(end = 6.dp))
                             Text(
                                 "${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium,
                                 color = if (onOpenSet != null) Palette.AccentText else Palette.Text,
