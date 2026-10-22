@@ -409,11 +409,13 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Adds what the preview showed. */
     fun confirmImport() {
         val plan = _importPlan.value ?: return
+        val other = plan.otherPrinting.size
         val started = run("Importing ${plan.added} cards…") {
             val newBox: suspend () -> Long = { repo.createBox("Imported", "box") }
             val r = BackupIO.applyPlan(repo, plan, newBox)
             buildString {
                 append(if (r.added == 1) "Imported 1 card" else "Imported ${r.added} cards")
+                if (other > 0) append(". $other in another printing")
                 if (r.notFound.isNotEmpty()) append(". Skipped ${r.notFound.size} not found")
             }
         }

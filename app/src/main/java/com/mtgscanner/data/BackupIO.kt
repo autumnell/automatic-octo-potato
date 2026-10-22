@@ -21,11 +21,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
-import kotlinx.serialization.json.put
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -293,17 +290,16 @@ internal object BackupIO {
         fallbackBox: (suspend () -> Long)? = null,
     ): ImportResult = applyPlan(repo, plan(repo, rows, lookUp(repo, rows), boxId), fallbackBox)
 
-    /** Looks every row up on Scryfall (exact matches only). Throws IOException when offline. */
+    /**
+     * Looks every row up on Scryfall (exact matches only). A row that names a set gets that set's printing
+     * (and that collector number when given); only when there's no such printing does it fall back to the
+     * card in that set, then to any printing ([ImportPlan.otherPrinting] lists those). Throws IOException when offline.
+     */
     suspend fun lookUp(repo: CollectionRepository, given: List<ImportRow>): List<ScryfallCard?> {
         val api = repo.api
         val rows = withSetCodes(repo, given)
-        val found = api.identify(rows.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) }).toMutableList()
-        val retry = rows.indices.filter { found[it] == null && (rows[it].setCode != null || rows[it].scryfallId != null) }
-        if (retry.isNotEmpty()) {
-            val byName = api.identify(retry.map { buildJsonObject { put("name", rows[it].name) } })
-            retry.zip(byName).forEach { (i, c) -> found[i] = c }
-        }
-        return found
+        val wants = rows.map { PrintingLookup.Wanted(it.name, it.setCode, it.collectorNumber, it.scryfallId) }
+        return PrintingLookup.resolve(wants) { ids -> api.identify(ids.map(PrintingLookup::json)) }
     }
 
     /** Fills in set codes for rows that only have a full set name (Deckbox, Cardmarket), from Scryfall's set list. */
@@ -325,7 +321,7 @@ internal object BackupIO {
         val row = withSetCodes(repo, listOf(given)).first()
         lookUp(repo, listOf(row)).firstOrNull()?.let { return it }
         val name = row.name.trim().takeIf { it.isNotEmpty() } ?: return null
-        val set = row.setCode
+        val set = PrintingLookup.setCode(row.setCode)
         return (if (set != null) repo.api.named(name, set) else null) ?: repo.api.named(name)
     }
 
@@ -407,11 +403,4 @@ internal object BackupIO {
         return ImportResult(added, notFound)
     }
 
-    private fun identifierFor(name: String, set: String?, number: String?, id: String?): JsonObject = buildJsonObject {
-        when {
-            id != null -> put("id", id)
-            set != null && number != null -> { put("set", set.lowercase()); put("collector_number", number) }
-            else -> { put("name", name); if (set != null) put("set", set.lowercase()) }
-        }
-    }
 }

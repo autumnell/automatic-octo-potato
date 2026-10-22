@@ -108,4 +108,47 @@ class DecklistParserTest {
         assertTrue(deck.single { it.name == "Arcane Signet" }.foil)
         assertFalse(deck.first { it.name == "Sol Ring" && !it.foil }.foil)
     }
+
+    private fun one(line: String) = DecklistParser.parse(line).single()
+
+    @Test fun setCodesFromRealExports() {
+        // Moxfield / Arena
+        one("1 Sol Ring (FDC) 123").let { assertEquals("Sol Ring", it.name); assertEquals("fdc", it.setCode); assertEquals("123", it.collectorNumber) }
+        one("1 Sol Ring (fdc) 123 *F*").let { assertEquals("fdc", it.setCode); assertEquals("123", it.collectorNumber); assertTrue(it.foil) }
+        one("1 Sol Ring (FDC)").let { assertEquals("fdc", it.setCode); assertEquals(null, it.collectorNumber) }
+        one("1 Sol Ring (fdc)").let { assertEquals("fdc", it.setCode) }
+        // Bracketed codes, either case
+        one("1 Sol Ring [FDC]").let { assertEquals("Sol Ring", it.name); assertEquals("fdc", it.setCode) }
+        one("1 Sol Ring [fdc]").let { assertEquals("Sol Ring", it.name); assertEquals("fdc", it.setCode) }
+        one("1 Sol Ring [FDC] 123").let { assertEquals("fdc", it.setCode); assertEquals("123", it.collectorNumber) }
+        // Archidekt
+        one("1x Sol Ring (fdc) 123 *F* [Ramp] ^Have,#37d67a^").let {
+            assertEquals("Sol Ring", it.name); assertEquals("fdc", it.setCode); assertEquals("123", it.collectorNumber); assertTrue(it.foil)
+        }
+        // Moxfield with tags; a foil marker before the set
+        one("1 Sol Ring (FDC) 123 #Ramp #!Staple").let { assertEquals("fdc", it.setCode); assertEquals("123", it.collectorNumber) }
+        one("1 Sol Ring *F* (FDC) 123").let { assertEquals("Sol Ring", it.name); assertEquals("fdc", it.setCode); assertTrue(it.foil) }
+        // Odd collector numbers
+        one("1 Sol Ring (PLST) C21-263").let { assertEquals("plst", it.setCode); assertEquals("C21-263", it.collectorNumber) }
+        one("1 Lightning Bolt (SLD) 1234★").let { assertEquals("1234★", it.collectorNumber) }
+        one("1 Delver of Secrets // Insectile Aberration (ISD) 51a").let {
+            assertEquals("Delver of Secrets // Insectile Aberration", it.name); assertEquals("51a", it.collectorNumber)
+        }
+        // Deckstats and MTGGoldfish
+        one("1 [FDC#123] Sol Ring").let { assertEquals("Sol Ring", it.name); assertEquals("fdc", it.setCode); assertEquals("123", it.collectorNumber) }
+        one("1 [FDC] Sol Ring").let { assertEquals("Sol Ring", it.name); assertEquals("fdc", it.setCode) }
+        one("4 Lightning Bolt <retro> [2X2]").let { assertEquals("Lightning Bolt", it.name); assertEquals("2x2", it.setCode) }
+        one("1 Forest <251> [THB]").let { assertEquals("Forest", it.name); assertEquals("thb", it.setCode); assertEquals("251", it.collectorNumber) }
+        // MTGO: no printing
+        one("4 Lightning Bolt").let { assertEquals(null, it.setCode); assertEquals(null, it.collectorNumber) }
+    }
+
+    @Test fun printingsInAFullList() {
+        val deck = DecklistParser.parse(
+            "Commander\n1 Atraxa, Praetors' Voice (2X2) 190 *F*\n\nDeck\n1 Sol Ring (FDC) 123\n1 Sol Ring (CMR) 263\n1 Command Tower (fdc) 351\n",
+        )
+        assertEquals(listOf("2x2", "fdc", "cmr", "fdc"), deck.map { it.setCode })
+        assertEquals("Commander", deck[0].section)
+        assertEquals("Atraxa, Praetors' Voice", deck[0].name)
+    }
 }
