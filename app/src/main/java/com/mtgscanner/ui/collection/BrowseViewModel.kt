@@ -266,7 +266,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             nameKeys = texts.map { it.key },
             totalCards = inScope.sumOf { it.quantity },
             sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
-            roles = inScope.flatMap { it.roleList() }.distinct().sortedBy { r -> CollectionRepository.ROLES.indexOfFirst { it.label == r } },
+            roles = emptyList(),
             treatments = inScope.flatMap { it.treatments.split(',') }.filter { it.isNotBlank() }.distinct(),
             userTags = inScope.flatMap { it.userTagList() }.distinct().sortedBy { it.lowercase() },
         )
@@ -599,7 +599,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             if (f.types.isNotEmpty() && f.types.none { c.typeLine.contains(it, ignoreCase = true) }) return false
             if (f.set != null && c.setCode != f.set) return false
             if (f.foilOnly && !c.foil) return false
-            if (f.roles.isNotEmpty() && f.roles.none { it in c.roleList() }) return false
             if (f.treatments.isNotEmpty() && f.treatments.none { it in c.treatments.split(',') }) return false
             if (f.userTags.isNotEmpty() && f.userTags.none { it in c.userTagList() }) return false
             if (f.flags.isNotEmpty() && !f.flags.all { com.mtgscanner.ui.home.TileFlags.matches(c, it) }) return false

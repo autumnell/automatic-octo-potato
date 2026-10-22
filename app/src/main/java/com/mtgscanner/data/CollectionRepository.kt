@@ -149,7 +149,7 @@ class CollectionRepository(
     fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>> = dao.observePriceHistory(scryfallId)
 
     /**
-     * Starts background work: the name list, daily prices, card roles and offline scans, and tidies away
+     * Starts background work: the name list, daily prices and offline scans, and tidies away
      * photos of deleted cards. Called once when a screen first opens, not when a background job or the
      * widget starts the app.
      */
@@ -159,8 +159,7 @@ class CollectionRepository(
         appScope.launch {
             runCatching { refreshPricesIfStale() }
             runCatching { resolvePending() }
-            runCatching { fetchRoles() }
-            runCatching { refreshConditionPricesIfStale() }
+            runCatching { dropOldConditionPrices() }
         }
     }
 
@@ -709,11 +708,11 @@ class CollectionRepository(
         return id
     }
 
-    /** Collection changes waiting for the value snapshot and role lookup. */
+    /** Collection changes waiting for the value snapshot. */
     private val changes = Channel<Unit>(Channel.UNLIMITED)
 
     /**
-     * Notes a change to the collection. The value snapshot (and widget) and the role lookup run once
+     * Notes a change to the collection. The value snapshot (and widget) runs once
      * things go quiet for [CHANGE_IDLE_MS], or after [CHANGE_BATCH] changes, not once per card.
      */
     private fun afterChange() { changes.trySend(Unit) }
@@ -725,7 +724,6 @@ class CollectionRepository(
                 var n = 1
                 while (n < CHANGE_BATCH && withTimeoutOrNull(CHANGE_IDLE_MS) { changes.receive() } != null) n++
                 runCatching { recordSnapshot() }
-                runCatching { fetchRoles() }
             }
         }
     }
@@ -764,7 +762,6 @@ class CollectionRepository(
             return twin.id
         }
         dao.update(card.copy(updatedAt = now).let { if (changed) it.copy(conditionPrice = null, conditionPriceAt = 0) else it })
-        if (changed && JustTcg.enabled) appScope.launch { runCatching { refreshConditionPrices(listOf(card.id)) } }
         return card.id
     }
 
@@ -779,7 +776,6 @@ class CollectionRepository(
             other.id
         } else {
             dao.update(c.copy(foil = foil, conditionPrice = null, conditionPriceAt = 0, updatedAt = System.currentTimeMillis()))
-            if (JustTcg.enabled) appScope.launch { runCatching { refreshConditionPrices(listOf(id)) } }
             id
         }
     }
@@ -913,53 +909,20 @@ class CollectionRepository(
         return list
     }
 
-    // Condition prices (JustTCG, optional)
-
-    private val conditionLock = Mutex()
-
     /**
-     * Fetches JustTCG prices for [ids] (or every card), so each copy is priced for its condition and finish.
-     * Returns how many cards got a price. Does nothing without a key.
+     * Condition prices came from JustTCG, which the app no longer uses. A phone that had a key set
+     * drops them once, so every card goes back to Scryfall's price.
      */
-    suspend fun refreshConditionPrices(ids: List<Long>? = null): Int = conditionLock.withLock {
-        if (!JustTcg.enabled) return@withLock 0
-        val cards = if (ids == null) dao.all() else ids.mapNotNull { dao.get(it) }
-        if (cards.isEmpty()) return@withLock 0
-        val now = System.currentTimeMillis()
-        var n = 0
-        val byId = cards.groupBy { it.scryfallId }
-        // Each batch is saved as it arrives, so hitting the plan's limit keeps what was already fetched.
-        suspend fun save(batch: Map<String, List<JustTcg.Variant>>, asked: Collection<String>) { db.withTransaction {
-            asked.forEach { sid ->
-                byId[sid].orEmpty().forEach { c ->
-                    val p = batch[sid]?.let { JustTcg.pick(it, c.condition, c.foil) }
-                    dao.setConditionPrice(c.id, p, now)
-                    if (p != null) n++
-                }
-            }
-        } }
-        try {
-            JustTcg.prices(cards.map { it.scryfallId }, onBatch = { batch -> save(batch, batch.keys) })
-        } catch (e: JustTcg.LimitException) {
-            // Batches fetched before the limit were already saved by onBatch.
-            runCatching { recordSnapshot() }
-            return@withLock n
-        }
-        if (ids == null) JustTcg.lastFullRefresh = now
-        runCatching { recordSnapshot() }
-        n
-    }
-
-    /** Refreshes condition prices for the whole collection about once a week, to stay inside the free plan. */
-    suspend fun refreshConditionPricesIfStale() {
-        if (JustTcg.enabled && System.currentTimeMillis() - JustTcg.lastFullRefresh > 7L * 24 * 60 * 60 * 1000) {
-            refreshConditionPrices()
-        }
+    private suspend fun dropOldConditionPrices() {
+        val old = appContext.getSharedPreferences("justtcg", Context.MODE_PRIVATE)
+        if (old.all.isEmpty()) return
+        clearConditionPrices()
+        old.edit().clear().apply()
     }
 
     suspend fun cardOnce(id: Long): CollectionCard? = dao.get(id)
 
-    /** Drops every condition price, back to near-mint prices (when the key is removed). */
+    /** Drops every condition price, back to near-mint prices. */
     suspend fun clearConditionPrices() {
         dao.clearConditionPrices()
         runCatching { recordSnapshot() }
@@ -1076,34 +1039,6 @@ class CollectionRepository(
         val count = all.sumOf { it.quantity }
         dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), value, count))
         com.mtgscanner.widget.CollectionWidget.publish(appContext, value, count)
-    }
-
-    // Roles (Scryfall community tags)
-
-    private val rolesLock = Mutex()
-
-    /** Looks up what each card does (removal, ramp, card draw…) for cards that haven't been checked yet. */
-    suspend fun fetchRoles() = rolesLock.withLock {
-        val pending = dao.needingRoles().mapNotNull { it.oracleId }.distinct()
-        for (chunk in pending.chunked(25)) {
-            val ids = chunk.joinToString(" or ") { "oracleid:$it" }
-            val found = HashMap<String, MutableSet<String>>()
-            for (role in ROLES) {
-                val tags = role.tags.joinToString(" or ") { "otag:$it" }
-                val cards = runCatching { api.searchAll("($tags) ($ids)", maxPages = 1) }
-                    .onFailure { return@withLock } // try again later rather than marking these cards as having no roles
-                    .getOrNull().orEmpty()
-                cards.forEach { c -> c.oracleId?.let { found.getOrPut(it) { linkedSetOf() } += role.label } }
-            }
-            val now = System.currentTimeMillis()
-            chunk.forEach { dao.setRoles(it, found[it].orEmpty().joinToString(","), now) }
-        }
-    }
-
-    /** Clears and re-fetches every card's roles. */
-    suspend fun refreshAllRoles() {
-        dao.resetRoles()
-        fetchRoles()
     }
 
     // Decks
@@ -1310,35 +1245,10 @@ class CollectionRepository(
     companion object {
         /** How long a read that found nothing isn't looked up again. */
         private const val MISS_TTL_MS = 30_000L
-        /** The value snapshot and role lookup wait for this much quiet after a change… */
+        /** The value snapshot waits for this much quiet after a change… */
         private const val CHANGE_IDLE_MS = 3_000L
         /** …or this many changes. */
         private const val CHANGE_BATCH = 25
-
-        /** A role shown in the app, and the Scryfall tagger tags that mean it. */
-        data class Role(val label: String, val tags: List<String>)
-
-        val ROLES = listOf(
-            Role("Removal", listOf("removal")),
-            Role("Ramp", listOf("ramp")),
-            Role("Card draw", listOf("draw", "card-advantage")),
-            Role("Tutor", listOf("tutor")),
-            Role("Counterspell", listOf("counterspell")),
-            Role("Board wipe", listOf("sweeper", "board-wipe")),
-            Role("Mana rock", listOf("mana-rock")),
-            Role("Mana dork", listOf("mana-dork")),
-            Role("Lifegain", listOf("lifegain")),
-            Role("Burn", listOf("burn")),
-            Role("Discard", listOf("discard")),
-            Role("Mill", listOf("mill")),
-            Role("Reanimation", listOf("reanimate")),
-            Role("Recursion", listOf("recursion")),
-            Role("Sac outlet", listOf("sacrifice-outlet")),
-            Role("Graveyard hate", listOf("graveyard-hate")),
-            Role("Protection", listOf("protects-creature", "gives-protection")),
-            Role("Blink", listOf("blink", "flicker")),
-            Role("Tokens", listOf("token-generator")),
-        )
     }
 }
 

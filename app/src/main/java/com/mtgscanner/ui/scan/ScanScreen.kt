@@ -559,7 +559,6 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                 }
             }
         }
-        PresetSwitcher()
         Spacer(Modifier.width(12.dp))
         val count = state.sessionCount
         Text(
@@ -568,34 +567,6 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
             color = Palette.Text,
             maxLines = 1,
         )
-    }
-}
-
-/** Quick switch between saved scan presets, right in the header. */
-@Composable
-private fun PresetSwitcher() {
-    val presets by com.mtgscanner.scan.ScanPrefs.presets.collectAsStateWithLifecycle()
-    val active by com.mtgscanner.scan.ScanPrefs.activePreset.collectAsStateWithLifecycle()
-    if (presets.isEmpty()) return
-    var open by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).clickable { open = true }
-                .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(active ?: "Custom", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 110.dp))
-            Icon(Icons.Filled.ExpandMore, "Scan presets", tint = Palette.Icon, modifier = Modifier.size(16.dp))
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            presets.forEach { p ->
-                DropdownMenuItem(
-                    text = { Text(p.name, color = if (p.name == active) Palette.Accent else Palette.Text) },
-                    onClick = { com.mtgscanner.scan.ScanPrefs.apply(p); open = false },
-                )
-            }
-        }
     }
 }
 

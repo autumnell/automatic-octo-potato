@@ -21,7 +21,7 @@ enum class ScanSound(val label: String, val tone: Int) {
     NONE("None", -1),
 }
 
-/** Everything that controls scanning. Saved, and can be stored as named presets. */
+/** Everything that controls scanning. Saved. */
 @Serializable
 data class ScanSettings(
     val autoAdd: Boolean = false,
@@ -83,6 +83,3 @@ data class SkipRules(val basics: Boolean = false, val tokens: Boolean = false, v
 }
 
 private val skipJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-
-@Serializable
-data class ScanPreset(val name: String, val settings: ScanSettings)

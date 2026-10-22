@@ -156,7 +156,7 @@ data class ScanUiState(
     val confident: Boolean = false,
     val lookingUp: Boolean = false,
     val paused: Boolean = false,
-    /** Auto-add level, unsure action, skip rules, feedback. Saved, and switchable with presets. */
+    /** Auto-add level, unsure action, skip rules, feedback. Saved. */
     val settings: ScanSettings = ScanSettings(),
     /** Auto-add is waiting for you to confirm a card it wasn't sure about. */
     val awaiting: Boolean = false,

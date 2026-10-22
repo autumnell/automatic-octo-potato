@@ -52,7 +52,7 @@ data class ScanHint(val id: String, val title: String, val body: String)
 val SCAN_HINTS = listOf(
     ScanHint("list", "Scan list", "Every card you've scanned."),
     ScanHint("flash", "Flashlight", "Light for dim rooms."),
-    ScanHint("settings", "Settings", "Auto-add, sounds and presets."),
+    ScanHint("settings", "Settings", "Auto-add and sounds."),
     ScanHint("last", "Last card", "Tap to open it."),
     ScanHint("bar", "Next card", "Finish, set, language and copies."),
 )
