@@ -509,7 +509,16 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                 Hero(c, sharedId = if (c.id == id) id else 0L, onPhoto = { viewingPhoto = true })
                 Column(Modifier.padding(horizontal = 16.dp).offset(y = (-12).dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(c.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        // Hold the name to copy it.
+                        Text(
+                            c.name, style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.weight(1f).pointerInput(c.name) {
+                                androidx.compose.foundation.gestures.detectTapGestures(onLongPress = {
+                                    com.mtgscanner.util.Haptics.tick()
+                                    com.mtgscanner.util.CopyText.copy(ctx, c.name)
+                                })
+                            },
+                        )
                         ManaCost(c.manaCost, size = 20.dp)
                     }
                     Spacer(Modifier.height(6.dp))
@@ -1042,8 +1051,11 @@ private fun InfoChip(content: @Composable () -> Unit) {
 @Composable
 private fun NotesDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var notes by remember { mutableStateOf(initial) }
+    // Notes save only on Save: ask before dropping typed changes.
+    var leaving by remember { mutableStateOf(false) }
+    val close: () -> Unit = { if (notes != initial) leaving = true else onDismiss() }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = close,
         containerColor = Palette.Surface,
         title = { Text("Notes") },
         text = {
@@ -1056,7 +1068,14 @@ private fun NotesDialog(initial: String, onSave: (String) -> Unit, onDismiss: ()
             )
         },
         confirmButton = { TextButton(onClick = { onSave(notes) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = close) { Text("Cancel") } },
+    )
+    if (leaving) AlertDialog(
+        onDismissRequest = { leaving = false },
+        containerColor = Palette.Surface,
+        title = { Text("Discard changes?") },
+        confirmButton = { TextButton(onClick = { leaving = false; onDismiss() }) { Text("Discard", color = Palette.Danger) } },
+        dismissButton = { TextButton(onClick = { leaving = false }) { Text("Keep editing") } },
     )
 }
 

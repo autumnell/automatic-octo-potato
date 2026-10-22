@@ -159,11 +159,18 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     /** A card swiped right, waiting for a box to move to. */
     var moving by remember { mutableStateOf<CollectionCard?>(null) }
     val picking = selecting || selected.isNotEmpty()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
-        if (picking) SelectionBar(selected.size, ui.boxes, vm, onTag = { tagging = true }, onEdit = { editing = true })
+        if (picking) SelectionBar(
+            selected.size, ui.boxes, vm, onTag = { tagging = true }, onEdit = { editing = true },
+            onCopy = {
+                val names = ui.groups.flatMap { it.second }.filter { it.id in selected }.map { it.name }.distinct()
+                com.mtgscanner.util.CopyText.copy(ctx, names.joinToString("\n"), if (names.size == 1) "Card name" else "Card names")
+            },
+        )
         else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
@@ -338,7 +345,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
 /** Top bar while picking cards: how many, and what to do with them. */
 @Composable
-private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit) {
+private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, onCopy: () -> Unit) {
     var moveMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
@@ -372,6 +379,7 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, vm: BrowseViewModel, 
                     text = { Text("For sale") }, leadingIcon = { Icon(Icons.Filled.Sell, null) },
                     onClick = { more = false; vm.sellSelected() },
                 )
+                DropdownMenuItem(text = { Text(if (count == 1) "Copy name" else "Copy names") }, onClick = { more = false; onCopy() })
                 DropdownMenuItem(text = { Text("Condition, language, foil") }, onClick = { more = false; onEdit() })
                 DropdownMenuItem(text = { Text("Stay in this box") }, onClick = { more = false; vm.pinSelected(true) })
                 DropdownMenuItem(text = { Text("Let re-sort move") }, onClick = { more = false; vm.pinSelected(false) })
