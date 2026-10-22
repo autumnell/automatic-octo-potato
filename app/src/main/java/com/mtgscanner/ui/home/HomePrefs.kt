@@ -7,40 +7,19 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-/** A section of the Home screen that can be shown, hidden and moved. */
-enum class HomeSection(val key: String, val label: String) {
-    TO_SORT("sort", "To be sorted"),
-    GOALS("goals", "Goals"),
-    CARD_OF_DAY("daycard", "Card of the day"),
-    RECENT("recent", "Recently added"),
-    MOVERS("movers", "Price moves this week"),
-    VALUABLE("valuable", "Most valuable"),
-    GAINERS("gainers", "Biggest gains"),
-    BOX_VALUES("boxes", "Value by box"),
-    BULK("bulk", "Bulk estimate"),
-    COLORS("colors", "Colors"),
-    PAIRS("pairs", "Color pairs"),
-    ALERTS("alerts", "Price alerts"),
-    ;
-
-    companion object {
-        fun of(key: String): HomeSection? = entries.firstOrNull { it.key == key }
-    }
-}
-
 /** Which Home sections and stat tiles show, in what order, and the bulk buy rate. Saved on the phone. */
 object HomePrefs {
     private var prefs: SharedPreferences? = null
 
     /** Shown sections, in order. */
-    var sections by mutableStateOf(HomeSection.entries.toList())
+    var sections by mutableStateOf(HomeOrder.DEFAULT)
         private set
 
     /** Dollars a bulk buyer pays per 1000 commons and uncommons. */
     var bulkRate by mutableDoubleStateOf(5.0)
         private set
 
-    /** Stat tiles under the value card, in order (2 to 4). */
+    /** Stat tiles in their Home section, in order (2 to 4). */
     var tiles by mutableStateOf(TileMetric.DEFAULT)
         private set
 
@@ -52,14 +31,8 @@ object HomePrefs {
         if (prefs != null) return
         val p = context.getSharedPreferences("app", Context.MODE_PRIVATE)
         prefs = p
-        val saved = p.getString("homeSections", null)
-        if (saved != null) {
-            val shown = saved.split(',').mapNotNull { HomeSection.of(it.trim()) }.distinct()
-            // Sections added in later versions show up at the end until hidden.
-            val known = p.getString("homeKnown", "").orEmpty().split(',').toSet()
-            val added = HomeSection.entries.filter { it.key !in known && it !in shown }
-            sections = shown + added
-        }
+        // Sections added in later versions show up at the end until hidden; the newest-cards strip goes first, once.
+        sections = HomeOrder.load(p.getString("homeSections", null), p.getString("homeKnown", null))
         bulkRate = p.getFloat("bulkRate", 5f).toDouble()
         p.getString("homeTiles", null)?.let { saved ->
             val list = saved.split(',').mapNotNull { TileMetric.of(it.trim()) }.distinct().take(TileMetric.MAX)

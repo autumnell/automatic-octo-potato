@@ -882,7 +882,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
         )
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
           if (state.session.isEmpty()) item(key = "empty") {
-              EmptyState("Nothing scanned yet", Modifier.padding(vertical = 24.dp))
+              EmptyState("Nothing scanned yet", Modifier.padding(vertical = 24.dp), fullScreen = true)
           }
           val groups = if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
             else listOf("" to state.session)

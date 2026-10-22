@@ -306,7 +306,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
         when {
             !ui.loaded -> Unit
-            ui.totalCards == 0 -> EmptyState(if (boxId < 0) "No cards yet" else "Empty box", Modifier.padding(top = 24.dp))
+            ui.totalCards == 0 -> EmptyState(if (boxId < 0) "No cards yet" else "Empty box", Modifier.padding(top = 24.dp), fullScreen = boxId < 0)
             ui.groups.isEmpty() -> EmptyState(
                 "No matches", Modifier.padding(top = 24.dp),
                 action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },
@@ -323,6 +323,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 onLongPress = { c -> vm.toggleSelect(c.id); if (showTip) vm.dismissTip() },
                 onSwipeMove = { c -> moving = c },
                 onSwipeSell = { c -> vm.sellOne(c) },
+                // A box with dividers lists its cards by divider: draw the headers as divider tabs.
+                tabs = f.group == GroupBy.NONE && ui.boxes.any { it.id == boxId && com.mtgscanner.data.BoxLayout.of(it.divider).hasDividers },
             )
         }
     }
@@ -575,6 +577,7 @@ private fun CardGrid(
     onLongPress: (CollectionCard) -> Unit,
     onSwipeMove: (CollectionCard) -> Unit,
     onSwipeSell: (CollectionCard) -> Unit,
+    tabs: Boolean = false,
 ) {
     val state = rememberLazyGridState()
     val scope = rememberCoroutineScope()
@@ -598,7 +601,8 @@ private fun CardGrid(
             groups.forEachIndexed { gi, (title, cards) ->
                 if (title.isNotEmpty()) {
                     item(key = "h-$gi-$title", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                        SectionHead(title, cards.sumOf { it.quantity }, Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp))
+                        if (tabs) DividerTabHead(title, cards.sumOf { it.quantity }, gi, Modifier.padding(top = 14.dp, bottom = 6.dp))
+                        else SectionHead(title, cards.sumOf { it.quantity }, Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp))
                     }
                 }
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->

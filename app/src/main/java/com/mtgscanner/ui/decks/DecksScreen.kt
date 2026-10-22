@@ -298,7 +298,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
         }
         if (decks?.isEmpty() == true && shelf.folders.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
-                EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) })
+                EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) }, fullScreen = true)
             }
         } else {
             item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
