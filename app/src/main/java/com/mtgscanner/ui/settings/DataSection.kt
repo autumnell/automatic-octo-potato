@@ -546,7 +546,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.AutoMirrored.Filled.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
             }
-            HorizontalDivider(color = Palette.Outline)
             if (pending.isNotEmpty()) {
                 HorizontalDivider(color = Palette.Outline)
                 Action(Icons.Filled.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }

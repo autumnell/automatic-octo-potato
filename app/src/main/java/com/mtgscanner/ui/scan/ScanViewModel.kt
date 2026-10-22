@@ -314,7 +314,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
         viewModelScope.launch {
             ScanPrefs.settings.collect { raw ->
-                // A preset can choose the box too.
+                // The saved box (picked in the header) comes back with the settings.
                 if (raw.boxId != null && raw.boxId != _state.value.boxId) repo.lastBoxId = raw.boxId
                 _state.update {
                     val s = effective(raw, it)
@@ -1118,7 +1118,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
             val condition = ScanBarPrefs.condition
             val wish = if (fromReview || fromPage) runCatching { repo.wishlistItem(card.oracleId) }.getOrNull() else s.wish
             val facts = card.facts(isFoil)
-            // A box that was deleted (say, saved in a preset) falls back to auto-sort.
+            // A box that was deleted falls back to auto-sort.
             val chosen = chooseBox(card, facts, s.boxId)
             if (chosen == null) {
                 _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card.") }

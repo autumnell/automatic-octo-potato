@@ -171,13 +171,14 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                     text = { Text(if (t.target == ScanTarget.DECK && on) "Deck: ${state.deck?.name.orEmpty()}" else t.label, color = if (on) Palette.Accent else Palette.Text) },
                     leadingIcon = { Icon(t.icon, null, tint = if (on) Palette.Accent else Palette.Icon) },
                     onClick = {
-                        into = false
-                        when (t.target) {
-                            ScanTarget.DECK -> vm.showDeckPick(true)
-                            ScanTarget.CHECK -> if (!on) vm.startCheck()
-                            ScanTarget.REMOVE -> if (!on) vm.startRemove()
-                            else -> if (!on) vm.stopTarget()
+                        when {
+                            t.target == ScanTarget.DECK -> vm.showDeckPick(true)
+                            on -> {}
+                            t.target == ScanTarget.CHECK -> vm.startCheck()
+                            t.target == ScanTarget.REMOVE -> vm.startRemove()
+                            else -> vm.stopTarget()
                         }
+                        into = false
                     },
                 )
             }
