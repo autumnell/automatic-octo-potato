@@ -599,6 +599,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit) {
                         }
                     }
 
+                    // Where its box sits on the shelf, when the shelf is laid out.
+                    com.mtgscanner.ui.collection.ShelfSpot(boxes, setOf(c.boxId), Modifier.padding(top = 10.dp))
                     Spacer(Modifier.height(10.dp))
                     // Legality lives in the Rules tab below, with every format.
                     CardTextBlock((live?.textInfo() ?: c.textInfo()).copy(legalities = emptyMap()))

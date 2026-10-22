@@ -50,6 +50,8 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -90,6 +92,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.mtgscanner.data.BoxArt
+import com.mtgscanner.data.BoxChange
+import com.mtgscanner.data.planBoxes
+import com.mtgscanner.data.saveBoxChanges
+import com.mtgscanner.data.undoBoxChanges
 import com.mtgscanner.data.BoxCovers
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.BoxStats
@@ -201,20 +207,59 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         return MoveList.add(MoveList.linesFor(moves) { info[it] }, show)
     }
 
-    /** Makes a whole system of boxes in one go; "Set boxes" is built from the sets you own. */
-    fun applyTemplate(t: BoxTemplate) = viewModelScope.launch {
+    /** A whole system of boxes, tried as a plan first; "Set boxes" is built from the sets you own. */
+    fun tryTemplate(t: BoxTemplate) = viewModelScope.launch {
         val tpl = if (t.boxes.isEmpty()) {
             BoxTemplate.setBoxes(repo.allCards().groupBy { it.setCode }.map { (code, cs) -> code to cs.sumOf { it.quantity } })
         } else t
-        val hasFallback = repo.boxInfos().any { it.fallback }
-        val ids = tpl.boxes.map { p ->
-            val id = repo.createBox(p.name, p.kind, p.rules)
-            if (p.divider.isNotEmpty()) repo.setBoxLayout(id, 0, p.divider)
-            if (p.fallback && !hasFallback) repo.setFallbackBox(id)
-            id
+        tryPlan(tpl.name, tpl.boxes.map { p -> BoxChange(null, p.name, p.kind, p.rules, divider = p.divider, fallback = p.fallback) })
+    }
+
+    // Box plans: see where every card would go before boxes change
+
+    private val _plan = MutableStateFlow<PlanUi?>(null)
+    /** The plan being tried; null hides its sheet. */
+    val plan: StateFlow<PlanUi?> = _plan
+
+    fun tryPlan(title: String, changes: List<BoxChange>) {
+        val start = PlanUi(title, changes, null)
+        _plan.value = start
+        viewModelScope.launch {
+            val r = runCatching { repo.planBoxes(changes) }.getOrNull()
+            // Discarded (or replaced) while it was worked out.
+            if (_plan.value !== start) return@launch
+            if (r == null) {
+                _plan.value = null
+                _message.value = "Couldn't work out the plan"
+            } else {
+                _plan.value = start.copy(result = r)
+            }
         }
-        Undo.offer("Made ${ids.size} boxes") { ids.forEach { repo.deleteBox(it, CardBox.AUTO_SORT) } }
-        findMisplaced(quiet = true)
+    }
+
+    fun discardPlan() { _plan.value = null }
+
+    /** Saves the plan's boxes and moves every card that now belongs elsewhere, with one Undo for all of it. */
+    fun applyPlan() = viewModelScope.launch {
+        val p = _plan.value ?: return@launch
+        _plan.value = null
+        val undo = repo.saveBoxChanges(p.changes)
+        val moves = repo.misplaced()
+        val before = repo.snapshot(moves.map { it.item.id })
+        val added = if (moves.isEmpty()) emptyList() else recordMoves(moves.map { it.item to it.to }, show = true)
+        if (moves.isNotEmpty()) repo.applyMoves(moves.map { it.item.id to it.to })
+        val n = moves.sumOf { it.item.quantity }
+        Undo.offer(
+            when (n) {
+                0 -> "Boxes saved"
+                1 -> "Plan applied · 1 card moved"
+                else -> "Plan applied · $n cards moved"
+            },
+        ) {
+            repo.restore(before)
+            MoveList.remove(added)
+            repo.undoBoxChanges(undo)
+        }
     }
 
     private fun applyMoves(list: List<Sorting.Move<CollectionCard>>) = viewModelScope.launch {
@@ -380,6 +425,7 @@ fun CollectionScreen(
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var scanningLabel by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) vm.export(ctx.contentResolver, uri)
@@ -401,6 +447,7 @@ fun CollectionScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Filled.QrCodeScanner, "Scan a box label") }
                 IconButton(onClick = vm::refreshPrices) { Icon(Icons.Filled.Refresh, "Refresh prices") }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
@@ -443,6 +490,15 @@ fun CollectionScreen(
     moves?.let { list ->
         ResortSheet(list, ui.boxes, onMove = vm::moveOne, onMoveAll = vm::moveAll, onDismiss = vm::closeMoves)
     }
+    if (scanningLabel) BoxQrScanSheet(
+        onBox = { id ->
+            scanningLabel = false
+            if (ui.boxes.any { it.id == id }) onBrowse(id) else Undo.offer("That box is gone")
+        },
+        onDismiss = { scanningLabel = false },
+    )
+    val plan by vm.plan.collectAsStateWithLifecycle()
+    plan?.let { p -> BoxPlanSheet(p, onApply = { vm.applyPlan() }, onDiscard = vm::discardPlan) }
 }
 
 @Composable
@@ -457,6 +513,8 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     var sortingNew by remember { mutableStateOf<BoxSummary?>(null) }
     var covering by remember { mutableStateOf<BoxSummary?>(null) }
     var laying by remember { mutableStateOf<BoxSummary?>(null) }
+    var tagging by remember { mutableStateOf<BoxSummary?>(null) }
+    val nfc = LocalContext.current.let { c -> remember { hasNfc(c) } }
     var query by rememberSaveable { mutableStateOf("") }
     val colors = remember(ui.boxes) { boxStripeColors(ui.boxes) }
     // Boxes whose rules never get a card because an earlier box takes them all.
@@ -506,6 +564,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
                 b, ui.stats[b.id], colors[b.id] ?: boxColor(b.color),
                 onClick = { onBrowse(b.id) }, onCover = { covering = b }, onEdit = { editing = b }, onDelete = { deleting = b }, onSort = { sorting = b },
                 onSplit = { splitting = b }, onTrade = { onTrade(b.id) }, onLayout = { laying = b }, warning = dead[b.id],
+                onNfc = if (nfc) ({ tagging = b }) else null,
             )
         }
         SmartListsSection(lists, onOpen = { s ->
@@ -518,7 +577,8 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
     if (creating) {
         BoxEditorSheet(
             title = "New box", onSave = { vm.createBox(it); creating = false }, onDismiss = { creating = false }, layout = true,
-            onTemplate = { vm.applyTemplate(it); creating = false },
+            onTemplate = { vm.tryTemplate(it); creating = false },
+            onTry = { vm.tryPlan(it.name, listOf(it.toChange(null))); creating = false },
         )
     }
     editing?.let { b ->
@@ -529,6 +589,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
             onSave = { vm.updateBox(b.id, it); editing = null },
             onDismiss = { editing = null },
             layout = true,
+            onTry = { vm.tryPlan(it.name, listOf(it.toChange(b.id))); editing = null },
         )
     }
     sorting?.let { b ->
@@ -563,6 +624,7 @@ private fun BoxesTab(ui: OverviewUi, vm: CollectionViewModel, onBrowse: (Long) -
         )
     }
     laying?.let { b -> LayoutDialog(b, onSave = { vm.setLayout(b, it); laying = null }, onDismiss = { laying = null }) }
+    tagging?.let { b -> NfcWriteDialog(b.id, b.name, onDismiss = { tagging = null }) }
     if (ordering) AutoSortOrderSheet(ui.boxes, vm::reorder, vm::setFallback, onDismiss = { ordering = false })
     deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id && it.kind != "trade" && it.kind != "deck" }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
@@ -674,6 +736,8 @@ private fun BoxCard(
     b: BoxSummary, stats: BoxStats?, stripe: Color, onClick: () -> Unit, onCover: () -> Unit,
     onEdit: () -> Unit, onDelete: () -> Unit, onSort: () -> Unit,
     onSplit: () -> Unit, onTrade: () -> Unit, onLayout: () -> Unit, warning: String?,
+    /** Writes the box's link to an NFC tag; null on phones without NFC. */
+    onNfc: (() -> Unit)? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
@@ -753,6 +817,7 @@ private fun BoxCard(
                 DropdownMenuItem(text = { Text("Dividers") }, onClick = { menu = false; onLayout() })
                 if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
+                if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { menu = false; onNfc() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
         }
@@ -801,6 +866,8 @@ private fun ToolsTab(
     if (quiz) QuizSheet(onDismiss = { quiz = false })
     var haveList by remember { mutableStateOf(false) }
     if (haveList) HaveListDialog(ui.boxes, scope) { haveList = false }
+    var shelf by remember { mutableStateOf(false) }
+    if (shelf) ShelfSheet(onDismiss = { shelf = false })
     if (finding) FindCardSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
     if (dupes) DuplicatesSheet(onOpenCard = { dupes = false; onOpenCard(it) }, onDismiss = { dupes = false })
     LazyColumn(Modifier.fillMaxSize()) {
@@ -808,6 +875,7 @@ private fun ToolsTab(
             ToolCard(Icons.Filled.FindInPage, "Find a card", "Which box, which spot", { finding = true })
             ToolCard(Icons.Filled.AutoFixHigh, "Re-sort", "Cards in the wrong box", { vm.findMisplaced() })
             ToolCard(Icons.Filled.Layers, "Duplicates", "Cards in 2+ printings", { dupes = true })
+            ToolCard(Icons.Filled.ViewModule, "Shelf", "Where your boxes sit", { shelf = true })
             ToolCard(Icons.Filled.GridView, "Set tracker", "How much of each set you own", onSets)
             ToolCard(Icons.Filled.ContentCopy, "Extras finder", "Spare copies to trade", onExtras)
             ToolCard(Icons.Filled.Person, "Loans", "Who has what", onLoans)

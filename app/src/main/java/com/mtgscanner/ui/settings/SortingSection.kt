@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mtgscanner.MtgApp
+import com.mtgscanner.data.BoxPrefs
+import com.mtgscanner.data.BoxReminders
 import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.components.SelectPill
@@ -84,6 +86,17 @@ fun SortingSection() {
             if (SortPrefs.bulkFloor != null) {
                 Spacer(Modifier.padding(top = 8.dp))
                 BoxChoice("Bulk", boxes, SortPrefs.bulkBoxId) { SortPrefs.updateBulk(SortPrefs.bulkFloor, it) }
+            }
+        }
+        HorizontalDivider(color = Palette.Outline)
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            remember { BoxPrefs.load(ctx) }
+            Text("Box check reminder", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.padding(top = 6.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BoxReminders.CHOICES.forEach { m ->
+                    SelectPill(if (m == 0) "Off" else "$m mo", BoxPrefs.reminderMonths == m, { BoxPrefs.setReminder(ctx, m) })
+                }
             }
         }
     }

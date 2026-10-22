@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Tap a box's NFC tag to open it, and write those tags. Phones without NFC still install. -->
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <uses-permission android:name="android.permission.NFC" />
 
     <application
         android:name=".MtgApp"
@@ -38,6 +41,18 @@
                 <data android:mimeType="text/tab-separated-values" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/csv" />
+            </intent-filter>
+            <!-- A box's link (grimoire://box/12), from its QR code or NFC tag. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="grimoire" android:host="box" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="grimoire" android:host="box" />
             </intent-filter>
             <!-- "Share to Grimoire": a CSV file, a decklist or a Moxfield/Archidekt link. -->
             <intent-filter>
