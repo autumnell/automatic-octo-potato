@@ -569,6 +569,13 @@ data class DeckUi(
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
     private val _ui = MutableStateFlow(DeckUi(id = deckId))
     val ui: StateFlow<DeckUi> = _ui
+    /** The list as last saved, to tell unsaved edits and to compare a new list with. */
+    var savedText = ""
+        private set
+
+    /** The Changes sheet for a saved deck's new list (DeckChanges.kt). */
+    val changes = DeckChangesHost(repo, viewModelScope, saveList = { text, after -> _ui.update { it.copy(text = text) }; commit(after) }, restore = ::showSaved)
+
     private var saving = false
     private var wishing = false
     private var deleting = false
@@ -588,6 +595,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             // Decks saved before formats existed show what their list says until they're saved again.
             val format = deck?.format?.ifEmpty { null } ?: DeckFormats.guess(lines)
             val commanders = DeckCommanders.decode(deck?.commanders).takeUnless { it.isEmpty } ?: DeckCommanders.fromLines(lines)
+            savedText = text
             _ui.update {
                 it.copy(loaded = true, name = deck?.name ?: "", text = text, editing = deck == null, format = format, commanders = commanders)
             }
@@ -804,7 +812,38 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     }
     fun edit() = _ui.update { it.copy(editing = true) }
 
+    /** Saves the list. A saved deck's changed list opens the Changes sheet first. */
     fun save() {
+        val s = _ui.value
+        if (s.text.isBlank() || saving) return
+        if (s.id != 0L && s.text.trim() != savedText.trim()) changes.review(s.id, savedText, s.text) else commit()
+    }
+
+    /** Drops unsaved edits and shows the deck as saved. */
+    fun cancelEdit() {
+        val id = _ui.value.id
+        if (id == 0L) return
+        viewModelScope.launch { repo.observeDeck(id).first()?.let { showSaved(it) } }
+    }
+
+    /** Saves [d] as it is and shows it (Undo of a list change). */
+    private suspend fun showSaved(d: Deck) {
+        if (repo.observeDeck(d.id).first() != d) repo.saveDeck(d.id, d.name, d.text, d.format, d.commanders)
+        val lines = DecklistParser.parse(d.text)
+        formatTouched = d.format.isNotEmpty()
+        commandersTouched = d.commanders.isNotBlank()
+        savedText = d.text
+        _ui.update {
+            it.copy(
+                name = d.name, text = d.text, editing = false, format = d.format.ifEmpty { DeckFormats.guess(lines) },
+                commanders = DeckCommanders.decode(d.commanders).takeUnless { c -> c.isEmpty } ?: DeckCommanders.fromLines(lines),
+            )
+        }
+        check()
+        refreshLeads()
+    }
+
+    private fun commit(after: suspend (Long) -> Unit = {}) {
         val s = _ui.value
         // A second tap while the first save runs would save a new deck twice.
         if (s.text.isBlank() || saving) return
@@ -817,11 +856,13 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 val leads = if (commanderDeck) s.commanders else DeckCommanders()
                 val text = if (commanderDeck) DeckCommanders.addMissingTo(s.text, DecklistParser.parse(s.text), leads) else s.text
                 val id = repo.saveDeck(s.id, name, text, s.format, leads.encode())
+                savedText = text
                 formatTouched = true
                 commandersTouched = true
                 _ui.update { it.copy(id = id, name = name, text = text, editing = false, commanders = leads) }
                 check()
                 refreshLeads()
+                after(id)
             } finally {
                 saving = false
             }
@@ -875,7 +916,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         val line = _ui.value.printingLine ?: return
         val text = DeckText.setPrinting(_ui.value.text, line.name, line.setCode, line.collectorNumber, card.set, card.collectorNumber)
         _ui.update { it.copy(printingLine = null, printings = null, text = text) }
-        save()
+        commit()
     }
 
     /** Wants enough copies of each missing played card; tapping again doesn't add more. */
@@ -940,11 +981,15 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     var confirmDelete by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
+    val dirty = ui.editing && ui.text.trim() != vm.savedText.trim()
+    DeckChangesLayer(vm.changes, dirty, onDiscard = { if (ui.id == 0L) onBack() else vm.cancelEdit() }) { url ->
+        vm.changes.updateFromLink(ui.id, vm.savedText, url)
+    }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 Text(
                     if (ui.editing) (if (ui.id == 0L) "New deck" else "Edit deck") else ui.name,
                     style = MaterialTheme.typography.titleLarge,
@@ -961,6 +1006,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Deck options") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
+                            DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
                         }
                     }
                 }
