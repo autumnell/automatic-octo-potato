@@ -21,7 +21,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -46,6 +45,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** Pull list checkmarks per deck (deck id to [PullItem.key]s), kept in SharedPreferences. */
 object PullChecksStore {
@@ -102,7 +102,7 @@ fun PullListView(
     leads: List<String> = emptyList(),
 ) {
     if (list == null) {
-        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+        PlaceholderRows(6, Modifier.padding(16.dp))
         return
     }
     val total = list.toPull

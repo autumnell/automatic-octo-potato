@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +51,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.detail.sharedCard
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** A card that should go to another box, and the divider inside it when the box has dividers. */
 data class SortItem(val card: CollectionCard, val to: Long, val spot: String?)
@@ -213,7 +213,7 @@ internal fun UnknownScanDialog(
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
                     val r = results
                     when {
-                        loading && r == null -> CircularProgressIndicator(Modifier.size(22.dp).align(Alignment.CenterHorizontally), strokeWidth = 2.dp, color = Palette.Accent)
+                        loading && r == null -> PlaceholderRows(3, rowHeight = 40.dp, color = Palette.SurfaceHigh)
                         offline && !loading -> Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Offline", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                             TextButton(onClick = { tries++ }) { Text("Retry") }

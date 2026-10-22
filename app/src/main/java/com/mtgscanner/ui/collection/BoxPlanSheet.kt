@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -39,6 +38,7 @@ import com.mtgscanner.ui.components.BoxDraft
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** A box plan being tried: the boxes to make or change, and where the cards would go (null while working it out). */
 data class PlanUi(val title: String, val changes: List<BoxChange>, val result: BoxPlanResult<CollectionCard>?)
@@ -66,9 +66,7 @@ fun BoxPlanSheet(plan: PlanUi, onApply: () -> Unit, onDiscard: () -> Unit) {
             Text("Try: ${plan.title}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val r = plan.result
             if (r == null) {
-                Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Palette.Accent)
-                }
+                PlaceholderRows(3, Modifier.padding(vertical = 12.dp), rowHeight = 44.dp, color = Palette.SurfaceHigh)
                 return@Column
             }
             Text(

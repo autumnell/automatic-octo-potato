@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -86,6 +85,8 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlaceholderCards
+import com.mtgscanner.ui.components.PlaceholderRows
 
 @Composable
 fun SearchScreen(
@@ -240,7 +241,9 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
             }
             ui.ranQuery == null && ui.query.isEmpty() && (ui.recent.isNotEmpty() || ui.viewed.isNotEmpty()) -> History(ui, vm)
             ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            ui.results.isEmpty() && ui.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
+            ui.results.isEmpty() && ui.loading ->
+                if (ui.grid) PlaceholderCards(9, Modifier.align(Alignment.TopCenter).padding(16.dp))
+                else PlaceholderRows(8, Modifier.align(Alignment.TopCenter).padding(16.dp))
             ui.results.isEmpty() && ui.failed && ui.error != null ->
                 EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = 24.dp), body = ui.error.orEmpty())
             ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
@@ -275,7 +278,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
         }
         if (ui.loading) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+                PlaceholderRows(2, Modifier.padding(6.dp))
             }
         } else if (ui.moreFailed) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -387,7 +390,7 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, In
         return
     }
     if (sets == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+        PlaceholderRows(8, Modifier.padding(horizontal = 16.dp))
         return
     }
     val q = ui.setFilter.trim().lowercase()

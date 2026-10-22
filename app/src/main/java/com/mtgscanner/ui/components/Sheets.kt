@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -73,9 +72,7 @@ fun PrintingsSheet(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
         )
         if (printings == null) {
-            Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Palette.Accent)
-            }
+            PlaceholderRows(5, Modifier.padding(horizontal = 20.dp, vertical = 8.dp), rowHeight = 72.dp, color = Palette.SurfaceHigh)
         } else {
             LazyColumn(Modifier.fillMaxWidth().height(520.dp)) {
                 items(printings, key = { it.id }) { p ->

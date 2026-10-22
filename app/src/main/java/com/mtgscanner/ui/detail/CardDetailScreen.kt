@@ -43,7 +43,6 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -140,6 +139,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderPage
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : ViewModel() {
@@ -505,7 +505,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             if (showMissing) {
                 EmptyState("Card not found", Modifier.align(Alignment.Center), action = "Back", onAction = onBack)
             } else {
-                CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Accent)
+                PlaceholderPage(Modifier.statusBarsPadding().padding(16.dp))
             }
         }
         if (c != null) {

@@ -46,7 +46,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -142,6 +141,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.PlaceholderRows
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -1167,7 +1167,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     var find by rememberSaveable { mutableStateOf("") }
     val check = ui.check
     if (ui.checking || check == null) {
-        Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+        PlaceholderRows(6, Modifier.padding(16.dp))
         return
     }
     // Totals count played cards only, the same as the deck tiles.
