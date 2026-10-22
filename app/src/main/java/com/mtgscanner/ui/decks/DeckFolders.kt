@@ -52,6 +52,8 @@ data class DeckMeta(
     val identity: String,
     /** art_crop image of the cover card. */
     val art: String?,
+    /** art_crop image of a second commander (partners), shown beside [art]. */
+    val art2: String? = null,
 )
 
 /** Folders, which deck is in which folder, cover cards and tile cache. */

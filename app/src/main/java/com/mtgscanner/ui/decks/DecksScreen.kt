@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -78,6 +80,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.CommanderRules
+import com.mtgscanner.data.CommanderSlot
+import com.mtgscanner.data.DeckAdd
+import com.mtgscanner.data.DeckCommanders
+import com.mtgscanner.data.DeckFormats
+import com.mtgscanner.data.RulesCard
+import com.mtgscanner.data.addDeckRows
 import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
@@ -126,6 +135,8 @@ data class DeckRow(
     /** Color identity letters in WUBRG order. */
     val identity: String = "",
     val art: String? = null,
+    /** The second commander's art, shown beside the first. */
+    val art2: String? = null,
     val cover: String? = null,
     /** Distinct card names, for picking a cover. */
     val names: List<String> = emptyList(),
@@ -174,10 +185,15 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
                 deck = d,
                 cards = total,
                 owned = have,
-                subtitle = if (lines.any { it.section == "Commander" }) "Commander · $total" else "$total cards",
+                subtitle = when {
+                    d.format.isNotEmpty() -> "${DeckFormats.of(d.format).label} · $total"
+                    lines.any { it.section == "Commander" } -> "Commander · $total"
+                    else -> "$total cards"
+                },
                 folderId = shelf.folderOf[d.id]?.takeIf { it in folderIds },
                 identity = meta?.identity.orEmpty(),
                 art = meta?.art,
+                art2 = meta?.art2,
                 cover = cover,
                 names = lines.map { it.name }.distinct(),
             )
@@ -204,25 +220,30 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
         val byDeck = stale.associateWith { d ->
             val lines = parsed(d)
             val played = lines.filter { it.section in PLAYED }
-            val coverName = cover[d.id]
+            val leads = DeckCommanders.decode(d.commanders).commanders
+            val coverName = cover[d.id] ?: leads.firstOrNull()
                 ?: (played.firstOrNull { it.section == "Commander" } ?: played.firstOrNull() ?: lines.firstOrNull())?.name
-            played to coverName
+            // Partners show side by side, unless a cover card is picked.
+            val second = if (cover[d.id] == null) leads.getOrNull(1) else null
+            Triple(played, coverName, second)
         }
-        val names = byDeck.values.flatMap { (played, coverName) -> played.map { it.name } + listOfNotNull(coverName) }.toSet()
+        val names = byDeck.values.flatMap { (played, coverName, second) -> played.map { it.name } + listOfNotNull(coverName, second) }.toSet()
         val info = runCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
         val done = HashMap<Long, DeckMeta>()
         val partial = HashMap<Long, DeckMeta>()
         for ((d, pc) in byDeck) {
-            val (played, coverName) = pc
+            val (played, coverName, second) = pc
             val st = stamp(d, cover[d.id])
             tried += st
             val found = played.mapNotNull { info[DeckNames.key(it.name)] }
             val identity = "WUBRG".filter { c -> found.any { c in it.colorIdentity.uppercase() } }
             val art = coverName?.let { info[DeckNames.key(it)]?.imageUrl }?.let { artCropUrl(it) }
-            val meta = DeckMeta(st, identity, art)
+            val art2 = second?.let { info[DeckNames.key(it)]?.imageUrl }?.let { artCropUrl(it) }
+            val meta = DeckMeta(st, identity, art, art2)
             // Names Scryfall says don't exist (typos) won't turn up later, so they don't keep the tile from being saved.
             fun settled(n: String) = info.containsKey(DeckNames.key(n)) || deckCardUnknown(n)
-            val complete = played.all { settled(it.name) } && (coverName == null || art != null || deckCardUnknown(coverName))
+            val complete = played.all { settled(it.name) } && (coverName == null || art != null || deckCardUnknown(coverName)) &&
+                (second == null || art2 != null || deckCardUnknown(second))
             if (complete) done[d.id] = meta else partial[d.id] = meta
         }
         DeckShelfStore.putMeta(done)
@@ -415,7 +436,14 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
     Surface(onClick = onOpen, shape = TileShape, color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(1.35f)) {
-                TileArt(row.art, Modifier.matchParentSize())
+                if (row.art2 != null && row.art != null) {
+                    Row(Modifier.matchParentSize()) {
+                        TileArt(row.art, Modifier.weight(1f).fillMaxSize())
+                        TileArt(row.art2, Modifier.weight(1f).fillMaxSize())
+                    }
+                } else {
+                    TileArt(row.art, Modifier.matchParentSize())
+                }
                 if (row.identity.isNotEmpty()) {
                     Row(
                         Modifier.align(Alignment.TopEnd).padding(6.dp)
@@ -502,6 +530,21 @@ data class DeckUi(
     val checking: Boolean = false,
     val check: DeckCheck? = null,
     val message: String? = null,
+    /** Format id ([DeckFormats]); empty = none. */
+    val format: String = "",
+    val commanders: DeckCommanders = DeckCommanders(),
+    /** What's known about the commanders, by lower-case name. */
+    val leadInfo: Map<String, RulesCard> = emptyMap(),
+    /** Commander art for the header. */
+    val leadArt: List<String> = emptyList(),
+    /** Cards outside the commander's colors or over the copy limit. */
+    val issues: CommanderRules.Issues = CommanderRules.Issues(),
+    /** The commander slot being picked, or null. */
+    val picker: CommanderSlot? = null,
+    val pickerQuery: String = "",
+    val pickerLoading: Boolean = false,
+    val pickerOptions: List<PickOption> = emptyList(),
+    val adding: Boolean = false,
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -510,14 +553,167 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     private var saving = false
     private var wishing = false
     private var deleting = false
+    /** Once the user picks a format or commander, a pasted list no longer fills it in. */
+    private var formatTouched = false
+    private var commandersTouched = false
 
     init {
         DeckShelfStore.init(repo.appContext)
         PullChecksStore.init(repo.appContext)
         viewModelScope.launch {
             val deck = if (deckId != 0L) repo.observeDeck(deckId).first() else null
-            _ui.update { it.copy(loaded = true, name = deck?.name ?: "", text = deck?.text ?: "", editing = deck == null) }
-            if (deck != null) check()
+            val text = deck?.text ?: ""
+            val lines = DecklistParser.parse(text)
+            formatTouched = deck?.format?.isNotEmpty() == true
+            commandersTouched = deck?.commanders?.isNotBlank() == true
+            // Decks saved before formats existed show what their list says until they're saved again.
+            val format = deck?.format?.ifEmpty { null } ?: DeckFormats.guess(lines)
+            val commanders = DeckCommanders.decode(deck?.commanders).takeUnless { it.isEmpty } ?: DeckCommanders.fromLines(lines)
+            _ui.update {
+                it.copy(loaded = true, name = deck?.name ?: "", text = text, editing = deck == null, format = format, commanders = commanders)
+            }
+            if (deck != null) { check(); refreshLeads() }
+        }
+    }
+
+    /** Boxes for "Add to collection". */
+    val boxes: StateFlow<List<com.mtgscanner.data.db.Box>> = repo.observeBoxes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Copies "Add to collection" would add: every card listed, and only those you don't own. */
+    val addCounts: StateFlow<Pair<Int, Int>?> = combine(_ui.map { it.text }.distinctUntilChanged(), repo.observeAll()) { text, cards ->
+        val lines = DecklistParser.parse(text)
+        val owned = cards.groupBy { DeckNames.key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+        DeckAdd.rows(lines, owned, false, DeckNames::key).sumOf { it.quantity } to
+            DeckAdd.rows(lines, owned, true, DeckNames::key).sumOf { it.quantity }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * Adds the list's cards to the collection in one go, with one Undo: the printing and foil each line names,
+     * into [boxId] or Auto-sort. With [onlyMissing], copies already owned (any printing) are left out.
+     */
+    fun addToCollection(onlyMissing: Boolean, boxId: Long, onDone: () -> Unit) {
+        if (_ui.value.adding) return
+        _ui.update { it.copy(adding = true) }
+        viewModelScope.launch {
+            try {
+                val lines = DecklistParser.parse(_ui.value.text)
+                val owned = repo.observeAll().first().groupBy { DeckNames.key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+                val rows = DeckAdd.rows(lines, owned, onlyMissing, DeckNames::key)
+                val r = try {
+                    repo.addDeckRows(rows, boxId)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Undo.offer("Couldn't reach Scryfall")
+                    return@launch
+                }
+                Undo.offer(DeckAdd.resultLine(r.added, r.notFound), r.undo)
+                onDone()
+            } finally {
+                _ui.update { it.copy(adding = false) }
+            }
+        }
+    }
+
+    fun setFormat(id: String) {
+        formatTouched = true
+        _ui.update { it.copy(format = id) }
+    }
+
+    private var leadsJob: Job? = null
+
+    /** Looks up the commanders (art, colors, partner abilities) and checks the list against the format. */
+    private fun refreshLeads() {
+        leadsJob?.cancel()
+        leadsJob = viewModelScope.launch {
+            val s = _ui.value
+            val lines = DecklistParser.parse(s.text)
+            val names = s.commanders.all + lines.filter { it.section in PLAYED }.map { it.name }
+            val info = runCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
+            fun rulesOf(n: String) = info[DeckNames.key(n)]?.rules()
+            val leads = s.commanders.all.mapNotNull { n -> rulesOf(n)?.let { n.lowercase() to it } }.toMap()
+            val art = s.commanders.commanders.mapNotNull { artCropUrl(info[DeckNames.key(it)]?.imageUrl) }
+            val issues = CommanderRules.issues(lines, s.format, s.commanders) { n -> rulesOf(n) }
+            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues) }
+        }
+    }
+
+    fun openPicker(slot: CommanderSlot) {
+        _ui.update { it.copy(picker = slot, pickerQuery = "", pickerOptions = emptyList()) }
+        loadPicker(debounce = false)
+    }
+
+    fun closePicker() {
+        pickJob?.cancel()
+        _ui.update { it.copy(picker = null, pickerLoading = false) }
+    }
+
+    fun setPickerQuery(q: String) {
+        _ui.update { it.copy(pickerQuery = q) }
+        loadPicker(debounce = true)
+    }
+
+    private var pickJob: Job? = null
+
+    /** With nothing typed, the deck's own cards that fit the slot; otherwise a Scryfall search for ones that do. */
+    private fun loadPicker(debounce: Boolean) {
+        pickJob?.cancel()
+        pickJob = viewModelScope.launch {
+            if (debounce) delay(350)
+            val s = _ui.value
+            val slot = s.picker ?: return@launch
+            val first = s.commanders.commanders.firstOrNull()?.let { s.leadInfo[it.lowercase()] }
+            _ui.update { it.copy(pickerLoading = true) }
+            val q = s.pickerQuery.trim()
+            val options = if (q.isEmpty()) {
+                val names = DecklistParser.parse(s.text).map { it.name }.distinct()
+                val info = runCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
+                names.mapNotNull { info[DeckNames.key(it)]?.option() }.distinctBy { it.name }
+                    .filter { CommanderRules.fits(it.rules, slot, s.format, first) }
+            } else {
+                val filter = CommanderRules.searchFilter(slot, s.format, first)
+                runCatching { repo.api.search("$filter $q", order = "edhrec") }.getOrNull()?.take(40)?.map { it.option() }?.distinctBy { it.name }
+            }
+            _ui.update { it.copy(pickerLoading = false, pickerOptions = options.orEmpty()) }
+            if (options == null) _ui.update { it.copy(message = "Couldn't reach Scryfall") }
+        }
+    }
+
+    /** Puts [o] in the slot being picked. A new first commander keeps the second only if they still pair. */
+    fun pick(o: PickOption) {
+        val s = _ui.value
+        val slot = s.picker ?: return
+        commandersTouched = true
+        val c = s.commanders
+        val next = when (slot) {
+            CommanderSlot.COMMANDER -> {
+                val second = c.commanders.getOrNull(1)
+                    ?.takeIf { n -> s.leadInfo[n.lowercase()]?.let { CommanderRules.canPair(o.rules, it) } == true }
+                c.copy(commanders = listOfNotNull(o.name, second))
+            }
+            CommanderSlot.SECOND -> c.copy(commanders = listOfNotNull(c.commanders.firstOrNull(), o.name))
+            CommanderSlot.COMPANION -> c.copy(companion = o.name)
+            CommanderSlot.SIGNATURE -> c.copy(signature = o.name)
+        }
+        pickJob?.cancel()
+        _ui.update {
+            it.copy(commanders = next, picker = null, pickerLoading = false, leadInfo = it.leadInfo + (o.name.lowercase() to o.rules))
+        }
+    }
+
+    fun clearSlot(slot: CommanderSlot) {
+        commandersTouched = true
+        _ui.update {
+            val c = it.commanders
+            it.copy(
+                commanders = when (slot) {
+                    CommanderSlot.COMMANDER -> c.copy(commanders = emptyList())
+                    CommanderSlot.SECOND -> c.copy(commanders = c.commanders.take(1))
+                    CommanderSlot.COMPANION -> c.copy(companion = null)
+                    CommanderSlot.SIGNATURE -> c.copy(signature = null)
+                },
+            )
         }
     }
 
@@ -567,7 +763,20 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     }
 
     fun setName(v: String) = _ui.update { it.copy(name = v) }
-    fun setText(v: String) = _ui.update { it.copy(text = v) }
+    /** Until the user picks them, a pasted list's Commander sections fill in the format and commanders. */
+    fun setText(v: String) {
+        if (formatTouched && commandersTouched) { _ui.update { it.copy(text = v) }; return }
+        val lines = DecklistParser.parse(v)
+        val before = _ui.value.commanders
+        _ui.update {
+            it.copy(
+                text = v,
+                format = if (formatTouched) it.format else DeckFormats.guess(lines),
+                commanders = if (commandersTouched) it.commanders else DeckCommanders.fromLines(lines),
+            )
+        }
+        if (_ui.value.commanders != before) refreshLeads()
+    }
     fun edit() = _ui.update { it.copy(editing = true) }
 
     fun save() {
@@ -578,9 +787,16 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         viewModelScope.launch {
             try {
                 val name = s.name.ifBlank { "Untitled deck" }
-                val id = repo.saveDeck(s.id, name, s.text)
-                _ui.update { it.copy(id = id, name = name, editing = false) }
+                // A commander picked from search goes into the list too, so the check counts it.
+                val commanderDeck = DeckFormats.isCommander(s.format)
+                val leads = if (commanderDeck) s.commanders else DeckCommanders()
+                val text = if (commanderDeck) DeckCommanders.addMissingTo(s.text, DecklistParser.parse(s.text), leads) else s.text
+                val id = repo.saveDeck(s.id, name, text, s.format, leads.encode())
+                formatTouched = true
+                commandersTouched = true
+                _ui.update { it.copy(id = id, name = name, text = text, editing = false, commanders = leads) }
                 check()
+                refreshLeads()
             } finally {
                 saving = false
             }
@@ -643,7 +859,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val cover = shelf.cover[id]
             repo.deleteDeck(id)
             if (deck != null) Undo.offer("Deck deleted") {
-                val newId = repo.saveDeck(0L, deck.name, deck.text)
+                val newId = repo.saveDeck(0L, deck.name, deck.text, deck.format, deck.commanders)
                 if (folder != null) DeckShelfStore.moveDeck(newId, folder)
                 if (cover != null) DeckShelfStore.setCover(newId, cover)
             }
@@ -661,6 +877,8 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var view by rememberSaveable { mutableIntStateOf(0) }
+    var menu by remember { mutableStateOf(false) }
+    var addingAll by remember { mutableStateOf(false) }
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
@@ -677,11 +895,18 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
                 if (!ui.editing) {
                     IconButton(onClick = vm::edit) { Icon(Icons.Filled.Edit, "Edit list") }
                     IconButton(onClick = { vm.delete(onBack) }) { Icon(Icons.Filled.DeleteOutline, "Delete deck") }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Deck options") }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
+                        }
+                    }
                 }
             }
             if (!ui.loaded) return@Column
             if (ui.editing) Editor(ui, vm)
             else {
+                DeckHeader(ui.format, ui.commanders, ui.leadArt, ui.issues)
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectPill("Cards", view == 0, { view = 0 })
                     SelectPill("Pull list", view == 1, { view = 1 })
@@ -698,16 +923,45 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit) {
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
+    ui.picker?.let { slot ->
+        val first = ui.commanders.commanders.firstOrNull()?.let { ui.leadInfo[it.lowercase()] }
+        CommanderPickerSheet(
+            title = slotLabel(slot, ui.format, first),
+            query = ui.pickerQuery,
+            onQuery = vm::setPickerQuery,
+            loading = ui.pickerLoading,
+            options = ui.pickerOptions,
+            onPick = vm::pick,
+            onDismiss = vm::closePicker,
+        )
+    }
+    if (addingAll) {
+        val counts by vm.addCounts.collectAsStateWithLifecycle()
+        val boxes by vm.boxes.collectAsStateWithLifecycle()
+        AddDeckSheet(
+            counts = counts, boxes = boxes, busy = ui.adding,
+            onAdd = { onlyMissing, boxId -> vm.addToCollection(onlyMissing, boxId) { addingAll = false } },
+            onDismiss = { addingAll = false },
+        )
+    }
 }
 
 @Composable
 private fun Editor(ui: DeckUi, vm: DeckViewModel) {
     val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent)
-    Column(Modifier.padding(horizontal = 16.dp)) {
+    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
         OutlinedTextField(
             value = ui.name, onValueChange = vm::setName, label = { Text("Deck name") },
             singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
+        Spacer(Modifier.height(10.dp))
+        Text("Format", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+        Spacer(Modifier.height(6.dp))
+        FormatPicker(ui.format, vm::setFormat)
+        if (DeckFormats.isCommander(ui.format)) {
+            Spacer(Modifier.height(10.dp))
+            CommanderSlots(ui.format, ui.commanders, ui.leadInfo, vm::openPicker, vm::clearSlot)
+        }
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
             value = ui.text, onValueChange = vm::setText,
@@ -719,6 +973,7 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
         Text("One card per line.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         Spacer(Modifier.height(14.dp))
         GradientButton("Check my collection", vm::save, Modifier.fillMaxWidth(), enabled = ui.text.isNotBlank())
+        Spacer(Modifier.height(24.dp))
     }
 }
 
