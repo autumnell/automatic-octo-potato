@@ -136,10 +136,13 @@ object DriveBackup {
         val dir = File(app.filesDir, "backups").apply { mkdirs() }
         val dated = File(dir, "grimoire-backup-${LocalDate.now()}.zip")
         return try {
-            val count = BackupIO.exportCounted(repo) { dated.outputStream() } ?: return Outcome.FAILED
-            dir.listFiles { f -> f.name.startsWith("grimoire-backup-") }?.sortedByDescending { it.name }?.drop(KEEP)?.forEach { it.delete() }
+            // The shrink check comes first: a wiped collection writes no dated copy and prunes none of the good ones.
             val last = p.getInt("lastCards", -1)
-            if (!force && last >= 20 && count < last / 4) return Outcome.SHRANK
+            var shrank = false
+            val count = BackupIO.exportCounted(repo) { n ->
+                if (!force && last >= 20 && n < last / 4) { shrank = true; null } else dated.outputStream()
+            } ?: return if (shrank) Outcome.SHRANK else Outcome.FAILED
+            dir.listFiles { f -> f.name.startsWith("grimoire-backup-") }?.sortedByDescending { it.name }?.drop(KEEP)?.forEach { it.delete() }
             withContext(Dispatchers.IO + NonCancellable) {
                 // "wt" truncates the old backup; some providers only accept "w".
                 val out = runCatching { app.contentResolver.openOutputStream(target, "wt") }.getOrNull()
