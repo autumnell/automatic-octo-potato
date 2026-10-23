@@ -1,5 +1,10 @@
 package com.mtgscanner.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
@@ -27,7 +32,6 @@ import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.work.DriveBackupReminder
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.style.TextOverflow
 
@@ -48,14 +52,11 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
     val now = remember(last, snoozed) { System.currentTimeMillis() }
 
     fun backUp() {
-        if (!DataJobs.busy.compareAndSet(null, "Backing up…")) {
-            Undo.offer("Wait for \"${DataJobs.busy.value?.removeSuffix("…")}\" to finish")
-            return
-        }
-        (app as MtgApp).repository.appScope.launch {
-            val ok = try { DriveBackup.backupNow(app) } finally { DataJobs.busy.value = null }
+        val started = DataJobs.launch("Backing up…", (app as MtgApp).repository.appScope) {
+            val ok = runCatching { DriveBackup.backupNow(app) }.getOrDefault(false)
             Undo.offer(if (ok) "Backup saved" else "Backup failed")
         }
+        if (!started) Undo.offer(DataJobs.waitMessage())
     }
     // No weekly backup yet: pick where it goes (Drive shows in the picker), then save the first one.
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -64,6 +65,8 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
             backUp()
         }
     }
+    // Turning on weekly backup: ask for notifications first (Android 13+), so a failed one can say so.
+    val startWeekly = rememberAskNotifyThen { pick.launch("grimoire-backup.zip") }
     if (!DriveBackupReminder.due(now, last, snoozed, hasCards)) return
 
     val days = DriveBackupReminder.daysSince(now, last)
@@ -80,9 +83,25 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
         )
         TextButton(onClick = { DriveBackupReminder.snooze(app) }) { Text("Later", color = Palette.Muted) }
         TextButton(
-            onClick = { if (DriveBackup.uri != null) backUp() else pick.launch("grimoire-backup.zip") },
+            onClick = { if (DriveBackup.uri != null) backUp() else startWeekly() },
             enabled = busy == null,
         ) { Text("Back up") }
     }
     Spacer(Modifier.height(4.dp))
+}
+
+/**
+ * Returns an action that runs [then], first asking for notification permission on Android 13+ when it
+ * isn't granted yet (backup failures are told by notification). [then] runs whatever the answer.
+ */
+@Composable
+internal fun rememberAskNotifyThen(then: () -> Unit): () -> Unit {
+    val ctx = LocalContext.current
+    val latest by rememberUpdatedState(then)
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { latest() }
+    return {
+        val needs = Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        if (!needs || runCatching { ask.launch(Manifest.permission.POST_NOTIFICATIONS) }.isFailure) latest()
+    }
 }

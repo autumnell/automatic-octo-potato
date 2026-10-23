@@ -65,6 +65,7 @@ class ArtIndexTest {
         assertNull(two.match(longArrayOf(flip(bolt, 3))))
         assertEquals("Shock", two.match(longArrayOf(flip(bolt, 5)), onlySet = "M19")?.name)
         assertTrue(two.hasSet("m19"))
+        assertTrue(two.hasSet("M19"))
         assertFalse(two.hasSet("mom"))
     }
 

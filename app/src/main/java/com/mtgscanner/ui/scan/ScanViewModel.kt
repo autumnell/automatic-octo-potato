@@ -86,7 +86,8 @@ data class ScanEntry(
 ) {
     /** "Rares → Blue" */
     val where: String get() = if (spot != null && boxName.isNotEmpty()) "$boxName → $spot" else boxName
-    val value: Double get() = (card.price(foil)?.toDoubleOrNull() ?: 0.0) * count
+    val value: Double get() = (card.usdPrice(foil) ?: 0.0) * count
+    val eurValue: Double get() = (card.eurPrice(foil) ?: 0.0) * count
 }
 
 /** A pack being opened, with the cards scanned from it. Kept apart from the scan list so clearing the list keeps them. */
@@ -252,6 +253,12 @@ data class ScanUiState(
     val autoAdd: Boolean get() = settings.autoAdd
     val foil: Boolean get() = settings.foil
 
+    /** A sheet or dialog covers the camera: no adding, no volume keys, no hints. */
+    val anySheetOpen: Boolean
+        get() = showPrintings || showSettings || showList || showReview || showPackStart || showSort || showSetLock ||
+            showDeckPick || showNewBox || showSkipped || showUnknown || showBoxPick || showBoxCheck ||
+            page != null || photo != null || summary != null
+
     /** Whether [card] gets added as foil. The result card's choice counts only for the card on screen. */
     fun isFoil(card: ScryfallCard): Boolean {
         val want = (if (card.id == current?.id) cardFoil else null) ?: settings.foil
@@ -259,13 +266,15 @@ data class ScanUiState(
     }
     val sessionCount: Int get() = session.sumOf { it.count }
     val sessionValue: Double get() = session.sumOf { it.value }
+    val sessionEur: Double get() = session.sumOf { it.eurValue }
     val packEntries: List<ScanEntry> get() = pack?.entries.orEmpty()
     val packValue: Double get() = packEntries.sumOf { it.value }
+    val packEur: Double get() = packEntries.sumOf { it.eurValue }
 }
 
 /** The end-of-session summary for [entries], or null when they added nothing. */
 fun summaryOf(entries: List<ScanEntry>): ScanSummary? = ScanSummary.of(
-    entries.map { SummaryLine(it.card.name, it.card.imageUrl, it.card.price(it.foil)?.toDoubleOrNull(), it.count, it.boxName) },
+    entries.map { SummaryLine(it.card.name, it.card.imageUrl, it.card.usdPrice(it.foil), it.count, it.boxName, it.card.eurPrice(it.foil)) },
 )
 
 class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -347,8 +356,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) { sessionStore.load() }
             if (saved != null && !saved.isEmpty) restoreSession(saved)
-            // From now on, every change is written a moment after it settles.
-            _state.map { SavedScanSession.of(it) }.distinctUntilChanged().collectLatest { s ->
+            // From now on, every change is written a moment after it settles. Compared by reference, so reading,
+            // glare and torch changes don't deep-compare the whole pile.
+            _state.map { SavedScanSession.of(it) }.distinctUntilChanged { a, b -> a.sameAs(b) }.collectLatest { s ->
                 delay(500)
                 withContext(Dispatchers.IO) { sessionStore.save(s) }
             }
@@ -453,12 +463,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     val isPaused: Boolean
         get() = _state.value.let {
             // The first-run hints cover the screen: don't add cards behind them.
-            if (it.showSort || it.showSetLock || it.showDeckPick || it.showSkipped || it.showUnknown || it.showBoxPick || it.showBoxCheck ||
-                it.photo != null || !ScanBarPrefs.hintsSeen) true
-            else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading || it.page != null || it.showSettings || it.showList ||
-                it.showNewBox || boxes.value.isNullOrEmpty()
-            else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp ||
-                it.showPrintings || it.showSettings || it.showList || it.showNewBox || it.showReview || boxes.value.isNullOrEmpty()
+            if (it.anySheetOpen || !ScanBarPrefs.hintsSeen || boxes.value.isNullOrEmpty()) true
+            else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading
+            else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp
         }
 
     /** Called on the camera thread; the work happens on the main thread so it never races the buttons. */
@@ -484,6 +491,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     private fun handleGuess(guess: CardTextGuess) {
         trackGlare(guess)
         val key = guess.key
+        lastFrameArtOnly = key == null && guess.artOnly.isNotEmpty()
         if (key == null && guess.artOnly.isNotEmpty()) {
             // A card is there, just no readable text: not an empty frame.
             leave.seen()
@@ -632,13 +640,30 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The art model's embedding of a picture of artwork; null until the model is downloaded. Camera thread. */
     fun embedArt(art: android.graphics.Bitmap): com.mtgscanner.scan.ArtVector? = repo.artEmbedder.embed(art)
 
+    /** The art match under way; frames that come meanwhile are let go. */
+    private var artJob: Job? = null
+    /** The newest frame had a card but no text, so an art match that finishes still applies. */
+    private var lastFrameArtOnly = false
+
     private fun handleArt(guess: CardTextGuess) {
+        if (artJob?.isActive == true) return
+        val gen = trackGen
         // All the frame's embeddings come from one model; the store uses them only if it's still the chosen one.
         val embeddings = guess.artOnlyEmbeddings
         val model = embeddings.firstOrNull()?.model
-        val hit = repo.artIndex.match(
-            guess.artOnly.toLongArray(), SortPrefs.setLock, embeddings.filter { it.model == model }.map { it.values }, model,
-        )
+        val targets = guess.artOnly.toLongArray()
+        val lock = SortPrefs.setLock
+        val vectors = embeddings.filter { it.model == model }.map { it.values }
+        // Scans every downloaded entry: off the main thread.
+        artJob = viewModelScope.launch {
+            val hit = withContext(Dispatchers.Default) { repo.artIndex.match(targets, lock, vectors, model) }
+            // Paused, reset, or text came into view meanwhile: this answer is stale.
+            if (gen != trackGen || !lastFrameArtOnly || isPaused) return@launch
+            onArtHit(hit, guess)
+        }
+    }
+
+    private fun onArtHit(hit: com.mtgscanner.scan.ArtHit?, guess: CardTextGuess) {
         // The same card on two frames in a row, so one lucky frame doesn't add the wrong card.
         val agreed = artVote.offer(hit?.id) ?: return
         if (hit == null || hit.id != agreed) return
@@ -1368,18 +1393,15 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         )
     }
 
+    /** Leaves pack mode without a summary. Cards stay in the collection. */
     fun cancelPack() = _state.update { it.copy(pack = null, status = "Point your camera at a card") }
 
-    /** Ends the pack. Cards stay in the collection. */
-    fun finishPack() {
-        val s = _state.value
-        val p = s.pack ?: return
-        val n = s.packEntries.sumOf { it.count }
-        val total = if (AppSettings.showPrices) " · " + formatPrice(s.packValue) else ""
-        _state.update { it.copy(pack = null, status = if (n == 0) "Point your camera at a card" else "${p.name}: $n cards$total") }
+    /** Ends the pack and shows what it held, with what it cost. Cards stay in the collection. */
+    fun finishPack() = _state.update {
+        val p = it.pack ?: return@update it
+        val summary = summaryOf(p.entries)?.copy(title = p.name, paid = p.cost?.takeIf { c -> c > 0 })
+        it.copy(pack = null, status = "Point your camera at a card", summary = summary)
     }
-
-    private fun formatPrice(v: Double) = "$" + "%.2f".format(java.util.Locale.US, v)
 
     // Sorting session
 
@@ -1449,8 +1471,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun selectArtModel(m: com.mtgscanner.scan.ArtModel) = repo.artEmbedder.select(m)
 
     /** Set codes of the cards in the collection, most cards first. */
-    suspend fun ownedSets(): List<String> =
-        repo.observeAll().first().groupBy { it.setCode.lowercase() }.entries.sortedByDescending { it.value.size }.map { it.key }
+    suspend fun ownedSets(): List<String> = repo.dao.ownedSetCodes()
 
     // Binder page mode
 
@@ -1658,7 +1679,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun togglePause() {
-        trackGen++
+        // Drops a lookup under way and forgets what was looked up, so the card in view is read again on resume.
+        // Cards already added stay handled until they leave the frame.
+        resetTracking()
         _state.update {
             val p = !it.paused
             it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null, lookingUp = false)

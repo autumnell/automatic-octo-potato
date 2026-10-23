@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -63,12 +64,20 @@ internal fun PriceAlertRow(c: CollectionCard) {
     val key = CardPriceAlert.key(c.scryfallId, c.foil)
     val alert = alerts.firstOrNull { it.key == key }
     var editing by remember { mutableStateOf(false) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    // Re-checked when the dialog opens and after the permission prompt, so a "no" shows here.
+    var canNotify by remember { mutableStateOf(PriceAlerts.canNotify(ctx)) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { canNotify = PriceAlerts.canNotify(ctx) }
+    val blocked = alert != null && !canNotify
 
-    TextButton(onClick = { editing = true }) {
+    TextButton(onClick = { canNotify = PriceAlerts.canNotify(ctx); editing = true }) {
         Icon(
-            if (alert != null) Icons.Filled.NotificationsActive else Icons.Outlined.NotificationsNone, null,
-            Modifier.size(18.dp), tint = if (alert != null) Palette.AccentText else Palette.Icon,
+            when {
+                blocked -> Icons.Outlined.NotificationsOff
+                alert != null -> Icons.Filled.NotificationsActive
+                else -> Icons.Outlined.NotificationsNone
+            },
+            null,
+            Modifier.size(18.dp), tint = if (blocked) Palette.Danger else if (alert != null) Palette.AccentText else Palette.Icon,
         )
         Spacer(Modifier.width(6.dp))
         Text(
@@ -82,6 +91,8 @@ internal fun PriceAlertRow(c: CollectionCard) {
         PriceAlertDialog(
             c = c,
             existing = alert,
+            // On Android 13+ the prompt comes on Save, so a new alert only warns once it was turned down.
+            notifyOff = !canNotify && (Build.VERSION.SDK_INT < 33 || alert != null),
             onSave = { above, below ->
                 editing = false
                 val base = CardPriceAlert(
@@ -109,11 +120,11 @@ internal fun PriceAlertRow(c: CollectionCard) {
 private fun PriceAlertDialog(
     c: CollectionCard,
     existing: CardPriceAlert?,
+    notifyOff: Boolean,
     onSave: (Double?, Double?) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val ctx = LocalContext.current
     fun fmt(v: Double?) = v?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: ""
     var overText by remember { mutableStateOf(fmt(existing?.above)) }
     var underText by remember { mutableStateOf(fmt(existing?.below)) }
@@ -154,7 +165,7 @@ private fun PriceAlertDialog(
                 if (problem != null) {
                     Spacer(Modifier.height(6.dp))
                     Text(problem, style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
-                } else if (!PriceAlerts.canNotify(ctx) && Build.VERSION.SDK_INT < 33) {
+                } else if (notifyOff) {
                     Spacer(Modifier.height(6.dp))
                     Text("Notifications are off for the app.", style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                 }

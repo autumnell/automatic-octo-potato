@@ -165,15 +165,24 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         OverviewUi(all.sumOf { it.quantity }, all.sumOf { it.totalPrice() }, all.sumOf { it.totalEur() }, boxes, BoxArt.stats(all, cv))
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OverviewUi())
 
+    /** Price history by printing, and what it was loaded for: the day, the latest snapshot and the printings owned. */
+    private var pointsCache: Pair<Any, Map<String, List<com.mtgscanner.data.db.PricePoint>>>? = null
+
     /**
      * The collection's value change over the last week from price history, or null without a week of it.
-     * A price refresh writes a snapshot, so it's worked out again then too.
+     * A price refresh writes a snapshot, so it's worked out again then too. The history table is only
+     * re-read when the day, the snapshots or the printings owned change, not on every move or edit.
      */
-    val weekChange: StateFlow<Double?> = combine(repo.observeAll(), repo.observeSnapshots()) { all, _ -> all }
-        .map { all ->
-            val weekAgo = java.time.LocalDate.now().minusDays(WeekChange.DAYS)
+    val weekChange: StateFlow<Double?> = combine(repo.observeAll(), repo.observeSnapshots()) { all, snaps -> all to snaps }
+        .map { (all, snaps) ->
+            val today = java.time.LocalDate.now()
+            val weekAgo = today.minusDays(WeekChange.DAYS)
             val oldest = weekAgo.minusDays(WeekChange.SLACK_DAYS)
-            val points = runCatching { repo.dao.pricePointsSince(oldest.toString()) }.getOrDefault(emptyList()).groupBy { it.scryfallId }
+            val key = listOf(today.toString(), snaps.size, snaps.maxByOrNull { it.day }, all.mapTo(HashSet()) { it.scryfallId })
+            val points = pointsCache?.takeIf { it.first == key }?.second
+                ?: runCatching { repo.dao.pricePointsSince(oldest.toString()) }.getOrNull()
+                    ?.groupBy { it.scryfallId }?.also { pointsCache = key to it }
+                ?: emptyMap()
             val rows = all.filter { !it.proxy }.map { c ->
                 WeekChange.Row(c.nearMintPrice(), c.quantity, historyPairs(points[c.scryfallId].orEmpty(), c.foil))
             }
@@ -1001,7 +1010,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
                     Column(horizontalAlignment = Alignment.End) {
                         if (showValue) Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = text)
                         val pct = stats?.changePercent
-                        if (showChange && stats != null && pct != null) {
+                        if (showChange && stats != null && pct != null && boxChangeShown()) {
                             Text(
                                 boxChangeLabel(stats.change, pct),
                                 style = MaterialTheme.typography.labelMedium.merge(TabularNums),

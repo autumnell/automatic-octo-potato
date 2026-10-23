@@ -56,7 +56,7 @@ data class CollectionCard(
     val treatments: String = "",
     /** Your own labels, comma separated, like "for Kenji's deck" or "lent out". */
     val userTags: String = "",
-    /** Price per copy in this condition and finish from JustTCG, when a key is set (null = use near mint). */
+    /** Left from JustTCG condition prices: cleared once on start, and no price uses it. */
     val conditionPrice: Double? = null,
     /** When [conditionPrice] was fetched (0 = never). */
     val conditionPriceAt: Long = 0,
@@ -140,23 +140,18 @@ fun CollectionCard.mergedWith(
 /** Scryfall's price for this printing, which is the near-mint market price. */
 fun CollectionCard.nearMintPrice(): Double? = if (foil) priceUsdFoil ?: priceUsd else priceUsd
 
-/** Price for one copy: JustTCG's price for its condition when there is one, else Scryfall's near-mint price. */
-fun CollectionCard.unitPrice(): Double? = conditionPrice ?: nearMintPrice()
+/**
+ * Price for one copy: Scryfall's near-mint price. (The old JustTCG [CollectionCard.conditionPrice] is cleared once on
+ * start and no longer counts.)
+ */
+fun CollectionCard.unitPrice(): Double? = nearMintPrice()
 fun CollectionCard.totalPrice(): Double = if (proxy) 0.0 else (unitPrice() ?: 0.0) * quantity
 
 /** Scryfall's Cardmarket price in euros for this printing and finish. */
 fun CollectionCard.nearMintEur(): Double? = if (foil) priceEurFoil ?: priceEur else priceEur
 
-/**
- * Price for one copy in euros. With a JustTCG condition price (in dollars), the euro price is scaled
- * the same way that condition price relates to the dollar near-mint price.
- */
-fun CollectionCard.unitEur(): Double? {
-    val nm = nearMintEur() ?: return null
-    val cond = conditionPrice ?: return nm
-    val usdNm = nearMintPrice()?.takeIf { it > 0 } ?: return nm
-    return nm * cond / usdNm
-}
+/** Price for one copy in euros. */
+fun CollectionCard.unitEur(): Double? = nearMintEur()
 
 /** What the copies are worth in euros; proxies count 0. Cards with no euro price count 0. */
 fun CollectionCard.totalEur(): Double = if (proxy) 0.0 else (unitEur() ?: 0.0) * quantity
@@ -164,15 +159,8 @@ fun CollectionCard.totalEur(): Double = if (proxy) 0.0 else (unitEur() ?: 0.0) *
 fun artCropUrl(imageUrl: String?): String? = imageUrl
     ?.replace("/normal/", "/art_crop/")?.replace("/large/", "/art_crop/")?.replace("/small/", "/art_crop/")
 
-/** Price per copy when it was added, in its condition. */
-fun CollectionCard.priceWhenAdded(): Double? {
-    purchasePrice?.let { return it }
-    val then = priceAtAdd ?: return null
-    // The price when added was near mint; scale it the same way today's condition price relates to near mint.
-    val nm = nearMintPrice()
-    val now = unitPrice()
-    return if (conditionPrice != null && nm != null && nm > 0 && now != null) then * now / nm else then
-}
+/** Price per copy when it was added: what you paid, else the market price then. */
+fun CollectionCard.priceWhenAdded(): Double? = purchasePrice ?: priceAtAdd
 
 /** Change in value per copy since it was added, or null when either price is unknown. */
 fun CollectionCard.changeSinceAdded(): Double? {

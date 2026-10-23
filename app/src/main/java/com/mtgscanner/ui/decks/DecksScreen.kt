@@ -112,6 +112,7 @@ import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.collection.ShareDialog
 import com.mtgscanner.ui.collection.shareLine
+import com.mtgscanner.ui.collection.wantAllWithUndo
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
@@ -127,7 +128,7 @@ import com.mtgscanner.util.DeckLine
 import com.mtgscanner.util.DecklistParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -139,6 +140,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
@@ -883,23 +885,33 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
-    private var checkJob: Job? = null
+    /** The list to check; [n] goes up on every request, so the same text is checked again too. */
+    private data class CheckRequest(val n: Int, val text: String)
+    private val checkRequest = MutableStateFlow<CheckRequest?>(null)
 
-    /** Checks the saved list against the collection, and again whenever the collection changes. */
-    private fun check() {
-        _ui.update { it.copy(checking = true) }
-        val text = _ui.value.text
-        checkJob?.cancel()
-        checkJob = viewModelScope.launch {
+    /**
+     * Checks the requested list against the collection, and again whenever the collection changes. Only runs
+     * while the deck screen collects it, so a deck hidden under another screen stops checking.
+     */
+    val checkRunner: StateFlow<Unit> = flow<Unit> {
+        checkRequest.collectLatest { req ->
+            if (req == null) return@collectLatest
             var initial = true
             combine(repo.observeAll(), places) { cards, p -> cards to p }.collectLatest { (cards, p) ->
                 // Later changes come in bursts (a scan, a bulk move): wait for them to settle.
                 if (!initial) delay(400)
                 initial = false
-                val result = repo.checkDeck(text, cards, p.first, p.second)
+                val result = repo.checkDeck(req.text, cards, p.first, p.second)
                 _ui.update { it.copy(checking = false, check = result) }
             }
         }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Unit)
+
+    /** Checks the current list (see [checkRunner]). */
+    private fun check() {
+        _ui.update { it.copy(checking = true) }
+        val text = _ui.value.text
+        checkRequest.update { CheckRequest((it?.n ?: 0) + 1, text) }
     }
 
     /** Opens the printing picker for a line of the saved list. */
@@ -943,15 +955,17 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 val missing = check.lines.filter { it.section in PLAYED && it.missing > 0 }
                     .groupBy { DeckNames.key(it.name) }.values
                     .map { ls -> ls.first() to ls.sumOf { it.missing } }
-                val msg = runCatching {
+                val batch = runCatching {
                     // The printing the list names, when it has one.
                     val wants = missing.map { (l, _) -> PrintingLookup.Wanted(l.name, l.setCode, l.collectorNumber) }
                     val cards = PrintingLookup.resolve(wants) { ids -> repo.api.identify(ids.map(PrintingLookup::json)) }
-                    var n = 0
-                    missing.zip(cards).forEach { (m, c) -> if (c != null) { repo.wantAtLeast(c, m.second); n++ } }
-                    n
-                }.fold({ "Added $it cards to your wishlist" }, { "Couldn't reach Scryfall" })
-                _ui.update { it.copy(message = msg) }
+                    repo.wantAllWithUndo(missing.zip(cards).mapNotNull { (m, c) -> c?.let { it to m.second } })
+                }.getOrNull()
+                if (batch == null) _ui.update { it.copy(message = "Couldn't reach Scryfall") }
+                else {
+                    val msg = "Added ${batch.count} cards to your wishlist"
+                    if (batch.changed > 0) Undo.offer(msg, batch.undo) else _ui.update { it.copy(message = msg) }
+                }
             } finally {
                 wishing = false
             }
@@ -998,6 +1012,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
+    // Keeps the deck check running only while this screen is showing.
+    vm.checkRunner.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var view by rememberSaveable { mutableIntStateOf(0) }
     var menu by remember { mutableStateOf(false) }

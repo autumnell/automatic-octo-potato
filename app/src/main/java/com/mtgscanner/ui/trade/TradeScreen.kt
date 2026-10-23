@@ -83,6 +83,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -258,7 +259,13 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                     }
                     Triple(c, item, box)
                 }
-                val gives = u.give.mapNotNull { g -> g.owned?.let { o -> o.id to minOf(g.qty, o.quantity) } }
+                // A saved draft holds the give cards as they were: use what's in this binder now, and
+                // skip any card that has since left it (moved, merged or deleted).
+                val inBinder = repo.observeAll().first().filter { it.boxId == binderId.value }.associateBy { it.id }
+                val gives = u.give.mapNotNull { g -> g.owned?.let { o -> inBinder[o.id]?.let { now -> o.id to minOf(g.qty, now.quantity) } } }
+                    .filter { it.second > 0 }
+                val gone = u.give.count { g -> g.owned != null && gives.none { it.first == g.owned.id } }
+                if (gives.isEmpty() && adds.isEmpty()) return@runCatching "Those cards aren't in the binder now"
                 val before = repo.snapshot(gives.map { it.first })
                 val added = mutableListOf<Pair<Long, Int>>()
                 try {
@@ -273,13 +280,23 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                     throw e
                 }
                 val where = leftover?.let { repo.box(it)?.name } ?: "a box"
-                Undo.offer(if (unsorted > 0) "Trade saved. $unsorted fit no box, put in $where" else "Trade saved") {
+                val notes = listOfNotNull(
+                    "$unsorted fit no box, put in $where".takeIf { unsorted > 0 },
+                    "$gone no longer in the binder".takeIf { gone > 0 },
+                )
+                Undo.offer((listOf("Trade saved") + notes).joinToString(". ")) {
                     added.forEach { (id, n) -> repo.remove(id, n) }
                     repo.restore(before)
                 }
+                null
             }
             Haptics.tick()
-            _ui.value = if (result.isSuccess) TradeUi() else u.copy(busy = false, message = "Couldn't save the trade")
+            val problem = result.getOrNull()
+            _ui.value = when {
+                result.isFailure -> u.copy(busy = false, message = "Couldn't save the trade")
+                problem != null -> u.copy(busy = false, message = problem)
+                else -> TradeUi()
+            }
         }
     }
 
@@ -539,14 +556,3 @@ private fun PickRow(title: String, sub: String?, image: String?, onClick: () -> 
     }
 }
 
-/** Plain-text list to share, e.g. a trade binder or wishlist. */
-fun shareText(title: String, lines: List<Triple<Int, String, Double?>>): String = buildString {
-    appendLine(title)
-    lines.forEach { (n, name, price) ->
-        append("$n× $name")
-        if (AppSettings.showPrices && price != null) append(" — ${formatUsd(price)}")
-        appendLine()
-    }
-    appendLine()
-    append("Shared from Grimoire")
-}

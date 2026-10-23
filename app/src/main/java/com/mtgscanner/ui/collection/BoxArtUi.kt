@@ -62,6 +62,9 @@ fun boxStripeColors(boxes: List<BoxSummary>): Map<Long, Color> {
     }
 }
 
+/** Box value changes come from dollar price history, so they're hidden when prices show in euros. */
+fun boxChangeShown(): Boolean = AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR
+
 /** "+$61.66 (+36.7%)"; the percent is left out when unknown. */
 fun boxChangeLabel(change: Double, percent: Double?): String {
     val sign = if (change < 0) "−" else "+"
@@ -127,7 +130,7 @@ fun ValueRing(
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 22.dp)) {
                 if (prices) {
                     Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge.merge(TabularNums), fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    if (then > 0) {
+                    if (then > 0 && boxChangeShown()) {
                         Text(
                             boxChangeLabel(change, change / then * 100),
                             style = MaterialTheme.typography.labelSmall.merge(TabularNums),

@@ -17,13 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.mtgscanner.MtgApp
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.formatUsd
@@ -43,9 +40,8 @@ import com.mtgscanner.ui.theme.TabularNums
 
 class MoneyViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The last six months, oldest first. Empty until loaded. */
-    val months: StateFlow<List<MonthMoney>> = combine(repo.observeAll(), repo.dao.observeSnapshots()) { cards, snaps ->
-        val sales = runCatching { repo.dao.allEvents() }.getOrDefault(emptyList())
-            .filter { it.kind == Sales.KIND }
+    val months: StateFlow<List<MonthMoney>> = combine(repo.observeAll(), repo.dao.observeSnapshots(), repo.dao.observeEventsOfKind(Sales.KIND)) { cards, snaps, sold ->
+        val sales = sold
             .mapNotNull { e -> Sales.amount(e.detail)?.let { e.at to it } }
         MoneyMath.months(
             added = cards.mapNotNull { c -> c.purchasePrice?.let { c.addedAt to it * c.quantity } },
@@ -54,12 +50,6 @@ class MoneyViewModel(private val repo: CollectionRepository) : ViewModel() {
             now = YearMonth.now(),
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { MoneyViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
-        }
-    }
 }
 
 private val monthName = DateTimeFormatter.ofPattern("MMM", Locale.US)
@@ -69,7 +59,7 @@ private val monthName = DateTimeFormatter.ofPattern("MMM", Locale.US)
  * (prices paid for cards added) and sold (the Sold list) each month next to the collection's worth.
  */
 @Composable
-fun MoneySection(paid: PaidSummary, vm: MoneyViewModel = viewModel(factory = MoneyViewModel.Factory)) {
+fun MoneySection(paid: PaidSummary, vm: MoneyViewModel = viewModel(factory = AppViewModels.Factory)) {
     val months by vm.months.collectAsStateWithLifecycle()
     val showPaid = paid.copies > 0
     val showMonths = MoneyMath.hasData(months)

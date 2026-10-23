@@ -112,6 +112,7 @@ private fun CurrencyRow() {
             com.mtgscanner.util.PriceCurrency.entries.forEach { c ->
                 SelectPill(c.label, AppSettings.currency == c, {
                     AppSettings.updateCurrency(c)
+                    com.mtgscanner.widget.CollectionWidget.refresh(ctx)
                     if (c != com.mtgscanner.util.PriceCurrency.USD) {
                         val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
                         // On the app's scope, so leaving Settings doesn't stop it.

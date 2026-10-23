@@ -22,12 +22,18 @@ object AppViewModels {
         initializer { HomeViewModel((this[AppKey] as MtgApp).repository) }
         initializer { ScanViewModel((this[AppKey] as MtgApp).repository) }
         initializer { CollectionViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { com.mtgscanner.ui.goals.GoalsViewModel((this[AppKey] as MtgApp).repository) }
         initializer { SearchViewModel((this[AppKey] as MtgApp).repository) }
         initializer { DecksViewModel((this[AppKey] as MtgApp).repository) }
         initializer { TradeViewModel((this[AppKey] as MtgApp).repository) }
         initializer { SettingsViewModel((this[AppKey] as MtgApp).repository) }
         initializer { com.mtgscanner.ui.game.GameViewModel(this[AppKey] as MtgApp, (this[AppKey] as MtgApp).repository) }
         initializer { com.mtgscanner.ui.collection.ToolsViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { com.mtgscanner.ui.home.StatsViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { com.mtgscanner.ui.sell.SellViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { com.mtgscanner.ui.sell.BuylistViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { com.mtgscanner.ui.loans.LoansViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { com.mtgscanner.ui.home.MoneyViewModel((this[AppKey] as MtgApp).repository) }
     }
 
     fun browse(boxId: Long) = viewModelFactory {

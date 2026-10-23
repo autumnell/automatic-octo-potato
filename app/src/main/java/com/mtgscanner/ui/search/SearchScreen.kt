@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -46,6 +47,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -235,42 +237,71 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                 EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = 24.dp), body = ui.error.orEmpty())
             ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
             ui.results.isEmpty() -> EmptyState("No cards found", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            else -> Results(ui, vm, owned)
+            else -> Results(
+                results = ui.results, hasMore = ui.hasMore, loading = ui.loading, moreFailed = ui.moreFailed,
+                grid = ui.grid, ranLabel = ui.ranLabel, owned = owned,
+                onSelect = vm::select, onLoadMore = vm::loadMore, onClear = vm::clearResults,
+            )
         }
     }
 }
 
+/**
+ * The result list. Takes only what it shows (not the whole [SearchUi]), so typing in the search field
+ * doesn't redraw every tile.
+ */
 @Composable
-private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>) {
+private fun Results(
+    results: List<ScryfallCard>,
+    hasMore: Boolean,
+    loading: Boolean,
+    moreFailed: Boolean,
+    grid: Boolean,
+    ranLabel: String?,
+    owned: Map<String, Owned>,
+    onSelect: (ScryfallCard) -> Unit,
+    onLoadMore: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val state = rememberLazyGridState()
+    // The next page loads once the last few results are on screen.
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = state.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - 8
+        }
+    }
+    LaunchedEffect(nearEnd, results.size) { if (nearEnd) onLoadMore() }
     LazyVerticalGrid(
-        columns = if (ui.grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
+        columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
+        state = state,
         contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.Text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${ui.results.size}${if (ui.hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-                IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
+                Text(ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.Text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${results.size}${if (hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+                IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
             }
         }
-        itemsIndexed(ui.results, key = { _, c -> c.id }) { i, c ->
-            if (i >= ui.results.size - 8) LaunchedEffect(ui.results.size) { vm.loadMore() }
+        itemsIndexed(results, key = { _, c -> c.id }) { _, c ->
             val have = owned.of(c)?.count ?: 0
-            if (ui.grid) {
-                CardTile(c.smallImageUrl, c.name, scryfallPriceShort(c, foil = c.prices.usd == null && c.prices.usdFoil != null), owned = have, onClick = { vm.select(c) })
+            if (grid) {
+                CardTile(c.smallImageUrl, c.name, scryfallPriceShort(c, foil = c.prices.usd == null && c.prices.usdFoil != null), owned = have, onClick = { onSelect(c) })
             } else {
-                ResultRow(c, have) { vm.select(c) }
+                ResultRow(c, have) { onSelect(c) }
             }
         }
-        if (ui.loading) {
+        if (loading) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 PlaceholderRows(2, Modifier.padding(6.dp))
             }
-        } else if (ui.moreFailed) {
+        } else if (moreFailed) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.TextButton(onClick = vm::loadMore) { Text("Couldn't load more · Retry", color = Palette.AccentText) }
+                    androidx.compose.material3.TextButton(onClick = onLoadMore) { Text("Couldn't load more · Retry", color = Palette.AccentText) }
                 }
             }
         }
@@ -382,7 +413,7 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, In
         return
     }
     val q = ui.setFilter.trim().lowercase()
-    val shown = if (q.isEmpty()) sets else sets.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q }
+    val shown = remember(sets, q) { if (q.isEmpty()) sets else sets.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q } }
     if (shown.isEmpty()) {
         EmptyState("No sets found", Modifier.padding(top = 24.dp))
         return

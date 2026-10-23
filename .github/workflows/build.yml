@@ -9,9 +9,11 @@ on:
 permissions:
   contents: write
 
+# A newer push to a pull request cancels its older run. Builds of main are never cancelled midway (one
+# could stop between deleting and re-creating the "latest" release); a newer push waits its turn instead.
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -100,10 +102,22 @@ jobs:
             --title "$TITLE" \
             --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}, ${BUILD_DATE}. Download mtg-scanner.apk on your phone and open it to install."
 
+  # Lint compiles its own debug build, so it runs as a job of its own, beside the build instead of after it.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
       # Android lint, mainly for calls to APIs newer than Android 8 (minSdk 26). It reports but doesn't
       # fail the build yet (abortOnError = false in app/build.gradle.kts).
       - name: Android lint
-        if: ${{ !cancelled() }}
         continue-on-error: true
         run: |
           ./gradlew --no-daemon lintDebug

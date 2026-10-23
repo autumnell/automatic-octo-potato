@@ -109,6 +109,8 @@ import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.CardTextBlock
 import com.mtgscanner.ui.components.textInfo
 import com.mtgscanner.data.db.nearMintPrice
+import com.mtgscanner.data.db.nearMintEur
+import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.data.db.priceWhenAdded
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
@@ -132,8 +134,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
@@ -213,13 +218,25 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
             if (next != cur) repo.setQuantity(id, next)
         }
     }
-    fun setFoil(foil: Boolean) = viewModelScope.launch { currentId.value = repo.setFoil(currentId.value, foil) }
-    fun setCondition(c: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(condition = c)) } }
-    fun setNotes(n: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(notes = n)) } }
-    fun setLang(l: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(lang = l)) } }
-    fun setSigned(on: Boolean) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(signed = on)) } }
-    fun setAltered(on: Boolean) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(altered = on)) } }
-    fun setGraded(g: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(graded = g.trim())) } }
+    /**
+     * Saves an edit that can fold this row into a matching one (same finish, condition, language...).
+     * When it does, offers Undo so the rows can be pulled apart again.
+     */
+    private fun edit(change: suspend (CollectionCard) -> Long) = viewModelScope.launch {
+        val c = card.value ?: return@launch
+        val from = currentId.value
+        val before = repo.snapshot(listOf(from))
+        val id = change(c)
+        currentId.value = id
+        if (id != from) Undo.offer("Merged with matching copies") { repo.restore(before); currentId.value = from }
+    }
+    fun setFoil(foil: Boolean) = edit { repo.setFoil(currentId.value, foil) }
+    fun setCondition(c: String) = edit { repo.update(it.copy(condition = c)) }
+    fun setNotes(n: String) = edit { repo.update(it.copy(notes = n)) }
+    fun setLang(l: String) = edit { repo.update(it.copy(lang = l)) }
+    fun setSigned(on: Boolean) = edit { repo.update(it.copy(signed = on)) }
+    fun setAltered(on: Boolean) = edit { repo.update(it.copy(altered = on)) }
+    fun setGraded(g: String) = edit { repo.update(it.copy(graded = g.trim())) }
     fun delete(done: () -> Unit) = viewModelScope.launch {
         val before = repo.snapshot(listOf(currentId.value))
         val name = card.value?.name ?: "card"
@@ -235,9 +252,13 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         .flatMapLatest { sid -> if (sid == null) flowOf(emptyList()) else repo.observePriceHistory(sid) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Every tag used anywhere in the collection, for suggestions. */
-    val allTags: StateFlow<List<String>> = repo.observeAll()
+    /** The whole collection, read once for the flows below that need it. */
+    private val allRows = repo.observeAll().shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    /** Every tag used anywhere in the collection, for suggestions; only collected while the tag dialog is open. */
+    val allTags: StateFlow<List<String>> = allRows
         .map { all -> all.flatMap { it.userTagList() }.distinct().sorted() }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun addTag(tag: String) = viewModelScope.launch { repo.addTag(listOf(currentId.value), tag) }
@@ -245,11 +266,10 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
 
     fun setPaid(p: Double?) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(purchasePrice = p)) } }
     fun setFrom(f: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(acquiredFrom = f.trim().take(30))) } }
-    fun setProxy(on: Boolean) = viewModelScope.launch {
-        card.value?.let {
-            currentId.value = repo.update(it.copy(proxy = on))
-            repo.logEvent(it.scryfallId, it.name, "edited", if (on) "Proxy" else "Not proxy")
-        }
+    fun setProxy(on: Boolean) = edit {
+        val id = repo.update(it.copy(proxy = on))
+        repo.logEvent(it.scryfallId, it.name, "edited", if (on) "Proxy" else "Not proxy")
+        id
     }
     fun setForSale(on: Boolean) = viewModelScope.launch {
         card.value?.let {
@@ -268,7 +288,12 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         if (c == null || path == null) return@launch
         val fresh = repo.cardOnce(currentId.value) ?: c
         currentId.value = repo.update(fresh.copy(photo = path))
-        if (c.photo.isNotBlank() && c.photo != path) CardPhotos.delete(ctx, c.photo)
+        val old = c.photo
+        if (old.isNotBlank() && old != path) {
+            // Moving some copies to another box copies the photo path, so another row can still use the file.
+            val inUse = runCatching { repo.dao.byScryfallIds(listOf(c.scryfallId)).any { it.photo == old } }.getOrDefault(true)
+            if (!inUse) CardPhotos.delete(ctx, old)
+        }
     }
     fun discardTemp(uri: android.net.Uri) = viewModelScope.launch { CardPhotos.discard(repo.appContext, uri) }
     /** Clears the photo with Undo; the file itself is deleted only once Undo has had its time. */
@@ -309,9 +334,9 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Row ids in this card's box, in swipe order; only re-sorted when the collection or the box changes, not on edits to this card. */
-    private val boxOrder: kotlinx.coroutines.flow.Flow<List<Long>> = combine(card.map { it?.boxId }.distinctUntilChanged(), repo.observeAll()) { boxId, all ->
+    private val boxOrder: kotlinx.coroutines.flow.Flow<List<Long>> = combine(card.map { it?.boxId }.distinctUntilChanged(), allRows) { boxId, all ->
         if (boxId == null) emptyList() else boxOrderOf(boxId, all)
-    }.distinctUntilChanged()
+    }.flowOn(Dispatchers.Default).distinctUntilChanged()
 
     /** The other cards in the same box, in name order, for swiping. */
     val neighbors: StateFlow<Neighbors> = combine(card.map { it?.id }.distinctUntilChanged(), boxOrder) { id, order ->
@@ -330,19 +355,24 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     private val _rulings = MutableStateFlow(Fetched<List<com.mtgscanner.data.ScryfallRuling>>())
     val rulings: StateFlow<Fetched<List<com.mtgscanner.data.ScryfallRuling>>> = _rulings
 
+    /** Every row of this card, any printing, found in one pass over the collection. */
+    private val sameCardRows: StateFlow<List<CollectionCard>> = combine(
+        card.map { c -> c?.let { it.oracleId to it.name } }.distinctUntilChanged(),
+        allRows,
+    ) { key, all ->
+        if (key == null) emptyList<CollectionCard>()
+        else all.filter { if (key.first != null) it.oracleId == key.first else it.name == key.second }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Copies owned of each printing of this card (by Scryfall id), across all boxes. */
-    val ownedPrintings: StateFlow<Map<String, Int>> = combine(card, repo.observeAll()) { c, all ->
-        if (c == null) emptyMap<String, Int>()
-        else all.filter { if (c.oracleId != null) it.oracleId == c.oracleId else it.name == c.name }
-            .groupBy { it.scryfallId }
-            .mapValues { (_, rows) -> rows.sumOf { it.quantity } }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    val ownedPrintings: StateFlow<Map<String, Int>> = sameCardRows
+        .map { rows -> rows.groupBy { it.scryfallId }.mapValues { (_, r) -> r.sumOf { it.quantity } } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** (box id, copies) for every row of this card, any printing: the "where are my copies" line. */
-    val copyRows: StateFlow<List<Pair<Long, Int>>> = combine(card, repo.observeAll()) { c, all ->
-        if (c == null) emptyList<Pair<Long, Int>>()
-        else all.filter { if (c.oracleId != null) it.oracleId == c.oracleId else it.name == c.name }.map { it.boxId to it.quantity }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val copyRows: StateFlow<List<Pair<Long, Int>>> = sameCardRows
+        .map { rows -> rows.map { it.boxId to it.quantity } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun loadPrintings(force: Boolean = false) {
         val c = card.value ?: return
@@ -411,12 +441,8 @@ internal fun neighborsIn(id: Long, order: List<Long>): Neighbors {
     return Neighbors(order.getOrNull(i - 1), order.getOrNull(i + 1), i + 1, order.size)
 }
 
-private val LANGUAGES = listOf(
-    "en" to "English", "ja" to "Japanese", "de" to "German", "fr" to "French", "it" to "Italian", "es" to "Spanish",
-    "pt" to "Portuguese", "ru" to "Russian", "ko" to "Korean", "zhs" to "Chinese (S)", "zht" to "Chinese (T)",
-)
-
-private val CONDITIONS = listOf("NM" to "Near mint", "LP" to "Lightly played", "MP" to "Moderately played", "HP" to "Heavily played", "DMG" to "Damaged")
+private val LANGUAGES = com.mtgscanner.ui.collection.CARD_LANGUAGES
+private val CONDITIONS = com.mtgscanner.ui.collection.CARD_CONDITIONS
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -430,7 +456,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
     var confirmDelete by remember { mutableStateOf(false) }
     var addingTag by remember { mutableStateOf(false) }
     val history by vm.priceHistory.collectAsStateWithLifecycle()
-    val allTags by vm.allTags.collectAsStateWithLifecycle()
     val live by vm.live.collectAsStateWithLifecycle()
     val loaded by vm.loaded.collectAsStateWithLifecycle()
     var moveTarget by remember { mutableStateOf<MoveDest?>(null) }
@@ -658,7 +683,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 Text(cardPrice(c), style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
                                 if (c.conditionPrice != null && c.condition != "NM" && c.nearMintPrice() != null) {
-                                    Text("${c.condition} · near mint ${formatUsd(c.nearMintPrice())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                                    Text("${c.condition} · near mint ${formatMoney(c.nearMintPrice(), c.nearMintEur())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 }
                                 val change = c.changeSinceAdded()
                                 val was = c.priceWhenAdded()
@@ -835,7 +860,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
         com.mtgscanner.ui.loans.LendDialog(c, onDismiss = { lending = false })
     }
 
-    if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
+    if (addingTag) {
+        val allTags by vm.allTags.collectAsStateWithLifecycle()
+        TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
+    }
 
     if (confirmDelete) {
         AlertDialog(
@@ -996,10 +1024,9 @@ private fun SplitDialog(c: CollectionCard, onSplit: (SplitChange) -> Unit, onDis
 
 /** Parses "$1.50", "1,50" or "1.5"; blank is null. Returns false for the outer value when not a number. */
 internal fun parseAmount(text: String): Pair<Boolean, Double?> {
-    val t = text.trim().removePrefix("$").trim().replace(',', '.')
-    if (t.isEmpty()) return true to null
-    val v = t.toDoubleOrNull() ?: return false to null
-    return if (v < 0) (false to null) else (true to v)
+    if (text.isBlank()) return true to null
+    val v = com.mtgscanner.util.PriceInput.parse(text) ?: return false to null
+    return true to v
 }
 
 @Composable

@@ -1,7 +1,6 @@
 package com.mtgscanner.ui.collection
 
 import com.mtgscanner.data.db.CollectionCard
-import com.mtgscanner.data.db.PricePoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -82,19 +81,5 @@ class ListSectionsTest {
         assertEquals(9, BoxFillMath.lit(99, 100, 10))
         assertEquals(10, BoxFillMath.lit(100, 100, 10))
         assertEquals(5, BoxFillMath.lit(50, 100, 10))
-    }
-
-    @Test fun sparkPointsUseFoilPriceAndEndOnToday() {
-        val h = listOf(
-            PricePoint("x", "2026-10-02", 2.0, 5.0),
-            PricePoint("x", "2026-10-01", 1.0, null),
-            PricePoint("x", "2026-10-21", 3.0, 6.0),
-        )
-        // Sorted by day; today's stored point is replaced by the card's current price.
-        assertEquals(listOf(1.0, 2.0, 3.5), PriceTrends.sparkPoints(h, foil = false, current = 3.5, today = "2026-10-21"))
-        // Foils fall back to the regular price when there's no foil price that day.
-        assertEquals(listOf(1.0, 5.0, 7.0), PriceTrends.sparkPoints(h, foil = true, current = 7.0, today = "2026-10-21"))
-        // No current price: the history as is.
-        assertEquals(listOf(1.0, 2.0, 3.0), PriceTrends.sparkPoints(h, foil = false, current = null, today = "2026-10-21"))
     }
 }

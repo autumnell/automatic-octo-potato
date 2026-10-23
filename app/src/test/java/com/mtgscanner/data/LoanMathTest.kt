@@ -58,8 +58,8 @@ class LoanMathTest {
         val c = card(1, qty = 2).copy(priceEur = 1.5, priceEurFoil = 3.0)
         assertEquals(1.5, c.unitEur()!!, 0.001)
         assertEquals(3.0, c.copy(foil = true).unitEur()!!, 0.001)
-        // A condition price at half of near mint halves the euro price too.
-        assertEquals(0.75, c.copy(conditionPrice = 1.0).unitEur()!!, 0.001)
+        // An old JustTCG condition price no longer counts.
+        assertEquals(1.5, c.copy(conditionPrice = 1.0).unitEur()!!, 0.001)
         assertEquals(3.0, c.totalEur(), 0.001)
         assertEquals(0.0, c.copy(proxy = true).totalEur(), 0.001)
         assertNull(c.copy(priceEur = null).unitEur())

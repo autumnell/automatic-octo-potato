@@ -31,6 +31,7 @@ suspend fun CollectionRepository.changePrinting(id: Long, to: ScryfallCard): Pri
         if (other != null && other.id != c.id) {
             dao.update(other.mergedWith(c, now = now))
             dao.delete(c)
+            dao.moveLoans(c.id, other.id)
             other.id
         } else {
             dao.update(

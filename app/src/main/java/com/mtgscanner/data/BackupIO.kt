@@ -111,7 +111,14 @@ object BackupCodec {
 /** Backup, restore and CSV import for [CollectionRepository]. */
 internal object BackupIO {
     /** SharedPreferences files that hold the user's organisation and options, saved in backups. */
-    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app")
+    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links")
+
+    /**
+     * Files keyed by box or deck id: the shelf and box-check start dates ([BoxPrefs]), when boxes were last checked
+     * ([LastChecked]) and deck links. A restore keeps the backup's ids, so these must come from the backup too.
+     * They're saved even when empty, so a backup without them is from an older version.
+     */
+    private val ID_PREFS = listOf("boxes", "box_checked", "deck_links")
 
     /** What the app held just before the last restore, so a restore can be undone. */
     private const val SAFETY_FILE = "before-restore.json"
@@ -129,7 +136,7 @@ internal object BackupIO {
             packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(), loans = dao.allLoans(),
             prefs = BACKED_UP_PREFS.associateWith { name ->
                 BackupCodec.prefValues(repo.appContext.getSharedPreferences(name, Context.MODE_PRIVATE).all)
-            }.filterValues { it.isNotEmpty() },
+            }.filter { (name, values) -> values.isNotEmpty() || name in ID_PREFS },
         )
     }
 
@@ -206,7 +213,8 @@ internal object BackupIO {
         // Photos first, so the restored cards can point at this phone's copies.
         val photoDir = CardPhotos.folder(repo.appContext)
         BackupArchive.stagedPhotos(b).forEach { f -> runCatching { f.copyTo(File(photoDir, f.name), overwrite = true) } }
-        val cards = b.cards.map { c ->
+        // Old JustTCG condition prices no longer count; an older backup's are dropped.
+        val cards = b.cards.map { it.copy(conditionPrice = null, conditionPriceAt = 0) }.map { c ->
             if (c.photo.isBlank()) c
             else File(photoDir, File(c.photo).name).takeIf { it.isFile }?.let { c.copy(photo = it.absolutePath) } ?: c
         }
@@ -223,6 +231,7 @@ internal object BackupIO {
         b.staged?.let { runCatching { File(it).deleteRecursively() } }
         // Old backups have no settings: keep the current ones.
         if (b.prefs.isNotEmpty()) applyPrefs(repo.appContext, b.prefs)
+        forgetIdPrefs(repo.appContext, b.prefs)
         repo.appScope.launch { runCatching { repo.recordSnapshot() } }
         b.cardCount
     }
@@ -258,6 +267,28 @@ internal object BackupIO {
         com.mtgscanner.scan.ScanPrefs.init(context)
         com.mtgscanner.ui.theme.AppSettings.init(context)
         com.mtgscanner.work.CardAlertStore.reload(context)
+    }
+
+    /**
+     * A backup from before box and deck prefs were saved: this phone's ones name its own ids, which now belong to the
+     * backup's boxes and decks. They're dropped (the shelf keeps its size) rather than point at the wrong box or deck.
+     * Then the box prefs are read again either way.
+     */
+    private fun forgetIdPrefs(context: Context, prefs: Map<String, Map<String, PrefValue>>) {
+        for (name in ID_PREFS) {
+            if (name in prefs) continue
+            val p = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+            when (name) {
+                "boxes" -> {
+                    val shelf = ShelfLayout.decode(p.getString("shelf", null))
+                    p.edit().putString("shelf", ShelfLayout(shelf.rows, shelf.cols).encode()).remove("checks").commit()
+                }
+                "box_checked" -> p.edit().remove("done").commit()
+                else -> p.edit().clear().commit()
+            }
+        }
+        BoxPrefs.reload(context)
+        LastChecked.reload(context)
     }
 
     /** Whether restoring [b] changes settings that some screens only read at start-up. */
@@ -357,10 +388,13 @@ internal object BackupIO {
         val dao = repo.dao
         var added = 0
         val notFound = mutableListOf<String>()
+        // Copies added per row id, and the box made for the import, so Undo takes off exactly this.
+        val addedTo = LinkedHashMap<Long, Int>()
+        var fallbackBoxId: Long? = null
+        var madeBox: Long? = null
         // Lookups are done; from here on the import finishes even if the screen closes.
         withContext(NonCancellable) {
             repo.db.withTransaction {
-                var fallbackBoxId: Long? = null
                 // Decks' card rows too: a deck's "Add to collection" plans its cards into the deck.
                 val boxNames = dao.allPlaces().associate { it.id to it.placeName() }.toMutableMap()
                 val now = System.currentTimeMillis()
@@ -372,6 +406,8 @@ internal object BackupIO {
                         ?: fallbackBoxId
                         ?: fallbackBox?.invoke()?.also { id ->
                             fallbackBoxId = id
+                            // A box that wasn't there before was made for this import.
+                            if (id !in boxNames) madeBox = id
                             boxNames[id] = dao.box(id)?.name ?: "?"
                         }
                     if (target == null) { notFound += r.name; return@forEachIndexed }
@@ -389,11 +425,13 @@ internal object BackupIO {
                         row.scryfallId, row.foil, row.boxId, row.lang, row.condition,
                         row.signed, row.altered, row.graded, row.proxy,
                     )
-                    if (existing != null) {
+                    val rowId = if (existing != null) {
                         dao.update(existing.copy(quantity = existing.quantity + r.quantity, updatedAt = now))
+                        existing.id
                     } else {
                         dao.insert(row)
                     }
+                    addedTo[rowId] = (addedTo[rowId] ?: 0) + r.quantity
                     val boxName = boxNames[target] ?: "?"
                     dao.addEvent(CardEvent(scryfallId = c.id, name = c.name, kind = "added", detail = "×${r.quantity} → $boxName"))
                     added += r.quantity
@@ -406,7 +444,7 @@ internal object BackupIO {
         repo.appScope.launch {
             runCatching { repo.recordSnapshot() }
         }
-        return ImportResult(added, notFound)
+        return ImportResult(added, notFound, addedTo.toList(), madeBox)
     }
 
 }

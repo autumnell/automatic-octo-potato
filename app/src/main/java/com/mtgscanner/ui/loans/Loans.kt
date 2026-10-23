@@ -40,13 +40,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mtgscanner.MtgApp
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.LoanMath
 import com.mtgscanner.data.cancelLoan
@@ -95,12 +93,6 @@ class LoansViewModel(private val repo: CollectionRepository) : ViewModel() {
         repo.returned(loan)
         Undo.offer("${loan.name} back from ${loan.who}") { repo.putLoanBack(loan) }
     }
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { LoansViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
-        }
-    }
 }
 
 private val sinceFormat = DateTimeFormatter.ofPattern("MMM d", Locale.US)
@@ -113,7 +105,7 @@ internal fun sinceText(millis: Long): String = runCatching {
 /** Who has what, since when, with Returned on each. */
 @Composable
 fun LoansScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
-    val vm: LoansViewModel = viewModel(factory = LoansViewModel.Factory)
+    val vm: LoansViewModel = viewModel(factory = AppViewModels.Factory)
     val people by vm.people.collectAsStateWithLifecycle()
     Haptics.Attach()
 
@@ -183,8 +175,13 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
     val repo = (LocalContext.current.applicationContext as MtgApp).repository
     val loansFlow = remember(repo) { repo.observeLoans() }
     val loans by loansFlow.collectAsStateWithLifecycle(emptyList())
+    val cardsFlow = remember(repo) { repo.observeAll() }
+    val cards by cardsFlow.collectAsStateWithLifecycle(emptyList())
+    // Copies already lent can't be lent again.
+    val left = card.quantity - LoanMath.outCount(card, loans, cards.ifEmpty { listOf(card) })
     var who by remember { mutableStateOf("") }
     var qty by remember { mutableIntStateOf(card.quantity) }
+    val lendQty = qty.coerceIn(1, left.coerceAtLeast(1))
     val name = LoanMath.cleanName(who)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -209,11 +206,14 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
                         recent.forEach { n -> SelectPill(n, n.equals(name, ignoreCase = true), { who = n }) }
                     }
                 }
-                if (card.quantity > 1) {
+                if (left <= 0) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("All copies are out", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                } else if (left > 1) {
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Copies", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        QuantityStepper(qty, onChange = { qty = it.coerceIn(1, card.quantity) })
+                        QuantityStepper(lendQty, onChange = { qty = it.coerceIn(1, left) })
                     }
                 }
             }
@@ -221,15 +221,14 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(
                 onClick = {
-                    val n = qty
                     // On the app's scope: the dialog closes right away.
                     repo.appScope.launch {
-                        val loan = repo.lend(card.id, n, name) ?: return@launch
+                        val loan = repo.lend(card.id, lendQty, name) ?: return@launch
                         Undo.offer("Lent ${card.name} to ${loan.who}") { repo.cancelLoan(loan) }
                     }
                     onDismiss()
                 },
-                enabled = name.isNotEmpty(),
+                enabled = name.isNotEmpty() && left > 0,
             ) { Text("Lend") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },

@@ -9,6 +9,29 @@ import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * Copies (n), dollar value and euro value of the rows selected, the same as summing [totalPrice] and [totalEur]:
+ * proxies count 0, else the near-mint price for the finish.
+ */
+const val TOTALS_SQL = "COALESCE(SUM(quantity), 0) AS n, " +
+    "COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
+    "COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) * quantity END), 0) AS value, " +
+    "COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
+    "COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceEurFoil, priceEur) ELSE priceEur END, 0) * quantity END), 0) AS valueEur"
+
+/** The columns price checks read from a card row. */
+data class PriceRow(
+    val id: Long,
+    val scryfallId: String,
+    val name: String,
+    val foil: Boolean,
+    val priceUsd: Double?,
+    val priceUsdFoil: Double?,
+)
+
+/** Scryfall's near-mint price for the finish, as [nearMintPrice]. */
+fun PriceRow.nearMint(): Double? = if (foil) priceUsdFoil ?: priceUsd else priceUsd
+
 @Dao
 interface CardDao {
     @Query("SELECT * FROM cards ORDER BY addedAt DESC")
@@ -36,29 +59,21 @@ interface CardDao {
     @Query("SELECT * FROM cards WHERE boxId = :boxId")
     suspend fun inBox(boxId: Long): List<CollectionCard>
 
-    @Query("SELECT * FROM cards WHERE rolesCheckedAt = 0 AND oracleId IS NOT NULL")
-    suspend fun needingRoles(): List<CollectionCard>
-
-    @Query("UPDATE cards SET roles = :roles, rolesCheckedAt = :at WHERE oracleId = :oracleId")
-    suspend fun setRoles(oracleId: String, roles: String, at: Long)
-
-    @Query("UPDATE cards SET rolesCheckedAt = 0")
-    suspend fun resetRoles()
-
     @Insert
     suspend fun insert(card: CollectionCard): Long
 
     @Update
     suspend fun update(card: CollectionCard)
 
-    @Update
-    suspend fun updateAll(cards: List<CollectionCard>)
-
     @Insert
     suspend fun addEvent(e: CardEvent): Long
 
     @Query("SELECT * FROM card_events WHERE scryfallId = :scryfallId ORDER BY at DESC")
     fun observeEvents(scryfallId: String): Flow<List<CardEvent>>
+
+    /** Every event of one kind (such as "sold"), for totals that don't need the rest of the history. */
+    @Query("SELECT * FROM card_events WHERE kind = :kind")
+    fun observeEventsOfKind(kind: String): Flow<List<CardEvent>>
 
     @Query("SELECT * FROM card_events")
     suspend fun allEvents(): List<CardEvent>
@@ -101,50 +116,56 @@ interface CardDao {
     @Query("SELECT boxId, COALESCE(SUM(quantity), 0) AS n FROM cards GROUP BY boxId")
     suspend fun boxCounts(): List<BoxCount>
 
+    /** Set codes of the cards held, lowercase, most rows first. */
+    @Query("SELECT LOWER(setCode) FROM cards GROUP BY LOWER(setCode) ORDER BY COUNT(*) DESC")
+    suspend fun ownedSetCodes(): List<String>
+
     /**
      * Copies and value per box, worked out in SQL so the box list doesn't read every card. Value matches
-     * [totalPrice]: proxies count 0, else the condition price or the near-mint price for the finish.
-     * valueEur matches [totalEur]: the euro price, scaled like the condition price when there is one.
+     * [totalPrice]: proxies count 0, else the near-mint price for the finish. valueEur matches [totalEur].
      */
-    @Query(
-        "SELECT boxId, COALESCE(SUM(quantity), 0) AS n, COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
-            "COALESCE(conditionPrice, CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) * quantity END), 0) AS value, " +
-            "COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceEurFoil, priceEur) ELSE priceEur END * " +
-            "CASE WHEN conditionPrice IS NOT NULL AND COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) > 0 " +
-            "THEN conditionPrice / CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END ELSE 1 END, 0) * quantity END), 0) AS valueEur " +
-            "FROM cards GROUP BY boxId"
-    )
+    @Query("SELECT boxId, $TOTALS_SQL FROM cards GROUP BY boxId")
     fun observeBoxTotals(): Flow<List<BoxTotal>>
+
+    /** The whole collection's copies and value, the same sums as [observeBoxTotals] (boxId is 0). */
+    @Query("SELECT 0 AS boxId, $TOTALS_SQL FROM cards")
+    suspend fun collectionTotal(): BoxTotal
 
     /** Sets or clears "Stay in this box". */
     @Query("UPDATE cards SET pinned = :pinned WHERE id IN (:ids)")
     suspend fun setPinned(ids: List<Long>, pinned: Boolean)
 
-    @Query("UPDATE cards SET conditionPrice = :price, conditionPriceAt = :at WHERE id = :id")
-    suspend fun setConditionPrice(id: Long, price: Double?, at: Long)
-
     @Query("UPDATE cards SET conditionPrice = NULL, conditionPriceAt = 0")
     suspend fun clearConditionPrices()
 
-    /** Updates only a printing's prices, so edits made while prices download are kept. */
+    /**
+     * Updates only what a price refresh brings for a printing, in one statement, so edits made while prices download
+     * are kept: dollar and euro prices, treatments, stats (added in DB v8), and rarity and tags (keywords, types, legal
+     * formats) so bans reach box rules. The price when added is filled in when missing. Returns rows updated.
+     */
     @Query(
         "UPDATE cards SET priceUsd = :usd, priceUsdFoil = :foil, treatments = :treatments, " +
-            "priceAtAdd = COALESCE(priceAtAdd, CASE WHEN foil = 1 THEN COALESCE(:foil, :usd) ELSE :usd END) " +
+            "priceAtAdd = COALESCE(priceAtAdd, CASE WHEN foil = 1 THEN COALESCE(:foil, :usd) ELSE :usd END), " +
+            "priceEur = :eur, priceEurFoil = :eurFoil, power = :power, toughness = :toughness, reserved = :reserved, " +
+            "rarity = :rarity, tags = :tags " +
             "WHERE scryfallId = :scryfallId"
     )
-    suspend fun setPrices(scryfallId: String, usd: Double?, foil: Double?, treatments: String): Int
+    suspend fun setFreshPrinting(
+        scryfallId: String, usd: Double?, foil: Double?, treatments: String, eur: Double?, eurFoil: Double?,
+        power: String?, toughness: String?, reserved: Boolean, rarity: String, tags: String,
+    ): Int
 
-    /** Updates a printing's euro prices (DB v12), next to [setPrices]. */
-    @Query("UPDATE cards SET priceEur = :eur, priceEurFoil = :eurFoil WHERE scryfallId = :scryfallId")
-    suspend fun setEurPrices(scryfallId: String, eur: Double?, eurFoil: Double?)
+    /** Every printing in the collection, for a price refresh. */
+    @Query("SELECT DISTINCT scryfallId FROM cards")
+    suspend fun allScryfallIds(): List<String>
 
-    /** Keeps rarity and tags (keywords, types, legal formats) up to date, so bans reach box rules. */
-    @Query("UPDATE cards SET rarity = :rarity, tags = :tags WHERE scryfallId = :scryfallId")
-    suspend fun setPrintingInfo(scryfallId: String, rarity: String, tags: String)
+    /** Photo paths in use, for tidying away photos of deleted cards. */
+    @Query("SELECT photo FROM cards WHERE photo != ''")
+    suspend fun allPhotos(): List<String>
 
-    /** Fills in stats added in DB v8 for cards saved before it. */
-    @Query("UPDATE cards SET power = :power, toughness = :toughness, reserved = :reserved WHERE scryfallId = :scryfallId")
-    suspend fun setStats(scryfallId: String, power: String?, toughness: String?, reserved: Boolean)
+    /** Just what price checks need from each row. */
+    @Query("SELECT id, scryfallId, name, foil, priceUsd, priceUsdFoil FROM cards")
+    suspend fun allPriceRows(): List<PriceRow>
 
     @Delete
     suspend fun delete(card: CollectionCard)
@@ -290,9 +311,6 @@ interface CardDao {
     @Query("SELECT * FROM price_history WHERE scryfallId = :scryfallId ORDER BY day")
     fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>>
 
-    @Query("SELECT * FROM price_history")
-    suspend fun allPricePoints(): List<PricePoint>
-
     /** Price points from [day] (yyyy-MM-dd) on. */
     @Query("SELECT * FROM price_history WHERE day >= :day")
     suspend fun pricePointsSince(day: String): List<PricePoint>
@@ -306,17 +324,8 @@ interface CardDao {
 
     // Packs
 
-    @Insert
-    suspend fun addPack(p: PackOpening): Long
-
-    @Query("SELECT * FROM packs ORDER BY openedAt DESC")
-    fun observePacks(): Flow<List<PackOpening>>
-
     @Query("SELECT * FROM packs")
     suspend fun allPacks(): List<PackOpening>
-
-    @Query("DELETE FROM packs WHERE id = :id")
-    suspend fun deletePack(id: Long)
 
     @Query("DELETE FROM packs")
     suspend fun deletePacks()
@@ -335,14 +344,19 @@ interface CardDao {
     @Insert
     suspend fun addLoan(l: Loan): Long
 
-    @Update
-    suspend fun updateLoan(l: Loan)
-
     @Query("DELETE FROM loans WHERE id = :id")
     suspend fun deleteLoan(id: Long)
 
     @Query("DELETE FROM loans")
     suspend fun deleteLoans()
+
+    /** A row merged into another: its loans follow the copies. */
+    @Query("UPDATE loans SET cardId = :to WHERE cardId = :from")
+    suspend fun moveLoans(from: Long, to: Long)
+
+    /** Rows deleted: their copies can't be out any more. */
+    @Query("DELETE FROM loans WHERE cardId IN (:cardIds)")
+    suspend fun deleteLoansOf(cardIds: List<Long>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putLoans(l: List<Loan>)

@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.home
 
 import com.mtgscanner.data.db.CollectionCard
+import com.mtgscanner.data.db.totalEur
 import com.mtgscanner.data.db.totalPrice
 import java.util.Locale
 
@@ -109,15 +110,25 @@ object TileMath {
         )
     }
 
-    /** Short enough for a quarter-width tile: "$1.2k", "$15", "$3.40", "1.2k". */
-    fun text(metric: TileMetric, v: Double): String = if (metric.money) shortUsd(v) else shortCount(v)
+    /** The money tiles ([TileMetric.VALUE], [TileMetric.AVERAGE]) in euros, counted as [counts] does. */
+    fun eurCounts(cards: List<CollectionCard>): Map<TileMetric, Double> {
+        val value = cards.sumOf { it.totalEur() }
+        val real = cards.filter { !it.proxy }.sumOf { it.quantity }.toDouble()
+        return mapOf(TileMetric.VALUE to value, TileMetric.AVERAGE to if (real > 0) value / real else 0.0)
+    }
 
-    fun shortUsd(v: Double): String = when {
-        v >= 1_000_000 -> String.format(Locale.US, "$%.1fM", v / 1_000_000)
-        v >= 10_000 -> String.format(Locale.US, "$%.0fk", v / 1000)
-        v >= 1000 -> String.format(Locale.US, "$%.1fk", v / 1000)
-        v >= 100 -> String.format(Locale.US, "$%.0f", v)
-        else -> String.format(Locale.US, "$%.2f", v)
+    /** Short enough for a quarter-width tile: "$1.2k", "€15", "$3.40", "1.2k". */
+    fun text(metric: TileMetric, v: Double, euro: Boolean = false): String =
+        if (metric.money) shortMoney(v, if (euro) "€" else "$") else shortCount(v)
+
+    fun shortUsd(v: Double): String = shortMoney(v, "$")
+
+    fun shortMoney(v: Double, sign: String): String = when {
+        v >= 1_000_000 -> String.format(Locale.US, "%s%.1fM", sign, v / 1_000_000)
+        v >= 10_000 -> String.format(Locale.US, "%s%.0fk", sign, v / 1000)
+        v >= 1000 -> String.format(Locale.US, "%s%.1fk", sign, v / 1000)
+        v >= 100 -> String.format(Locale.US, "%s%.0f", sign, v)
+        else -> String.format(Locale.US, "%s%.2f", sign, v)
     }
 
     fun shortCount(v: Double): String {

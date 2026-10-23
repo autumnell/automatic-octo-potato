@@ -28,6 +28,12 @@ object LastChecked {
         oldestFirst = p.getBoolean("oldestFirst", false)
     }
 
+    /** Reads everything again, after a restore replaced the saved prefs. */
+    fun reload(context: Context) {
+        prefs = null
+        load(context)
+    }
+
     /** A Box check of [boxId] just ended. */
     fun mark(context: Context, boxId: Long, now: Long = System.currentTimeMillis()) {
         load(context)

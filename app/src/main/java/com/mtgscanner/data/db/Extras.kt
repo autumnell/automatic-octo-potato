@@ -68,8 +68,11 @@ data class PendingScan(
     val skip: String = "",
 )
 
-/** One day's price for a printing, recorded when prices refresh. Builds each card's price chart. */
-@Entity(tableName = "price_history", primaryKeys = ["scryfallId", "day"])
+/**
+ * One day's price for a printing, recorded when prices refresh. Builds each card's price chart. Indexed by day
+ * (DB v15) for the "since a day" reads of Home, Stats and Browse.
+ */
+@Entity(tableName = "price_history", primaryKeys = ["scryfallId", "day"], indices = [Index("day")])
 @Serializable
 data class PricePoint(
     val scryfallId: String,

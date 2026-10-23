@@ -84,6 +84,17 @@ class ArtEmbeddingTest {
         assertEquals(listOf(2, 0), ArtIndex.shortlist(intArrayOf(5, Int.MAX_VALUE, 1, 9), 2))
     }
 
+    @Test fun shortlistMatchesAFullSort() {
+        val r = java.util.Random(7)
+        repeat(200) {
+            val dist = IntArray(r.nextInt(120)) { if (r.nextInt(10) == 0) Int.MAX_VALUE else r.nextInt(65) }
+            val n = r.nextInt(60)
+            val full = dist.indices.filter { dist[it] != Int.MAX_VALUE }.sortedBy { dist[it] }.take(n)
+            assertEquals(full, ArtIndex.shortlist(dist, n))
+        }
+        assertEquals(emptyList<Int>(), ArtIndex.shortlist(intArrayOf(1, 2), 0))
+    }
+
     @Test fun codecV2KeepsEmbeddings() {
         val entries = listOf(entry(5L, "Lightning Bolt", vec(1)), entry(-7L, "Shock", vec(2)))
         val out = ByteArrayOutputStream()

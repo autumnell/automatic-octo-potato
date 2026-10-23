@@ -134,4 +134,19 @@ class CsvImportTest {
         assertEquals(2, rows.size)
         assertEquals(1, rows.count { it.foil })
     }
+
+    @Test fun pricesWithThousandsSeparators() {
+        assertEquals(1234.5, CsvImport.money("1,234.50")!!, 1e-9)
+        assertEquals(1234.5, CsvImport.money("1.234,50")!!, 1e-9)
+        assertEquals(1234.5, CsvImport.money("$1,234.50")!!, 1e-9)
+        assertEquals(1234.0, CsvImport.money("1,234")!!, 1e-9)
+        assertEquals(1234567.0, CsvImport.money("1.234.567")!!, 1e-9)
+        assertEquals(1.5, CsvImport.money("1,50")!!, 1e-9)
+        assertEquals(1.5, CsvImport.money("1.50")!!, 1e-9)
+        assertEquals(0.125, CsvImport.money("0,125")!!, 1e-9)
+        assertEquals(2.0, CsvImport.money("2,00 €")!!, 1e-9)
+        assertEquals(null, CsvImport.money(""))
+        assertEquals(null, CsvImport.money("0"))
+        assertEquals(null, CsvImport.money("n/a"))
+    }
 }

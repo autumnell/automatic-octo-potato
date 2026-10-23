@@ -47,6 +47,12 @@ object BoxPrefs {
         setsCheckedDay = p.getString("setsChecked", "").orEmpty()
     }
 
+    /** Reads everything again, after a restore replaced the saved prefs. */
+    fun reload(context: Context) {
+        prefs = null
+        load(context)
+    }
+
     fun saveShelf(context: Context, layout: ShelfLayout) {
         load(context)
         shelf = layout
