@@ -74,6 +74,7 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.util.ImportRow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,6 +96,21 @@ import com.mtgscanner.ui.components.PlainGroup
 object DataJobs {
     /** What's running, like "Importing 40 cards…"; null when idle. */
     val busy = MutableStateFlow<String?>(null)
+
+    /**
+     * Runs [block] in [scope] (the app's, so it finishes after leaving the screen), one job at a time.
+     * Returns false without running it while another job is still going; see [waitMessage].
+     */
+    fun launch(label: String, scope: CoroutineScope, block: suspend () -> Unit): Boolean {
+        if (!busy.compareAndSet(null, label)) return false
+        scope.launch {
+            try { block() } finally { busy.value = null }
+        }
+        return true
+    }
+
+    /** Why a job didn't start: "Wait for "Restoring" to finish". */
+    fun waitMessage(): String = "Wait for \"${busy.value?.removeSuffix("…")}\" to finish"
 }
 
 /** A backup that's been read and checked, waiting for the user to confirm the restore. */
@@ -130,11 +146,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
      * Its result shows app-wide. Returns false (and says why) if another is still running.
      */
     private fun run(label: String, block: suspend () -> String?): Boolean {
-        if (!DataJobs.busy.compareAndSet(null, label)) {
-            _message.value = "Wait for \"${DataJobs.busy.value?.removeSuffix("…")}\" to finish"
-            return false
-        }
-        repo.appScope.launch {
+        val started = DataJobs.launch(label, repo.appScope) {
             val result = try {
                 block()
             } catch (e: CancellationException) {
@@ -143,12 +155,11 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
                 e.message
             } catch (e: Throwable) {
                 "Something went wrong: ${e.message}"
-            } finally {
-                DataJobs.busy.value = null
             }
             result?.let { com.mtgscanner.ui.components.Undo.offer(it) }
         }
-        return true
+        if (!started) _message.value = DataJobs.waitMessage()
+        return started
     }
 
     fun backup(ctx: android.content.Context, uri: Uri) {
@@ -214,7 +225,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
             // The result and its Undo then show after the restart instead of being lost with it.
             if (BackupIO.needsRestart(preview.backup)) {
                 RestartNotice.stash(app, message, undoRestore = true)
-                restartApp(app)
+                RestartNotice.restart(app)
             }
             com.mtgscanner.ui.components.Undo.offer(message) { undoRestore(app) }
             null
@@ -228,7 +239,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
             val n = BackupIO.undoRestore(repo) ?: return@run "Nothing to undo"
             val message = if (n == 1) "Back to 1 card" else "Back to $n cards"
             RestartNotice.stash(app, message, undoRestore = false)
-            restartApp(app)
+            RestartNotice.restart(app)
             message
         }
     }
@@ -427,13 +438,6 @@ private fun openForWrite(context: android.content.Context, uri: Uri): java.io.Ou
     runCatching { context.contentResolver.openOutputStream(uri, "wt") }.getOrNull()
         ?: context.contentResolver.openOutputStream(uri)
 
-/** Starts the app afresh, so every screen reads restored settings. */
-private fun restartApp(context: android.content.Context) {
-    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
-    context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK))
-    Runtime.getRuntime().exit(0)
-}
-
 /** Backup, restore, import, and maintenance actions. The caller shows [vm]'s messages, so they still appear after leaving this tab. */
 @Composable
 fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory)) {
@@ -472,6 +476,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             vm.backupNow(ctx)
         }
     }
+    // Ask for notifications first (Android 13+), or a failed weekly backup could never say so.
+    val startWeekly = rememberAskNotifyThen { weeklyLauncher.launch("grimoire-backup.zip") }
 
     PlainGroup(Modifier.padding(horizontal = 4.dp)) {
         Column {
@@ -495,7 +501,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             HorizontalDivider(color = Palette.Rule)
             val weekly = DriveBackup.uri != null
             ToggleRow("Weekly backup", if (weekly) "Last backup: ${backupDay(DriveBackup.lastBackup)}" else "To Drive or a folder", weekly) { on ->
-                if (on) weeklyLauncher.launch("grimoire-backup.zip") else DriveBackup.disable(ctx.applicationContext)
+                if (on) startWeekly() else DriveBackup.disable(ctx.applicationContext)
             }
             if (weekly) {
                 Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
