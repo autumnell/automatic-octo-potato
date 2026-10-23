@@ -213,13 +213,25 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
             if (next != cur) repo.setQuantity(id, next)
         }
     }
-    fun setFoil(foil: Boolean) = viewModelScope.launch { currentId.value = repo.setFoil(currentId.value, foil) }
-    fun setCondition(c: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(condition = c)) } }
-    fun setNotes(n: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(notes = n)) } }
-    fun setLang(l: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(lang = l)) } }
-    fun setSigned(on: Boolean) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(signed = on)) } }
-    fun setAltered(on: Boolean) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(altered = on)) } }
-    fun setGraded(g: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(graded = g.trim())) } }
+    /**
+     * Saves an edit that can fold this row into a matching one (same finish, condition, language...).
+     * When it does, offers Undo so the rows can be pulled apart again.
+     */
+    private fun edit(change: suspend (CollectionCard) -> Long) = viewModelScope.launch {
+        val c = card.value ?: return@launch
+        val from = currentId.value
+        val before = repo.snapshot(listOf(from))
+        val id = change(c)
+        currentId.value = id
+        if (id != from) Undo.offer("Merged with matching copies") { repo.restore(before); currentId.value = from }
+    }
+    fun setFoil(foil: Boolean) = edit { repo.setFoil(it.id, foil) }
+    fun setCondition(c: String) = edit { repo.update(it.copy(condition = c)) }
+    fun setNotes(n: String) = edit { repo.update(it.copy(notes = n)) }
+    fun setLang(l: String) = edit { repo.update(it.copy(lang = l)) }
+    fun setSigned(on: Boolean) = edit { repo.update(it.copy(signed = on)) }
+    fun setAltered(on: Boolean) = edit { repo.update(it.copy(altered = on)) }
+    fun setGraded(g: String) = edit { repo.update(it.copy(graded = g.trim())) }
     fun delete(done: () -> Unit) = viewModelScope.launch {
         val before = repo.snapshot(listOf(currentId.value))
         val name = card.value?.name ?: "card"
@@ -245,11 +257,10 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
 
     fun setPaid(p: Double?) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(purchasePrice = p)) } }
     fun setFrom(f: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(acquiredFrom = f.trim().take(30))) } }
-    fun setProxy(on: Boolean) = viewModelScope.launch {
-        card.value?.let {
-            currentId.value = repo.update(it.copy(proxy = on))
-            repo.logEvent(it.scryfallId, it.name, "edited", if (on) "Proxy" else "Not proxy")
-        }
+    fun setProxy(on: Boolean) = edit {
+        val id = repo.update(it.copy(proxy = on))
+        repo.logEvent(it.scryfallId, it.name, "edited", if (on) "Proxy" else "Not proxy")
+        id
     }
     fun setForSale(on: Boolean) = viewModelScope.launch {
         card.value?.let {
@@ -268,7 +279,12 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         if (c == null || path == null) return@launch
         val fresh = repo.cardOnce(currentId.value) ?: c
         currentId.value = repo.update(fresh.copy(photo = path))
-        if (c.photo.isNotBlank() && c.photo != path) CardPhotos.delete(ctx, c.photo)
+        val old = c.photo
+        if (old.isNotBlank() && old != path) {
+            // Moving some copies to another box copies the photo path, so another row can still use the file.
+            val inUse = runCatching { repo.dao.byScryfallIds(listOf(c.scryfallId)).any { it.photo == old } }.getOrDefault(true)
+            if (!inUse) CardPhotos.delete(ctx, old)
+        }
     }
     fun discardTemp(uri: android.net.Uri) = viewModelScope.launch { CardPhotos.discard(repo.appContext, uri) }
     /** Clears the photo with Undo; the file itself is deleted only once Undo has had its time. */
