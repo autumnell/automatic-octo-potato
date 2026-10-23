@@ -112,6 +112,7 @@ import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.collection.ShareDialog
 import com.mtgscanner.ui.collection.shareLine
+import com.mtgscanner.ui.collection.wantAllWithUndo
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
@@ -943,15 +944,17 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 val missing = check.lines.filter { it.section in PLAYED && it.missing > 0 }
                     .groupBy { DeckNames.key(it.name) }.values
                     .map { ls -> ls.first() to ls.sumOf { it.missing } }
-                val msg = runCatching {
+                val batch = runCatching {
                     // The printing the list names, when it has one.
                     val wants = missing.map { (l, _) -> PrintingLookup.Wanted(l.name, l.setCode, l.collectorNumber) }
                     val cards = PrintingLookup.resolve(wants) { ids -> repo.api.identify(ids.map(PrintingLookup::json)) }
-                    var n = 0
-                    missing.zip(cards).forEach { (m, c) -> if (c != null) { repo.wantAtLeast(c, m.second); n++ } }
-                    n
-                }.fold({ "Added $it cards to your wishlist" }, { "Couldn't reach Scryfall" })
-                _ui.update { it.copy(message = msg) }
+                    repo.wantAllWithUndo(missing.zip(cards).mapNotNull { (m, c) -> c?.let { it to m.second } })
+                }.getOrNull()
+                if (batch == null) _ui.update { it.copy(message = "Couldn't reach Scryfall") }
+                else {
+                    val msg = "Added ${batch.count} cards to your wishlist"
+                    if (batch.changed > 0) Undo.offer(msg, batch.undo) else _ui.update { it.copy(message = msg) }
+                }
             } finally {
                 wishing = false
             }

@@ -211,8 +211,10 @@ class ToolsViewModel(private val repo: CollectionRepository) : ViewModel() {
         viewModelScope.launch {
             val owned = repo.allCards().mapNotNull { it.oracleId }.toSet()
             val want = wishTargets(missing, owned) { it.oracleId }
-            val n = want.count { runCatching { repo.wantAtLeast(it, 1) }.isSuccess }
-            _message.value = if (n == 1) "1 card on your wishlist" else "$n cards on your wishlist"
+            val batch = repo.wantAllWithUndo(want.map { it to 1 })
+            val n = batch.count
+            val msg = if (n == 1) "1 card on your wishlist" else "$n cards on your wishlist"
+            if (batch.changed > 0) Undo.offer(msg, batch.undo) else _message.value = msg
         }
     }
 
