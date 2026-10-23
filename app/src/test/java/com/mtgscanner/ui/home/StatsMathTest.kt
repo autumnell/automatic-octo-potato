@@ -83,6 +83,24 @@ class StatsMathTest {
         assertTrue(TileMetric.entries.all { it == TileMetric.CUSTOM || it in m })
     }
 
+    @Test fun euroValues() {
+        val cards = listOf(
+            card("a", qty = 2).copy(priceEur = 1.5),
+            card("b", qty = 1, set = "m11").copy(priceEur = 4.0),
+            card("c", qty = 1, proxy = true).copy(priceEur = 9.0),
+        )
+        val eur = TileMath.eurCounts(cards)
+        // 2×€1.50 + €4 = €7 over 3 real copies; the proxy is worth nothing.
+        assertEquals(7.0, eur[TileMetric.VALUE]!!, 0.001)
+        assertEquals(7.0 / 3, eur[TileMetric.AVERAGE]!!, 0.001)
+        val s = StatsMath.compute(cards)
+        assertEquals(7.0, s.valueEur, 0.001)
+        assertEquals(4.0, s.bySet.first { it.key == "m11" }.eur, 0.001)
+        assertEquals(7.0, s.byColor.first { it.key == "R" }.eur, 0.001)
+        assertEquals("€1.2k", TileMath.text(TileMetric.VALUE, 1234.0, euro = true))
+        assertEquals("$1.2k", TileMath.text(TileMetric.VALUE, 1234.0))
+    }
+
     @Test fun shortNumbers() {
         assertEquals("$3.40", TileMath.shortUsd(3.4))
         assertEquals("$150", TileMath.shortUsd(150.2))

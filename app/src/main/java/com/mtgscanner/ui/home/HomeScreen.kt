@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -187,16 +188,22 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val listNames: StateFlow<List<String>> = searches.saved.map { l -> l.map { it.name } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** The saved search the "Saved list" tile counts, or null when that tile isn't shown. */
+    private val tileList = snapshotFlow { HomePrefs.tileList.takeIf { TileMetric.CUSTOM in HomePrefs.tiles } }
+
     /** Numbers for the stat tiles. */
-    val tiles: StateFlow<TileData> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeWishlist(), searches.saved) { all, boxes, wish, saved ->
+    val tiles: StateFlow<TileData> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeWishlist(), searches.saved, tileList) { all, boxes, wish, saved, listName ->
         TileData(
             values = TileMath.counts(all, boxes.size, wish.sumOf { it.wanted }, System.currentTimeMillis()),
             lists = run {
+                // Only the one search a tile shows is counted: matching every saved search costs a pass each.
+                val s = saved.firstOrNull { it.name == listName } ?: return@run emptyMap()
                 // box: in a saved search needs the box names.
                 val boxNames = boxes.associate { it.id to it.name }
                 val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] })
-                saved.associate { s -> s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters, null, env) }.sumOf { it.quantity } }
+                mapOf(s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters, null, env) }.sumOf { it.quantity })
             },
+            eur = TileMath.eurCounts(all),
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TileData())
 

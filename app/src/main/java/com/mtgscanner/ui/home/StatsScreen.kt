@@ -68,7 +68,11 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.cardPrice
+import com.mtgscanner.ui.components.formatMoney
+import com.mtgscanner.ui.components.formatMoneyShort
 import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.primaryValue
+import com.mtgscanner.util.PriceCurrency
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.Palette
@@ -92,10 +96,18 @@ class StatsViewModel(repo: CollectionRepository) : ViewModel() {
 
     val boxes: StateFlow<List<CardBox>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** The price history last read, with what it was read for; a card edit or move doesn't change it. */
+    private var pointsCache: Pair<Any, List<com.mtgscanner.data.db.PricePoint>>? = null
+
     /** Each box's value by day over the last two months. A price refresh writes a snapshot, so it redraws then too. */
-    val boxValues: StateFlow<BoxValues> = combine(repo.observeAll(), repo.observeSnapshots()) { all, _ ->
-        val since = java.time.LocalDate.now().minusDays(60).toString()
-        HomeMath.boxValues(all, runCatching { repo.dao.pricePointsSince(since) }.getOrDefault(emptyList()))
+    val boxValues: StateFlow<BoxValues> = combine(repo.observeAll(), repo.observeSnapshots()) { all, snaps ->
+        val today = java.time.LocalDate.now()
+        // Read again only on a new day, a new snapshot (price refresh) or a printing added or gone, as Home does.
+        val key = listOf(today.toString(), snaps.size, snaps.maxByOrNull { it.day }, all.mapTo(HashSet()) { it.scryfallId })
+        val points = pointsCache?.takeIf { it.first == key }?.second
+            ?: runCatching { repo.dao.pricePointsSince(today.minusDays(60).toString()) }.getOrNull()?.also { pointsCache = key to it }
+            ?: emptyList()
+        HomeMath.boxValues(all, points)
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BoxValues(emptyList(), emptyMap()))
@@ -143,7 +155,7 @@ fun StatsScreen(
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text(
-                if (prices) "${formatUsd(s.value)} · ${s.cards} cards" else "${s.cards} cards",
+                if (prices) "${formatMoney(s.value, s.valueEur)} · ${s.cards} cards" else "${s.cards} cards",
                 style = MaterialTheme.typography.titleLarge, color = Palette.Text,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
@@ -175,8 +187,9 @@ fun StatsScreen(
             SectionHeader("By set") {
                 if (s.bySet.size > 10) TextButton(onClick = { allSets = !allSets }) { Text(if (allSets) "Less" else "All ${s.bySet.size}") }
             }
+            val bySet = if (AppSettings.currency == PriceCurrency.EUR) s.bySet.sortedByDescending { it.eur } else s.bySet
             Breakdown(
-                if (allSets) s.bySet else s.bySet.take(10), prices,
+                if (allSets) bySet else bySet.take(10), prices,
                 lead = null,
                 bar = { Palette.Accent },
                 onRow = { browse(Filters(set = it.key, sort = SortBy.PRICE)) },
@@ -234,7 +247,9 @@ private fun Breakdown(
     bar: (StatRow) -> Color,
     onRow: (StatRow) -> Unit,
 ) {
-    val max = rows.maxOfOrNull { if (prices) it.value else it.cards.toDouble() }?.takeIf { it > 0 } ?: 1.0
+    // Values in the currency Settings › Prices picks (dollars with Both: rows are narrow).
+    fun money(r: StatRow) = primaryValue(r.value, r.eur)
+    val max = rows.maxOfOrNull { if (prices) money(it) else it.cards.toDouble() }?.takeIf { it > 0 } ?: 1.0
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Column {
             rows.forEach { r ->
@@ -248,11 +263,11 @@ private fun Breakdown(
                         Text("${r.cards}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                         if (prices) {
                             Spacer(Modifier.width(10.dp))
-                            Text(formatUsd(r.value), style = MaterialTheme.typography.labelLarge, color = Palette.Text)
+                            Text(formatMoneyShort(r.value, r.eur), style = MaterialTheme.typography.labelLarge, color = Palette.Text)
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    val frac = ((if (prices) r.value else r.cards.toDouble()) / max).toFloat().coerceIn(0f, 1f)
+                    val frac = ((if (prices) money(r) else r.cards.toDouble()) / max).toFloat().coerceIn(0f, 1f)
                     Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)) {
                         if (frac > 0f) {
                             val fill = bar(r)
