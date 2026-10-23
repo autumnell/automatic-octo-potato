@@ -17,7 +17,7 @@ import androidx.work.WorkerParameters
 import com.mtgscanner.MtgApp
 import com.mtgscanner.data.BackupIO
 import com.mtgscanner.data.PriceMove
-import com.mtgscanner.data.db.nearMintPrice
+import com.mtgscanner.data.db.nearMint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.AppSettings
@@ -31,7 +31,7 @@ class PriceAlertWorker(context: Context, params: WorkerParameters) : CoroutineWo
         val wantMoves = AppSettings.alertsWanted(ctx)
         val repo = (ctx as MtgApp).repository
         // Alerts only count for cards still owned: one on a card that's gone can never fire.
-        val owned = if (CardAlertStore.hasAny(ctx)) runCatching { repo.dao.all() }.getOrDefault(emptyList()) else emptyList()
+        val owned = if (CardAlertStore.hasAny(ctx)) runCatching { repo.dao.allPriceRows() }.getOrDefault(emptyList()) else emptyList()
         val ownedKeys = owned.map { CardPriceAlert.key(it.scryfallId, it.foil) }.toSet()
         val wantCards = CardAlertStore.load(ctx).any { it.key in ownedKeys }
         if (!wantMoves && !wantCards) {
@@ -62,9 +62,9 @@ class PriceAlertWorker(context: Context, params: WorkerParameters) : CoroutineWo
         if (wantCards) {
             val prices = HashMap<String, Double?>()
             val ids = HashMap<String, Long>()
-            runCatching { repo.dao.all() }.getOrDefault(owned).forEach { c ->
+            runCatching { repo.dao.allPriceRows() }.getOrDefault(owned).forEach { c ->
                 val key = CardPriceAlert.key(c.scryfallId, c.foil)
-                if (prices[key] == null) prices[key] = c.nearMintPrice()
+                if (prices[key] == null) prices[key] = c.nearMint()
                 ids.putIfAbsent(key, c.id)
             }
             val hits = CardAlertStore.check(ctx, prices)
@@ -105,7 +105,7 @@ object PriceAlerts {
     private fun wakeIfOwned(context: Context) {
         val app = context.applicationContext as? MtgApp ?: return
         app.repository.appScope.launch {
-            val owned = runCatching { app.repository.dao.all() }.getOrNull() ?: return@launch
+            val owned = runCatching { app.repository.dao.allPriceRows() }.getOrNull() ?: return@launch
             val keys = owned.mapTo(HashSet()) { CardPriceAlert.key(it.scryfallId, it.foil) }
             if (CardAlertStore.load(app).any { it.key in keys }) {
                 setIdle(app, false)

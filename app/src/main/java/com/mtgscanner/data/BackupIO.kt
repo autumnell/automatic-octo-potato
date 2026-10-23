@@ -213,7 +213,8 @@ internal object BackupIO {
         // Photos first, so the restored cards can point at this phone's copies.
         val photoDir = CardPhotos.folder(repo.appContext)
         BackupArchive.stagedPhotos(b).forEach { f -> runCatching { f.copyTo(File(photoDir, f.name), overwrite = true) } }
-        val cards = b.cards.map { c ->
+        // Old JustTCG condition prices no longer count; an older backup's are dropped.
+        val cards = b.cards.map { it.copy(conditionPrice = null, conditionPriceAt = 0) }.map { c ->
             if (c.photo.isBlank()) c
             else File(photoDir, File(c.photo).name).takeIf { it.isFile }?.let { c.copy(photo = it.absolutePath) } ?: c
         }
@@ -387,10 +388,13 @@ internal object BackupIO {
         val dao = repo.dao
         var added = 0
         val notFound = mutableListOf<String>()
+        // Copies added per row id, and the box made for the import, so Undo takes off exactly this.
+        val addedTo = LinkedHashMap<Long, Int>()
+        var fallbackBoxId: Long? = null
+        var madeBox: Long? = null
         // Lookups are done; from here on the import finishes even if the screen closes.
         withContext(NonCancellable) {
             repo.db.withTransaction {
-                var fallbackBoxId: Long? = null
                 // Decks' card rows too: a deck's "Add to collection" plans its cards into the deck.
                 val boxNames = dao.allPlaces().associate { it.id to it.placeName() }.toMutableMap()
                 val now = System.currentTimeMillis()
@@ -402,6 +406,8 @@ internal object BackupIO {
                         ?: fallbackBoxId
                         ?: fallbackBox?.invoke()?.also { id ->
                             fallbackBoxId = id
+                            // A box that wasn't there before was made for this import.
+                            if (id !in boxNames) madeBox = id
                             boxNames[id] = dao.box(id)?.name ?: "?"
                         }
                     if (target == null) { notFound += r.name; return@forEachIndexed }
@@ -419,11 +425,13 @@ internal object BackupIO {
                         row.scryfallId, row.foil, row.boxId, row.lang, row.condition,
                         row.signed, row.altered, row.graded, row.proxy,
                     )
-                    if (existing != null) {
+                    val rowId = if (existing != null) {
                         dao.update(existing.copy(quantity = existing.quantity + r.quantity, updatedAt = now))
+                        existing.id
                     } else {
                         dao.insert(row)
                     }
+                    addedTo[rowId] = (addedTo[rowId] ?: 0) + r.quantity
                     val boxName = boxNames[target] ?: "?"
                     dao.addEvent(CardEvent(scryfallId = c.id, name = c.name, kind = "added", detail = "×${r.quantity} → $boxName"))
                     added += r.quantity
@@ -436,7 +444,7 @@ internal object BackupIO {
         repo.appScope.launch {
             runCatching { repo.recordSnapshot() }
         }
-        return ImportResult(added, notFound)
+        return ImportResult(added, notFound, addedTo.toList(), madeBox)
     }
 
 }

@@ -9,6 +9,29 @@ import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * Copies (n), dollar value and euro value of the rows selected, the same as summing [totalPrice] and [totalEur]:
+ * proxies count 0, else the near-mint price for the finish.
+ */
+const val TOTALS_SQL = "COALESCE(SUM(quantity), 0) AS n, " +
+    "COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
+    "COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) * quantity END), 0) AS value, " +
+    "COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
+    "COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceEurFoil, priceEur) ELSE priceEur END, 0) * quantity END), 0) AS valueEur"
+
+/** The columns price checks read from a card row. */
+data class PriceRow(
+    val id: Long,
+    val scryfallId: String,
+    val name: String,
+    val foil: Boolean,
+    val priceUsd: Double?,
+    val priceUsdFoil: Double?,
+)
+
+/** Scryfall's near-mint price for the finish, as [nearMintPrice]. */
+fun PriceRow.nearMint(): Double? = if (foil) priceUsdFoil ?: priceUsd else priceUsd
+
 @Dao
 interface CardDao {
     @Query("SELECT * FROM cards ORDER BY addedAt DESC")
@@ -103,48 +126,50 @@ interface CardDao {
 
     /**
      * Copies and value per box, worked out in SQL so the box list doesn't read every card. Value matches
-     * [totalPrice]: proxies count 0, else the condition price or the near-mint price for the finish.
-     * valueEur matches [totalEur]: the euro price, scaled like the condition price when there is one.
+     * [totalPrice]: proxies count 0, else the near-mint price for the finish. valueEur matches [totalEur].
      */
-    @Query(
-        "SELECT boxId, COALESCE(SUM(quantity), 0) AS n, COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE " +
-            "COALESCE(conditionPrice, CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) * quantity END), 0) AS value, " +
-            "COALESCE(SUM(CASE WHEN proxy = 1 THEN 0 ELSE COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceEurFoil, priceEur) ELSE priceEur END * " +
-            "CASE WHEN conditionPrice IS NOT NULL AND COALESCE(CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END, 0) > 0 " +
-            "THEN conditionPrice / CASE WHEN foil = 1 THEN COALESCE(priceUsdFoil, priceUsd) ELSE priceUsd END ELSE 1 END, 0) * quantity END), 0) AS valueEur " +
-            "FROM cards GROUP BY boxId"
-    )
+    @Query("SELECT boxId, $TOTALS_SQL FROM cards GROUP BY boxId")
     fun observeBoxTotals(): Flow<List<BoxTotal>>
+
+    /** The whole collection's copies and value, the same sums as [observeBoxTotals] (boxId is 0). */
+    @Query("SELECT 0 AS boxId, $TOTALS_SQL FROM cards")
+    suspend fun collectionTotal(): BoxTotal
 
     /** Sets or clears "Stay in this box". */
     @Query("UPDATE cards SET pinned = :pinned WHERE id IN (:ids)")
     suspend fun setPinned(ids: List<Long>, pinned: Boolean)
 
-    @Query("UPDATE cards SET conditionPrice = :price, conditionPriceAt = :at WHERE id = :id")
-    suspend fun setConditionPrice(id: Long, price: Double?, at: Long)
-
     @Query("UPDATE cards SET conditionPrice = NULL, conditionPriceAt = 0")
     suspend fun clearConditionPrices()
 
-    /** Updates only a printing's prices, so edits made while prices download are kept. */
+    /**
+     * Updates only what a price refresh brings for a printing, in one statement, so edits made while prices download
+     * are kept: dollar and euro prices, treatments, stats (added in DB v8), and rarity and tags (keywords, types, legal
+     * formats) so bans reach box rules. The price when added is filled in when missing. Returns rows updated.
+     */
     @Query(
         "UPDATE cards SET priceUsd = :usd, priceUsdFoil = :foil, treatments = :treatments, " +
-            "priceAtAdd = COALESCE(priceAtAdd, CASE WHEN foil = 1 THEN COALESCE(:foil, :usd) ELSE :usd END) " +
+            "priceAtAdd = COALESCE(priceAtAdd, CASE WHEN foil = 1 THEN COALESCE(:foil, :usd) ELSE :usd END), " +
+            "priceEur = :eur, priceEurFoil = :eurFoil, power = :power, toughness = :toughness, reserved = :reserved, " +
+            "rarity = :rarity, tags = :tags " +
             "WHERE scryfallId = :scryfallId"
     )
-    suspend fun setPrices(scryfallId: String, usd: Double?, foil: Double?, treatments: String): Int
+    suspend fun setFreshPrinting(
+        scryfallId: String, usd: Double?, foil: Double?, treatments: String, eur: Double?, eurFoil: Double?,
+        power: String?, toughness: String?, reserved: Boolean, rarity: String, tags: String,
+    ): Int
 
-    /** Updates a printing's euro prices (DB v12), next to [setPrices]. */
-    @Query("UPDATE cards SET priceEur = :eur, priceEurFoil = :eurFoil WHERE scryfallId = :scryfallId")
-    suspend fun setEurPrices(scryfallId: String, eur: Double?, eurFoil: Double?)
+    /** Every printing in the collection, for a price refresh. */
+    @Query("SELECT DISTINCT scryfallId FROM cards")
+    suspend fun allScryfallIds(): List<String>
 
-    /** Keeps rarity and tags (keywords, types, legal formats) up to date, so bans reach box rules. */
-    @Query("UPDATE cards SET rarity = :rarity, tags = :tags WHERE scryfallId = :scryfallId")
-    suspend fun setPrintingInfo(scryfallId: String, rarity: String, tags: String)
+    /** Photo paths in use, for tidying away photos of deleted cards. */
+    @Query("SELECT photo FROM cards WHERE photo != ''")
+    suspend fun allPhotos(): List<String>
 
-    /** Fills in stats added in DB v8 for cards saved before it. */
-    @Query("UPDATE cards SET power = :power, toughness = :toughness, reserved = :reserved WHERE scryfallId = :scryfallId")
-    suspend fun setStats(scryfallId: String, power: String?, toughness: String?, reserved: Boolean)
+    /** Just what price checks need from each row. */
+    @Query("SELECT id, scryfallId, name, foil, priceUsd, priceUsdFoil FROM cards")
+    suspend fun allPriceRows(): List<PriceRow>
 
     @Delete
     suspend fun delete(card: CollectionCard)
@@ -343,6 +368,14 @@ interface CardDao {
 
     @Query("DELETE FROM loans")
     suspend fun deleteLoans()
+
+    /** A row merged into another: its loans follow the copies. */
+    @Query("UPDATE loans SET cardId = :to WHERE cardId = :from")
+    suspend fun moveLoans(from: Long, to: Long)
+
+    /** Rows deleted: their copies can't be out any more. */
+    @Query("DELETE FROM loans WHERE cardId IN (:cardIds)")
+    suspend fun deleteLoansOf(cardIds: List<Long>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putLoans(l: List<Loan>)

@@ -1,6 +1,5 @@
 package com.mtgscanner.ui.settings
 
-import androidx.room.withTransaction
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +55,8 @@ import com.mtgscanner.data.BadBackupException
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.DeckLinks
 import com.mtgscanner.data.ImportPlan
+import com.mtgscanner.data.canUndo
+import com.mtgscanner.data.undoImport
 import com.mtgscanner.work.Notifications
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.PendingScan
@@ -384,21 +385,15 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val other = plan.otherPrinting.size
         val started = run("Importing ${plan.added} cards…") {
             val newBox: suspend () -> Long = { repo.createBox("Imported", "box") }
-            // Note each card's copies before and after, so Undo takes out exactly what the import added.
-            val ids = plan.found.filterNotNull().map { it.id }.distinct()
-            val before = ids.chunked(500).flatMap { repo.dao.byScryfallIds(it) }.associate { it.id to it.quantity }
+            // Undo takes out exactly what the import added, and the "Imported" box once it's empty.
             val r = BackupIO.applyPlan(repo, plan, newBox)
-            val after = ids.chunked(500).flatMap { repo.dao.byScryfallIds(it) }
-            val added = after.mapNotNull { c -> (c.quantity - (before[c.id] ?: 0)).takeIf { it > 0 }?.let { c.id to it } }
             val msg = buildString {
                 append(if (r.added == 1) "Imported 1 card" else "Imported ${r.added} cards")
                 if (other > 0) append(". $other in another printing")
                 if (r.notFound.isNotEmpty()) append(". Skipped ${r.notFound.size} not found")
             }
-            if (added.isEmpty()) msg else {
-                com.mtgscanner.ui.components.Undo.offer(msg) {
-                    repo.db.withTransaction { added.forEach { (id, n) -> repo.remove(id, n) } }
-                }
+            if (!r.canUndo) msg else {
+                com.mtgscanner.ui.components.Undo.offer(msg) { repo.undoImport(r) }
                 null
             }
         }

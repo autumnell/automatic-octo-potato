@@ -1,6 +1,7 @@
 package com.mtgscanner.data
 
 import android.content.Context
+import android.util.LruCache
 import androidx.room.withTransaction
 import com.mtgscanner.data.db.AppDatabase
 import com.mtgscanner.data.db.Box
@@ -19,8 +20,8 @@ import com.mtgscanner.data.db.facts
 import com.mtgscanner.data.db.mergedWith
 import com.mtgscanner.data.db.placeName
 import com.mtgscanner.data.db.sameCopyAs
-import com.mtgscanner.data.db.totalPrice
-import com.mtgscanner.data.db.unitPrice
+import com.mtgscanner.data.db.nearMint
+import com.mtgscanner.data.db.userTagList
 import com.mtgscanner.scan.ArtMatcher
 import com.mtgscanner.scan.CardTextGuess
 import com.mtgscanner.scan.CardTextParser
@@ -132,7 +133,16 @@ data class DeckCheck(val lines: List<DeckCheckLine>) {
     }
 }
 
-data class ImportResult(val added: Int, val notFound: List<String>)
+/**
+ * What an import added: copies, names not found, and for Undo ([undoImport]) the copies added per row id and the box
+ * made for it (null when none was).
+ */
+data class ImportResult(
+    val added: Int,
+    val notFound: List<String>,
+    val rows: List<Pair<Long, Int>> = emptyList(),
+    val newBox: Long? = null,
+)
 
 // Backup (the file format) lives in BackupIO.kt.
 
@@ -181,7 +191,7 @@ class CollectionRepository(
      */
     fun startBackgroundWork() {
         appScope.launch { runCatching { nameIndex.load() } }
-        appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.all().map { it.photo }) } }
+        appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.allPhotos()) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }
             runCatching { resolvePending() }
@@ -250,9 +260,11 @@ class CollectionRepository(
             val cards = dao.inBox(id)
             if (moveTo == null) {
                 cards.forEach { logEvent(it.scryfallId, it.name, "removed", "×${it.quantity}") }
+                cards.map { it.id }.chunked(500).forEach { dao.deleteLoansOf(it) }
                 dao.deleteCardsInBox(id)
             } else {
                 // The box is deleted after its cards move, so their history names it.
+                val names = placeNames()
                 val policy = SortPrefs.policy
                 // Counts go up as cards move in, so boxes with a card limit fill and the rest go on to the next box.
                 val boxes = boxInfos().filter { it.id != id }.toMutableList()
@@ -262,7 +274,7 @@ class CollectionRepository(
                     // Cards no box's rules fit go to an Anything box rather than being lost.
                     val target = (if (moveTo == Box.AUTO_SORT) decideIn(boxes, f, c.oracleId, policy, exclude = id)?.boxId else moveTo)
                         ?: anythingBox(except = id, facts = f)
-                    moveToBox(c.id, target)
+                    moveToBox(c.id, target, c, names)
                     val i = boxes.indexOfFirst { it.id == target }
                     if (i >= 0) boxes[i] = boxes[i].copy(count = boxes[i].count + c.quantity)
                 }
@@ -339,6 +351,7 @@ class CollectionRepository(
             // The same choice as scanning (rules, room, bulk floor), counting cards as they move in.
             val policy = SortPrefs.policy.copy(playsetLimit = 0)
             val boxes = boxInfos().toMutableList()
+            val names = placeNames()
             val src = boxes.indexOfFirst { it.id == sourceId }
             for (c in dao.inBox(sourceId)) {
                 if (c.pinned) continue
@@ -349,7 +362,7 @@ class CollectionRepository(
                     if (src >= 0) boxes[src] = boxes[src].copy(count = boxes[src].count + c.quantity)
                     continue
                 }
-                moveToBox(c.id, d.boxId)
+                moveToBox(c.id, d.boxId, c, names)
                 moved += c.quantity
                 val i = boxes.indexOfFirst { it.id == d.boxId }
                 if (i >= 0) boxes[i] = boxes[i].copy(count = boxes[i].count + c.quantity)
@@ -362,9 +375,10 @@ class CollectionRepository(
     suspend fun sortInto(sourceId: Long, targetId: Long, rules: BoxRules): Int {
         var moved = 0
         db.withTransaction {
+            val names = placeNames()
             for (c in dao.inBox(sourceId)) {
                 if (!rules.matches(c.facts())) continue
-                moveToBox(c.id, targetId)
+                moveToBox(c.id, targetId, c, names)
                 moved += c.quantity
             }
         }
@@ -443,9 +457,10 @@ class CollectionRepository(
 
     /** Applies moves; returns what's needed to undo them (entry id → old box). */
     suspend fun applyMoves(moves: List<Pair<Long, Long>>): List<Pair<Long, Long>> = db.withTransaction {
+        val names = placeNames()
         moves.mapNotNull { (id, to) ->
             val c = dao.get(id) ?: return@mapNotNull null
-            val newId = moveToBox(id, to)
+            val newId = moveToBox(id, to, c, names)
             newId to c.boxId
         }
     }
@@ -478,9 +493,10 @@ class CollectionRepository(
         reorderBoxes(order)
         // Names starting with a digit or symbol fit both halves; they stay in the first, as sorting picks it first.
         // A fallback box also holds cards its rules don't fit (leftovers); those split by name too.
+        val names = placeNames()
         for (c in inRange) {
             val letter = BoxRules.nameLetter(c.name)
-            if (letter != '#' && letter >= at && (b.fallback || second.matches(c.facts()))) moveToBox(c.id, newId)
+            if (letter != '#' && letter >= at && (b.fallback || second.matches(c.facts()))) moveToBox(c.id, newId, c, names)
         }
         newId
     }
@@ -494,16 +510,21 @@ class CollectionRepository(
         c: CollectionCard, boxId: Long = c.boxId, scryfallId: String = c.scryfallId, foil: Boolean = c.foil,
     ): CollectionCard? = dao.find(scryfallId, foil, boxId, c.lang, c.condition, c.signed, c.altered, c.graded, c.proxy)
 
-    /** Moves an entry to another box, merging with identical copies already there. Returns the surviving id. */
-    suspend fun moveToBox(id: Long, boxId: Long): Long {
-        val c = dao.get(id) ?: return id
+    /**
+     * Moves an entry to another box, merging with identical copies already there. Returns the surviving id.
+     * Bulk callers pass the [row] they already read and [names] of places (see [placeNames]), to save reads per card.
+     */
+    suspend fun moveToBox(id: Long, boxId: Long, row: CollectionCard? = null, names: Map<Long, String>? = null): Long {
+        val c = row?.takeIf { it.id == id } ?: dao.get(id) ?: return id
         if (c.boxId == boxId) return id
         val other = twinOf(c, boxId = boxId)
         val now = System.currentTimeMillis()
-        logEvent(c.scryfallId, c.name, "moved", "${boxName(c.boxId)} → ${boxName(boxId)}")
+        suspend fun name(box: Long) = names?.get(box) ?: boxName(box)
+        logEvent(c.scryfallId, c.name, "moved", "${name(c.boxId)} → ${name(boxId)}")
         return if (other != null) {
             dao.update(other.mergedWith(c, now = now))
             dao.delete(c)
+            dao.moveLoans(c.id, other.id)
             other.id
         } else {
             // Its old binder pocket means nothing in the new box.
@@ -519,7 +540,8 @@ class CollectionRepository(
 
     // Identifying scans
 
-    private val lookupCache = HashMap<String, Identification?>()
+    /** Reads that found a card. Bounded, like the other caches, so a long scanning session doesn't keep growing it. */
+    private val lookupCache = LruCache<String, Identification>(500)
     /** Reads that found nothing, and when: the same garbage read isn't looked up again for [MISS_TTL_MS]. */
     private val missCache = HashMap<String, Long>()
 
@@ -535,13 +557,13 @@ class CollectionRepository(
         val guess = lock?.let { raw.copy(setCode = it) } ?: raw
         // [skip]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing.
         val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skip != null) "|s" else "")
-        val cached = synchronized(lookupCache) { if (lookupCache.containsKey(key)) lookupCache[key] else null }
+        val cached: Identification? = lookupCache.get(key)
         if (cached == null) {
             val missedAt = synchronized(missCache) { missCache[key] }
             if (missedAt != null && System.currentTimeMillis() - missedAt < MISS_TTL_MS) return null
         }
         val base = cached ?: doIdentify(guess, skip).also { r ->
-            if (r != null) synchronized(lookupCache) { lookupCache[key] = r }
+            if (r != null) lookupCache.put(key, r)
             else synchronized(missCache) {
                 if (missCache.size > 500) missCache.clear()
                 missCache[key] = System.currentTimeMillis()
@@ -613,12 +635,12 @@ class CollectionRepository(
         return pool.first() to (pool.size == 1)
     }
 
-    private val printingsCache = HashMap<String, List<ScryfallCard>>()
+    private val printingsCache = LruCache<String, List<ScryfallCard>>(300)
     private suspend fun printingsCached(card: ScryfallCard): List<ScryfallCard> {
         val k = card.oracleId ?: card.name
-        synchronized(printingsCache) { printingsCache[k]?.let { return it } }
+        printingsCache.get(k)?.let { return it }
         val list = api.printings(card)
-        synchronized(printingsCache) { printingsCache[k] = list }
+        printingsCache.put(k, list)
         return list
     }
 
@@ -772,15 +794,21 @@ class CollectionRepository(
     suspend fun remove(id: Long, qty: Int = 1) {
         val c = dao.get(id) ?: return
         logEvent(c.scryfallId, c.name, "removed", "×${minOf(qty, c.quantity)}")
-        if (c.quantity <= qty) dao.delete(c)
+        if (c.quantity <= qty) deleteRow(c)
         else dao.update(c.copy(quantity = c.quantity - qty, updatedAt = System.currentTimeMillis()))
         afterChange()
     }
 
     suspend fun setQuantity(id: Long, qty: Int) {
         val c = dao.get(id) ?: return
-        if (qty <= 0) dao.delete(c) else dao.update(c.copy(quantity = qty, updatedAt = System.currentTimeMillis()))
+        if (qty <= 0) deleteRow(c) else dao.update(c.copy(quantity = qty, updatedAt = System.currentTimeMillis()))
         afterChange()
+    }
+
+    /** Deletes a row whose copies left the collection, and any loan of them, so a loan never moves to another copy. */
+    private suspend fun deleteRow(c: CollectionCard) {
+        dao.delete(c)
+        dao.deleteLoansOf(listOf(c.id))
     }
 
     /**
@@ -798,10 +826,13 @@ class CollectionRepository(
             db.withTransaction {
                 dao.update(twin.mergedWith(card, now = now))
                 dao.delete(card)
+                dao.moveLoans(card.id, twin.id)
             }
+            afterChange()
             return twin.id
         }
         dao.update(card.copy(updatedAt = now).let { if (changed) it.copy(conditionPrice = null, conditionPriceAt = 0) else it })
+        afterChange()
         return card.id
     }
 
@@ -810,24 +841,32 @@ class CollectionRepository(
         val c = dao.get(id) ?: return id
         if (c.foil == foil) return id
         val other = twinOf(c, foil = foil)
-        return if (other != null) {
-            dao.update(other.mergedWith(c))
-            dao.delete(c)
+        val kept = if (other != null) {
+            db.withTransaction {
+                dao.update(other.mergedWith(c))
+                dao.delete(c)
+                dao.moveLoans(c.id, other.id)
+            }
             other.id
         } else {
             dao.update(c.copy(foil = foil, conditionPrice = null, conditionPriceAt = 0, updatedAt = System.currentTimeMillis()))
             id
         }
+        afterChange()
+        return kept
     }
 
     suspend fun delete(id: Long) {
-        dao.get(id)?.let { logEvent(it.scryfallId, it.name, "removed", "×${it.quantity}"); dao.delete(it) }
+        dao.get(id)?.let { logEvent(it.scryfallId, it.name, "removed", "×${it.quantity}"); deleteRow(it) }
         afterChange()
     }
 
     // History
 
     private suspend fun boxName(id: Long): String = dao.box(id)?.placeName() ?: "?"
+
+    /** Every box's and deck's name by id, read once for a bulk move's history notes. */
+    internal suspend fun placeNames(): Map<Long, String> = dao.allPlaces().associate { it.id to it.placeName() }
 
     /** Records something that happened to a card, for its history. Never fails the change itself. */
     suspend fun logEvent(scryfallId: String, name: String, kind: String, detail: String = "") {
@@ -893,18 +932,21 @@ class CollectionRepository(
         afterChange()
     }
 
-    suspend fun moveMany(rowIds: List<Long>, boxId: Long) = db.withTransaction { rowIds.forEach { moveToBox(it, boxId) } }
+    suspend fun moveMany(rowIds: List<Long>, boxId: Long) = db.withTransaction {
+        val names = placeNames()
+        rowIds.forEach { moveToBox(it, boxId, names = names) }
+    }
 
     suspend fun deleteMany(rowIds: List<Long>) {
-        db.withTransaction { rowsByIds(rowIds).forEach { logEvent(it.scryfallId, it.name, "removed", "×${it.quantity}"); dao.delete(it) } }
+        db.withTransaction { rowsByIds(rowIds).forEach { logEvent(it.scryfallId, it.name, "removed", "×${it.quantity}"); deleteRow(it) } }
         afterChange()
     }
 
-    /** Moves [qty] copies of a row to another box, splitting the row if some copies stay. */
-    suspend fun moveCopies(rowId: Long, qty: Int, boxId: Long) {
-        val c = dao.get(rowId) ?: return
-        if (c.boxId == boxId) return
-        if (qty >= c.quantity) { moveToBox(rowId, boxId); return }
+    /** Moves [qty] copies of a row to another box, splitting the row if some copies stay. All or nothing. */
+    suspend fun moveCopies(rowId: Long, qty: Int, boxId: Long): Unit = db.withTransaction {
+        val c = dao.get(rowId) ?: return@withTransaction
+        if (c.boxId == boxId) return@withTransaction
+        if (qty >= c.quantity) { moveToBox(rowId, boxId); return@withTransaction }
         val now = System.currentTimeMillis()
         dao.update(c.copy(quantity = c.quantity - qty, updatedAt = now))
         val other = twinOf(c, boxId = boxId)
@@ -920,21 +962,24 @@ class CollectionRepository(
         val t = tag.trim().replace(",", " ").ifEmpty { return }
         db.withTransaction {
             rowsByIds(rowIds).forEach { c ->
-                val tags = c.userTags.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+                val tags = c.userTagList()
                 if (tags.none { it.equals(t, ignoreCase = true) }) dao.update(c.copy(userTags = (tags + t).joinToString(",")))
             }
         }
     }
 
+    /** Takes a tag off, matched like [addTag]: trimmed, any case. */
     suspend fun removeTag(rowId: Long, tag: String) {
         val c = dao.get(rowId) ?: return
-        dao.update(c.copy(userTags = c.userTags.split(',').map { it.trim() }.filter { it.isNotEmpty() && it != tag }.joinToString(",")))
+        val t = tag.trim()
+        dao.update(c.copy(userTags = c.userTagList().filterNot { it.equals(t, ignoreCase = true) }.joinToString(",")))
     }
 
     // Sets
 
     private var setsCache: List<ScryfallSet>? = null
-    private val setCardsCache = HashMap<String, List<ScryfallCard>>()
+    /** The last 20 sets opened; a set can hold about 2,000 printings. */
+    private val setCardsCache = LruCache<String, List<ScryfallCard>>(20)
 
     /** Paper sets from Scryfall, fetched once per app run. */
     suspend fun sets(): List<ScryfallSet> = setsCache ?: api.sets().also { setsCache = it }
@@ -942,22 +987,22 @@ class CollectionRepository(
     /** Every printing in a set, extras included, in collector number order. */
     suspend fun setCards(code: String): List<ScryfallCard> {
         val k = code.lowercase()
-        synchronized(setCardsCache) { setCardsCache[k]?.let { return it } }
+        setCardsCache.get(k)?.let { return it }
         val list = api.searchAll("e:$k include:extras", unique = "prints", maxPages = 12)
             .sortedWith(compareBy<ScryfallCard> { it.collectorNumber.takeWhile(Char::isDigit).toIntOrNull() ?: Int.MAX_VALUE }.thenBy { it.collectorNumber })
-        synchronized(setCardsCache) { setCardsCache[k] = list }
+        setCardsCache.put(k, list)
         return list
     }
 
     /**
-     * Condition prices came from JustTCG, which the app no longer uses. A phone that had a key set
-     * drops them once, so every card goes back to Scryfall's price.
+     * Condition prices came from JustTCG, which the app no longer uses, and no price reads them any more. They're
+     * cleared once on every phone (a restored backup's are dropped too), so none are left in the database.
      */
     private suspend fun dropOldConditionPrices() {
-        val old = appContext.getSharedPreferences("justtcg", Context.MODE_PRIVATE)
-        if (old.all.isEmpty()) return
+        if (prefs.getBoolean("conditionPricesCleared", false)) return
         clearConditionPrices()
-        old.edit().clear().apply()
+        appContext.getSharedPreferences("justtcg", Context.MODE_PRIVATE).edit().clear().apply()
+        prefs.edit().putBoolean("conditionPricesCleared", true).apply()
     }
 
     suspend fun cardOnce(id: Long): CollectionCard? = dao.get(id)
@@ -988,7 +1033,7 @@ class CollectionRepository(
     }
 
     private suspend fun refreshPricesLocked(): Int {
-        val ids = dao.all().map { it.scryfallId }.distinct()
+        val ids = dao.allScryfallIds()
         if (ids.isEmpty()) return 0
         // Fetched and saved a batch at a time: a failed request keeps what came before, and network
         // errors and "too many requests" are tried again after a pause.
@@ -998,14 +1043,20 @@ class CollectionRepository(
             // Only the price columns are written, so a quantity or box changed during the download is kept.
             db.withTransaction {
                 fresh.forEach { f ->
-                    updated += dao.setPrices(
-                        f.id, f.prices.usd?.toDoubleOrNull(),
-                        (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(), f.treatments.joinToString(","),
+                    // One UPDATE per printing. Bans and rarity changes reach box rules.
+                    updated += dao.setFreshPrinting(
+                        scryfallId = f.id,
+                        usd = f.prices.usd?.toDoubleOrNull(),
+                        foil = (f.prices.usdFoil ?: f.prices.usdEtched)?.toDoubleOrNull(),
+                        treatments = f.treatments.joinToString(","),
+                        eur = f.prices.eur?.toDoubleOrNull(),
+                        eurFoil = f.prices.eurFoil?.toDoubleOrNull(),
+                        power = f.power ?: f.cardFaces?.firstOrNull()?.power,
+                        toughness = f.toughness ?: f.cardFaces?.firstOrNull()?.toughness,
+                        reserved = f.reserved,
+                        rarity = f.rarity,
+                        tags = f.scryfallTags().joinToString(","),
                     )
-                    dao.setEurPrices(f.id, f.prices.eur?.toDoubleOrNull(), f.prices.eurFoil?.toDoubleOrNull())
-                    dao.setStats(f.id, f.power ?: f.cardFaces?.firstOrNull()?.power, f.toughness ?: f.cardFaces?.firstOrNull()?.toughness, f.reserved)
-                    // Bans and rarity changes reach box rules.
-                    dao.setPrintingInfo(f.id, f.rarity, f.scryfallTags().joinToString(","))
                 }
             }
             dao.putPricePoints(fresh.map { it.pricePoint() })
@@ -1037,7 +1088,7 @@ class CollectionRepository(
             Json.decodeFromString(alertSer, baseFile.readText())
         }.getOrDefault(emptyMap()).toMutableMap()
         val current = buildMap {
-            dao.all().forEach { c -> c.unitPrice()?.let { put("own:${c.scryfallId}:${c.foil}", Triple(c.name, it, false)) } }
+            dao.allPriceRows().forEach { c -> c.nearMint()?.let { put("own:${c.scryfallId}:${c.foil}", Triple(c.name, it, false)) } }
             dao.allWishlist().forEach { w -> w.priceUsd?.let { put("want:${w.oracleId}", Triple(w.name, it, true)) } }
         }
         val moves = mutableListOf<PriceMove>()
@@ -1068,17 +1119,11 @@ class CollectionRepository(
 
     private val snapshotLock = Mutex()
 
-    /** Saves today's collection value for the value chart. */
+    /** Saves today's collection value for the value chart, and the totals for the widget. Summed in SQL, not by reading every card. */
     suspend fun recordSnapshot() = snapshotLock.withLock {
-        val all = dao.all()
-        if (all.isEmpty()) {
-            com.mtgscanner.widget.CollectionWidget.publish(appContext, 0.0, 0)
-            return@withLock
-        }
-        val value = all.sumOf { it.totalPrice() }
-        val count = all.sumOf { it.quantity }
-        dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), value, count))
-        com.mtgscanner.widget.CollectionWidget.publish(appContext, value, count)
+        val t = dao.collectionTotal()
+        if (t.n > 0) dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), t.value, t.n))
+        com.mtgscanner.widget.CollectionWidget.publish(appContext, t.value, t.n, t.valueEur)
     }
 
     // Decks

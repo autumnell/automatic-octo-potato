@@ -11,8 +11,8 @@ import android.view.View
 import android.widget.RemoteViews
 import com.mtgscanner.MainActivity
 import com.mtgscanner.R
-import java.text.NumberFormat
-import java.util.Locale
+import com.mtgscanner.util.Money
+import com.mtgscanner.util.PriceCurrency
 
 /**
  * Home screen widget: the collection value (or card count when prices are hidden) and when it was last
@@ -30,10 +30,10 @@ class CollectionWidget : AppWidgetProvider() {
     companion object {
         const val EXTRA_OPEN = "open"
 
-        /** Saves the latest totals and redraws any widgets on the home screen. */
-        fun publish(context: Context, value: Double, cards: Int) {
+        /** Saves the latest totals (in dollars and euros) and redraws any widgets on the home screen. */
+        fun publish(context: Context, value: Double, cards: Int, valueEur: Double) {
             context.getSharedPreferences("widget", Context.MODE_PRIVATE).edit()
-                .putString("valueUsd", value.toString()).remove("value").putInt("cards", cards)
+                .putString("valueUsd", value.toString()).putString("valueEur", valueEur.toString()).remove("value").putInt("cards", cards)
                 .putLong("at", System.currentTimeMillis()).apply()
             refresh(context)
         }
@@ -51,13 +51,17 @@ class CollectionWidget : AppWidgetProvider() {
 
         private fun views(context: Context, wide: Boolean): RemoteViews {
             val p = context.getSharedPreferences("widget", Context.MODE_PRIVATE)
-            val showPrices = context.getSharedPreferences("app", Context.MODE_PRIVATE).getBoolean("showPrices", true)
+            val app = context.getSharedPreferences("app", Context.MODE_PRIVATE)
+            val showPrices = app.getBoolean("showPrices", true)
             // Saved as text so big totals keep their cents; older versions saved a Float under "value".
             val value = p.getString("valueUsd", null)?.toDoubleOrNull() ?: p.getFloat("value", 0f).toDouble()
+            // Saved since euro totals were added; until the next update, euros show "--" rather than a dollar sum.
+            val valueEur = p.getString("valueEur", null)?.toDoubleOrNull()
             val cards = p.getInt("cards", 0)
             val v = RemoteViews(context.packageName, R.layout.widget_collection)
-            // Just the total value (or the card count when prices are hidden). Tap opens the app.
-            v.setTextViewText(R.id.widget_value, if (showPrices) NumberFormat.getCurrencyInstance(Locale.US).format(value) else "$cards cards")
+            // Just the total value in the app's currency (or the card count when prices are hidden). Tap opens the app.
+            val money = Money.text(value, valueEur, PriceCurrency.of(app.getString("currency", null)))
+            v.setTextViewText(R.id.widget_value, if (showPrices) money else "$cards cards")
             val updated = WidgetText.updated(p.getLong("at", 0L), System.currentTimeMillis())
             v.setTextViewText(R.id.widget_cards, updated)
             v.setViewVisibility(R.id.widget_cards, if (updated.isEmpty()) View.GONE else View.VISIBLE)
