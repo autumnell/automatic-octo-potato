@@ -20,7 +20,7 @@ class ScanSessionStoreTest {
         purchaseUris = mapOf("tcgplayer" to "https://example.com/$name"),
     )
 
-    private fun entry(key: Long, name: String, count: Int = 1) = ScanEntry(key = key, rowId = key * 10, card = card(name), foil = false, count = count)
+    private fun entry(key: Long, name: String, count: Int = 1) = ScanEntry(key = key, rowId = key * 10, card = card(name), foil = false, count = count, at = 1_000L)
 
     @Test fun eachLineIsWrittenOnceAndComesBack() {
         val a = entry(1, "Bolt")
