@@ -238,11 +238,16 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Adds the card picked for an unknown scan and clears the scan. */
     fun resolveUnknown(scan: PendingScan, card: ScryfallCard) = viewModelScope.launch {
+        val foil = scan.foil && card.hasFoil || !card.hasNonFoil
         val box = if (scan.boxId != CardBox.AUTO_SORT && repo.box(scan.boxId) != null) scan.boxId
-        else repo.pickBox(card, scan.foil) ?: repo.anythingBox()
-        repo.add(card, scan.foil, scan.quantity.coerceAtLeast(1), box, lang = if (card.lang != "en") card.lang else scan.lang ?: "en")
+        else repo.pickBox(card, foil) ?: repo.anythingBox()
+        val qty = scan.quantity.coerceAtLeast(1)
+        val row = repo.add(card, foil, qty, box, lang = if (card.lang != "en") card.lang else scan.lang ?: "en")
         repo.deletePending(scan.id)
-        Undo.offer("Added ${card.name}")
+        Undo.offer("Added ${card.name}") {
+            repo.remove(row, qty)
+            repo.dao.addPending(scan)
+        }
     }
 
     fun deleteUnknown(scan: PendingScan) = viewModelScope.launch {
