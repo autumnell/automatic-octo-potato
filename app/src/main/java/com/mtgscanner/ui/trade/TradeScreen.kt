@@ -45,6 +45,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.mtgscanner.ui.decks.FromPhotoButton
+import com.mtgscanner.ui.decks.appendList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
@@ -483,8 +485,10 @@ private fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Col
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Text("Their want list", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Their want list", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                FromPhotoButton({ text = appendList(text, it) })
+            }
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },

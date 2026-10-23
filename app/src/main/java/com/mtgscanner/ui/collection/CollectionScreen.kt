@@ -33,10 +33,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Share
@@ -99,6 +102,8 @@ import com.mtgscanner.data.Divider
 import com.mtgscanner.data.RuleCheck
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.Found
+import com.mtgscanner.data.LastChecked
+import com.mtgscanner.data.LastCheckedMath
 import com.mtgscanner.data.findCard
 import com.mtgscanner.ui.home.SortItem
 import com.mtgscanner.ui.home.cardsToSort
@@ -208,6 +213,12 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     /** Cards whose name contains [query], each with its box, divider and spot. */
     suspend fun findCards(query: String): List<Found> = withContext(Dispatchers.Default) { repo.findCard(query) }
+
+    /** Copies of a card spread over boxes (see BoxCleanup.kt). */
+    suspend fun spread(byPrinting: Boolean): List<SpreadRow> = runCatching { repo.spreadCopies(byPrinting) }.getOrDefault(emptyList())
+
+    /** Cards under the bulk floor still in a value box, with where they go now. */
+    suspend fun cheapInValue(): List<SortItem> = runCatching { repo.cheapInValueBoxes() }.getOrDefault(emptyList())
 
     /** Every card, by name, for sharing the whole collection. */
     suspend fun allCards(): List<CollectionCard> = repo.allCards().sortedBy { it.name }
@@ -507,7 +518,7 @@ fun CollectionScreen(
                 CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true })
                 CollectionTab.DECKS -> DecksTab(onOpenDeck)
                 CollectionTab.WISHLIST -> WishlistTab(vm)
-                CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE))
+                CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE), onOpenCard = onOpenCard)
             }
             }
         }
@@ -568,6 +579,11 @@ private fun BoxesTab(
     var laying by remember { mutableStateOf<BoxSummary?>(null) }
     var tagging by remember { mutableStateOf<BoxSummary?>(null) }
     val nfc = LocalContext.current.let { c -> remember { hasNfc(c) } }
+    val ctx = LocalContext.current
+    remember { LastChecked.load(ctx) }
+    val checkedAt = LastChecked.times
+    val now = remember(checkedAt) { System.currentTimeMillis() }
+    var orderMenu by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     // Cards found for which query: worked out off the main thread once typing pauses.
     var found by remember { mutableStateOf("" to emptyList<Found>()) }
@@ -614,6 +630,23 @@ private fun BoxesTab(
                             if (ui.boxes.isNotEmpty()) TextButton(onClick = { shelf = true }) { Text("Shelf") }
                             if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
                         }
+                        if (ui.boxes.size > 1) Box {
+                            IconButton(onClick = { orderMenu = true }) {
+                                Icon(Icons.AutoMirrored.Outlined.Sort, "Box order", tint = if (LastChecked.oldestFirst) Palette.Text else Palette.Icon)
+                            }
+                            DropdownMenu(expanded = orderMenu, onDismissRequest = { orderMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Auto-sort order") },
+                                    trailingIcon = { if (!LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
+                                    onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, false) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Last checked") },
+                                    trailingIcon = { if (LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
+                                    onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, true) },
+                                )
+                            }
+                        }
                         TextButton(onClick = { creating = true }) {
                             Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
@@ -627,7 +660,9 @@ private fun BoxesTab(
                     if (searching && (ui.boxes.isNotEmpty() || ui.totalCards > 0)) {
                         SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Find a box or card")
                     }
-                    val shown = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
+                    val matching = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
+                    // Never checked first, then the longest since a check.
+                    val shown = if (LastChecked.oldestFirst) LastCheckedMath.oldestFirst(matching, { it.id }, checkedAt) else matching
                     val cardsFound = if (searching) found.second else emptyList()
                     if (q.isNotEmpty() && shown.isEmpty() && cardsFound.isEmpty() && found.first == query && q.length >= 2) {
                         EmptyState("No matches", action = "Clear", onAction = { query = "" })
@@ -640,6 +675,7 @@ private fun BoxesTab(
                             onNfc = if (nfc) ({ tagging = b }) else null,
                             onShare = { sharing = b },
                             layout = layout,
+                            checked = LastCheckedMath.label(checkedAt[b.id], now),
                         )
                     }
                     if (q.length >= 2 && cardsFound.isNotEmpty()) {
@@ -838,6 +874,8 @@ private fun BoxCard(
     onShare: () -> Unit = {},
     /** Which details show, and full or compact. */
     layout: CollectionLayout = CollectionLayout.DEFAULT,
+    /** "Checked 3w ago", or null when never checked. */
+    checked: String? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(Corners.Medium)
@@ -847,7 +885,7 @@ private fun BoxCard(
                 .background(Palette.BoxCard)
                 .combinedClickable(onClick = onClick, onLongClick = { if (b.cards > 0) onCover() }),
         ) {
-            if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout) else BoxCardFull(b, stats, stripe, warning, layout)
+            if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout, checked) else BoxCardFull(b, stats, stripe, warning, layout, checked)
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Box options", tint = Palette.Icon) }
@@ -892,7 +930,7 @@ private fun BoxArtBackground(art: String?, content: @Composable (onArt: Boolean)
 
 /** One line: the name, then count and value. */
 @Composable
-private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout) {
+private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null) {
     val fill = BoxFillMath.state(b.cards, b.capacity)
     val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
     BoxArtBackground(art) { onArt ->
@@ -916,13 +954,20 @@ private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warni
                     modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
                 )
             }
+            // Only while ordering by it, so the compact row stays one line otherwise.
+            if (checked != null && LastChecked.oldestFirst) {
+                Text(
+                    checked, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1,
+                    modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
+                )
+            }
         }
     }
 }
 
 /** The full card: cover art behind everything, rules, count, value with change, and the fill meter, each when turned on. */
 @Composable
-private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout) {
+private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null) {
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     val fill = BoxFillMath.state(b.cards, b.capacity)
     val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
@@ -938,6 +983,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
                 Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (checked != null) Text(checked, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
             if (showCount || showValue || showChange) {
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -994,19 +1040,28 @@ private fun ToolsTab(
     onSets: () -> Unit, onExtras: () -> Unit,
     onLoans: () -> Unit = {}, onSell: () -> Unit = {},
     showTrade: Boolean = true,
+    onOpenCard: (Long) -> Unit = {},
 ) {
     val trade = if (showTrade) ui.boxes.filter { it.kind == "trade" } else emptyList()
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf<BoxSummary?>(null) }
+    var spreading by remember { mutableStateOf(false) }
+    var cheap by remember { mutableStateOf(false) }
     sharing?.let { b ->
         ShareDialog(b.name, scope, onDismiss = { sharing = null }) { vm.cardsIn(b.id).map { it.shareLine() } }
     }
+    if (spreading) SpreadCopiesSheet(vm, ui.boxes, onDismiss = { spreading = false })
+    if (cheap) CheapInValueSheet(vm, ui.boxes, onOpenCard = { cheap = false; onOpenCard(it) }, onDismiss = { cheap = false })
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             ToolRow(Icons.Outlined.ContentCopy, "Extras finder") { onExtras() }
             ToolRow(Icons.Outlined.GridView, "Set tracker") { onSets() }
             ToolRow(Icons.Outlined.Sell, "Sell") { onSell() }
             ToolRow(Icons.Outlined.Person, "Loans") { onLoans() }
+            if (ui.boxes.size > 1) {
+                ToolRow(Icons.Outlined.Layers, "Spread-out copies") { spreading = true }
+                ToolRow(Icons.Outlined.Flag, "Cheap in value boxes") { cheap = true }
+            }
             if (showTrade) ToolGroup("Trade binders")
             if (showTrade && trade.isEmpty()) {
                 Text(

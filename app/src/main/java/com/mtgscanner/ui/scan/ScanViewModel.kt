@@ -1810,6 +1810,8 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Ends the box check and its list. */
     fun endBoxCheck() {
+        // "Checked 3w ago" on the box: only when something was scanned or ticked.
+        _state.value.boxCheck?.takeIf { it.scans.isNotEmpty() || it.ticked.isNotEmpty() }?.let { com.mtgscanner.data.LastChecked.mark(repo.appContext, it.boxId) }
         changeMode {
             it.copy(
                 target = if (it.target == ScanTarget.BOX) ScanTarget.COLLECTION else it.target, boxCheck = null, showBoxCheck = false,
