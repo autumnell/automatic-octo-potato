@@ -76,7 +76,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -852,7 +851,7 @@ private fun BoxCard(
                     drawRect(stripe, size = Size(5.dp.toPx(), size.height))
                 },
         ) {
-            if (layout.compact) BoxCardCompact(b, stripe, warning, layout) else BoxCardFull(b, stats, stripe, warning, layout)
+            if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout) else BoxCardFull(b, stats, stripe, warning, layout)
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Box options", tint = Palette.Icon) }
@@ -878,30 +877,54 @@ private fun boxCountText(b: BoxSummary, fill: BoxFill): String = when {
     else -> "${b.cards} cards"
 } + (if (fill == BoxFill.FULL) " · Full" else "")
 
-/** One line: the name, then count and value. */
+/** The box's cover art filling the whole card, under a flat dark scrim so the text reads; plain card without art. */
 @Composable
-private fun BoxCardCompact(b: BoxSummary, stripe: Color, warning: String?, layout: CollectionLayout) {
-    val fill = BoxFillMath.state(b.cards, b.capacity)
-    Row(Modifier.padding(start = 22.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        BoxTitle(b, stripe, onArt = false, modifier = Modifier.weight(1f))
-        if (layout.shows(CollectionPart.COUNT)) {
-            Spacer(Modifier.width(8.dp))
-            Text(boxCountText(b, fill), style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = fillColor(fill, Palette.Muted), maxLines = 1)
-        }
-        if (AppSettings.showPrices && layout.shows(CollectionPart.VALUE)) {
-            Spacer(Modifier.width(10.dp))
-            Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text, maxLines = 1)
-        }
-    }
-    if (warning != null) {
-        Text(
-            warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
+private fun BoxArtBackground(art: String?, content: @Composable (onArt: Boolean) -> Unit) {
+    if (art == null) { content(false); return }
+    Box(Modifier.fillMaxWidth().background(Color(0xFF15130F))) {
+        AsyncImage(
+            model = art,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            alignment = BiasAlignment(0f, -0.35f),
+            modifier = Modifier.matchParentSize(),
         )
+        Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.62f)))
+        content(true)
     }
 }
 
-/** The full card: cover art strip, rules, count, value with change, and the fill meter, each when turned on. */
+/** One line: the name, then count and value. */
+@Composable
+private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout) {
+    val fill = BoxFillMath.state(b.cards, b.capacity)
+    val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
+    BoxArtBackground(art) { onArt ->
+        val text = if (onArt) Color.White else Palette.Text
+        val muted = if (onArt) Palette.OnDarkMuted else Palette.Muted
+        Column {
+            Row(Modifier.padding(start = 22.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                BoxTitle(b, stripe, onArt = onArt, modifier = Modifier.weight(1f))
+                if (layout.shows(CollectionPart.COUNT)) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(boxCountText(b, fill), style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = fillColor(fill, muted), maxLines = 1)
+                }
+                if (AppSettings.showPrices && layout.shows(CollectionPart.VALUE)) {
+                    Spacer(Modifier.width(10.dp))
+                    Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = text, maxLines = 1)
+                }
+            }
+            if (warning != null) {
+                Text(
+                    warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
+                )
+            }
+        }
+    }
+}
+
+/** The full card: cover art behind everything, rules, count, value with change, and the fill meter, each when turned on. */
 @Composable
 private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout) {
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
@@ -910,60 +933,46 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
     val showCount = layout.shows(CollectionPart.COUNT)
     val showValue = AppSettings.showPrices && layout.shows(CollectionPart.VALUE)
     val showChange = AppSettings.showPrices && layout.shows(CollectionPart.CHANGE)
-    if (art != null) {
-        // The cover's art as a cropped strip, dimmed toward the bottom so the name reads on it.
-        Box(Modifier.fillMaxWidth().height(68.dp).background(Color(0xFF15161A))) {
-            AsyncImage(
-                model = art,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                alignment = BiasAlignment(0f, -0.35f),
-                modifier = Modifier.matchParentSize(),
-            )
-            Box(
-                Modifier.matchParentSize().background(
-                    Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.18f), Color.Black.copy(alpha = 0.5f), Color.Black.copy(alpha = 0.82f))),
-                ),
-            )
-            BoxTitle(b, stripe, onArt = true, Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 18.dp, bottom = 8.dp))
-        }
-    }
-    Column(Modifier.padding(start = 22.dp, end = 18.dp, top = if (art != null) 10.dp else 16.dp, bottom = 14.dp)) {
-        if (art == null) BoxTitle(b, stripe, onArt = false)
-        if (layout.shows(CollectionPart.RULES)) {
-            Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (showCount || showValue || showChange) {
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                // Keeps the value on the right when the count is off.
-                Box(Modifier.weight(1f)) {
-                    if (showCount) {
-                        Text(
-                            boxCountText(b, fill),
-                            style = MaterialTheme.typography.bodyLarge.merge(TabularNums),
-                            color = fillColor(fill, Palette.Text),
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
+    BoxArtBackground(art) { onArt ->
+        val text = if (onArt) Color.White else Palette.Text
+        val muted = if (onArt) Palette.OnDarkMuted else Palette.Muted
+        Column(Modifier.padding(start = 22.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+            BoxTitle(b, stripe, onArt = onArt)
+            if (layout.shows(CollectionPart.RULES)) {
+                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (showCount || showValue || showChange) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    // Keeps the value on the right when the count is off.
+                    Box(Modifier.weight(1f)) {
+                        if (showCount) {
+                            Text(
+                                boxCountText(b, fill),
+                                style = MaterialTheme.typography.bodyLarge.merge(TabularNums),
+                                color = fillColor(fill, text),
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                        }
                     }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    if (showValue) Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
-                    val pct = stats?.changePercent
-                    if (showChange && stats != null && pct != null) {
-                        Text(
-                            boxChangeLabel(stats.change, pct),
-                            style = MaterialTheme.typography.labelMedium.merge(TabularNums),
-                            color = boxChangeColor(stats.change),
-                        )
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (showValue) Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = text)
+                        val pct = stats?.changePercent
+                        if (showChange && stats != null && pct != null) {
+                            Text(
+                                boxChangeLabel(stats.change, pct),
+                                style = MaterialTheme.typography.labelMedium.merge(TabularNums),
+                                color = boxChangeColor(stats.change),
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (b.capacity > 0 && layout.shows(CollectionPart.FILL)) {
-            Spacer(Modifier.height(8.dp))
-            BoxFillMeter(b.cards, b.capacity, stripe)
+            if (b.capacity > 0 && layout.shows(CollectionPart.FILL)) {
+                Spacer(Modifier.height(8.dp))
+                BoxFillMeter(b.cards, b.capacity, stripe)
+            }
         }
     }
 }
