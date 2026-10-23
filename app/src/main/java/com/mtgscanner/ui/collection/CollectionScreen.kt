@@ -117,6 +117,7 @@ import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.SectionHeader
+import com.mtgscanner.ui.components.panelRow
 import com.mtgscanner.ui.decks.DecksTab
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.StatTile
@@ -1079,7 +1080,8 @@ private fun WishlistTab(vm: CollectionViewModel) {
         }
         items(shown, key = { "w${it.id}" }) { w ->
             Row(
-                Modifier.fillMaxWidth().clickable { editing = w }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = w === shown.first(), last = w === shown.last())
+                    .clickable { editing = w }.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)

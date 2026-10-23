@@ -72,7 +72,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
-import com.mtgscanner.ui.components.ruleBelow
+import com.mtgscanner.ui.components.panelRow
 
 /** Asking price per copy: your own, or the market price. */
 fun CollectionCard.salePrice(): Double? = askPrice ?: unitPrice()
@@ -196,7 +196,7 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
             return@run
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
-            items(list, key = { it.id }) { c -> SellRow(c) { editing = c } }
+            items(list, key = { it.id }) { c -> SellRow(c, first = c === list.first(), last = c === list.last()) { editing = c } }
         }
     }
 
@@ -215,8 +215,11 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
 }
 
 @Composable
-private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun SellRow(c: CollectionCard, first: Boolean, last: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         CardImage(c.smallImageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
