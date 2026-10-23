@@ -3,6 +3,7 @@ package com.mtgscanner.scan
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.mtgscanner.data.ScryfallCard
+import com.mtgscanner.data.sharedHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -61,7 +62,8 @@ object ArtHashing {
  * set code and collector number (older frames, foreign or foil cards).
  */
 class ArtMatcher(
-    private val client: OkHttpClient = OkHttpClient.Builder().readTimeout(10, TimeUnit.SECONDS).build(),
+    /** Shares the app's connection pool and dispatcher. */
+    private val client: OkHttpClient = sharedHttpClient.newBuilder().readTimeout(10, TimeUnit.SECONDS).build(),
     /** The art model; without it (or until its file is here) only hashes are compared. */
     private val embedder: ArtEmbedder? = null,
     /** A printing's art from the downloaded art indexes (hash, embedding), by Scryfall id; null when not there. */

@@ -1,6 +1,7 @@
 package com.mtgscanner.scan
 
 import android.graphics.Bitmap
+import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.PixelFormat
 import android.os.SystemClock
@@ -85,18 +86,11 @@ class CardTextAnalyzer(
 
     private var lastLight = 0L
 
-    /** Samples the RGBA frame directly, without making a bitmap. */
+    /** Samples the frame where it lies, without making a bitmap. */
     private fun measureLight(image: ImageProxy) {
         runCatching {
-            val plane = image.planes[0]
-            val buf = plane.buffer
-            val row = plane.rowStride
-            val px = plane.pixelStride
-            val light = LightCheck.measure(image.width, image.height, { x, y ->
-                val i = y * row + x * px
-                ((buf.get(i).toInt() and 0xFF) shl 16) or ((buf.get(i + 1).toInt() and 0xFF) shl 8) or (buf.get(i + 2).toInt() and 0xFF)
-            })
-            onLight(light)
+            val pixels = FramePixels(image)
+            onLight(LightCheck.measure(image.width, image.height, pixels::rgb))
         }
     }
 
@@ -190,6 +184,7 @@ class CardTextAnalyzer(
         }
         busy.set(true)
         lastRun = now
+        // Only frames that passed the card check are turned into a picture; the camera hands over YUV.
         val bitmap: Bitmap = try {
             frameToBitmap(image)
         } catch (t: Throwable) {
@@ -211,12 +206,12 @@ class CardTextAnalyzer(
                     var a = area ?: ReadArea(guide, isCard = false)
                     // OpenCV finds the card's corners more exactly, and even where the card check saw no clear outline.
                     cv = cvFrame(bitmap)
-                    val found = cv?.let { f -> cvSafe { f.findQuad(guide) } }
+                    val found = cv?.let { f -> CardParts.cvSafe { f.findQuad(guide) } }
                     if (found != null) {
                         val bounds = CvCards.boundsOf(found)
                         a = ReadArea(FrameGeometry.grow(bounds, 0.15, bitmap.width, bitmap.height), isCard = true, outline = bounds, quad = found)
                     }
-                    val draw = drawer(bitmap, cv)
+                    val draw = CardParts.drawer(bitmap, cv)
                     val quad = a.quad
                     val cjk = CjkNames.scriptFor(scanLang())
                     // A found card: read just its name bar and footer, straightened and sharp.
@@ -264,7 +259,7 @@ class CardTextAnalyzer(
         }
     }
 
-    /** RGBA frames are copied into one reused bitmap; anything else falls back to a new one. */
+    /** RGBA frames are copied into one reused bitmap; YUV (what the camera gives) is converted into a new one. */
     private fun frameToBitmap(image: ImageProxy): Bitmap {
         val plane = image.planes.singleOrNull()
         if (plane != null && image.format == PixelFormat.RGBA_8888 && plane.pixelStride == 4 && plane.rowStride == image.width * 4) {
@@ -282,26 +277,10 @@ class CardTextAnalyzer(
     /** The frame copied into OpenCV, or null when OpenCV isn't loaded or fails. */
     private fun cvFrame(bitmap: Bitmap): CvCards.Frame? {
         if (!CvCards.ready) return null
-        return cvSafe {
+        return CardParts.cvSafe {
             val m = cvMat ?: Mat().also { cvMat = it }
             CvCards.Frame(bitmap, m)
         }
-    }
-
-    /** Runs an OpenCV step; null when it fails. A missing native piece turns OpenCV off for good. */
-    private inline fun <T> cvSafe(block: () -> T): T? = try {
-        block()
-    } catch (e: LinkageError) {
-        CvCards.disable()
-        null
-    } catch (e: Exception) {
-        null
-    }
-
-    /** Draws card parts with OpenCV's warpPerspective when [cv] is there, else with [CardWarp] (a Canvas). */
-    private fun drawer(src: Bitmap, cv: CvCards.Frame?): Draw {
-        if (cv == null) return { q, p, w, h -> CardWarp.render(src, q, p, w, h) }
-        return { q, p, w, h -> cvSafe { cv.render(q, p, w, h) } ?: CardWarp.render(src, q, p, w, h) }
     }
 
     /** The guide area in sensor pixels. */
@@ -313,26 +292,17 @@ class CardTextAnalyzer(
     }
 
     /**
-     * Samples the guide area of the RGBA frame into a small grayscale grid (no bitmap) and runs the
-     * card check. Returns what it decided and, when a card was found, the area to read.
+     * Samples the guide area of the frame into a small grayscale grid (no bitmap; from the Y plane of a YUV
+     * frame) and runs the card check. Returns what it decided and, when a card was found, the area to read.
      */
     private fun checkCard(image: ImageProxy, rotation: Int): Pair<GateResult, ReadArea?> {
-        val plane = image.planes[0]
-        val buf = plane.buffer
-        val row = plane.rowStride
-        val px = plane.pixelStride
+        val pixels = FramePixels(image)
         val region = guideArea(image.width, image.height, rotation)
         val step = maxOf(1, maxOf(region.width, region.height) / GRID)
         val gw = region.width / step
         val gh = region.height / step
         val luma = IntArray(gw * gh)
-        fun at(x: Int, y: Int): Int {
-            val i = y * row + x * px
-            val r = buf.get(i).toInt() and 0xFF
-            val g = buf.get(i + 1).toInt() and 0xFF
-            val b = buf.get(i + 2).toInt() and 0xFF
-            return (r * 77 + g * 150 + b * 29) shr 8
-        }
+        fun at(x: Int, y: Int): Int = pixels.luma(x, y)
         val maxX = image.width - 1
         val maxY = image.height - 1
         for (gy in 0 until gh) for (gx in 0 until gw) {
@@ -373,7 +343,6 @@ class CardTextAnalyzer(
     private suspend fun readStrips(quad: FloatArray, rotation: Int, draw: Draw, cjk: CjkScript?): StripRead {
         val cardH = CardWarp.cardHeight(quad)
         if (cardH < 120f) return StripRead(CardTextGuess(emptyList(), null, null, 0), null, false)
-        val nameScale = (NAME_TARGET_H / cardH).coerceIn(1f, 2f)
         var glare = false
         var year: Int? = null
         val turns = CardQuad.uprightTurns(quad, rotation + preferredTurn)
@@ -381,8 +350,8 @@ class CardTextAnalyzer(
         val tried = ArrayList<Pair<Int, CardTextGuess>>()
         for ((i, turn) in turns.withIndex()) {
             val q = CardQuad.ordered(quad, turn)
-            val name = CardWarp.renderScaled(q, CardWarp.NAME, cardH, nameScale, draw = draw) ?: continue
-            val footer = CardWarp.renderScaled(q, CardWarp.FOOTER, cardH, FOOTER_SCALE, draw = draw)
+            val name = CardParts.name(q, cardH, draw) ?: continue
+            val footer = CardParts.footer(q, cardH, draw)
             try {
                 if (i == 0) {
                     glare = glareIn(name, CardWarp.NAME, CardWarp.NAME_GLARE) ||
@@ -414,7 +383,7 @@ class CardTextAnalyzer(
             val script = nextCjk
             for ((turn, latin) in tried) {
                 val q = CardQuad.ordered(quad, turn)
-                val name = CardWarp.renderScaled(q, CardWarp.NAME, cardH, nameScale, draw = draw) ?: continue
+                val name = CardParts.name(q, cardH, draw) ?: continue
                 val lines = try {
                     stripLines(name, CardWarp.NAME, cardH, reader(script))
                 } finally {
@@ -440,24 +409,8 @@ class CardTextAnalyzer(
     }
 
     /** OCR lines of a strip drawn from [part] of the card, placed on a card [cardH] pixels tall. */
-    private suspend fun stripLines(strip: Bitmap, part: FloatArray, cardH: Float, reader: TextRecognizer = recognizer): List<OcrLine> {
-        val cardW = cardH * (63f / 88f)
-        val sx = strip.width / ((part[2] - part[0]) * cardW)
-        val sy = strip.height / ((part[3] - part[1]) * cardH)
-        val ox = part[0] * cardW
-        val oy = part[1] * cardH
-        val text: Text = reader.process(InputImage.fromBitmap(strip, 0)).await()
-        return text.textBlocks.flatMap { block ->
-            block.lines.mapNotNull { line ->
-                val box = line.boundingBox ?: return@mapNotNull null
-                OcrLine(
-                    line.text,
-                    (ox + box.left / sx).toInt(), (oy + box.top / sy).toInt(),
-                    (ox + box.right / sx).toInt(), (oy + box.bottom / sy).toInt(),
-                )
-            }
-        }
-    }
+    private suspend fun stripLines(strip: Bitmap, part: FloatArray, cardH: Float, reader: TextRecognizer = recognizer): List<OcrLine> =
+        CardParts.stripLines(strip, part, cardH, reader)
 
     /** Glare over [sub] (fractions of the card) of a strip drawn from [part]. */
     private fun glareIn(strip: Bitmap, part: FloatArray, sub: FloatArray): Boolean {
@@ -495,25 +448,10 @@ class CardTextAnalyzer(
     }
 
     /** The art window of the straightened card: its hash, and its embedding when the art model is ready. */
-    private fun artOf(quad: FloatArray, turn: Int, draw: Draw): Pair<Long, ArtVector?>? {
-        val art = draw(CardQuad.ordered(quad, turn), CardWarp.ART, ART_W, ART_H) ?: return null
-        return try {
-            val hash = ArtHashing.hash(art, 0, 0, art.width, art.height) ?: return null
-            hash to embedCached(hash, art)
-        } finally {
-            art.recycle()
-        }
-    }
+    private fun artOf(quad: FloatArray, turn: Int, draw: Draw): Pair<Long, ArtVector?>? = CardParts.art(quad, turn, draw, ::embedCached)
 
     /** The set symbol's shape, from the right end of the type line. */
-    private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? {
-        val b = draw(CardQuad.ordered(quad, turn), CardWarp.SYMBOL, SYMBOL_PX, SYMBOL_PX) ?: return null
-        return try {
-            SetSymbol.fingerprint(CardWarp.luma(b), b.width, b.height)
-        } finally {
-            b.recycle()
-        }
-    }
+    private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? = CardParts.symbol(quad, turn, draw)
 
     /** An embedding of [art], reused while the same art (by its [hash]) stays in view. */
     private fun embedCached(hash: Long, art: Bitmap): ArtVector? {
@@ -647,15 +585,48 @@ class CardTextAnalyzer(
         const val GUIDE_IN_CROP = 0.9
         /** Longest side, in pixels, of a whole-card read. */
         const val MAX_READ = 1024
-        /** The name strip is drawn at least this tall per card height, so small cards still read. */
-        const val NAME_TARGET_H = 700f
-        /** The footer's small print, drawn at twice its size. */
-        const val FOOTER_SCALE = 2f
-        /** The art window, about the shape of the card's (0.84 x 0.44 of 63:88). */
-        const val ART_W = 224
-        const val ART_H = 164
-        const val SYMBOL_PX = 88
         /** Art hashes this close are the same art held still: its embedding is reused. */
         const val SAME_ART_BITS = 4
+    }
+}
+
+/**
+ * Reads single pixels of a camera frame in place: YUV_420_888 (what the camera gives) or RGBA_8888. The card
+ * check and the light check sample only a sparse grid, so the frame is never converted as a whole for them.
+ */
+private class FramePixels(image: ImageProxy) {
+    private val planes = image.planes
+    private val yuv = image.format == ImageFormat.YUV_420_888 && planes.size >= 3
+    private val buf = planes[0].buffer
+    private val row = planes[0].rowStride
+    private val px = planes[0].pixelStride
+    private val uBuf = if (yuv) planes[1].buffer else buf
+    private val uRow = if (yuv) planes[1].rowStride else 0
+    private val uPx = if (yuv) planes[1].pixelStride else 0
+    private val vBuf = if (yuv) planes[2].buffer else buf
+    private val vRow = if (yuv) planes[2].rowStride else 0
+    private val vPx = if (yuv) planes[2].pixelStride else 0
+
+    /** Brightness 0..255 at (x, y). */
+    fun luma(x: Int, y: Int): Int {
+        val i = y * row + x * px
+        if (yuv) return Yuv.luma(buf.get(i).toInt() and 0xFF)
+        val r = buf.get(i).toInt() and 0xFF
+        val g = buf.get(i + 1).toInt() and 0xFF
+        val b = buf.get(i + 2).toInt() and 0xFF
+        return (r * 77 + g * 150 + b * 29) shr 8
+    }
+
+    /** 0xRRGGBB at (x, y). U and V are at half resolution. */
+    fun rgb(x: Int, y: Int): Int {
+        val i = y * row + x * px
+        if (yuv) {
+            val cx = x shr 1
+            val cy = y shr 1
+            val u = uBuf.get(cy * uRow + cx * uPx).toInt() and 0xFF
+            val v = vBuf.get(cy * vRow + cx * vPx).toInt() and 0xFF
+            return Yuv.rgb(buf.get(i).toInt() and 0xFF, u, v)
+        }
+        return ((buf.get(i).toInt() and 0xFF) shl 16) or ((buf.get(i + 1).toInt() and 0xFF) shl 8) or (buf.get(i + 2).toInt() and 0xFF)
     }
 }

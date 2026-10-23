@@ -125,8 +125,7 @@ import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.scryfallPrice
-import com.mtgscanner.ui.components.formatUsd
-import com.mtgscanner.ui.components.priceSuffix
+import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import java.util.concurrent.Executors
@@ -192,10 +191,7 @@ fun ScanScreen(
         VolumeKeys.handler = handler@{ up ->
             val st = latest
             val card = st.current ?: return@handler false
-            if (st.pageMode || st.showPrintings || st.showSettings || st.showList || st.showReview || st.showSort || st.showBoxPick ||
-                st.showDeckPick || st.showNewBox || st.showSkipped || st.showUnknown || st.showBoxCheck || st.showSetLock || st.showPackStart ||
-                st.page != null || st.photo != null
-            ) return@handler false
+            if (st.pageMode || st.anySheetOpen) return@handler false
             if (!up) {
                 vm.skip()
                 if (st.settings.vibrate) Haptics.setAside(view)
@@ -408,10 +404,7 @@ fun ScanScreen(
         }
         // Drawn over everything on the screen, never catching touches.
         AddFlightOverlay(flight)
-        val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
-            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.photo != null || state.showNewBox ||
-            state.showSkipped || state.showUnknown || state.showBoxPick || state.showBoxCheck || state.summary != null
-        if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
+        if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !state.anySheetOpen) {
             ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.updateHintsSeen(true) })
         }
     }
@@ -599,7 +592,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
         Spacer(Modifier.width(12.dp))
         val count = state.sessionCount
         Text(
-            (if (count == 1) "1 card" else "$count cards") + priceSuffix(state.sessionValue),
+            (if (count == 1) "1 card" else "$count cards") + moneySuffix(state.sessionValue, state.sessionEur),
             style = MaterialTheme.typography.titleSmall,
             color = Palette.Text,
             maxLines = 1,
@@ -872,7 +865,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
-                Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
+                Text("${state.sessionCount} cards${moneySuffix(state.sessionValue, state.sessionEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
             }
             if (state.sessionCount >= 2) {
                 val n = minOf(5, state.sessionCount)
@@ -890,12 +883,15 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
+        // Regrouped only when the list or the grouping changes, not on every redraw.
+        val groups = remember(state.session, state.listByBox) {
+            if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
+            else listOf("" to state.session)
+        }
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
           if (state.session.isEmpty()) item(key = "empty") {
               EmptyState("Nothing scanned yet", Modifier.padding(vertical = 24.dp), fullScreen = true)
           }
-          val groups = if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
-            else listOf("" to state.session)
           groups.forEach { (boxName, entries) ->
             if (boxName.isNotEmpty()) item(key = "h$boxName") {
                 Text(
@@ -933,7 +929,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
+                    if (AppSettings.showPrices) Text(entryMoney(e), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                     IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
                 }
             }
@@ -980,7 +976,9 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
                         .build(),
                 )
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                // YUV as the camera gives it: the card and light checks read the Y plane in place, and only a frame
+                // that passes the card check is turned into a picture (about 4 a second, not 30).
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                 .build()
                 .also { it.setAnalyzer(executor, analyzer) }
             provider.unbindAll()

@@ -75,7 +75,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.GradientButton
-import com.mtgscanner.ui.components.priceSuffix
+import com.mtgscanner.data.ScanBarPrefs
+import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
@@ -144,7 +145,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                 onClick = { open = false; vm.showPackStart(true) },
             ) else {
                 DropdownMenuItem(
-                    text = { ModeText("Finish pack", "Cards stay added") },
+                    text = { ModeText("Finish pack", "See what you pulled") },
                     leadingIcon = { Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Accent) },
                     onClick = { open = false; vm.finishPack() },
                 )
@@ -247,7 +248,7 @@ fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifie
             Column {
                 Text(p.name, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${state.packEntries.sumOf { it.count }} cards" + priceSuffix(state.packValue) +
+                    "${state.packEntries.sumOf { it.count }} cards" + moneySuffix(state.packValue, state.packEur) +
                         (p.cost?.takeIf { it > 0 && AppSettings.showPrices }?.let { " / " + com.mtgscanner.ui.components.formatUsd(it) } ?: ""),
                     color = Palette.Gold, style = MaterialTheme.typography.labelMedium,
                 )
@@ -372,7 +373,7 @@ fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = vm::closePage) { Text("Try again") }
                 Spacer(Modifier.width(8.dp))
-                val worth = priceSuffix(picked.sumOf { it.card?.prices?.usd?.toDoubleOrNull() ?: 0.0 })
+                val worth = addWorth(state, picked.mapNotNull { it.card }, ScanBarPrefs.quantity)
                 // Price check adds nothing: the button just closes the page.
                 if (state.target == ScanTarget.CHECK) GradientButton("Done$worth", vm::addPage, Modifier.weight(1f))
                 else GradientButton(

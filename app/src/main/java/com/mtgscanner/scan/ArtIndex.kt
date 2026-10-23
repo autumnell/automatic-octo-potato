@@ -40,8 +40,11 @@ class ArtIndex(entries: List<ArtEntry>) {
     private val numbers = Array(entries.size) { entries[it].number }
     private val embeddings = Array(entries.size) { entries[it].embedding }
 
+    /** Set codes held, lowercase, so [hasSet] doesn't scan every entry. */
+    private val setCodes: Set<String> = sets.mapTo(HashSet()) { it.lowercase() }
+
     val size: Int get() = hashes.size
-    fun hasSet(code: String): Boolean = sets.any { it.equals(code, ignoreCase = true) }
+    fun hasSet(code: String): Boolean = code.lowercase() in setCodes
 
     /** Where each printing's first picture sits, by Scryfall id. */
     private val byId: Map<String, Int> by lazy {
@@ -114,9 +117,22 @@ class ArtIndex(entries: List<ArtEntry>) {
         /** A nearly flat picture (black, white, glare) gives almost all-0 or all-1 bits and matches anything. */
         fun useful(hash: Long): Boolean = java.lang.Long.bitCount(hash) in 8..56
 
-        /** Indexes of the [n] smallest distances (Int.MAX_VALUE left out), closest first. */
-        fun shortlist(dist: IntArray, n: Int): List<Int> =
-            dist.indices.filter { dist[it] != Int.MAX_VALUE }.sortedBy { dist[it] }.take(n)
+        /**
+         * Indexes of the [n] smallest distances (Int.MAX_VALUE left out), closest first; ties keep index order.
+         * Keeps the n best in a heap instead of sorting every entry.
+         */
+        fun shortlist(dist: IntArray, n: Int): List<Int> {
+            if (n <= 0) return emptyList()
+            // Worst on top: higher distance, then higher index.
+            val heap = java.util.PriorityQueue<Int>(n + 1) { a, b -> if (dist[a] != dist[b]) dist[b].compareTo(dist[a]) else b.compareTo(a) }
+            for (i in dist.indices) {
+                val d = dist[i]
+                if (d == Int.MAX_VALUE) continue
+                if (heap.size < n) heap.add(i)
+                else if (d < dist[heap.peek()]) { heap.poll(); heap.add(i) }
+            }
+            return heap.sortedWith(compareBy<Int>({ dist[it] }, { it }))
+        }
     }
 }
 

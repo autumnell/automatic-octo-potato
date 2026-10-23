@@ -43,9 +43,8 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.PrintingsSheet
-import com.mtgscanner.ui.components.formatUsd
-import com.mtgscanner.ui.components.priceSuffix
-import com.mtgscanner.ui.theme.AppSettings
+import com.mtgscanner.data.ScanBarPrefs
+import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.CardShape
@@ -81,7 +80,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                 else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
                     items(run.items, key = { it.key }) { item ->
                         PhotoRow(
-                            item,
+                            item, item.card?.let { state.isFoil(it) } ?: false,
                             onPrinting = {
                                 item.card?.let { c ->
                                     picking = item
@@ -99,7 +98,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                 TextButton(onClick = vm::closePhoto) { Text("Cancel") }
                 Spacer(Modifier.width(8.dp))
                 if (!run.loading && found.isNotEmpty()) {
-                    val worth = priceSuffix(found.sumOf { it.card?.prices?.usd?.toDoubleOrNull() ?: 0.0 })
+                    val worth = addWorth(state, found.mapNotNull { it.card }, ScanBarPrefs.quantity)
                     val verb = when (state.target) {
                         ScanTarget.CHECK -> "Done"
                         ScanTarget.REMOVE -> "Remove ${found.size}"
@@ -122,7 +121,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
 }
 
 @Composable
-private fun PhotoRow(item: PhotoItem, onPrinting: () -> Unit, onRemove: () -> Unit) {
+private fun PhotoRow(item: PhotoItem, foil: Boolean, onPrinting: () -> Unit, onRemove: () -> Unit) {
     val c = item.card
     Row(Modifier.fillMaxWidth().ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         val thumb = item.thumb
@@ -138,7 +137,7 @@ private fun PhotoRow(item: PhotoItem, onPrinting: () -> Unit, onRemove: () -> Un
                 Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     "${c.set.uppercase()} · #${c.collectorNumber}" + (item.lang?.let { " · ${it.uppercase()}" } ?: "") +
-                        (if (AppSettings.showPrices) " · ${formatUsd(c.prices.usd)}" else ""),
+                        moneySuffix(c.usdPrice(foil), c.eurPrice(foil)),
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1,
                 )
             } else {
