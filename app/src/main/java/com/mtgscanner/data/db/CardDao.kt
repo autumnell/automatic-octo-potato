@@ -36,23 +36,11 @@ interface CardDao {
     @Query("SELECT * FROM cards WHERE boxId = :boxId")
     suspend fun inBox(boxId: Long): List<CollectionCard>
 
-    @Query("SELECT * FROM cards WHERE rolesCheckedAt = 0 AND oracleId IS NOT NULL")
-    suspend fun needingRoles(): List<CollectionCard>
-
-    @Query("UPDATE cards SET roles = :roles, rolesCheckedAt = :at WHERE oracleId = :oracleId")
-    suspend fun setRoles(oracleId: String, roles: String, at: Long)
-
-    @Query("UPDATE cards SET rolesCheckedAt = 0")
-    suspend fun resetRoles()
-
     @Insert
     suspend fun insert(card: CollectionCard): Long
 
     @Update
     suspend fun update(card: CollectionCard)
-
-    @Update
-    suspend fun updateAll(cards: List<CollectionCard>)
 
     @Insert
     suspend fun addEvent(e: CardEvent): Long
@@ -119,9 +107,6 @@ interface CardDao {
     /** Sets or clears "Stay in this box". */
     @Query("UPDATE cards SET pinned = :pinned WHERE id IN (:ids)")
     suspend fun setPinned(ids: List<Long>, pinned: Boolean)
-
-    @Query("UPDATE cards SET conditionPrice = :price, conditionPriceAt = :at WHERE id = :id")
-    suspend fun setConditionPrice(id: Long, price: Double?, at: Long)
 
     @Query("UPDATE cards SET conditionPrice = NULL, conditionPriceAt = 0")
     suspend fun clearConditionPrices()
@@ -290,9 +275,6 @@ interface CardDao {
     @Query("SELECT * FROM price_history WHERE scryfallId = :scryfallId ORDER BY day")
     fun observePriceHistory(scryfallId: String): Flow<List<PricePoint>>
 
-    @Query("SELECT * FROM price_history")
-    suspend fun allPricePoints(): List<PricePoint>
-
     /** Price points from [day] (yyyy-MM-dd) on. */
     @Query("SELECT * FROM price_history WHERE day >= :day")
     suspend fun pricePointsSince(day: String): List<PricePoint>
@@ -306,17 +288,8 @@ interface CardDao {
 
     // Packs
 
-    @Insert
-    suspend fun addPack(p: PackOpening): Long
-
-    @Query("SELECT * FROM packs ORDER BY openedAt DESC")
-    fun observePacks(): Flow<List<PackOpening>>
-
     @Query("SELECT * FROM packs")
     suspend fun allPacks(): List<PackOpening>
-
-    @Query("DELETE FROM packs WHERE id = :id")
-    suspend fun deletePack(id: Long)
 
     @Query("DELETE FROM packs")
     suspend fun deletePacks()
@@ -334,9 +307,6 @@ interface CardDao {
 
     @Insert
     suspend fun addLoan(l: Loan): Long
-
-    @Update
-    suspend fun updateLoan(l: Loan)
 
     @Query("DELETE FROM loans WHERE id = :id")
     suspend fun deleteLoan(id: Long)

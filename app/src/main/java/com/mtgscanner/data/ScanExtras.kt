@@ -20,17 +20,6 @@ suspend fun CollectionRepository.addToDeckList(deckId: Long, name: String, delta
     return DeckText.count(text, name)
 }
 
-/**
- * Records the language read off a scanned card. Only for a row that holds just the copies scanned now,
- * so copies already there keep theirs. (Passing the language to [CollectionRepository.add] keeps it from the start.)
- */
-suspend fun CollectionRepository.setScanLang(rowId: Long, qty: Int, lang: String): Boolean {
-    val c = dao.get(rowId) ?: return false
-    if (c.lang == lang || c.quantity != qty) return false
-    update(c.copy(lang = lang))
-    return true
-}
-
 /** Rows holding copies of a card, any printing (by oracle id, else by name). Read from the shared card list. */
 suspend fun CollectionRepository.copiesOf(oracleId: String?, name: String): List<com.mtgscanner.data.db.CollectionCard> =
     observeAll().first().filter { if (oracleId != null) it.oracleId == oracleId else it.name.equals(name, ignoreCase = true) }
