@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +24,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,7 +57,7 @@ fun BoxCheckNudge(onCheck: (Long) -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     remember { BoxPrefs.load(ctx) }
     val repo = (ctx.applicationContext as MtgApp).repository
-    val boxes by remember { repo.observeBoxSummaries() }.collectAsState(initial = emptyList())
+    val boxes by remember { repo.observeBoxSummaries() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val live = boxes.filter { it.kind != "deck" && it.cards > 0 }
     val ids = live.map { it.id }
     // A box never checked counts from the day the app first saw it.

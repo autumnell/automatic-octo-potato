@@ -63,6 +63,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.mtgscanner.data.BoxLayout
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.wantAllWithUndo
 import com.mtgscanner.data.MoveLine
 import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.facts

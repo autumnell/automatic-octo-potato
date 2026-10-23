@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,7 +43,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -429,8 +429,8 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
 @Composable
 internal fun LivePreview(rules: BoxRules, editingId: Long?) {
     val repo = (LocalContext.current.applicationContext as MtgApp).repository
-    val cards by remember { repo.observeAll() }.collectAsState(initial = null)
-    val boxes by remember { repo.observeBoxes() }.collectAsState(initial = emptyList())
+    val cards by remember { repo.observeAll() }.collectAsStateWithLifecycle(initialValue = null)
+    val boxes by remember { repo.observeBoxes() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val all = cards ?: return
     val facts = remember(all) { all.map { it.facts() } }
     val result = remember(rules, facts, boxes, editingId) {

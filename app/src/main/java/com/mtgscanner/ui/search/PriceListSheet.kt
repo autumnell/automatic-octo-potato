@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.data.undoWishes
+import com.mtgscanner.data.wishSnapshot
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

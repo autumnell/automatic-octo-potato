@@ -112,7 +112,7 @@ import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.collection.ShareDialog
 import com.mtgscanner.ui.collection.shareLine
-import com.mtgscanner.ui.collection.wantAllWithUndo
+import com.mtgscanner.data.wantAllWithUndo
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.GradientButton

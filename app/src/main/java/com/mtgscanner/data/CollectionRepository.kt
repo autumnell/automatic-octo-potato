@@ -61,6 +61,9 @@ data class ImportResult(
     val newBox: Long? = null,
 )
 
+/** Rows of some printings and their loans as they were, for [CollectionRepository.restore]. */
+class RowSnapshot(val cards: List<CollectionCard>, val loans: List<com.mtgscanner.data.db.Loan>)
+
 // Backup (the file format) lives in BackupIO.kt.
 
 /** A price change worth telling the user about. */
@@ -205,7 +208,7 @@ class CollectionRepository(
     /** What Undo needs to bring back a box after it's deleted or split: the box as it was, its cards' rows and the box order. */
     class BoxUndo internal constructor(
         val box: Box,
-        internal val cards: List<CollectionCard>,
+        internal val cards: RowSnapshot,
         internal val boxIds: Set<Long>,
         internal val order: List<Long>,
         /** Playset limit when this was the extras box, else null. */
@@ -540,8 +543,6 @@ class CollectionRepository(
      */
     suspend fun update(card: CollectionCard): Long {
         val old = dao.get(card.id)
-        // A new condition or finish needs a new condition price.
-        val changed = old != null && (old.condition != card.condition || old.foil != card.foil)
         if (old != null && old.condition != card.condition) logEvent(card.scryfallId, card.name, "edited", "${old.condition} → ${card.condition}")
         val now = System.currentTimeMillis()
         val twin = if (old != null && !old.sameCopyAs(card)) twinOf(card)?.takeIf { it.id != card.id } else null
@@ -554,7 +555,7 @@ class CollectionRepository(
             afterChange()
             return twin.id
         }
-        dao.update(card.copy(updatedAt = now).let { if (changed) it.copy(conditionPrice = null, conditionPriceAt = 0) else it })
+        dao.update(card.copy(updatedAt = now))
         afterChange()
         return card.id
     }
@@ -572,7 +573,7 @@ class CollectionRepository(
             }
             other.id
         } else {
-            dao.update(c.copy(foil = foil, conditionPrice = null, conditionPriceAt = 0, updatedAt = System.currentTimeMillis()))
+            dao.update(c.copy(foil = foil, updatedAt = System.currentTimeMillis()))
             id
         }
         afterChange()
@@ -627,9 +628,11 @@ class CollectionRepository(
      * Everything needed to undo a change to these rows: every row of the same printings. Rows only ever merge
      * with rows of the same printing, so this covers the rows a move or merge lands in too.
      */
-    suspend fun snapshot(rowIds: List<Long>): List<CollectionCard> {
+    suspend fun snapshot(rowIds: List<Long>): RowSnapshot {
         val ids = rowsByIds(rowIds).map { it.scryfallId }.distinct()
-        return if (ids.isEmpty()) emptyList() else rowsByScryfallIds(ids)
+        if (ids.isEmpty()) return RowSnapshot(emptyList(), emptyList())
+        val idSet = ids.toHashSet()
+        return RowSnapshot(rowsByScryfallIds(ids), dao.allLoans().filter { it.scryfallId in idSet })
     }
 
     /**
@@ -637,7 +640,8 @@ class CollectionRepository(
      * since (new scans, newer than anything in [before]) are kept; one identical to a restored row joins it.
      * Copies that were added into an existing row since can't be told apart, so they're undone too.
      */
-    suspend fun restore(before: List<CollectionCard>) {
+    suspend fun restore(snap: RowSnapshot) {
+        val before = snap.cards
         if (before.isEmpty()) return
         db.withTransaction {
             val ids = before.map { it.scryfallId }.distinct()
@@ -651,6 +655,8 @@ class CollectionRepository(
                 if (i >= 0) rows[i] = rows[i].mergedWith(n, details = false) else rows += n
             }
             dao.putCards(rows)
+            // Loans go back too: a deleted row's loans were deleted, and a merged row's moved to the row it joined.
+            if (snap.loans.isNotEmpty()) dao.putLoans(snap.loans)
         }
         afterChange()
     }
@@ -936,42 +942,62 @@ class CollectionRepository(
     private val pendingLock = Mutex()
 
     /** Looks up cards saved while offline and adds them. Returns how many were added. */
-    suspend fun resolvePending(): Int = pendingLock.withLock { resolvePendingLocked() }
+    suspend fun resolvePending(): Int = resolvePendingWithUndo().added
 
-    private suspend fun resolvePendingLocked(): Int {
+    /** What a lookup of saved scans did: how many it added, the copies per row id, and the saved scans it used up. */
+    class PendingResult(val added: Int, val rows: List<Pair<Long, Int>>, val used: List<PendingScan>)
+
+    /** [resolvePending], keeping exactly what it added so Undo takes off only that. */
+    suspend fun resolvePendingWithUndo(): PendingResult = pendingLock.withLock { resolvePendingLocked() }
+
+    /** Undoes [r]: takes its copies off and puts its saved scans back. */
+    suspend fun undoPending(r: PendingResult) {
+        db.withTransaction {
+            r.rows.forEach { (id, q) -> remove(id, q) }
+            dao.putPending(r.used)
+        }
+    }
+
+    private suspend fun resolvePendingLocked(): PendingResult {
         val pending = dao.allPending().filterNot { it.unknown }
-        if (pending.isEmpty()) return 0
+        if (pending.isEmpty()) return PendingResult(0, emptyList(), emptyList())
         val cards = api.identify(pending.map { identifierFor(it.name, it.setCode, it.collectorNumber, it.scryfallId) })
-        var n = 0
+        val rows = mutableListOf<Pair<Long, Int>>()
+        val used = mutableListOf<PendingScan>()
         val retry = mutableListOf<PendingScan>()
-        pending.zip(cards).forEach { (p, c) -> if (c != null) { if (addPendingCard(p, c)) n++ } else retry += p }
+        for ((p, c) in pending.zip(cards)) {
+            if (c == null) { retry += p; continue }
+            addPendingCard(p, c)?.let { rows += it to p.quantity; used += p }
+        }
         // A misread footer shouldn't lose the card: try by name alone.
         if (retry.isNotEmpty()) {
             val byName = PrintingLookup.resolve(retry.map { PrintingLookup.Wanted(it.name) }) { ids -> api.identify(ids.map(PrintingLookup::json)) }
-            retry.zip(byName).forEach { (p, c) -> if (c != null && addPendingCard(p, c)) n++ }
+            for ((p, c) in retry.zip(byName)) {
+                if (c != null) addPendingCard(p, c)?.let { rows += it to p.quantity; used += p }
+            }
         }
-        return n
+        return PendingResult(rows.size, rows, used)
     }
 
     /**
      * Adds a saved scan the way the scanner would have: foil only when the printing has it, the language it was
-     * read in, and the skip rules auto-add had on. False when it was skipped, no box fits it (it stays saved),
-     * or another run already added it.
+     * read in, and the skip rules auto-add had on. Returns the row it went to; null when it was skipped, no box
+     * fits it (it stays saved), or another run already added it.
      */
-    private suspend fun addPendingCard(p: PendingScan, c: ScryfallCard): Boolean {
+    private suspend fun addPendingCard(p: PendingScan, c: ScryfallCard): Long? {
         val foil = p.foil && c.hasFoil || !c.hasNonFoil
         val skipped = com.mtgscanner.scan.SkipRules.decode(p.skip)?.reason(c.effectiveTypeLine, c.layout, c.price(foil)?.toDoubleOrNull())
         if (skipped != null) {
             withContext(NonCancellable) { dao.deletePending(p.id) }
-            return false
+            return null
         }
         val box = if (p.boxId == Box.AUTO_SORT || dao.box(p.boxId) == null) pickBox(c, foil) else p.boxId
-        if (box == null) return false
+        if (box == null) return null
         // The printing's own language wins; an English printing keeps the language the card was read in.
         val lang = if (c.lang != "en") c.lang else p.lang ?: "en"
         // Claim the saved scan first (only one run can), then add it even if the screen closes meanwhile.
         return withContext(NonCancellable) {
-            if (dao.deletePending(p.id) > 0) { add(c, foil, p.quantity, box, lang = lang); true } else false
+            if (dao.deletePending(p.id) > 0) add(c, foil, p.quantity, box, lang = lang) else null
         }
     }
 

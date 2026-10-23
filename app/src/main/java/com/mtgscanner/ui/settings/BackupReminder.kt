@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -20,7 +21,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -45,7 +45,7 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext
     remember { DriveBackup.load(app); DriveBackupReminder.load(app) }
-    val busy by DataJobs.busy.collectAsState()
+    val busy by DataJobs.busy.collectAsStateWithLifecycle()
     // Read as state, so a finished backup or a snooze hides the card at once.
     val last = DriveBackup.lastBackup
     val snoozed = DriveBackupReminder.snoozedUntil

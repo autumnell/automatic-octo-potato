@@ -1,6 +1,7 @@
 package com.mtgscanner.data
 
 import androidx.room.withTransaction
+import kotlinx.coroutines.flow.first
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.facts
@@ -151,8 +152,11 @@ object Placement {
     }
 }
 
-/** Card search on the Boxes page: every box (or deck) a card is in, with its spot. */
-suspend fun CollectionRepository.findCard(query: String): List<Found> = Placement.find(query, dao.all(), dao.allPlaces())
+/**
+ * Card search ("Where is it?"): every box (or deck) a card is in, with its spot. Reads the collection list the app
+ * already keeps in memory rather than the whole table on every search.
+ */
+suspend fun CollectionRepository.findCard(query: String): List<Found> = Placement.find(query, observeAll().first(), dao.allPlaces())
 
 /** Gives binder slots to the cards in [boxId] that have none. Returns how many were numbered. */
 suspend fun CollectionRepository.numberBinderSlots(boxId: Long): Int = db.withTransaction {

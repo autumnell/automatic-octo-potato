@@ -3,6 +3,8 @@ package com.mtgscanner.ui.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.undoWishes
+import com.mtgscanner.data.wishSnapshot
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Box

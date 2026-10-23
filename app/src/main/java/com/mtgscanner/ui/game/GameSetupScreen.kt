@@ -214,7 +214,7 @@ private fun TablePreview(players: Int, life: Int, names: List<String>, onRename:
     val gap = 4.dp
     @Composable
     fun seat(i: Int, modifier: Modifier) = Seat(i, names[i], life, { onRename(i, it) }, modifier.padding(gap))
-    Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface, modifier = Modifier.fillMaxWidth().height(260.dp)) {
+    Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface, modifier = Modifier.fillMaxWidth().height(if (players >= 5) 320.dp else 250.dp)) {
         Box(Modifier.padding(gap)) {
             when (players) {
                 1 -> seat(0, Modifier.fillMaxSize())
