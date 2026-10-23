@@ -16,6 +16,8 @@ import com.mtgscanner.data.SortReason
 import com.mtgscanner.data.addToDeckList
 import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
+import com.mtgscanner.data.identify
+import com.mtgscanner.data.offlineRead
 import com.mtgscanner.data.ownedCopies
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
