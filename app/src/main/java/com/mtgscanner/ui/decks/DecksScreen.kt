@@ -47,7 +47,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -144,7 +143,7 @@ import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderRows
-import com.mtgscanner.ui.components.ruleBelow
+import com.mtgscanner.ui.components.panelRow
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -1223,21 +1222,20 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
         }
         if (leads.isNotEmpty()) {
             item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
-            itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
-            item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Rule) }
+            itemsIndexed(leads, key = { i, _ -> "c$i" }) { i, l -> DeckLineRow(l, missingView = l.missing > 0, first = i == 0, last = i == leads.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {
             item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
-            itemsIndexed(missing, key = { i, _ -> "m$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+            itemsIndexed(missing, key = { i, _ -> "m$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == missing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         if (otherMissing.isNotEmpty()) {
             item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
-            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { _, l -> DeckLineRow(l, missingView = true, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == otherMissing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         if (owned.isNotEmpty()) {
             item { SectionHeader("In your collection") }
-            itemsIndexed(owned, key = { i, _ -> "o$i" }) { _, l -> DeckLineRow(l, missingView = false, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+            itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -1263,9 +1261,14 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
-    // Tap to pick the printing.
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun DeckLineRow(
+    l: DeckCheckLine, missingView: Boolean, first: Boolean, last: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null,
+) {
+    // Tap to pick the printing. Each section's rows share one panel.
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

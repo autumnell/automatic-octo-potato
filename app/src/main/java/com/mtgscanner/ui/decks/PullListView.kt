@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,7 +47,7 @@ import kotlinx.serialization.json.Json
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderRows
-import com.mtgscanner.ui.components.ruleBelow
+import com.mtgscanner.ui.components.panelRow
 
 /** Pull list checkmarks per deck (deck id to [PullItem.key]s), kept in SharedPreferences. */
 object PullChecksStore {
@@ -137,13 +138,15 @@ fun PullListView(
         }
         if (!first.isEmpty) {
             item(key = "leads") { SectionHeader("Commander") }
-            items(first.items, key = { "l" + it.second.key }) { (box, p) -> PullRow(p, p.key in checked, where = box) { onToggle(p.key) } }
+            itemsIndexed(first.items, key = { _, e -> "l" + e.second.key }) { i, (box, p) ->
+                PullRow(p, p.key in checked, first = i == 0, last = i == first.items.lastIndex, where = box) { onToggle(p.key) }
+            }
             items(first.missing, key = { "lm" + it.name }) { m -> MissingRow(m, note = "Missing") }
             item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Rule) }
         }
         for (g in rest.groups) {
             item(key = "b${g.boxId}") { SectionHeader("${g.boxName} (${g.items.sumOf { it.qty }})") }
-            items(g.items, key = { "i" + it.key }) { p -> PullRow(p, p.key in checked) { onToggle(p.key) } }
+            itemsIndexed(g.items, key = { _, e -> "i" + e.key }) { i, p -> PullRow(p, p.key in checked, first = i == 0, last = i == g.items.lastIndex) { onToggle(p.key) } }
         }
         if (rest.missing.isNotEmpty()) {
             item(key = "missing") { SectionHeader("Missing (${rest.missing.sumOf { it.qty }})") }
@@ -167,9 +170,10 @@ private fun MissingRow(m: PullMissing, note: String? = null) {
 
 /** [where] names the box, for rows listed outside their box's group. */
 @Composable
-private fun PullRow(p: PullItem, ticked: Boolean, where: String? = null, onToggle: () -> Unit) {
+private fun PullRow(p: PullItem, ticked: Boolean, first: Boolean, last: Boolean, where: String? = null, onToggle: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 8.dp, end = 20.dp).ruleBelow().padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(onClick = onToggle)
+            .padding(start = 2.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(ticked, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
