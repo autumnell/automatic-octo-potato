@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -364,9 +365,10 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     val message by vm.message.collectAsStateWithLifecycle()
     val variants by vm.includeVariants.collectAsStateWithLifecycle()
     val pinned by vm.pinnedSets.collectAsStateWithLifecycle()
-    var show by remember { mutableStateOf(if (SetLaunch.takeMissing()) "missing" else "all") }
-    var query by remember { mutableStateOf("") }
-    var grid by remember { mutableStateOf(true) }
+    // Kept across rotation.
+    var show by rememberSaveable { mutableStateOf(if (SetLaunch.takeMissing()) "missing" else "all") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var grid by rememberSaveable { mutableStateOf(true) }
     var confirmWish by remember { mutableStateOf(false) }
     var newBox by remember { mutableStateOf(false) }
     LaunchedEffect(code) { vm.loadSet(code) }

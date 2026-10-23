@@ -22,6 +22,7 @@ object AppViewModels {
         initializer { HomeViewModel((this[AppKey] as MtgApp).repository) }
         initializer { ScanViewModel((this[AppKey] as MtgApp).repository) }
         initializer { CollectionViewModel((this[AppKey] as MtgApp).repository) }
+        initializer { com.mtgscanner.ui.goals.GoalsViewModel((this[AppKey] as MtgApp).repository) }
         initializer { SearchViewModel((this[AppKey] as MtgApp).repository) }
         initializer { DecksViewModel((this[AppKey] as MtgApp).repository) }
         initializer { TradeViewModel((this[AppKey] as MtgApp).repository) }

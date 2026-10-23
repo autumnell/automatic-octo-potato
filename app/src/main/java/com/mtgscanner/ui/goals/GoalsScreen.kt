@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,13 +54,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.mtgscanner.MtgApp
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.GoalProgress
 import com.mtgscanner.data.Goals
@@ -145,12 +142,6 @@ class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
         repo.deleteGoal(goal.id)
         Undo.offer("Goal removed") { repo.addGoal(goal) }
     }
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { GoalsViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
-        }
-    }
 }
 
 @Composable
@@ -158,13 +149,13 @@ fun GoalsScreen(
     onBack: () -> Unit,
     /** Sets pinned from Set tracker open their set page. */
     onOpenSet: (String) -> Unit = {},
-    vm: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory),
+    vm: GoalsViewModel = viewModel(factory = com.mtgscanner.ui.AppViewModels.Factory),
 ) {
     val goals by vm.goals.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     var adding by remember { mutableStateOf(false) }
-    // Home can ask for one goal to open (tapping it there).
-    var openId by remember { mutableLongStateOf(com.mtgscanner.ui.home.GoalsLaunch.take()) }
+    // Home can ask for one goal to open (tapping it there); kept across rotation.
+    var openId by rememberSaveable { mutableLongStateOf(com.mtgscanner.ui.home.GoalsLaunch.take()) }
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
     val found = goals?.firstOrNull { it.goal.id == openId }
     // A pinned set has its own page in Set tracker.
