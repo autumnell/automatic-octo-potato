@@ -183,8 +183,13 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
     val repo = (LocalContext.current.applicationContext as MtgApp).repository
     val loansFlow = remember(repo) { repo.observeLoans() }
     val loans by loansFlow.collectAsStateWithLifecycle(emptyList())
+    val cardsFlow = remember(repo) { repo.observeAll() }
+    val cards by cardsFlow.collectAsStateWithLifecycle(emptyList())
+    // Copies already lent can't be lent again.
+    val left = card.quantity - LoanMath.outCount(card, loans, cards.ifEmpty { listOf(card) })
     var who by remember { mutableStateOf("") }
     var qty by remember { mutableIntStateOf(card.quantity) }
+    val n = qty.coerceIn(1, left.coerceAtLeast(1))
     val name = LoanMath.cleanName(who)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -209,11 +214,14 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
                         recent.forEach { n -> SelectPill(n, n.equals(name, ignoreCase = true), { who = n }) }
                     }
                 }
-                if (card.quantity > 1) {
+                if (left <= 0) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("All copies are out", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                } else if (left > 1) {
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Copies", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        QuantityStepper(qty, onChange = { qty = it.coerceIn(1, card.quantity) })
+                        QuantityStepper(n, onChange = { qty = it.coerceIn(1, left) })
                     }
                 }
             }
@@ -221,7 +229,6 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(
                 onClick = {
-                    val n = qty
                     // On the app's scope: the dialog closes right away.
                     repo.appScope.launch {
                         val loan = repo.lend(card.id, n, name) ?: return@launch
@@ -229,7 +236,7 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
                     }
                     onDismiss()
                 },
-                enabled = name.isNotEmpty(),
+                enabled = name.isNotEmpty() && left > 0,
             ) { Text("Lend") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
