@@ -119,8 +119,8 @@ private fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
         color = Palette.Text,
         modifier = Modifier
             .clip(RoundedCornerShape(Corners.Small))
-            .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
-            .border(1.dp, if (selected) Palette.Text else Palette.Outline, RoundedCornerShape(Corners.Small))
+            .background(Palette.SurfaceHigh)
+            .border(1.dp, if (selected) Palette.Text else Color.Transparent, RoundedCornerShape(Corners.Small))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )

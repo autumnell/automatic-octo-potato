@@ -95,8 +95,8 @@ fun AutoSortOrderSheet(
             order.forEachIndexed { i, id ->
                 val b = byId[id] ?: return@forEachIndexed
                 val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
-                Surface(Modifier.fillMaxWidth().ruleBelow(), color = Color.Transparent) {
-                    Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(Modifier.fillMaxWidth().padding(vertical = 3.dp), shape = RoundedCornerShape(Corners.Small), color = Palette.SurfaceHigh) {
+                    Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("${i + 1}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.width(22.dp))
                         Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))

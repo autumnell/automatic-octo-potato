@@ -603,7 +603,7 @@ fun SearchField(
 ) {
     val textStyle = if (mono) monoStyle(14.sp) else MaterialTheme.typography.bodyLarge
     Row(
-        modifier.fillMaxWidth().heightIn(min = 44.dp).clip(LookShape).background(Palette.Surface).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().heightIn(min = 44.dp).clip(LookShape).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!mono) {
