@@ -128,7 +128,7 @@ import com.mtgscanner.util.DeckLine
 import com.mtgscanner.util.DecklistParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -884,23 +884,33 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
-    private var checkJob: Job? = null
+    /** The list to check; [n] goes up on every request, so the same text is checked again too. */
+    private data class CheckRequest(val n: Int, val text: String)
+    private val checkRequest = MutableStateFlow<CheckRequest?>(null)
 
-    /** Checks the saved list against the collection, and again whenever the collection changes. */
-    private fun check() {
-        _ui.update { it.copy(checking = true) }
-        val text = _ui.value.text
-        checkJob?.cancel()
-        checkJob = viewModelScope.launch {
+    /**
+     * Checks the requested list against the collection, and again whenever the collection changes. Only runs
+     * while the deck screen collects it, so a deck hidden under another screen stops checking.
+     */
+    val checkRunner: StateFlow<Unit> = flow<Unit> {
+        checkRequest.collectLatest { req ->
+            if (req == null) return@collectLatest
             var initial = true
             combine(repo.observeAll(), places) { cards, p -> cards to p }.collectLatest { (cards, p) ->
                 // Later changes come in bursts (a scan, a bulk move): wait for them to settle.
                 if (!initial) delay(400)
                 initial = false
-                val result = repo.checkDeck(text, cards, p.first, p.second)
+                val result = repo.checkDeck(req.text, cards, p.first, p.second)
                 _ui.update { it.copy(checking = false, check = result) }
             }
         }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Unit)
+
+    /** Checks the current list (see [checkRunner]). */
+    private fun check() {
+        _ui.update { it.copy(checking = true) }
+        val text = _ui.value.text
+        checkRequest.update { CheckRequest((it?.n ?: 0) + 1, text) }
     }
 
     /** Opens the printing picker for a line of the saved list. */
@@ -1001,6 +1011,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
 fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
+    // Keeps the deck check running only while this screen is showing.
+    vm.checkRunner.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var view by rememberSaveable { mutableIntStateOf(0) }
     var menu by remember { mutableStateOf(false) }
