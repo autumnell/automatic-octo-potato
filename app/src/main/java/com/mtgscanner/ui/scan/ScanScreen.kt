@@ -883,12 +883,15 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
+        // Regrouped only when the list or the grouping changes, not on every redraw.
+        val groups = remember(state.session, state.listByBox) {
+            if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
+            else listOf("" to state.session)
+        }
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
           if (state.session.isEmpty()) item(key = "empty") {
               EmptyState("Nothing scanned yet", Modifier.padding(vertical = 24.dp), fullScreen = true)
           }
-          val groups = if (state.listByBox) state.session.groupBy { it.boxName.ifEmpty { "Unsorted" } }.toList().sortedBy { it.first }
-            else listOf("" to state.session)
           groups.forEach { (boxName, entries) ->
             if (boxName.isNotEmpty()) item(key = "h$boxName") {
                 Text(

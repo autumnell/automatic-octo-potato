@@ -98,8 +98,9 @@ fun SortChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifie
 @Composable
 fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
     val session = state.sort ?: return
-    val all = stacks(session, boxes)
-    val (done, todo) = all.partition { it.boxId in session.done }
+    // Regrouped only when the pile or the boxes change, not on every redraw.
+    val all = remember(session.entries, boxes) { stacks(session, boxes) }
+    val (done, todo) = remember(all, session.done) { all.partition { it.boxId in session.done } }
     ModalBottomSheet(onDismissRequest = { vm.showSort(false) }, containerColor = Palette.Surface) {
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
