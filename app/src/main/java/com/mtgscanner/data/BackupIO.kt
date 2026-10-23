@@ -111,7 +111,14 @@ object BackupCodec {
 /** Backup, restore and CSV import for [CollectionRepository]. */
 internal object BackupIO {
     /** SharedPreferences files that hold the user's organisation and options, saved in backups. */
-    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app")
+    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links")
+
+    /**
+     * Files keyed by box or deck id: the shelf and box-check start dates ([BoxPrefs]), when boxes were last checked
+     * ([LastChecked]) and deck links. A restore keeps the backup's ids, so these must come from the backup too.
+     * They're saved even when empty, so a backup without them is from an older version.
+     */
+    private val ID_PREFS = listOf("boxes", "box_checked", "deck_links")
 
     /** What the app held just before the last restore, so a restore can be undone. */
     private const val SAFETY_FILE = "before-restore.json"
@@ -129,7 +136,7 @@ internal object BackupIO {
             packs = dao.allPacks(), events = dao.allEvents(), goals = dao.allGoals(), loans = dao.allLoans(),
             prefs = BACKED_UP_PREFS.associateWith { name ->
                 BackupCodec.prefValues(repo.appContext.getSharedPreferences(name, Context.MODE_PRIVATE).all)
-            }.filterValues { it.isNotEmpty() },
+            }.filter { (name, values) -> values.isNotEmpty() || name in ID_PREFS },
         )
     }
 
@@ -223,6 +230,7 @@ internal object BackupIO {
         b.staged?.let { runCatching { File(it).deleteRecursively() } }
         // Old backups have no settings: keep the current ones.
         if (b.prefs.isNotEmpty()) applyPrefs(repo.appContext, b.prefs)
+        forgetIdPrefs(repo.appContext, b.prefs)
         repo.appScope.launch { runCatching { repo.recordSnapshot() } }
         b.cardCount
     }
@@ -258,6 +266,28 @@ internal object BackupIO {
         com.mtgscanner.scan.ScanPrefs.init(context)
         com.mtgscanner.ui.theme.AppSettings.init(context)
         com.mtgscanner.work.CardAlertStore.reload(context)
+    }
+
+    /**
+     * A backup from before box and deck prefs were saved: this phone's ones name its own ids, which now belong to the
+     * backup's boxes and decks. They're dropped (the shelf keeps its size) rather than point at the wrong box or deck.
+     * Then the box prefs are read again either way.
+     */
+    private fun forgetIdPrefs(context: Context, prefs: Map<String, Map<String, PrefValue>>) {
+        for (name in ID_PREFS) {
+            if (name in prefs) continue
+            val p = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+            when (name) {
+                "boxes" -> {
+                    val shelf = ShelfLayout.decode(p.getString("shelf", null))
+                    p.edit().putString("shelf", ShelfLayout(shelf.rows, shelf.cols).encode()).remove("checks").commit()
+                }
+                "box_checked" -> p.edit().remove("done").commit()
+                else -> p.edit().clear().commit()
+            }
+        }
+        BoxPrefs.reload(context)
+        LastChecked.reload(context)
     }
 
     /** Whether restoring [b] changes settings that some screens only read at start-up. */
