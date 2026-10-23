@@ -240,8 +240,8 @@ fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(Corners.Small),
-        color = if (active) Palette.SurfaceHigh else Color.Transparent,
-        border = BorderStroke(1.dp, if (active) Palette.Text else Palette.Outline),
+        color = Palette.SurfaceHigh,
+        border = if (active) BorderStroke(1.dp, Palette.Text) else null,
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = if (active) Palette.Text else Palette.Icon, modifier = Modifier.size(18.dp))
@@ -258,8 +258,8 @@ fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (
         Modifier
             .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(Corners.Small))
-            .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
-            .border(1.dp, if (selected) Palette.Text else Palette.Outline, RoundedCornerShape(Corners.Small))
+            .background(Palette.SurfaceHigh)
+            .border(1.dp, if (selected) Palette.Text else Color.Transparent, RoundedCornerShape(Corners.Small))
             .selectable(selected = selected, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

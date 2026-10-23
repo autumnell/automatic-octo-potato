@@ -73,13 +73,13 @@ object Palette {
     val OnAccent: Color get() = onFill(Accent)
 
     // Warm "Small step" palette: ink-brown darks, paper lights.
-    val Background: Color get() = when { black -> Color.Black; dark -> Color(0xFF161513); else -> Color(0xFFF3F0E8) }
+    val Background: Color get() = when { black -> Color.Black; dark -> Color(0xFF100F0E); else -> Color(0xFFECE8DE) }
     /** Sheets, dialogs and the odd panel. Lists sit on [Background] with a [Rule] under each row. */
-    val Surface: Color get() = when { black -> Color(0xFF12110F); dark -> Color(0xFF1C1A17); else -> Color(0xFFFBF9F4) }
-    val SurfaceHigh: Color get() = when { black -> Color(0xFF1C1A17); dark -> Color(0xFF24211D); else -> Color(0xFFECE8DE) }
+    val Surface: Color get() = when { black -> Color(0xFF151412); dark -> Color(0xFF1E1C19); else -> Color(0xFFFDFCF8) }
+    val SurfaceHigh: Color get() = when { black -> Color(0xFF221F1C); dark -> Color(0xFF2B2824); else -> Color(0xFFE1DCD0) }
     /** Box tiles: a warm panel a step above the background. */
-    val BoxCard: Color get() = when { black -> Color(0xFF141310); dark -> Color(0xFF1E1C18); else -> Color(0xFFF8F5EE) }
-    val NavBar: Color get() = when { black -> Color.Black; dark -> Color(0xFF0F0E0D); else -> Color(0xFFECE8DE) }
+    val BoxCard: Color get() = when { black -> Color(0xFF171513); dark -> Color(0xFF221F1B); else -> Color(0xFFF7F3EA) }
+    val NavBar: Color get() = when { black -> Color.Black; dark -> Color(0xFF080707); else -> Color(0xFFFDFCF8) }
     val Gold: Color get() = if (dark) Color(0xFFF2C14E) else Color(0xFFB07D12)
     /** [Gold] for text: darker in light mode so it reads on light panels (about 4.6:1 or better). */
     val GoldText: Color get() = if (dark) Gold else Color(0xFF876009)
@@ -92,9 +92,9 @@ object Palette {
     /** Secondary text and icons on always-dark surfaces (camera, scrims over art, game screen), in both modes. */
     val OnDarkMuted: Color get() = Color(0xFFB4B5BB)
     /** Borders of inputs, outlined buttons and chips. */
-    val Outline: Color get() = when { black -> Color(0xFF2A2722); dark -> Color(0xFF34302A); else -> Color(0xFFD8D3C7) }
+    val Outline: Color get() = when { black -> Color(0xFF34302A); dark -> Color(0xFF423D36); else -> Color(0xFFCBC5B8) }
     /** The 1dp line under list rows, tab rows and the bottom bar's top edge. */
-    val Rule: Color get() = when { black -> Color(0xFF211F1B); dark -> Color(0xFF2A2722); else -> Color(0xFFE2DDD1) }
+    val Rule: Color get() = when { black -> Color(0xFF2A2722); dark -> Color(0xFF332F2A); else -> Color(0xFFD8D3C7) }
     /** Hairline between plain sections: the same as [Rule]. */
     val Hairline: Color get() = Rule
     val Danger: Color get() = if (dark) Color(0xFFE5534B) else Color(0xFFC62F28)

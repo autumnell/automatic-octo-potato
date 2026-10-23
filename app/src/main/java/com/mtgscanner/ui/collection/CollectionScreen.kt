@@ -74,7 +74,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -845,11 +844,7 @@ private fun BoxCard(
         Column(
             Modifier.weight(1f).clip(shape)
                 .background(Palette.BoxCard)
-                .combinedClickable(onClick = onClick, onLongClick = { if (b.cards > 0) onCover() })
-                .drawWithContent {
-                    drawContent()
-                    drawRect(stripe, size = Size(5.dp.toPx(), size.height))
-                },
+                .combinedClickable(onClick = onClick, onLongClick = { if (b.cards > 0) onCover() }),
         ) {
             if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout) else BoxCardFull(b, stats, stripe, warning, layout)
         }

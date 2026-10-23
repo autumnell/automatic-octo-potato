@@ -140,8 +140,9 @@ fun CardInfoTabs(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewModel
 
 @Composable
 private fun TabPanel(content: @Composable () -> Unit) {
-    // Plain on the background, under the underline tabs.
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) { content() }
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Small), color = Palette.Surface) {
+        Column(Modifier.padding(14.dp)) { content() }
+    }
 }
 
 @Composable

@@ -193,7 +193,7 @@ fun StatsScreen(
 
             if (prices && s.top.isNotEmpty()) {
                 SectionHeader("Most valuable")
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = 10.dp, vertical = 4.dp)) {
                     Column {
                         s.top.forEachIndexed { i, c ->
                             Row(
@@ -244,7 +244,7 @@ private fun Breakdown(
     onRow: (StatRow) -> Unit,
 ) {
     val max = rows.maxOfOrNull { if (prices) it.value else it.cards.toDouble() }?.takeIf { it > 0 } ?: 1.0
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = 10.dp, vertical = 4.dp)) {
         Column {
             rows.forEach { r ->
                 Column(Modifier.fillMaxWidth().clickable { onRow(r) }.ruleBelow().padding(horizontal = 4.dp, vertical = 8.dp)) {

@@ -204,8 +204,8 @@ private fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier,
         modifier
             .height(48.dp)
             .clip(shape)
-            .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
-            .border(1.dp, if (selected) Palette.Text else Palette.Outline, shape)
+            .background(Palette.SurfaceHigh)
+            .border(1.dp, if (selected) Palette.Text else Color.Transparent, shape)
             .selectable(selected = selected, onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,

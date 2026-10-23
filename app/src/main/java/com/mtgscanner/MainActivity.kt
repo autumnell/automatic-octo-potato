@@ -426,7 +426,7 @@ private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
             .background(Palette.NavBar)
             .ruleAbove()
             .windowInsetsPadding(NavigationBarDefaults.windowInsets)
-            .defaultMinSize(minHeight = 72.dp)
+            .defaultMinSize(minHeight = 80.dp)
             .selectableGroup(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -454,24 +454,34 @@ private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
     }
 }
 
-/** The Scan tab: a 44dp accent block with square-ish corners and a white label, inset 8dp from its neighbours. */
+/** The raised Scan button: a solid accent circle that sits a little above the bar. */
 @Composable
 private fun RowScope.ScanTab(selected: Boolean, onClick: () -> Unit) {
-    Box(
+    Column(
         Modifier
             .weight(1f)
-            .padding(horizontal = 8.dp)
-            .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(Corners.Small))
-            .background(Palette.Accent)
             .semantics { this.selected = selected; role = Role.Tab }
             .clickable(onClickLabel = "Scan", onClick = onClick),
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Scan", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = Palette.OnAccent)
+        Box(
+            Modifier
+                .offset(y = (-14).dp)
+                .size(58.dp)
+                .shadow(10.dp, CircleShape, ambientColor = Palette.Accent, spotColor = Palette.Accent)
+                .clip(CircleShape)
+                .background(Palette.Accent)
+                // A ring in the bar's color sets it into the bar.
+                .border(3.dp, Palette.NavBar, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(28.dp))
         }
+        Text(
+            "Scan",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) Palette.Accent else Palette.Muted,
+            modifier = Modifier.offset(y = (-10).dp),
+        )
     }
 }

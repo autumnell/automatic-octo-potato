@@ -40,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -439,7 +441,6 @@ internal fun HomeHeading(title: String, action: String? = null, onAction: () -> 
     }
 }
 
-private val HeroArtWidth = 72.dp
 
 /** The one hero on Home: collection value, with a strip of art from the most valuable card on the right. */
 @Composable
@@ -453,17 +454,25 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
     ) {
         val art = ui.heroArt?.takeIf { AppSettings.showPrices }
         if (art != null) {
-            // A sharp crop of the top card's art on the right end, like a box label. The outer clip rounds its corners.
-            Box(Modifier.matchParentSize()) {
-                AsyncImage(
-                    model = art,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(HeroArtWidth),
-                )
-            }
+            // The top card's art behind the whole card, softened (blur works on Android 12+), with a scrim on the text side so numbers stay crisp.
+            AsyncImage(
+                model = art,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alpha = if (Palette.dark) 0.34f else 0.22f,
+                modifier = Modifier.matchParentSize().blur(4.dp),
+            )
+            Box(
+                Modifier.matchParentSize().background(
+                    Brush.horizontalGradient(
+                        0f to Palette.BoxCard.copy(alpha = 0.9f),
+                        0.55f to Palette.BoxCard.copy(alpha = 0.6f),
+                        1f to Palette.BoxCard.copy(alpha = 0.15f),
+                    ),
+                ),
+            )
         }
-        Column(Modifier.padding(start = 20.dp, top = 20.dp, bottom = 20.dp, end = if (art != null) HeroArtWidth + 16.dp else 20.dp)) {
+        Column(Modifier.padding(20.dp)) {
             val prices = AppSettings.showPrices
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

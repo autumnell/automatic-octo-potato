@@ -212,8 +212,7 @@ fun GoalsScreen(
 /** One goal with its progress bar. Used on Home too. */
 @Composable
 fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    // A plain row on the background with a rule under it.
-    Column(modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(vertical = 12.dp)) {
+    Column(modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).clickable(onClick = onClick).padding(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
