@@ -100,11 +100,11 @@ object PhotoCards {
         val mat = Mat()
         var frame: CvCards.Frame? = null
         try {
-            if (CvCards.ready) frame = cvSafe { CvCards.Frame(photo, mat) }
-            val found = frame?.let { f -> cvSafe { f.findAll() } }.orEmpty()
+            if (CvCards.ready) frame = CardParts.cvSafe { CvCards.Frame(photo, mat) }
+            val found = frame?.let { f -> CardParts.cvSafe { f.findAll() } }.orEmpty()
             // No outline found (or no OpenCV): a picture of just one card is that card.
             val quads = found.ifEmpty { listOfNotNull(wholeIfCard(photo)) }
-            val draw = drawer(photo, frame)
+            val draw = CardParts.drawer(photo, frame)
             val out = ArrayList<PhotoRead>()
             for (q in quads) out += runCatching { readCard(q, draw, recognizer, embed, wantsArt) }.getOrElse { PhotoRead(empty(), null) }
             return out
@@ -115,12 +115,6 @@ object PhotoCards {
         }
     }
 
-    /** Draws card parts with OpenCV's warpPerspective when [cv] is there, else with [CardWarp] (a Canvas). */
-    private fun drawer(src: Bitmap, cv: CvCards.Frame?): Draw {
-        if (cv == null) return { q, p, w, h -> CardWarp.render(src, q, p, w, h) }
-        return { q, p, w, h -> cvSafe { cv.render(q, p, w, h) } ?: CardWarp.render(src, q, p, w, h) }
-    }
-
     private fun empty() = CardTextGuess(emptyList(), null, null, 0)
 
     /** The whole picture as one card, when it's card-shaped (a single card's picture). */
@@ -129,32 +123,22 @@ object PhotoCards {
         return q.takeIf { CardOutline.cardLike(it) }
     }
 
-    private inline fun <T> cvSafe(block: () -> T): T? = try {
-        block()
-    } catch (e: LinkageError) {
-        CvCards.disable()
-        null
-    } catch (e: Exception) {
-        null
-    }
-
     /** Reads one card from its corners [quad] in the photo. */
     private suspend fun readCard(
         quad: FloatArray, draw: Draw, recognizer: TextRecognizer, embed: (Bitmap) -> ArtVector?, wantsArt: Boolean,
     ): PhotoRead {
         val cardH = CardWarp.cardHeight(quad)
-        val nameScale = (NAME_TARGET_H / cardH).coerceIn(1f, 2f)
         val turns = CardQuad.uprightTurns(quad, 0)
         var guess: CardTextGuess? = null
         var turn: Int? = null
         // The name bar and footer, straightened and drawn larger: the way the camera reads a card it found.
         for (t in turns) {
             val q = CardQuad.ordered(quad, t)
-            val name = CardWarp.renderScaled(q, CardWarp.NAME, cardH, nameScale, draw = draw) ?: continue
-            val footer = CardWarp.renderScaled(q, CardWarp.FOOTER, cardH, FOOTER_SCALE, draw = draw)
+            val name = CardParts.name(q, cardH, draw) ?: continue
+            val footer = CardParts.footer(q, cardH, draw)
             try {
-                val nameLines = stripLines(name, CardWarp.NAME, cardH, recognizer)
-                val footerLines = if (footer != null) stripLines(footer, CardWarp.FOOTER, cardH, recognizer) else emptyList()
+                val nameLines = CardParts.stripLines(name, CardWarp.NAME, cardH, recognizer)
+                val footerLines = if (footer != null) CardParts.stripLines(footer, CardWarp.FOOTER, cardH, recognizer) else emptyList()
                 if (nameLines.isEmpty() && footerLines.isEmpty()) continue
                 val names = CardTextParser.parse(nameLines).nameCandidates
                 val g = CardTextParser.parse(nameLines + footerLines, footerAnywhere = true).copy(nameCandidates = names)
@@ -221,55 +205,16 @@ object PhotoCards {
         return (b.width to b.height) to lines
     }
 
-    /** OCR lines of a strip drawn from [part] of the card, placed on a card [cardH] pixels tall. */
-    private suspend fun stripLines(strip: Bitmap, part: FloatArray, cardH: Float, reader: TextRecognizer): List<OcrLine> {
-        val cardW = cardH * (63f / 88f)
-        val sx = strip.width / ((part[2] - part[0]) * cardW)
-        val sy = strip.height / ((part[3] - part[1]) * cardH)
-        val ox = part[0] * cardW
-        val oy = part[1] * cardH
-        val text = reader.process(InputImage.fromBitmap(strip, 0)).await()
-        return text.textBlocks.flatMap { block ->
-            block.lines.mapNotNull { line ->
-                val box = line.boundingBox ?: return@mapNotNull null
-                OcrLine(
-                    line.text,
-                    (ox + box.left / sx).toInt(), (oy + box.top / sy).toInt(),
-                    (ox + box.right / sx).toInt(), (oy + box.bottom / sy).toInt(),
-                )
-            }
-        }
-    }
-
     /** The art window's hash, and its embedding when the art model is ready. */
-    private fun artOf(quad: FloatArray, turn: Int, draw: Draw, embed: (Bitmap) -> ArtVector?): Pair<Long, ArtVector?>? {
-        val art = draw(CardQuad.ordered(quad, turn), CardWarp.ART, ART_W, ART_H) ?: return null
-        return try {
-            val hash = ArtHashing.hash(art, 0, 0, art.width, art.height) ?: return null
-            hash to runCatching { embed(art) }.getOrNull()
-        } finally {
-            art.recycle()
-        }
-    }
+    private fun artOf(quad: FloatArray, turn: Int, draw: Draw, embed: (Bitmap) -> ArtVector?): Pair<Long, ArtVector?>? =
+        CardParts.art(quad, turn, draw) { _, art -> runCatching { embed(art) }.getOrNull() }
 
     /** The set symbol's shape, from the right end of the type line. */
-    private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? {
-        val b = draw(CardQuad.ordered(quad, turn), CardWarp.SYMBOL, SYMBOL_PX, SYMBOL_PX) ?: return null
-        return try {
-            SetSymbol.fingerprint(CardWarp.luma(b), b.width, b.height)
-        } finally {
-            b.recycle()
-        }
-    }
+    private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? = CardParts.symbol(quad, turn, draw)
 
     /** The whole upright card. */
     private val WHOLE = floatArrayOf(0f, 0f, 1f, 1f)
-    private const val NAME_TARGET_H = 700f
-    private const val FOOTER_SCALE = 2f
     private const val WHOLE_H = 1100f
-    private const val ART_W = 224
-    private const val ART_H = 164
-    private const val SYMBOL_PX = 88
     private const val THUMB_W = 126
     private const val THUMB_H = 176
 }
