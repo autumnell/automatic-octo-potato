@@ -74,6 +74,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableDoubleStateOf
 import com.mtgscanner.work.DriveBackup
 import com.mtgscanner.util.ImportRow
+import androidx.room.withTransaction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
