@@ -556,14 +556,3 @@ private fun PickRow(title: String, sub: String?, image: String?, onClick: () -> 
     }
 }
 
-/** Plain-text list to share, e.g. a trade binder or wishlist. */
-fun shareText(title: String, lines: List<Triple<Int, String, Double?>>): String = buildString {
-    appendLine(title)
-    lines.forEach { (n, name, price) ->
-        append("$n× $name")
-        if (AppSettings.showPrices && price != null) append(" — ${formatUsd(price)}")
-        appendLine()
-    }
-    appendLine()
-    append("Shared from Grimoire")
-}

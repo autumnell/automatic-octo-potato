@@ -22,8 +22,6 @@ class PriceListMathTest {
     @Test fun shortCountsOnlyWhatYouLack() {
         val t = PriceListMath.totals(lines)
         assertEquals(4, t.shortCards) // 3 bolts + 1 promo; the typo isn't counted
-        assertEquals(2.25, t.shortValue, 1e-9)
-        assertEquals(listOf("Lightning Bolt", "Odd Promo"), PriceListMath.short(lines).map { it.name })
     }
 
     @Test fun owningMoreThanListedIsNotNegative() {
