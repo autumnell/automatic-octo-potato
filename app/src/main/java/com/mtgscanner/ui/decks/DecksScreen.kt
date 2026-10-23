@@ -1152,9 +1152,12 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
             modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 420.dp),
             shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
-        Spacer(Modifier.height(6.dp))
-        Text("One card per line.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("One card per line.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+            // A photo of a printed list: its lines join what's here, to check before saving.
+            FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
+        }
+        Spacer(Modifier.height(8.dp))
         GradientButton("Check my collection", vm::save, Modifier.fillMaxWidth(), enabled = ui.text.isNotBlank())
         Spacer(Modifier.height(24.dp))
     }
