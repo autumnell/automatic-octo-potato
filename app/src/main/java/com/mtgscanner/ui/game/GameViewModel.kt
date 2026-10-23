@@ -7,6 +7,7 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.game.Game
 import com.mtgscanner.game.GameFormat
+import com.mtgscanner.game.Player
 import com.mtgscanner.game.GameRecord
 import com.mtgscanner.game.GameState
 import com.mtgscanner.data.db.CollectionCard
@@ -22,6 +23,18 @@ import kotlinx.serialization.json.Json
 
 /** How the player panels look. */
 enum class TableStyle(val label: String) { BOLD("Bold"), GRADIENT("Gradient"), DARK("Dark") }
+
+/** The setup of a started game, kept so the same group can start again in one tap. */
+data class LastSetup(val format: GameFormat, val players: Int, val life: Int, val partners: Boolean) {
+    fun encode() = "${format.name}|$players|$life|$partners"
+
+    companion object {
+        fun parse(s: String): LastSetup? = runCatching {
+            val p = s.split('|')
+            LastSetup(GameFormat.valueOf(p[0]), p[1].toInt().coerceIn(1, Player.MAX_PLAYERS), p[2].toInt(), p[3].toBoolean())
+        }.getOrNull()
+    }
+}
 
 /** A card from your collection that can go behind a player's life total. */
 data class ArtChoice(val name: String, val set: String, val art: String)
@@ -41,6 +54,10 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
 
     /** Names used last time, so the same group doesn't retype them. */
     val lastNames: List<String> = prefs.getString("names", null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+
+    /** The format, seats and life of the last game started, for "Same as last time". */
+    var lastSetup: LastSetup? = prefs.getString("last_setup", null)?.let(LastSetup::parse)
+        private set
 
     private val _style = MutableStateFlow(runCatching { TableStyle.valueOf(prefs.getString("style", null) ?: "") }.getOrDefault(TableStyle.BOLD))
     val style: StateFlow<TableStyle> = _style
@@ -65,7 +82,9 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean) {
         saveIfWon()
         val clean = names.mapIndexed { i, n -> n.trim().ifEmpty { GameState.NAMES[i] } }
-        prefs.edit().putString("names", clean.joinToString("\n")).apply()
+        val setup = LastSetup(format, players, life, partners)
+        lastSetup = setup
+        prefs.edit().putString("names", clean.joinToString("\n")).putString("last_setup", setup.encode()).apply()
         set(GameState.new(format, players, life, clean, partners))
     }
 
