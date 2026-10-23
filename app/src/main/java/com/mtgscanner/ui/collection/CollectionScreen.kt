@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Sell
@@ -101,6 +102,8 @@ import com.mtgscanner.data.Divider
 import com.mtgscanner.data.RuleCheck
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.Found
+import com.mtgscanner.data.LastChecked
+import com.mtgscanner.data.LastCheckedMath
 import com.mtgscanner.data.findCard
 import com.mtgscanner.ui.home.SortItem
 import com.mtgscanner.ui.home.cardsToSort
@@ -575,6 +578,11 @@ private fun BoxesTab(
     var laying by remember { mutableStateOf<BoxSummary?>(null) }
     var tagging by remember { mutableStateOf<BoxSummary?>(null) }
     val nfc = LocalContext.current.let { c -> remember { hasNfc(c) } }
+    val ctx = LocalContext.current
+    remember { LastChecked.load(ctx) }
+    val checkedAt = LastChecked.times
+    val now = remember(checkedAt) { System.currentTimeMillis() }
+    var orderMenu by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     // Cards found for which query: worked out off the main thread once typing pauses.
     var found by remember { mutableStateOf("" to emptyList<Found>()) }
@@ -621,6 +629,23 @@ private fun BoxesTab(
                             if (ui.boxes.isNotEmpty()) TextButton(onClick = { shelf = true }) { Text("Shelf") }
                             if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
                         }
+                        if (ui.boxes.size > 1) Box {
+                            IconButton(onClick = { orderMenu = true }) {
+                                Icon(Icons.AutoMirrored.Outlined.Sort, "Box order", tint = if (LastChecked.oldestFirst) Palette.Text else Palette.Icon)
+                            }
+                            DropdownMenu(expanded = orderMenu, onDismissRequest = { orderMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Auto-sort order") },
+                                    trailingIcon = { if (!LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
+                                    onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, false) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Last checked") },
+                                    trailingIcon = { if (LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
+                                    onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, true) },
+                                )
+                            }
+                        }
                         TextButton(onClick = { creating = true }) {
                             Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
@@ -634,7 +659,9 @@ private fun BoxesTab(
                     if (searching && (ui.boxes.isNotEmpty() || ui.totalCards > 0)) {
                         SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Find a box or card")
                     }
-                    val shown = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
+                    val matching = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
+                    // Never checked first, then the longest since a check.
+                    val shown = if (LastChecked.oldestFirst) LastCheckedMath.oldestFirst(matching, { it.id }, checkedAt) else matching
                     val cardsFound = if (searching) found.second else emptyList()
                     if (q.isNotEmpty() && shown.isEmpty() && cardsFound.isEmpty() && found.first == query && q.length >= 2) {
                         EmptyState("No matches", action = "Clear", onAction = { query = "" })
@@ -647,6 +674,7 @@ private fun BoxesTab(
                             onNfc = if (nfc) ({ tagging = b }) else null,
                             onShare = { sharing = b },
                             layout = layout,
+                            checked = LastCheckedMath.label(checkedAt[b.id], now),
                         )
                     }
                     if (q.length >= 2 && cardsFound.isNotEmpty()) {
@@ -845,6 +873,8 @@ private fun BoxCard(
     onShare: () -> Unit = {},
     /** Which details show, and full or compact. */
     layout: CollectionLayout = CollectionLayout.DEFAULT,
+    /** "Checked 3w ago", or null when never checked. */
+    checked: String? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(Corners.Medium)
@@ -854,7 +884,7 @@ private fun BoxCard(
                 .background(Palette.BoxCard)
                 .combinedClickable(onClick = onClick, onLongClick = { if (b.cards > 0) onCover() }),
         ) {
-            if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout) else BoxCardFull(b, stats, stripe, warning, layout)
+            if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout, checked) else BoxCardFull(b, stats, stripe, warning, layout, checked)
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Box options", tint = Palette.Icon) }
@@ -899,7 +929,7 @@ private fun BoxArtBackground(art: String?, content: @Composable (onArt: Boolean)
 
 /** One line: the name, then count and value. */
 @Composable
-private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout) {
+private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null) {
     val fill = BoxFillMath.state(b.cards, b.capacity)
     val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
     BoxArtBackground(art) { onArt ->
@@ -923,13 +953,20 @@ private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warni
                     modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
                 )
             }
+            // Only while ordering by it, so the compact row stays one line otherwise.
+            if (checked != null && LastChecked.oldestFirst) {
+                Text(
+                    checked, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1,
+                    modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
+                )
+            }
         }
     }
 }
 
 /** The full card: cover art behind everything, rules, count, value with change, and the fill meter, each when turned on. */
 @Composable
-private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout) {
+private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null) {
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     val fill = BoxFillMath.state(b.cards, b.capacity)
     val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
@@ -945,6 +982,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
                 Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (checked != null) Text(checked, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
             if (showCount || showValue || showChange) {
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
