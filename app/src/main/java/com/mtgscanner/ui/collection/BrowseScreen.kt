@@ -136,6 +136,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import com.mtgscanner.data.Binder
 import com.mtgscanner.ui.detail.CardDetailScreen
 import com.mtgscanner.ui.theme.Corners
@@ -831,6 +832,10 @@ private fun Thumb(c: CollectionCard, width: androidx.compose.ui.unit.Dp, onClick
 
 private val SET_COL = 48.dp
 private val USD_COL = 64.dp
+
+/** The price column, wider with a larger system font so prices don't clip. */
+@Composable
+private fun usdCol(): Dp = USD_COL * LocalDensity.current.fontScale.coerceAtLeast(1f)
 private val WEEK_COL = 52.dp
 private val COL_GAP = 8.dp
 
@@ -874,7 +879,7 @@ private fun ListHeader(end: Dp) {
             if (AppSettings.showPrices) {
                 Text(
                     if (AppSettings.currency == PriceCurrency.EUR) "EUR" else "USD",
-                    style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(USD_COL),
+                    style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(usdCol()),
                 )
                 if (weekColumn()) Text("7d", style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(WEEK_COL))
             }
@@ -945,7 +950,7 @@ private fun PriceRow(
             val price = rowPrice(c)
             Text(
                 price, style = if (price.length > 7) Mono12 else Mono14, color = Palette.Text,
-                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(USD_COL),
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(usdCol()),
             )
             val change = week?.let { WeekChange.label(it) }.orEmpty()
             if (weekColumn()) Text(
