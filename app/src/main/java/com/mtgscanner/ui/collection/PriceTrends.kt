@@ -64,20 +64,4 @@ object PriceTrends {
         }
         return out
     }
-
-    /**
-     * The sparkline for one copy: each day's price (foil price for foils, falling back to the
-     * regular one), with today's price from the card itself so the line ends where the shown price is.
-     */
-    fun sparkPoints(history: List<PricePoint>, foil: Boolean, current: Double?, today: String): List<Double> {
-        val days = history.sortedBy { it.day }
-        val out = ArrayList<Double>(days.size + 1)
-        for (p in days) {
-            if (current != null && p.day >= today) continue
-            val v = if (foil) p.usdFoil ?: p.usd else p.usd
-            if (v != null) out.add(v)
-        }
-        if (current != null) out.add(current)
-        return out
-    }
 }

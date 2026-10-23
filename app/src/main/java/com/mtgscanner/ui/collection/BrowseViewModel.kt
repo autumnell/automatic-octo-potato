@@ -36,7 +36,6 @@ import com.mtgscanner.data.Sorting
 import com.mtgscanner.data.db.facts
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.changeSinceAdded
-import com.mtgscanner.data.db.roleList
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,8 +46,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.catch
-import com.mtgscanner.data.db.nearMintPrice
-import java.time.LocalDate
 import com.mtgscanner.data.LoanMath
 import com.mtgscanner.data.ScryfallQueryException
 import com.mtgscanner.data.observeLoans
@@ -86,8 +83,6 @@ data class Filters(
     val types: Set<String> = emptySet(),
     val set: String? = null,
     val foilOnly: Boolean = false,
-    /** Scryfall community tags such as Removal or Ramp. */
-    val roles: Set<String> = emptySet(),
     val treatments: Set<String> = emptySet(),
     /** Your own tags. */
     val userTags: Set<String> = emptySet(),
@@ -100,7 +95,7 @@ data class Filters(
     /** Only cards kept in this deck: the id of its card row (see DeckSlots.kt); null for any. */
     val deckBox: Long? = null,
 ) {
-    val activeCount: Int get() = colors.size + rarities.size + types.size + roles.size + treatments.size + userTags.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0) +
+    val activeCount: Int get() = colors.size + rarities.size + types.size + treatments.size + userTags.size + (if (set != null) 1 else 0) + (if (foilOnly) 1 else 0) +
         flags.size + (if (addedSince > 0) 1 else 0) + (if (deckBox != null) 1 else 0)
 }
 
@@ -113,8 +108,6 @@ data class BrowseUi(
     val shownEur: Double = 0.0,
     val totalCards: Int = 0,
     val sets: List<Pair<String, String>> = emptyList(),
-    /** Roles found on cards in view, for the filter sheet. */
-    val roles: List<String> = emptyList(),
     val treatments: List<String> = emptyList(),
     /** Your own tags on cards in view. */
     val userTags: List<String> = emptyList(),
@@ -232,7 +225,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         val nameKeys: List<String>,
         val totalCards: Int,
         val sets: List<Pair<String, String>>,
-        val roles: List<String>,
         val treatments: List<String>,
         val userTags: List<String>,
     )
@@ -271,12 +263,11 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             nameKeys = texts.map { it.key },
             totalCards = inScope.sumOf { it.quantity },
             sets = inScope.map { it.setCode to it.setName }.distinct().sortedBy { it.second },
-            roles = emptyList(),
             treatments = inScope.flatMap { it.treatments.split(',') }.filter { it.isNotBlank() }.distinct(),
             userTags = inScope.flatMap { it.userTagList() }.distinct().sortedBy { it.lowercase() },
         )
     }.flowOn(Dispatchers.Default)
-        // One pass per change, shared by the list and the sparklines.
+        // One pass per change.
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
     /** The filters, with typing in the search box settling for a moment before the list redoes itself. */
@@ -296,7 +287,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             val boxNames = sc.boxes.associate { it.id to it.name }
             SearchEnv(boxName = { boxNames[it] }, lent = LoanMath.outByRow(loanList, sc.all).keys)
         }
-        val hits = sc.inScope.indices.filter { matches(sc.inScope[it], f, sc.hay[it], env) }
+        val hits = sc.inScope.indices.filter { matches(sc.inScope[it], f, sc.hay[it], env, compiled) }
         // Name order uses the keys worked out once per card, not once per comparison.
         val shown = if (f.sort == SortBy.NAME) hits.sortedBy { sc.nameKeys[it] }.map { sc.inScope[it] }
         else hits.map { sc.inScope[it] }.sortedWith(comparator(f.sort))
@@ -322,7 +313,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             shownEur = shown.sumOf { it.totalEur() },
             totalCards = sc.totalCards,
             sets = sc.sets,
-            roles = sc.roles,
             treatments = sc.treatments,
             userTags = sc.userTags,
             boxes = sc.boxes,
@@ -338,33 +328,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             searchNote = searchNote(compiled),
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrowseUi())
-
-    /** What a sparkline depends on; the line is only rebuilt when this changes. */
-    private data class SparkKey(val scryfallId: String, val foil: Boolean, val price: Double?, val day: String)
-    private val sparkCache = HashMap<Long, Pair<SparkKey, List<Double>>>()
-
-    /** 30-day price lines by card row id, for the sparklines; only cards with two or more points. */
-
-    val sparks: StateFlow<Map<Long, List<Double>>> = scope.map { it.inScope }
-        .distinctUntilChanged()
-        .map { cards ->
-            val today = LocalDate.now().toString()
-            val keys = cards.associate { it.id to SparkKey(it.scryfallId, it.foil, it.nearMintPrice(), today) }
-            val stale = cards.filter { sparkCache[it.id]?.first != keys[it.id] }
-            if (stale.isNotEmpty()) {
-                val history = PriceTrends.history(repo, stale.mapTo(HashSet()) { it.scryfallId })
-                for (c in stale) {
-                    sparkCache[c.id] = keys.getValue(c.id) to PriceTrends.sparkPoints(history[c.scryfallId].orEmpty(), c.foil, c.nearMintPrice(), today)
-                }
-            }
-            sparkCache.keys.retainAll(keys.keys)
-            val out = HashMap<Long, List<Double>>()
-            for ((id, v) in sparkCache) if (v.second.size >= 2) out[id] = v.second
-            out as Map<Long, List<Double>>
-        }
-        .catch { emit(emptyMap()) }
-        .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun update(f: (Filters) -> Filters) = _filters.update(f)
     fun clearFilters() = _filters.update { Filters(query = it.query, sort = it.sort, group = it.group) }
@@ -616,10 +579,17 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         /**
          * [hay] is the card's [searchText], when already worked out. Plain words search it as before; Scryfall
          * syntax (t:elf c:g, box:, tag:…) is read by [ScryfallQuery], with [env] for box names, loans and Scryfall's answers.
+         * Pass [compiled] (f.query already compiled) when checking many cards, so the query isn't looked up per card.
          */
-        fun matches(c: CollectionCard, f: Filters, hay: String?, env: SearchEnv? = null): Boolean {
+        fun matches(
+            c: CollectionCard,
+            f: Filters,
+            hay: String?,
+            env: SearchEnv? = null,
+            compiled: com.mtgscanner.data.search.CompiledQuery? = null,
+        ): Boolean {
             if (f.query.isNotBlank()) {
-                val q = ScryfallQuery.compile(f.query)
+                val q = compiled ?: ScryfallQuery.compile(f.query)
                 val plain = q.plain
                 if (plain != null) {
                     if (!(hay ?: searchText(c)).contains(plain)) return false

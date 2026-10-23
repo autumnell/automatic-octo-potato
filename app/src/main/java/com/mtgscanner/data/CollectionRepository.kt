@@ -10,7 +10,6 @@ import com.mtgscanner.data.db.CardEvent
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Goal
 import com.mtgscanner.data.db.Deck
-import com.mtgscanner.data.db.PackOpening
 import com.mtgscanner.data.db.PricePoint
 import com.mtgscanner.data.db.PendingScan
 import com.mtgscanner.data.db.ValueSnapshot
@@ -38,18 +37,13 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.encodeToStream
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -1350,14 +1344,6 @@ class CollectionRepository(
             else -> { put("name", name); if (set != null) put("set", set.lowercase()) }
         }
     }
-
-    /** Writes a backup to [out]. It's built in a temporary file first, so [out] is only written once it's complete. */
-    suspend fun exportBackup(out: java.io.OutputStream) {
-        BackupIO.export(this) { out }
-    }
-
-    /** Replaces everything with a backup read from [input], after checking it. Returns the number of cards restored. */
-    suspend fun restoreBackup(input: java.io.InputStream): Int = BackupIO.restore(this, BackupIO.read(input))
 
     companion object {
         /** How long a read that found nothing isn't looked up again. */

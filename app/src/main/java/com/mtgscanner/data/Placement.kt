@@ -151,17 +151,6 @@ object Placement {
     }
 }
 
-/**
- * Where a card goes inside [boxId], for "Rares → Blue → between Counterspell and Cryptic Command".
- * Null when the box doesn't exist.
- */
-suspend fun CollectionRepository.positionFor(boxId: Long, name: String, facts: CardFacts): String? {
-    val b = dao.box(boxId) ?: return null
-    val layout = BoxLayout.of(b.divider)
-    val contents = Placement.contents(layout, dao.inBox(boxId))
-    return Sorting.where(b.name, Sorting.position(layout, name, facts, contents))
-}
-
 /** Card search on the Boxes page: every box (or deck) a card is in, with its spot. */
 suspend fun CollectionRepository.findCard(query: String): List<Found> = Placement.find(query, dao.all(), dao.allPlaces())
 

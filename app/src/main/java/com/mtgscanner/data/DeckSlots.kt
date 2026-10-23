@@ -43,10 +43,6 @@ suspend fun CollectionRepository.moveToAutoBox(rowId: Long, qty: Int) {
 /** What deleting a deck changed, so Undo can bring the deck and its cards back. */
 class DeckDeleteUndo internal constructor(val deck: Deck, internal val slot: CollectionRepository.BoxUndo?)
 
-/** Copies kept in a deck. */
-suspend fun CollectionRepository.copiesInDeck(deckId: Long): Int =
-    dao.deckSlot(deckId)?.let { s -> cardsInBox(s.id).sumOf { it.quantity } } ?: 0
-
 /**
  * Deletes a deck. Its cards go to boxes by the Auto-sort rules, or leave the collection with [removeCards].
  * Returns what Undo needs, or null when there's no such deck.

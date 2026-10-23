@@ -71,6 +71,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -457,13 +458,13 @@ private fun BulkEditDialog(onApply: (String?, String?, Boolean?) -> Unit, onDism
                 Text("Condition", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("NM", "LP", "MP", "HP", "DMG").forEach { c -> SelectPill(c, cond == c, { cond = if (cond == c) null else c }) }
+                    CARD_CONDITIONS.forEach { (c, _) -> SelectPill(c, cond == c, { cond = if (cond == c) null else c }) }
                 }
                 Spacer(Modifier.height(12.dp))
                 Text("Language", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    BULK_LANGS.forEach { (code, label) -> SelectPill(label, lang == code, { lang = if (lang == code) null else code }) }
+                    CARD_LANGUAGES.forEach { (code, label) -> SelectPill(label, lang == code, { lang = if (lang == code) null else code }) }
                 }
                 Spacer(Modifier.height(12.dp))
                 Text("Finish", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
@@ -481,10 +482,6 @@ private fun BulkEditDialog(onApply: (String?, String?, Boolean?) -> Unit, onDism
     )
 }
 
-private val BULK_LANGS = listOf(
-    "en" to "English", "ja" to "Japanese", "de" to "German", "fr" to "French", "it" to "Italian", "es" to "Spanish",
-    "pt" to "Portuguese", "ru" to "Russian", "ko" to "Korean", "zhs" to "Chinese (S)", "zht" to "Chinese (T)",
-)
 
 @Composable
 fun NameDialog(title: String, hint: String, confirm: String, onDone: (String) -> Unit, onDismiss: () -> Unit, initial: String = "") {
@@ -788,13 +785,16 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
 private fun SwipeRow(onMove: () -> Unit, onSell: () -> Unit, content: @Composable () -> Unit) {
     // One swipe can confirm more than once; act on the first only.
     val last = remember { longArrayOf(0L) }
+    // The swipe state keeps its first callback, so read the row's latest actions (and card) through these.
+    val move by rememberUpdatedState(onMove)
+    val sell by rememberUpdatedState(onSell)
     val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
         val now = android.os.SystemClock.uptimeMillis()
         if (v != SwipeToDismissBoxValue.Settled && now - last[0] > 600) {
             last[0] = now
             when (v) {
-                SwipeToDismissBoxValue.StartToEnd -> onMove()
-                SwipeToDismissBoxValue.EndToStart -> onSell()
+                SwipeToDismissBoxValue.StartToEnd -> move()
+                SwipeToDismissBoxValue.EndToStart -> sell()
                 else -> Unit
             }
         }
