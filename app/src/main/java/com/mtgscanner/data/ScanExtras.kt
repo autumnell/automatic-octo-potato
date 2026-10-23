@@ -43,10 +43,12 @@ suspend fun CollectionRepository.keptIn(oracleId: String?): List<Pair<Long, Int>
 
 /**
  * The row to take one copy of [card] from when it's scanned out: the same printing and finish first, then the
- * same printing, then any printing of the card. Null when none is owned.
+ * same printing, then any printing of the card. Copies in boxes come before copies kept in a deck. Null when none is owned.
  */
 suspend fun CollectionRepository.rowToRemove(card: ScryfallCard, foil: Boolean): com.mtgscanner.data.db.CollectionCard? {
-    val rows = copiesOf(card.oracleId, card.name).filter { it.quantity > 0 }
+    val owned = copiesOf(card.oracleId, card.name).filter { it.quantity > 0 }
+    val deckSlots = dao.allBoxes().filter { it.deckId != 0L }.mapTo(HashSet()) { it.id }
+    val rows = owned.filter { it.boxId !in deckSlots }.ifEmpty { owned }
     return rows.firstOrNull { it.scryfallId == card.id && it.foil == foil }
         ?: rows.firstOrNull { it.scryfallId == card.id }
         ?: rows.maxByOrNull { it.quantity }

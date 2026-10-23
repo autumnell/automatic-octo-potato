@@ -214,12 +214,12 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         }
     }
     fun setFoil(foil: Boolean) = viewModelScope.launch { currentId.value = repo.setFoil(currentId.value, foil) }
-    fun setCondition(c: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(condition = c)) } }
-    fun setNotes(n: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(notes = n)) } }
-    fun setLang(l: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(lang = l)) } }
-    fun setSigned(on: Boolean) = viewModelScope.launch { card.value?.let { repo.update(it.copy(signed = on)) } }
-    fun setAltered(on: Boolean) = viewModelScope.launch { card.value?.let { repo.update(it.copy(altered = on)) } }
-    fun setGraded(g: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(graded = g.trim())) } }
+    fun setCondition(c: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(condition = c)) } }
+    fun setNotes(n: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(notes = n)) } }
+    fun setLang(l: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(lang = l)) } }
+    fun setSigned(on: Boolean) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(signed = on)) } }
+    fun setAltered(on: Boolean) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(altered = on)) } }
+    fun setGraded(g: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(graded = g.trim())) } }
     fun delete(done: () -> Unit) = viewModelScope.launch {
         val before = repo.snapshot(listOf(currentId.value))
         val name = card.value?.name ?: "card"
@@ -243,21 +243,21 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     fun addTag(tag: String) = viewModelScope.launch { repo.addTag(listOf(currentId.value), tag) }
     fun removeTag(tag: String) = viewModelScope.launch { repo.removeTag(currentId.value, tag) }
 
-    fun setPaid(p: Double?) = viewModelScope.launch { card.value?.let { repo.update(it.copy(purchasePrice = p)) } }
-    fun setFrom(f: String) = viewModelScope.launch { card.value?.let { repo.update(it.copy(acquiredFrom = f.trim().take(30))) } }
+    fun setPaid(p: Double?) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(purchasePrice = p)) } }
+    fun setFrom(f: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(acquiredFrom = f.trim().take(30))) } }
     fun setProxy(on: Boolean) = viewModelScope.launch {
         card.value?.let {
-            repo.update(it.copy(proxy = on))
+            currentId.value = repo.update(it.copy(proxy = on))
             repo.logEvent(it.scryfallId, it.name, "edited", if (on) "Proxy" else "Not proxy")
         }
     }
     fun setForSale(on: Boolean) = viewModelScope.launch {
         card.value?.let {
-            repo.update(it.copy(forSale = on))
+            currentId.value = repo.update(it.copy(forSale = on))
             repo.logEvent(it.scryfallId, it.name, "edited", if (on) "For sale" else "Not for sale")
         }
     }
-    fun setAsk(p: Double?) = viewModelScope.launch { card.value?.let { repo.update(it.copy(askPrice = p, forSale = it.forSale || p != null)) } }
+    fun setAsk(p: Double?) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(askPrice = p, forSale = it.forSale || p != null)) } }
 
     /** Saves the picture at [uri] as this copy's photo; [temp] is a camera target to delete afterwards. */
     fun attachPhoto(uri: android.net.Uri, temp: Boolean) = viewModelScope.launch {
@@ -267,7 +267,7 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         if (temp) CardPhotos.discard(ctx, uri)
         if (c == null || path == null) return@launch
         val fresh = repo.cardOnce(currentId.value) ?: c
-        repo.update(fresh.copy(photo = path))
+        currentId.value = repo.update(fresh.copy(photo = path))
         if (c.photo.isNotBlank() && c.photo != path) CardPhotos.delete(ctx, c.photo)
     }
     fun discardTemp(uri: android.net.Uri) = viewModelScope.launch { CardPhotos.discard(repo.appContext, uri) }
@@ -278,6 +278,8 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         if (path.isBlank()) return@launch
         repo.update(c.copy(photo = ""))
         Undo.offer("Photo removed") {
+            // From Recent actions this can run after the file was deleted.
+            if (!java.io.File(path).exists()) { Undo.offer("Photo is gone"); return@offer }
             val now = repo.cardOnce(currentId.value) ?: repo.cardOnce(c.id)
             if (now != null && now.photo.isBlank()) repo.update(now.copy(photo = path))
         }

@@ -513,8 +513,12 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
     }
 
-    private fun count(ids: List<Long>): String =
-        if (ids.size == 1) "1 card" else "${ids.size} cards"
+    /** Copies on the picked rows, so a stack of 4 reads "4 cards". */
+    private fun count(ids: List<Long>): String {
+        val qty = ui.value.groups.flatMap { it.second }.associate { it.id to it.quantity }
+        val n = ids.distinct().sumOf { qty[it] ?: 1 }
+        return if (n == 1) "1 card" else "$n cards"
+    }
 
     fun moveSelected(boxId: Long) {
         val ids = _selected.value.toList()

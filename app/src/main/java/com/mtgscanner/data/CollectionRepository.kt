@@ -207,6 +207,7 @@ class CollectionRepository(
     suspend fun createBox(name: String, kind: String, rules: BoxRules = BoxRules(), color: Int = 0): Long {
         val next = (dao.allBoxes().maxOfOrNull { it.sortOrder } ?: -1) + 1
         return dao.insertBox(Box(name = name.trim(), kind = kind, rules = rules.toJson(), color = color, sortOrder = next))
+            .also { id -> boxChange?.created?.add(id) }
     }
 
     suspend fun updateBox(
@@ -241,6 +242,10 @@ class CollectionRepository(
      * With [moveTo] = [Box.AUTO_SORT] each card goes to the box whose rules fit it.
      */
     suspend fun deleteBox(id: Long, moveTo: Long?) {
+        try { deleteBoxNow(id, moveTo) } finally { boxChange = null }
+    }
+
+    private suspend fun deleteBoxNow(id: Long, moveTo: Long?) {
         db.withTransaction {
             val cards = dao.inBox(id)
             if (moveTo == null) {
@@ -278,7 +283,13 @@ class CollectionRepository(
         internal val extrasLimit: Int?,
         /** Bulk price floor when this was the bulk box, else null. */
         internal val bulkFloor: Double?,
-    )
+    ) {
+        /** Boxes the delete or split itself made (a new Anything box, a split's second half). */
+        internal val created: MutableSet<Long> = java.util.Collections.synchronizedSet(HashSet())
+    }
+
+    /** The delete or split under way, between [boxUndo] and its end, so the boxes it makes are known. */
+    @Volatile private var boxChange: BoxUndo? = null
 
     /** Takes a [BoxUndo] for [id] before it's deleted or split; null when there's no such box. */
     suspend fun boxUndo(id: Long): BoxUndo? {
@@ -288,7 +299,7 @@ class CollectionRepository(
             b, snapshot(dao.inBox(id).map { it.id }), boxes.map { it.id }.toSet(), boxes.map { it.id },
             SortPrefs.playsetLimit.takeIf { SortPrefs.extrasBoxId == id },
             SortPrefs.bulkFloor.takeIf { SortPrefs.bulkBoxId == id },
-        )
+        ).also { boxChange = it }
     }
 
     /**
@@ -303,7 +314,8 @@ class CollectionRepository(
         }
         restore(u.cards)
         db.withTransaction {
-            for (b in dao.allBoxes()) if (b.id !in u.boxIds && dao.inBox(b.id).isEmpty()) {
+            // Only boxes the change made; an empty box made later stays.
+            for (b in dao.allBoxes()) if (b.id in u.created && b.id !in u.boxIds && dao.inBox(b.id).isEmpty()) {
                 dao.deleteBox(b)
                 SortPrefs.forgetBox(b.id)
             }
@@ -443,7 +455,9 @@ class CollectionRepository(
      * takes the rest with the same rules. [letter] is where the second half starts; null picks the letter that
      * splits the cards evenly. Returns the new box id, or null when it can't be split.
      */
-    suspend fun splitBox(id: Long, letter: Char? = null): Long? = db.withTransaction {
+    suspend fun splitBox(id: Long, letter: Char? = null): Long? = try { splitBoxNow(id, letter) } finally { boxChange = null }
+
+    private suspend fun splitBoxNow(id: Long, letter: Char?): Long? = db.withTransaction {
         val b = dao.box(id) ?: return@withTransaction null
         val cards = dao.inBox(id)
         val rules = b.boxRules()
