@@ -356,8 +356,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) { sessionStore.load() }
             if (saved != null && !saved.isEmpty) restoreSession(saved)
-            // From now on, every change is written a moment after it settles.
-            _state.map { SavedScanSession.of(it) }.distinctUntilChanged().collectLatest { s ->
+            // From now on, every change is written a moment after it settles. Compared by reference, so reading,
+            // glare and torch changes don't deep-compare the whole pile.
+            _state.map { SavedScanSession.of(it) }.distinctUntilChanged { a, b -> a.sameAs(b) }.collectLatest { s ->
                 delay(500)
                 withContext(Dispatchers.IO) { sessionStore.save(s) }
             }
