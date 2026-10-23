@@ -505,6 +505,11 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                     Text(shortDay(ui.history.last().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                 }
             }
+            val updated = rememberPricesUpdated()
+            if (prices && updated.isNotEmpty()) {
+                Spacer(Modifier.height(if (ui.history.size >= 2) 4.dp else 8.dp))
+                Text(updated, style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+            }
         }
     }
 }
