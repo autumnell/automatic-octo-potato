@@ -95,6 +95,7 @@ import com.mtgscanner.data.DeckFormats
 import com.mtgscanner.data.RulesCard
 import com.mtgscanner.data.Edhrec
 import com.mtgscanner.data.addDeckRows
+import com.mtgscanner.data.checkDeck
 import com.mtgscanner.data.deckSlotId
 import com.mtgscanner.data.deleteDeckAndCards
 import com.mtgscanner.data.observePlaces
