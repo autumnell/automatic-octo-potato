@@ -1024,10 +1024,9 @@ private fun SplitDialog(c: CollectionCard, onSplit: (SplitChange) -> Unit, onDis
 
 /** Parses "$1.50", "1,50" or "1.5"; blank is null. Returns false for the outer value when not a number. */
 internal fun parseAmount(text: String): Pair<Boolean, Double?> {
-    val t = text.trim().removePrefix("$").trim().replace(',', '.')
-    if (t.isEmpty()) return true to null
-    val v = t.toDoubleOrNull() ?: return false to null
-    return if (v < 0) (false to null) else (true to v)
+    if (text.isBlank()) return true to null
+    val v = com.mtgscanner.util.PriceInput.parse(text) ?: return false to null
+    return true to v
 }
 
 @Composable
