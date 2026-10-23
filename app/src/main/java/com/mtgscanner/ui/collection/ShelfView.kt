@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -122,7 +122,7 @@ fun ShelfSheet(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     remember { BoxPrefs.load(ctx) }
     val repo = (ctx.applicationContext as MtgApp).repository
-    val all by remember { repo.observeBoxes() }.collectAsState(initial = emptyList())
+    val all by remember { repo.observeBoxes() }.collectAsStateWithLifecycle(initialValue = emptyList())
     val boxes = all.filter { it.kind != "deck" }
     val layout = BoxPrefs.shelf.keepOnly(boxes.map { it.id }.toSet())
     val names = boxes.associate { it.id to it.name }

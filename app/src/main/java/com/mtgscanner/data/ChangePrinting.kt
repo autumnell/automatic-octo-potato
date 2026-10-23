@@ -1,11 +1,10 @@
 package com.mtgscanner.data
 
 import androidx.room.withTransaction
-import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.mergedWith
 
 /** Result of [changePrinting]: the row now holding the copies, and what undo puts back. */
-data class PrintingChange(val newId: Long, val before: List<CollectionCard>)
+data class PrintingChange(val newId: Long, val before: RowSnapshot)
 
 /**
  * Switches a collection row to another printing of the same card ([to]), keeping quantity,
@@ -65,8 +64,6 @@ suspend fun CollectionRepository.changePrinting(id: Long, to: ScryfallCard): Pri
                     power = e.power,
                     toughness = e.toughness,
                     reserved = e.reserved,
-                    conditionPrice = null,
-                    conditionPriceAt = 0,
                     updatedAt = now,
                 ),
             )

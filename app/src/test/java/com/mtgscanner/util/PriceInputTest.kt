@@ -35,6 +35,13 @@ class PriceInputTest {
         assertEquals(1200000.0, p("1,200,000")!!, 1e-9)
         assertEquals(1200000.0, p("1.200.000")!!, 1e-9)
         assertEquals(1200000.5, p("1.200.000,5")!!, 1e-9)
+        assertEquals(1200.5, p("1 200,50")!!, 1e-9)
+    }
+
+    @Test
+    fun zeroCommaIsDecimal() {
+        assertEquals(0.125, p("0,125")!!, 1e-9)
+        assertEquals(0.5, p("0,50")!!, 1e-9)
     }
 
     @Test

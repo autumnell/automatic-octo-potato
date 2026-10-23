@@ -108,9 +108,6 @@ import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.components.CardTextBlock
 import com.mtgscanner.ui.components.textInfo
-import com.mtgscanner.data.db.nearMintPrice
-import com.mtgscanner.data.db.nearMintEur
-import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.data.db.priceWhenAdded
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.CardImage
@@ -388,9 +385,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 Text(cardPrice(c), style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
-                                if (c.conditionPrice != null && c.condition != "NM" && c.nearMintPrice() != null) {
-                                    Text("${c.condition} · near mint ${formatMoney(c.nearMintPrice(), c.nearMintEur())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                }
                                 val change = c.changeSinceAdded()
                                 val was = c.priceWhenAdded()
                                 if (change != null && was != null) {

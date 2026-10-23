@@ -148,28 +148,8 @@ object CsvImport {
         "7" -> "ja"; "8" -> "pt"; "9" -> "ru"; "10" -> "ko"; "11" -> "zht"; else -> null
     }
 
-    /**
-     * "$1.50", "1,50", "1,234.50" or "1.234,50" as a number; null when blank, zero or not a price. The last "." or ","
-     * is the decimal point and the other one groups thousands. One that comes more than once, or a lone "," with three
-     * digits after it ("1,234"), groups thousands too.
-     */
-    internal fun money(s: String): Double? {
-        val t = s.trim().removePrefix("$").removePrefix("€").removeSuffix("€").trim().replace(" ", "").replace(" ", "")
-        val dot = t.lastIndexOf('.')
-        val comma = t.lastIndexOf(',')
-        val plain = when {
-            dot >= 0 && comma >= 0 -> if (dot > comma) t.replace(",", "") else t.replace(".", "").replace(',', '.')
-            comma >= 0 -> {
-                val whole = t.substring(0, comma)
-                val thousands = t.count { it == ',' } > 1 ||
-                    (t.length - comma - 1 == 3 && whole.trimStart('-').let { it.isNotEmpty() && it != "0" })
-                if (thousands) t.replace(",", "") else t.replace(',', '.')
-            }
-            dot >= 0 && t.count { it == '.' } > 1 -> t.replace(".", "")
-            else -> t
-        }
-        return plain.toDoubleOrNull()?.takeIf { it > 0 && it.isFinite() }
-    }
+    /** A price as [PriceInput] reads it ("$1.50", "1,50", "1.234,50"...); null when blank, zero or not a price. */
+    internal fun money(s: String): Double? = PriceInput.parse(s)?.takeIf { it > 0 }
 
     /** Scryfall's language code for a language name or code, like "Japanese" or "JA" → "ja". */
     fun languageCode(s: String): String? = when (val l = s.trim().lowercase()) {
