@@ -86,7 +86,8 @@ data class ScanEntry(
 ) {
     /** "Rares → Blue" */
     val where: String get() = if (spot != null && boxName.isNotEmpty()) "$boxName → $spot" else boxName
-    val value: Double get() = (card.price(foil)?.toDoubleOrNull() ?: 0.0) * count
+    val value: Double get() = (card.usdPrice(foil) ?: 0.0) * count
+    val eurValue: Double get() = (card.eurPrice(foil) ?: 0.0) * count
 }
 
 /** A pack being opened, with the cards scanned from it. Kept apart from the scan list so clearing the list keeps them. */
@@ -259,13 +260,15 @@ data class ScanUiState(
     }
     val sessionCount: Int get() = session.sumOf { it.count }
     val sessionValue: Double get() = session.sumOf { it.value }
+    val sessionEur: Double get() = session.sumOf { it.eurValue }
     val packEntries: List<ScanEntry> get() = pack?.entries.orEmpty()
     val packValue: Double get() = packEntries.sumOf { it.value }
+    val packEur: Double get() = packEntries.sumOf { it.eurValue }
 }
 
 /** The end-of-session summary for [entries], or null when they added nothing. */
 fun summaryOf(entries: List<ScanEntry>): ScanSummary? = ScanSummary.of(
-    entries.map { SummaryLine(it.card.name, it.card.imageUrl, it.card.price(it.foil)?.toDoubleOrNull(), it.count, it.boxName) },
+    entries.map { SummaryLine(it.card.name, it.card.imageUrl, it.card.usdPrice(it.foil), it.count, it.boxName, it.card.eurPrice(it.foil)) },
 )
 
 class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -1368,18 +1371,15 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
         )
     }
 
+    /** Leaves pack mode without a summary. Cards stay in the collection. */
     fun cancelPack() = _state.update { it.copy(pack = null, status = "Point your camera at a card") }
 
-    /** Ends the pack. Cards stay in the collection. */
-    fun finishPack() {
-        val s = _state.value
-        val p = s.pack ?: return
-        val n = s.packEntries.sumOf { it.count }
-        val total = if (AppSettings.showPrices) " · " + formatPrice(s.packValue) else ""
-        _state.update { it.copy(pack = null, status = if (n == 0) "Point your camera at a card" else "${p.name}: $n cards$total") }
+    /** Ends the pack and shows what it held, with what it cost. Cards stay in the collection. */
+    fun finishPack() = _state.update {
+        val p = it.pack ?: return@update it
+        val summary = summaryOf(p.entries)?.copy(title = p.name, paid = p.cost?.takeIf { c -> c > 0 })
+        it.copy(pack = null, status = "Point your camera at a card", summary = summary)
     }
-
-    private fun formatPrice(v: Double) = "$" + "%.2f".format(java.util.Locale.US, v)
 
     // Sorting session
 

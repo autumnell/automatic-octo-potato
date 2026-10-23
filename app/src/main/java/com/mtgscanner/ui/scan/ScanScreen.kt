@@ -125,8 +125,7 @@ import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.scryfallPrice
-import com.mtgscanner.ui.components.formatUsd
-import com.mtgscanner.ui.components.priceSuffix
+import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import java.util.concurrent.Executors
@@ -599,7 +598,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
         Spacer(Modifier.width(12.dp))
         val count = state.sessionCount
         Text(
-            (if (count == 1) "1 card" else "$count cards") + priceSuffix(state.sessionValue),
+            (if (count == 1) "1 card" else "$count cards") + moneySuffix(state.sessionValue, state.sessionEur),
             style = MaterialTheme.typography.titleSmall,
             color = Palette.Text,
             maxLines = 1,
@@ -872,7 +871,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
-                Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
+                Text("${state.sessionCount} cards${moneySuffix(state.sessionValue, state.sessionEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
             }
             if (state.sessionCount >= 2) {
                 val n = minOf(5, state.sessionCount)
@@ -933,7 +932,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
+                    if (AppSettings.showPrices) Text(entryMoney(e), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                     IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
                 }
             }

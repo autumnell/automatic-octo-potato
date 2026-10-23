@@ -34,4 +34,14 @@ class ScanSummaryTest {
         )!!
         assertEquals(listOf("Blue" to 3, "Bulk" to 2, ScanSummary.NO_BOX to 1, "Red" to 1), s.boxes)
     }
+
+    @Test fun euroTotalUsesEuroPrices() {
+        val s = ScanSummary.of(
+            listOf(SummaryLine("A", null, 2.0, 2, "", unitEur = 1.5), SummaryLine("B", null, 1.0, 1, "", unitEur = null)),
+        )!!
+        assertEquals(5.0, s.value, 1e-9)
+        assertEquals(3.0, s.eur, 1e-9)
+        assertEquals("Session done", s.title)
+        assertNull(s.paid)
+    }
 }
