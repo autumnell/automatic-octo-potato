@@ -125,9 +125,15 @@ fun PriceListSheet(owned: Map<String, Owned>, onDismiss: () -> Unit) {
                         busy = true
                         scope.launch {
                             try {
-                                result.filter { it.card != null && it.line.short > 0 }
-                                    .forEach { r -> repo.wantAtLeast(r.card!!, r.line.short) }
+                                val wants = result.filter { it.card != null && it.line.short > 0 }
+                                val ids = wants.mapNotNull { it.card!!.oracleId }
+                                val before = repo.wishSnapshot(ids)
+                                wants.forEach { r -> repo.wantAtLeast(r.card!!, r.line.short) }
                                 wished = true
+                                com.mtgscanner.ui.components.Undo.offer("Added ${wants.size} to wishlist") {
+                                    repo.undoWishes(ids, before)
+                                    wished = false
+                                }
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {

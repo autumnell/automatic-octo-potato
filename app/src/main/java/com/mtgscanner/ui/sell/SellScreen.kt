@@ -85,13 +85,18 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
     // Each change re-reads the row, so a stale copy from the list never overwrites newer edits.
     fun setAsk(c: CollectionCard, price: Double?) = viewModelScope.launch {
         val now = repo.cardOnce(c.id) ?: return@launch
+        if (now.askPrice == price) return@launch
+        val was = now.askPrice
         repo.update(now.copy(askPrice = price))
-        Haptics.tick()
+        // Undo.offer gives the tick.
+        Undo.offer(if (price == null) "Ask price cleared" else "Ask price set") {
+            repo.cardOnce(c.id)?.let { repo.update(it.copy(askPrice = was)) }
+        }
     }
 
-    /** What sales have brought in, from the cards' history. Updates as cards are sold. */
-    val earned: StateFlow<Double> = repo.observeAll()
-        .map { _ -> runCatching { Sales.earned(repo.dao.allEvents().map { it.kind to it.detail }) }.getOrDefault(0.0) }
+    /** What sales have brought in, from the cards' history. Reads only the sales, and updates as cards are sold. */
+    val earned: StateFlow<Double> = repo.dao.observeEventsOfKind(Sales.KIND)
+        .map { events -> Sales.earned(events.map { it.kind to it.detail }) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0.0)
 
     /** Takes [qty] sold copies out of the collection and notes the price in the card's history, with Undo. */

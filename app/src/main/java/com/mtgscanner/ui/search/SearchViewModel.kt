@@ -291,9 +291,11 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         val card = _ui.value.selected ?: return
         _ui.update { it.copy(selected = null) }
         viewModelScope.launch {
+            val ids = listOfNotNull(card.oracleId)
+            val before = repo.wishSnapshot(ids)
             repo.addToWishlist(card)
-            com.mtgscanner.util.Haptics.tick()
-            _ui.update { it.copy(message = "Added ${card.name} to your wishlist") }
+            // Undo.offer gives the tick.
+            com.mtgscanner.ui.components.Undo.offer("Added ${card.name} to your wishlist") { repo.undoWishes(ids, before) }
         }
     }
 

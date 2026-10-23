@@ -423,8 +423,22 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun resolvePending() = run("Looking up saved scans…") {
+        // Snapshots for Undo: the saved scans, and how many copies each row held.
+        val pendingBefore = repo.dao.allPending()
+        val qtyBefore = repo.dao.all().associate { it.id to it.quantity }
         val n = repo.resolvePending()
-        "Added $n saved cards"
+        val message = "Added $n saved cards"
+        if (n == 0) return@run message
+        val left = repo.dao.allPending().mapTo(HashSet()) { it.id }
+        val gone = pendingBefore.filter { it.id !in left }
+        val added = repo.dao.all().mapNotNull { c -> (c.quantity - (qtyBefore[c.id] ?: 0)).takeIf { it > 0 }?.let { c.id to it } }
+        com.mtgscanner.ui.components.Undo.offer(message) {
+            repo.db.withTransaction {
+                added.forEach { (id, q) -> repo.remove(id, q) }
+                repo.dao.putPending(gone)
+            }
+        }
+        null
     }
 
     fun messageShown() { _message.value = null }

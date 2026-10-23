@@ -40,9 +40,8 @@ import com.mtgscanner.ui.theme.TabularNums
 
 class MoneyViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The last six months, oldest first. Empty until loaded. */
-    val months: StateFlow<List<MonthMoney>> = combine(repo.observeAll(), repo.dao.observeSnapshots()) { cards, snaps ->
-        val sales = runCatching { repo.dao.allEvents() }.getOrDefault(emptyList())
-            .filter { it.kind == Sales.KIND }
+    val months: StateFlow<List<MonthMoney>> = combine(repo.observeAll(), repo.dao.observeSnapshots(), repo.dao.observeEventsOfKind(Sales.KIND)) { cards, snaps, sold ->
+        val sales = sold
             .mapNotNull { e -> Sales.amount(e.detail)?.let { e.at to it } }
         MoneyMath.months(
             added = cards.mapNotNull { c -> c.purchasePrice?.let { c.addedAt to it * c.quantity } },
@@ -51,7 +50,6 @@ class MoneyViewModel(private val repo: CollectionRepository) : ViewModel() {
             now = YearMonth.now(),
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
 }
 
 private val monthName = DateTimeFormatter.ofPattern("MMM", Locale.US)
