@@ -490,6 +490,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     private fun handleGuess(guess: CardTextGuess) {
         trackGlare(guess)
         val key = guess.key
+        lastFrameArtOnly = key == null && guess.artOnly.isNotEmpty()
         if (key == null && guess.artOnly.isNotEmpty()) {
             // A card is there, just no readable text: not an empty frame.
             leave.seen()
@@ -638,13 +639,30 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** The art model's embedding of a picture of artwork; null until the model is downloaded. Camera thread. */
     fun embedArt(art: android.graphics.Bitmap): com.mtgscanner.scan.ArtVector? = repo.artEmbedder.embed(art)
 
+    /** The art match under way; frames that come meanwhile are let go. */
+    private var artJob: Job? = null
+    /** The newest frame had a card but no text, so an art match that finishes still applies. */
+    private var lastFrameArtOnly = false
+
     private fun handleArt(guess: CardTextGuess) {
+        if (artJob?.isActive == true) return
+        val gen = trackGen
         // All the frame's embeddings come from one model; the store uses them only if it's still the chosen one.
         val embeddings = guess.artOnlyEmbeddings
         val model = embeddings.firstOrNull()?.model
-        val hit = repo.artIndex.match(
-            guess.artOnly.toLongArray(), SortPrefs.setLock, embeddings.filter { it.model == model }.map { it.values }, model,
-        )
+        val targets = guess.artOnly.toLongArray()
+        val lock = SortPrefs.setLock
+        val vectors = embeddings.filter { it.model == model }.map { it.values }
+        // Scans every downloaded entry: off the main thread.
+        artJob = viewModelScope.launch {
+            val hit = withContext(Dispatchers.Default) { repo.artIndex.match(targets, lock, vectors, model) }
+            // Paused, reset, or text came into view meanwhile: this answer is stale.
+            if (gen != trackGen || !lastFrameArtOnly || isPaused) return@launch
+            onArtHit(hit, guess)
+        }
+    }
+
+    private fun onArtHit(hit: com.mtgscanner.scan.ArtHit?, guess: CardTextGuess) {
         // The same card on two frames in a row, so one lucky frame doesn't add the wrong card.
         val agreed = artVote.offer(hit?.id) ?: return
         if (hit == null || hit.id != agreed) return
