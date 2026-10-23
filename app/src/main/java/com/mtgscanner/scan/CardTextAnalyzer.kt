@@ -1,6 +1,7 @@
 package com.mtgscanner.scan
 
 import android.graphics.Bitmap
+import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.PixelFormat
 import android.os.SystemClock
@@ -85,18 +86,11 @@ class CardTextAnalyzer(
 
     private var lastLight = 0L
 
-    /** Samples the RGBA frame directly, without making a bitmap. */
+    /** Samples the frame where it lies, without making a bitmap. */
     private fun measureLight(image: ImageProxy) {
         runCatching {
-            val plane = image.planes[0]
-            val buf = plane.buffer
-            val row = plane.rowStride
-            val px = plane.pixelStride
-            val light = LightCheck.measure(image.width, image.height, { x, y ->
-                val i = y * row + x * px
-                ((buf.get(i).toInt() and 0xFF) shl 16) or ((buf.get(i + 1).toInt() and 0xFF) shl 8) or (buf.get(i + 2).toInt() and 0xFF)
-            })
-            onLight(light)
+            val pixels = FramePixels(image)
+            onLight(LightCheck.measure(image.width, image.height, pixels::rgb))
         }
     }
 
@@ -190,6 +184,7 @@ class CardTextAnalyzer(
         }
         busy.set(true)
         lastRun = now
+        // Only frames that passed the card check are turned into a picture; the camera hands over YUV.
         val bitmap: Bitmap = try {
             frameToBitmap(image)
         } catch (t: Throwable) {
@@ -264,7 +259,7 @@ class CardTextAnalyzer(
         }
     }
 
-    /** RGBA frames are copied into one reused bitmap; anything else falls back to a new one. */
+    /** RGBA frames are copied into one reused bitmap; YUV (what the camera gives) is converted into a new one. */
     private fun frameToBitmap(image: ImageProxy): Bitmap {
         val plane = image.planes.singleOrNull()
         if (plane != null && image.format == PixelFormat.RGBA_8888 && plane.pixelStride == 4 && plane.rowStride == image.width * 4) {
@@ -313,26 +308,17 @@ class CardTextAnalyzer(
     }
 
     /**
-     * Samples the guide area of the RGBA frame into a small grayscale grid (no bitmap) and runs the
-     * card check. Returns what it decided and, when a card was found, the area to read.
+     * Samples the guide area of the frame into a small grayscale grid (no bitmap; from the Y plane of a YUV
+     * frame) and runs the card check. Returns what it decided and, when a card was found, the area to read.
      */
     private fun checkCard(image: ImageProxy, rotation: Int): Pair<GateResult, ReadArea?> {
-        val plane = image.planes[0]
-        val buf = plane.buffer
-        val row = plane.rowStride
-        val px = plane.pixelStride
+        val pixels = FramePixels(image)
         val region = guideArea(image.width, image.height, rotation)
         val step = maxOf(1, maxOf(region.width, region.height) / GRID)
         val gw = region.width / step
         val gh = region.height / step
         val luma = IntArray(gw * gh)
-        fun at(x: Int, y: Int): Int {
-            val i = y * row + x * px
-            val r = buf.get(i).toInt() and 0xFF
-            val g = buf.get(i + 1).toInt() and 0xFF
-            val b = buf.get(i + 2).toInt() and 0xFF
-            return (r * 77 + g * 150 + b * 29) shr 8
-        }
+        fun at(x: Int, y: Int): Int = pixels.luma(x, y)
         val maxX = image.width - 1
         val maxY = image.height - 1
         for (gy in 0 until gh) for (gx in 0 until gw) {
@@ -657,5 +643,46 @@ class CardTextAnalyzer(
         const val SYMBOL_PX = 88
         /** Art hashes this close are the same art held still: its embedding is reused. */
         const val SAME_ART_BITS = 4
+    }
+}
+
+/**
+ * Reads single pixels of a camera frame in place: YUV_420_888 (what the camera gives) or RGBA_8888. The card
+ * check and the light check sample only a sparse grid, so the frame is never converted as a whole for them.
+ */
+private class FramePixels(image: ImageProxy) {
+    private val planes = image.planes
+    private val yuv = image.format == ImageFormat.YUV_420_888 && planes.size >= 3
+    private val buf = planes[0].buffer
+    private val row = planes[0].rowStride
+    private val px = planes[0].pixelStride
+    private val uBuf = if (yuv) planes[1].buffer else buf
+    private val uRow = if (yuv) planes[1].rowStride else 0
+    private val uPx = if (yuv) planes[1].pixelStride else 0
+    private val vBuf = if (yuv) planes[2].buffer else buf
+    private val vRow = if (yuv) planes[2].rowStride else 0
+    private val vPx = if (yuv) planes[2].pixelStride else 0
+
+    /** Brightness 0..255 at (x, y). */
+    fun luma(x: Int, y: Int): Int {
+        val i = y * row + x * px
+        if (yuv) return Yuv.luma(buf.get(i).toInt() and 0xFF)
+        val r = buf.get(i).toInt() and 0xFF
+        val g = buf.get(i + 1).toInt() and 0xFF
+        val b = buf.get(i + 2).toInt() and 0xFF
+        return (r * 77 + g * 150 + b * 29) shr 8
+    }
+
+    /** 0xRRGGBB at (x, y). U and V are at half resolution. */
+    fun rgb(x: Int, y: Int): Int {
+        val i = y * row + x * px
+        if (yuv) {
+            val cx = x shr 1
+            val cy = y shr 1
+            val u = uBuf.get(cy * uRow + cx * uPx).toInt() and 0xFF
+            val v = vBuf.get(cy * vRow + cx * vPx).toInt() and 0xFF
+            return Yuv.rgb(buf.get(i).toInt() and 0xFF, u, v)
+        }
+        return ((buf.get(i).toInt() and 0xFF) shl 16) or ((buf.get(i + 1).toInt() and 0xFF) shl 8) or (buf.get(i + 2).toInt() and 0xFF)
     }
 }

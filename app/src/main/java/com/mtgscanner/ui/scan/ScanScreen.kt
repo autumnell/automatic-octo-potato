@@ -976,7 +976,9 @@ private fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
                         .build(),
                 )
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                // YUV as the camera gives it: the card and light checks read the Y plane in place, and only a frame
+                // that passes the card check is turned into a picture (about 4 a second, not 30).
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                 .build()
                 .also { it.setAnalyzer(executor, analyzer) }
             provider.unbindAll()
