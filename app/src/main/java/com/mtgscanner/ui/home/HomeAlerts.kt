@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.nearMintPrice
 import com.mtgscanner.ui.components.Undo
+import com.mtgscanner.ui.components.PlainGroup
+import com.mtgscanner.ui.components.ruleBelow
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.CardAlertStore
@@ -44,12 +46,13 @@ fun alertLines(a: CardPriceAlert): String = listOfNotNull(
 @androidx.compose.runtime.Composable
 internal fun AlertsList(rows: List<AlertRow>, onOpenCard: (Long) -> Unit) {
     val ctx = LocalContext.current
-    Column(Modifier.fillMaxWidth()) {
-        rows.forEach { r ->
+    PlainGroup(Modifier.padding(horizontal = 16.dp)) {
+        rows.forEachIndexed { i, r ->
             Row(
                 Modifier.fillMaxWidth()
                     .clickable(enabled = r.cardId != null) { r.cardId?.let(onOpenCard) }
-                    .padding(start = 16.dp, end = 4.dp),
+                    .then(if (i < rows.lastIndex) Modifier.ruleBelow() else Modifier)
+                    .padding(start = 12.dp, end = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f).padding(vertical = 8.dp)) {

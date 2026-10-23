@@ -49,6 +49,7 @@ import com.mtgscanner.data.db.boxRules
 import com.mtgscanner.data.db.facts
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.GradientButton
+import com.mtgscanner.ui.components.PlainGroup
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.detail.sharedCard
 import com.mtgscanner.ui.components.PlaceholderRows
@@ -121,9 +122,9 @@ internal fun ToSortSection(
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
-            ui.items.take(4).forEach { item ->
+            PlainGroup(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { ui.items.take(4).forEach { item ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = 16.dp, vertical = 6.dp),
+                    Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CardImage(
@@ -144,7 +145,7 @@ internal fun ToSortSection(
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.8f).padding(start = 4.dp),
                     )
                 }
-            }
+            } }
             if (ui.items.size > 4) {
                 Text("+ ${ui.items.size - 4} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp))
             }
@@ -157,9 +158,9 @@ internal fun ToSortSection(
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
-            ui.unknown.take(5).forEach { p ->
+            PlainGroup(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { ui.unknown.take(5).forEach { p ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.QuestionMark, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
@@ -167,7 +168,7 @@ internal fun ToSortSection(
                     Text("\"${p.name}\"", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Icon(Icons.Outlined.Search, "Find", tint = Palette.Icon, modifier = Modifier.size(18.dp))
                 }
-            }
+            } }
             if (ui.unknown.size > 5) {
                 Text("+ ${ui.unknown.size - 5} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             }

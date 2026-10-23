@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.GoalProgress
 import com.mtgscanner.ui.components.CardTile
+import com.mtgscanner.ui.components.PlainGroup
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.Palette
 import androidx.compose.foundation.clickable
@@ -64,16 +65,19 @@ internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
         }
         return
     }
-    Column {
-        // Tapping a goal opens that goal, not just the list.
-        goals.sortedBy { if (it.done) 1 else 0 }.take(3).forEach { g -> GoalRow(g) { GoalsLaunch.open(g.goal.id); onGoals() } }
+    // On a panel, like Stats. Tapping a goal opens that goal, not just the list.
+    PlainGroup(Modifier.padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+            val shown = goals.sortedBy { if (it.done) 1 else 0 }.take(3)
+            shown.forEachIndexed { i, g -> GoalRow(g, rule = i < shown.lastIndex) { GoalsLaunch.open(g.goal.id); onGoals() } }
+        }
     }
 }
 
 /** A goal as a plain row: name and count, with a thin progress line under it. */
 @Composable
-private fun GoalRow(p: GoalProgress, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp).ruleBelow().padding(vertical = 10.dp)) {
+private fun GoalRow(p: GoalProgress, rule: Boolean, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).then(if (rule) Modifier.ruleBelow() else Modifier).padding(horizontal = 4.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
