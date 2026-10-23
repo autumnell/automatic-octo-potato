@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.util.PriceCurrency
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,8 +49,15 @@ import com.mtgscanner.ui.components.RollingText
 import com.mtgscanner.ui.theme.PriceStyle
 import com.mtgscanner.ui.theme.Corners
 
-/** Numbers for the stat tiles: every metric, and each saved search's card count by name. */
-data class TileData(val values: Map<TileMetric, Double> = emptyMap(), val lists: Map<String, Int> = emptyMap())
+/**
+ * Numbers for the stat tiles: every metric, the money ones again in euros ([eur]), and the card count
+ * of the saved search the "Saved list" tile shows, by name.
+ */
+data class TileData(
+    val values: Map<TileMetric, Double> = emptyMap(),
+    val lists: Map<String, Int> = emptyMap(),
+    val eur: Map<TileMetric, Double> = emptyMap(),
+)
 
 /** The tiles that can show now: money tiles need prices on, the list tile needs its saved search. */
 internal fun shownTiles(tiles: List<TileMetric>, data: TileData, listName: String?, prices: Boolean): List<TileMetric> =
@@ -74,8 +82,14 @@ internal fun StatTileRow(data: TileData, onTap: (TileMetric) -> Unit, onEdit: ()
         shown.forEachIndexed { i, m ->
             if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 10.dp).background(Palette.Hairline))
             val label = if (m == TileMetric.CUSTOM) listName.orEmpty() else m.short
-            val value = if (m == TileMetric.CUSTOM) (listName?.let { data.lists[it] } ?: 0).toDouble() else data.values[m] ?: 0.0
-            val format: (Double) -> String = { v -> if (m == TileMetric.CUSTOM) TileMath.shortCount(v) else TileMath.text(m, v) }
+            // Money tiles follow Settings › Prices; Both shows dollars, as other tight spots do.
+            val euro = m.money && AppSettings.currency == PriceCurrency.EUR
+            val value = when {
+                m == TileMetric.CUSTOM -> (listName?.let { data.lists[it] } ?: 0).toDouble()
+                euro -> data.eur[m] ?: 0.0
+                else -> data.values[m] ?: 0.0
+            }
+            val format: (Double) -> String = { v -> if (m == TileMetric.CUSTOM) TileMath.shortCount(v) else TileMath.text(m, v, euro) }
             FlatTile(
                 label, value, format, compact,
                 Modifier.weight(1f).clip(RoundedCornerShape(Corners.Medium)).combinedClickable(onClick = { onTap(m) }, onLongClick = onEdit),

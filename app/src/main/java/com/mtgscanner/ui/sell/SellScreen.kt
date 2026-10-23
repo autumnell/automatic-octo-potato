@@ -44,13 +44,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.mtgscanner.MtgApp
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.data.CardKingdom
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.CollectionCard
@@ -88,13 +85,18 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
     // Each change re-reads the row, so a stale copy from the list never overwrites newer edits.
     fun setAsk(c: CollectionCard, price: Double?) = viewModelScope.launch {
         val now = repo.cardOnce(c.id) ?: return@launch
+        if (now.askPrice == price) return@launch
+        val was = now.askPrice
         repo.update(now.copy(askPrice = price))
-        Haptics.tick()
+        // Undo.offer gives the tick.
+        Undo.offer(if (price == null) "Ask price cleared" else "Ask price set") {
+            repo.cardOnce(c.id)?.let { repo.update(it.copy(askPrice = was)) }
+        }
     }
 
-    /** What sales have brought in, from the cards' history. Updates as cards are sold. */
-    val earned: StateFlow<Double> = repo.observeAll()
-        .map { _ -> runCatching { Sales.earned(repo.dao.allEvents().map { it.kind to it.detail }) }.getOrDefault(0.0) }
+    /** What sales have brought in, from the cards' history. Reads only the sales, and updates as cards are sold. */
+    val earned: StateFlow<Double> = repo.dao.observeEventsOfKind(Sales.KIND)
+        .map { events -> Sales.earned(events.map { it.kind to it.detail }) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0.0)
 
     /** Takes [qty] sold copies out of the collection and notes the price in the card's history, with Undo. */
@@ -108,12 +110,6 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
         repo.update(now.copy(forSale = false))
         Undo.offer("Removed ${c.name} from sale") {
             repo.cardOnce(c.id)?.let { repo.update(it.copy(forSale = true)) }
-        }
-    }
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { SellViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
         }
     }
 }
@@ -142,7 +138,7 @@ fun sellText(cards: List<CollectionCard>): String = buildString {
  */
 @Composable
 fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> Unit = {}, startTab: Int = 0) {
-    val vm: SellViewModel = viewModel(factory = SellViewModel.Factory)
+    val vm: SellViewModel = viewModel(factory = AppViewModels.Factory)
     val cards by vm.cards.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     var tab by rememberSaveable { mutableIntStateOf(if (AppSettings.showPrices) startTab else 0) }
@@ -243,8 +239,8 @@ private fun SellRow(c: CollectionCard, first: Boolean, last: Boolean, onClick: (
 @Composable
 private fun AskDialog(c: CollectionCard, onSave: (Double?) -> Unit, onUnlist: () -> Unit, onSold: () -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(c.askPrice?.let { "%.2f".format(java.util.Locale.US, it) }.orEmpty()) }
-    val parsed = text.replace(',', '.').trim().removePrefix("$").toDoubleOrNull()
-    val valid = text.isBlank() || (parsed != null && parsed >= 0)
+    val parsed = com.mtgscanner.util.PriceInput.parse(text)
+    val valid = text.isBlank() || parsed != null
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,

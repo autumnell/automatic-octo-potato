@@ -24,7 +24,6 @@ object Sales {
     fun earned(events: List<Pair<String, String>>): Double =
         events.filter { it.first == KIND }.sumOf { amount(it.second) ?: 0.0 }
 
-    /** Parses a typed price like "3.5", "$3,50"; null when it isn't a price. */
-    fun parsePrice(text: String): Double? =
-        text.replace(',', '.').trim().removePrefix("$").trim().toDoubleOrNull()?.takeIf { it >= 0 && it.isFinite() }
+    /** Parses a typed price like "3.5", "$3,50" or "1,200"; null when it isn't a price. */
+    fun parsePrice(text: String): Double? = com.mtgscanner.util.PriceInput.parse(text)
 }

@@ -36,9 +36,6 @@ fun cardPriceShort(c: CollectionCard): String = formatMoneyShort(c.unitPrice(), 
 /** What all the row's copies are worth. */
 fun cardTotal(c: CollectionCard): String = formatMoney(c.totalPrice(), c.totalEur())
 
-/** What a list of rows is worth. */
-fun cardsValue(cards: List<CollectionCard>): String = formatMoney(cards.sumOf { it.totalPrice() }, cards.sumOf { it.totalEur() })
-
 /** A Scryfall printing's price in this finish. */
 fun scryfallPrice(card: ScryfallCard, foil: Boolean): String {
     val eur = (if (foil) card.prices.eurFoil ?: card.prices.eur else card.prices.eur)?.toDoubleOrNull()

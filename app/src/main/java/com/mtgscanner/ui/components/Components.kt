@@ -1,10 +1,5 @@
 package com.mtgscanner.ui.components
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -118,25 +113,14 @@ fun RarityDot(rarity: String, size: Dp = 10.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(MtgColors.rarity(rarity)))
 }
 
-/** A soft pulsing block shown while an image loads. */
-@Composable
-fun Shimmer(modifier: Modifier = Modifier) {
-    val t = rememberInfiniteTransition(label = "shimmer")
-    val a by t.animateFloat(0.35f, 0.7f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "a")
-    Box(modifier.background(Palette.SurfaceHigh.copy(alpha = a)))
-}
-
 /**
  * A card image with a real card's corners ([CardShape]), and a plain placeholder while loading.
  * Uses AsyncImage (no subcomposition) so long lists and grids stay smooth.
  */
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun CardImage(
     url: String?,
     modifier: Modifier = Modifier,
-    /** Ignored: every card image uses [CardShape]. Kept so older calls still compile. */
-    corner: Dp? = null,
     /** Tap and hold shows the card big (see [cardZoom]). */
     zoom: Boolean = false,
     /** With [zoom]: the image handles taps itself, so a parent's own long press doesn't also fire. */

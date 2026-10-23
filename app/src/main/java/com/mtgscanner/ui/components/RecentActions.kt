@@ -24,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,11 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
  * The last 10 changes with Undo, newest first. [onUndo] gets the entry's id and should run
- * [Undo.undoThrough] in a scope that outlives the sheet.
+ * [Undo.undoThrough] in a scope that outlives the sheet ([Undo.performThrough]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,7 +101,6 @@ fun UndoSnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
 @Composable
 fun RecentActionsHost() {
     val show by Undo.showRecent.collectAsStateWithLifecycle()
-    // The root's scope, so an undo keeps running after the sheet closes.
-    val scope = rememberCoroutineScope()
-    if (show) RecentActionsSheet(onUndo = { id -> scope.launch { Undo.undoThrough(id) } }, onDismiss = { Undo.showRecent.value = false })
+    // App-wide scope, so an undo keeps running after the sheet (or the app) closes.
+    if (show) RecentActionsSheet(onUndo = { id -> Undo.performThrough(id) }, onDismiss = { Undo.showRecent.value = false })
 }

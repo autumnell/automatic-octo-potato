@@ -1,11 +1,17 @@
 package com.mtgscanner.ui.components
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * App-wide "Undo" snackbar. Screens report a change with the code that reverses it; the app
@@ -46,5 +52,25 @@ object Undo {
     suspend fun undoThrough(id: Long) {
         val steps = synchronized(history) { history.takeThrough(id).also { _recent.value = history.entries } }
         for (s in steps) runCatching { s.restore() }
+    }
+
+    /** Lives as long as the app, so an undo isn't cut short when a screen or the activity closes. */
+    private val runner = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /**
+     * Runs [e]'s Undo to the end, even if the app is closed right after the tap: undos with
+     * several steps (a trade, a CSV import) would otherwise stop partway.
+     */
+    fun perform(e: Event) {
+        runner.launch {
+            withContext(NonCancellable) {
+                if (e.id != 0L) undoThrough(e.id) else e.undo?.let { u -> runCatching { u() } }
+            }
+        }
+    }
+
+    /** [undoThrough] in the app-wide scope (for the Recent actions sheet). */
+    fun performThrough(id: Long) {
+        runner.launch { withContext(NonCancellable) { undoThrough(id) } }
     }
 }

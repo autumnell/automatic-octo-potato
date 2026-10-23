@@ -71,6 +71,10 @@ interface CardDao {
     @Query("SELECT * FROM card_events WHERE scryfallId = :scryfallId ORDER BY at DESC")
     fun observeEvents(scryfallId: String): Flow<List<CardEvent>>
 
+    /** Every event of one kind (such as "sold"), for totals that don't need the rest of the history. */
+    @Query("SELECT * FROM card_events WHERE kind = :kind")
+    fun observeEventsOfKind(kind: String): Flow<List<CardEvent>>
+
     @Query("SELECT * FROM card_events")
     suspend fun allEvents(): List<CardEvent>
 

@@ -27,9 +27,8 @@ data class PriceTotals(
     val unpriced: Int,
     /** Lines Scryfall couldn't find. */
     val notFound: Int,
-    /** Copies you'd still need, and what they cost. */
+    /** Copies you'd still need. */
     val shortCards: Int,
-    val shortValue: Double,
 )
 
 /** Totals for "Price a list"; pure so it can be tested. */
@@ -40,9 +39,5 @@ object PriceListMath {
         unpriced = lines.count { it.found && it.unitPrice == null },
         notFound = lines.count { !it.found },
         shortCards = lines.sumOf { it.short },
-        shortValue = lines.sumOf { l -> l.unitPrice?.let { it * l.short } ?: 0.0 },
     )
-
-    /** Lines with copies you don't own yet, in list order. */
-    fun short(lines: List<PricedLine>): List<PricedLine> = lines.filter { it.short > 0 }
 }

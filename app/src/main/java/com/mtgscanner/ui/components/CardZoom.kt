@@ -24,22 +24,28 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.SuspendingPointerInputModifierNode
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.PointerInputModifierNode
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
@@ -112,11 +118,38 @@ fun largeCardImage(url: String?): String? {
  * only zooms. With [onTap], the image takes its own taps, so a parent's long press (like starting
  * to pick cards) doesn't also fire when the image is held.
  */
-fun Modifier.cardZoom(url: String?, fallback: String? = null, onTap: (() -> Unit)? = null): Modifier = composed {
-    val tap = rememberUpdatedState(onTap)
-    val exclusive = onTap != null
-    if (url == null && fallback == null) return@composed Modifier
-    Modifier.pointerInput(url, fallback, exclusive) {
+fun Modifier.cardZoom(url: String?, fallback: String? = null, onTap: (() -> Unit)? = null): Modifier =
+    if (url == null && fallback == null) this else this then CardZoomElement(url, fallback, onTap)
+
+/** A plain modifier node, not `composed`: grids put one on every picture. */
+private data class CardZoomElement(val url: String?, val fallback: String?, val onTap: (() -> Unit)?) : ModifierNodeElement<CardZoomNode>() {
+    override fun create() = CardZoomNode(url, fallback, onTap)
+    override fun update(node: CardZoomNode) = node.update(url, fallback, onTap)
+}
+
+private class CardZoomNode(
+    private var url: String?,
+    private var fallback: String?,
+    private var onTap: (() -> Unit)?,
+) : DelegatingNode(), PointerInputModifierNode {
+    private val input = delegate(SuspendingPointerInputModifierNode { zoomGesture() })
+
+    fun update(url: String?, fallback: String?, onTap: (() -> Unit)?) {
+        // A new picture, or a change between taking taps and passing them on, restarts the gesture.
+        val restart = url != this.url || fallback != this.fallback || (onTap != null) != (this.onTap != null)
+        this.url = url
+        this.fallback = fallback
+        this.onTap = onTap
+        if (restart) input.resetPointerInputHandler()
+    }
+
+    override fun onPointerEvent(pointerEvent: PointerEvent, pass: PointerEventPass, bounds: IntSize) =
+        input.onPointerEvent(pointerEvent, pass, bounds)
+
+    override fun onCancelPointerInput() = input.onCancelPointerInput()
+
+    private suspend fun PointerInputScope.zoomGesture() {
+        val exclusive = onTap != null
         awaitEachGesture {
             val down = awaitFirstDown()
             if (exclusive) down.consume()
@@ -130,7 +163,7 @@ fun Modifier.cardZoom(url: String?, fallback: String? = null, onTap: (() -> Unit
             if (!held) {
                 if (up != null && exclusive) {
                     up.consume()
-                    tap.value?.invoke()
+                    onTap?.invoke()
                 }
                 return@awaitEachGesture
             }

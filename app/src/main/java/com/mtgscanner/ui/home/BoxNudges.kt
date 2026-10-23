@@ -102,6 +102,8 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
     // Stays up after the first tap (so a box and the checklist can both be had); it's marked as offered at once.
     var shown by remember { mutableStateOf<SetRelease?>(null) }
     var closed by remember { mutableStateOf(false) }
+    // The card stays up after "Make a box": a second tap mustn't make the same box again.
+    var made by remember { mutableStateOf(false) }
     val divider = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         val s = shown
         if (uri != null && s != null) scope.launch {
@@ -136,13 +138,19 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = {
-                    handled()
-                    scope.launch {
-                        val id = repo.createBox(set.name, "box", BoxRules(sets = setOf(set.code.uppercase())))
-                        Undo.offer("Made ${set.name}") { repo.deleteBox(id, CardBox.AUTO_SORT) }
-                    }
-                }) { Text("Make a box") }
+                TextButton(
+                    onClick = {
+                        if (!made) {
+                            made = true
+                            handled()
+                            scope.launch {
+                                val id = repo.createBox(set.name, "box", BoxRules(sets = setOf(set.code.uppercase())))
+                                Undo.offer("Made ${set.name}") { repo.deleteBox(id, CardBox.AUTO_SORT); made = false }
+                            }
+                        }
+                    },
+                    enabled = !made,
+                ) { Text(if (made) "Box made" else "Make a box") }
                 TextButton(onClick = { handled(); divider.launch("divider-${set.code.lowercase()}.pdf") }) { Text("Divider") }
                 TextButton(onClick = {
                     handled()

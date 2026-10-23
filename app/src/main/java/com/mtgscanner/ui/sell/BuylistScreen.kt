@@ -37,13 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.mtgscanner.MtgApp
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.data.CardKingdom
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.LoanMath
@@ -87,12 +84,6 @@ class BuylistViewModel(private val repo: CollectionRepository) : ViewModel() {
         val (n, undo) = repo.sellCopies(items.map { Triple(it.card.id, it.copies, it.each) })
         if (n > 0) Undo.offer(if (n == 1) "Sold 1 card" else "Sold $n cards") { undo() }
     }
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { BuylistViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
-        }
-    }
 }
 
 private val MINIMUMS = listOf(0.5, 1.0, 2.0, 5.0, 10.0)
@@ -102,7 +93,7 @@ private fun minLabel(v: Double) = if (v < 1) "$${"%.2f".format(java.util.Locale.
 /** Card Kingdom's offers: pick a minimum; get every card worth selling, where it lives, and the total. */
 @Composable
 internal fun ColumnScope.BuylistContent(onOpenCard: (Long) -> Unit) {
-    val vm: BuylistViewModel = viewModel(factory = BuylistViewModel.Factory)
+    val vm: BuylistViewModel = viewModel(factory = AppViewModels.Factory)
     val input by vm.input.collectAsStateWithLifecycle()
     var min by remember { mutableDoubleStateOf(1.0) }
     var skipped by remember { mutableStateOf(setOf<Long>()) }

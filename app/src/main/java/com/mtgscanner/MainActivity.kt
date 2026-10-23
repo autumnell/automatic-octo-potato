@@ -56,7 +56,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import android.content.Intent
 import com.mtgscanner.ui.components.Undo
@@ -66,7 +65,6 @@ import com.mtgscanner.ui.home.FirstRunTour
 import com.mtgscanner.ui.home.Tour
 import com.mtgscanner.widget.CollectionWidget
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Home
@@ -137,7 +135,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.mtgscanner.ui.settings.CrashLog.install(this)
-        if (savedInstanceState == null) {
+        // Reopened from Recents after Back: Android hands back the old intent, so don't repeat its share or link.
+        val fromHistory = ((intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+        if (savedInstanceState == null && !fromHistory) {
             // A box's QR code or NFC tag (grimoire://box/12) opens that box.
             openRequest = com.mtgscanner.data.BoxLinks.route(intent?.dataString) ?: intent?.getStringExtra(CollectionWidget.EXTRA_OPEN)
             // A CSV, decklist or deck link shared to the app or opened with it.
@@ -202,7 +202,6 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     LaunchedEffect(route) { if (route != null && tabs.any { it.route == route }) com.mtgscanner.ui.home.LastTab.save(ctx, route) }
     var showTour by remember { mutableStateOf(!Tour.seen(ctx)) }
     val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     // Changes anywhere in the app can be undone from one snackbar.
     LaunchedEffect(Unit) {
@@ -214,8 +213,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             )
             if (result == SnackbarResult.ActionPerformed) {
                 // Listed changes undo through Recent actions' history, so the list stays right.
-                if (e.id != 0L) scope.launch { Undo.undoThrough(e.id) }
-                else e.undo?.let { u -> scope.launch { runCatching { u() } } }
+                // Runs app-wide, so leaving right after the tap can't stop it partway.
+                Undo.perform(e)
             }
         }
     }
@@ -367,12 +366,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 arguments = listOf(navArgument("boxId") { type = NavType.LongType }),
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popFrom(it) }, onSellList = { nav.navigate("sell") }) }
-            composable(
-                "sell",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
-            ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popFrom(it) }, onBrowse = { nav.navigate("browse/-1") }) }
+            ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popFrom(it) }, onSellList = { nav.navigate("buylist") }) }
             composable(
                 "loans",
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
