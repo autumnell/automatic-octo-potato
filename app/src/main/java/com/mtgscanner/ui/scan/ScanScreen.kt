@@ -191,10 +191,7 @@ fun ScanScreen(
         VolumeKeys.handler = handler@{ up ->
             val st = latest
             val card = st.current ?: return@handler false
-            if (st.pageMode || st.showPrintings || st.showSettings || st.showList || st.showReview || st.showSort || st.showBoxPick ||
-                st.showDeckPick || st.showNewBox || st.showSkipped || st.showUnknown || st.showBoxCheck || st.showSetLock || st.showPackStart ||
-                st.page != null || st.photo != null
-            ) return@handler false
+            if (st.pageMode || st.anySheetOpen) return@handler false
             if (!up) {
                 vm.skip()
                 if (st.settings.vibrate) Haptics.setAside(view)
@@ -407,10 +404,7 @@ fun ScanScreen(
         }
         // Drawn over everything on the screen, never catching touches.
         AddFlightOverlay(flight)
-        val sheetOpen = state.showPrintings || state.showSettings || state.showList || state.showReview || state.showPackStart ||
-            state.showSort || state.showSetLock || state.showDeckPick || state.page != null || state.photo != null || state.showNewBox ||
-            state.showSkipped || state.showUnknown || state.showBoxPick || state.showBoxCheck || state.summary != null
-        if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !sheetOpen) {
+        if (!ScanBarPrefs.hintsSeen && loadedBoxes != null && !needsBox && !state.anySheetOpen) {
             ScanHintsOverlay(hintTargets, onDone = { ScanBarPrefs.updateHintsSeen(true) })
         }
     }

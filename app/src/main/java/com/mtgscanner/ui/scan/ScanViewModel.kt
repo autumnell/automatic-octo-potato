@@ -253,6 +253,12 @@ data class ScanUiState(
     val autoAdd: Boolean get() = settings.autoAdd
     val foil: Boolean get() = settings.foil
 
+    /** A sheet or dialog covers the camera: no adding, no volume keys, no hints. */
+    val anySheetOpen: Boolean
+        get() = showPrintings || showSettings || showList || showReview || showPackStart || showSort || showSetLock ||
+            showDeckPick || showNewBox || showSkipped || showUnknown || showBoxPick || showBoxCheck ||
+            page != null || photo != null || summary != null
+
     /** Whether [card] gets added as foil. The result card's choice counts only for the card on screen. */
     fun isFoil(card: ScryfallCard): Boolean {
         val want = (if (card.id == current?.id) cardFoil else null) ?: settings.foil
@@ -456,12 +462,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     val isPaused: Boolean
         get() = _state.value.let {
             // The first-run hints cover the screen: don't add cards behind them.
-            if (it.showSort || it.showSetLock || it.showDeckPick || it.showSkipped || it.showUnknown || it.showBoxPick || it.showBoxCheck ||
-                it.photo != null || !ScanBarPrefs.hintsSeen) true
-            else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading || it.page != null || it.showSettings || it.showList ||
-                it.showNewBox || boxes.value.isNullOrEmpty()
-            else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp ||
-                it.showPrintings || it.showSettings || it.showList || it.showNewBox || it.showReview || boxes.value.isNullOrEmpty()
+            if (it.anySheetOpen || !ScanBarPrefs.hintsSeen || boxes.value.isNullOrEmpty()) true
+            else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading
+            else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp
         }
 
     /** Called on the camera thread; the work happens on the main thread so it never races the buttons. */
