@@ -257,8 +257,18 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 }
                 val gives = u.give.mapNotNull { g -> g.owned?.let { o -> o.id to minOf(g.qty, o.quantity) } }
                 val before = repo.snapshot(gives.map { it.first })
-                gives.forEach { (id, n) -> repo.remove(id, n) }
-                val added = adds.map { (c, item, box) -> repo.add(c, item.foil, item.qty, box, item.lang, item.condition) to item.qty }
+                val added = mutableListOf<Pair<Long, Int>>()
+                try {
+                    gives.forEach { (id, n) -> repo.remove(id, n) }
+                    adds.forEach { (c, item, box) -> added += repo.add(c, item.foil, item.qty, box, item.lang, item.condition) to item.qty }
+                } catch (e: Exception) {
+                    // Half a trade is worse than none: put back what already changed.
+                    runCatching {
+                        added.forEach { (id, n) -> repo.remove(id, n) }
+                        repo.restore(before)
+                    }
+                    throw e
+                }
                 val where = leftover?.let { repo.box(it)?.name } ?: "a box"
                 Undo.offer(if (unsorted > 0) "Trade saved. $unsorted fit no box, put in $where" else "Trade saved") {
                     added.forEach { (id, n) -> repo.remove(id, n) }
