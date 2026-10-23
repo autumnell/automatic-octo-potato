@@ -86,6 +86,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.mtgscanner.data.checkDeck
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.CommanderRules
 import com.mtgscanner.data.CommanderSlot
