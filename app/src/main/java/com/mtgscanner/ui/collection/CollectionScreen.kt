@@ -496,9 +496,10 @@ fun CollectionScreen(
             // A hidden tab still shows while it's open (Home's wishlist link lands on it).
             val tabs = CollectionTab.shown(layout).let { if (tab in it) it else it + tab }
             if (tabs.size > 1) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    tabs.forEach { t -> SelectPill(t.label, tab == t, { tabName = t.name }) }
-                }
+                com.mtgscanner.ui.components.UnderlineTabs(
+                    tabs.map { it.label }, tabs.indexOf(tab), { i -> tabName = tabs[i].name },
+                    horizontalPadding = 16.dp,
+                )
             }
             MoveListHost()
             // Pull down to refresh prices, same as the refresh button.

@@ -27,17 +27,18 @@ import androidx.compose.ui.unit.sp
 import com.mtgscanner.data.db.PricePoint
 import com.mtgscanner.ui.theme.MtgColors
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.PlexMonoText
 
 // The Collection screens' price-guide look: hairline rules, square-ish corners, numbers in Plex Mono.
 
 /** Hairline between rows and around the stats strip. */
-// TODO(merge): swap for Palette.Rule once the theme has it.
-val RuleColor: Color get() = Palette.Outline
+// The hairline used between rows and cells.
+val RuleColor: Color get() = Palette.Rule
 
 /** 3dp corners, as in the mockups. */
-// TODO(merge): Corners.Small once it is 3dp.
-val LookShape = RoundedCornerShape(3.dp)
+// Small UI corners (cards keep CardShape).
+val LookShape = RoundedCornerShape(Corners.Small)
 
 /** Plex Mono at [size], for prices, changes and set codes. */
 fun monoStyle(size: TextUnit, weight: FontWeight = FontWeight.Normal) =
