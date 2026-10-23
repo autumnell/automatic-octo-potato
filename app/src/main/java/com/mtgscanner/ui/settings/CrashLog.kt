@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.mtgscanner.BuildConfig
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.util.CopyText
 import java.io.File
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -104,7 +105,7 @@ fun buildLabel(number: Int, isoDate: String): String {
     return "Grimoire $build · $date"
 }
 
-/** Settings › About: shown only after a crash. Share sends the trace as text; Clear can be undone. */
+/** Settings › About: shown only after a crash. Copy puts the whole log on the clipboard; Share sends the trace as text; Clear can be undone. */
 @Composable
 fun CrashReportRow() {
     val ctx = LocalContext.current
@@ -115,6 +116,7 @@ fun CrashReportRow() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Crash report", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        TextButton(onClick = { CopyText.copy(ctx, report, "Crash report") }) { Text("Copy") }
         TextButton(onClick = {
             val send = Intent(Intent.ACTION_SEND).setType("text/plain")
                 .putExtra(Intent.EXTRA_SUBJECT, "Grimoire crash report")
