@@ -181,7 +181,7 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
     val left = card.quantity - LoanMath.outCount(card, loans, cards.ifEmpty { listOf(card) })
     var who by remember { mutableStateOf("") }
     var qty by remember { mutableIntStateOf(card.quantity) }
-    val n = qty.coerceIn(1, left.coerceAtLeast(1))
+    val lendQty = qty.coerceIn(1, left.coerceAtLeast(1))
     val name = LoanMath.cleanName(who)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -213,7 +213,7 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Copies", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        QuantityStepper(n, onChange = { qty = it.coerceIn(1, left) })
+                        QuantityStepper(lendQty, onChange = { qty = it.coerceIn(1, left) })
                     }
                 }
             }
@@ -223,7 +223,7 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
                 onClick = {
                     // On the app's scope: the dialog closes right away.
                     repo.appScope.launch {
-                        val loan = repo.lend(card.id, n, name) ?: return@launch
+                        val loan = repo.lend(card.id, lendQty, name) ?: return@launch
                         Undo.offer("Lent ${card.name} to ${loan.who}") { repo.cancelLoan(loan) }
                     }
                     onDismiss()
