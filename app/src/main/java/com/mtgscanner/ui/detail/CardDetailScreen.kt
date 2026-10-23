@@ -230,7 +230,7 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         currentId.value = id
         if (id != from) Undo.offer("Merged with matching copies") { repo.restore(before); currentId.value = from }
     }
-    fun setFoil(foil: Boolean) = edit { repo.setFoil(it.id, foil) }
+    fun setFoil(foil: Boolean) = edit { repo.setFoil(currentId.value, foil) }
     fun setCondition(c: String) = edit { repo.update(it.copy(condition = c)) }
     fun setNotes(n: String) = edit { repo.update(it.copy(notes = n)) }
     fun setLang(l: String) = edit { repo.update(it.copy(lang = l)) }
