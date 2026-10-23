@@ -123,7 +123,7 @@ import com.mtgscanner.ui.components.ToolChip
 import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.cardPriceShort
 import com.mtgscanner.ui.components.moneySuffix
-import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -191,7 +191,12 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
         val pickedRows = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) } }
-        val pickedValue = remember(selected, pickedRows) { if (selected.isEmpty()) null else SelectionValue.total(pickedRows, selected) }
+        val pickedEur = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitEur(), it.quantity, it.proxy) } }
+        val currency = AppSettings.currency
+        val pickedValue = remember(selected, pickedRows, pickedEur, currency) {
+            if (selected.isEmpty()) null
+            else formatMoney(SelectionValue.total(pickedRows, selected), SelectionValue.total(pickedEur, selected)).takeIf { it != "--" }
+        }
         if (picking) SelectionBar(
             selected.size, ui.boxes, deckChoices, vm, onTag = { tagging = true }, onEdit = { editing = true },
             value = if (AppSettings.showPrices) pickedValue else null,
@@ -381,7 +386,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
 /** Top bar while picking cards: how many, and what to do with them. */
 @Composable
-private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, value: Double?, onCopy: () -> Unit) {
+private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, value: String?, onCopy: () -> Unit) {
     var moveMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
@@ -390,7 +395,7 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm
     ) {
         IconButton(onClick = vm::clearSelection) { Icon(Icons.Outlined.Close, "Stop picking") }
         Text(
-            if (value != null) "$count selected · ${formatUsd(value)}" else "$count selected",
+            if (value != null) "$count selected · $value" else "$count selected",
             style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         IconButton(onClick = vm::selectAll) { Icon(Icons.Outlined.SelectAll, "Select all") }
         Box {
