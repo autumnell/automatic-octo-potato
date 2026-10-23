@@ -89,6 +89,7 @@ import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.components.PlaceholderCards
 import com.mtgscanner.ui.components.PlaceholderRows
 import com.mtgscanner.ui.components.ruleBelow
+import com.mtgscanner.ui.components.panelRow
 
 @Composable
 fun SearchScreen(
@@ -340,7 +341,8 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
             }
             items(ui.recent) { q ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = 20.dp, vertical = 12.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = q === ui.recent.first(), last = q === ui.recent.last())
+                        .clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
