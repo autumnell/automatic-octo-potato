@@ -243,8 +243,8 @@ private fun SellRow(c: CollectionCard, first: Boolean, last: Boolean, onClick: (
 @Composable
 private fun AskDialog(c: CollectionCard, onSave: (Double?) -> Unit, onUnlist: () -> Unit, onSold: () -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(c.askPrice?.let { "%.2f".format(java.util.Locale.US, it) }.orEmpty()) }
-    val parsed = text.replace(',', '.').trim().removePrefix("$").toDoubleOrNull()
-    val valid = text.isBlank() || (parsed != null && parsed >= 0)
+    val parsed = com.mtgscanner.util.PriceInput.parse(text)
+    val valid = text.isBlank() || parsed != null
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,

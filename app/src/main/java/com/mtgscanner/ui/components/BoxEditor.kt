@@ -119,8 +119,8 @@ fun BoxEditorSheet(
     var nums by remember { mutableStateOf(numTexts(draft.rules)) }
 
     fun rules() = draft.rules.copy(
-        minPrice = minText.replace(',', '.').toDoubleOrNull(),
-        maxPrice = maxText.replace(',', '.').toDoubleOrNull(),
+        minPrice = com.mtgscanner.util.PriceInput.parse(minText),
+        maxPrice = com.mtgscanner.util.PriceInput.parse(maxText),
         sets = setsText.split(',', ' ').map { it.trim().uppercase() }.filter { it.isNotEmpty() }.toSet(),
         minCmc = nums["minCmc"]?.toIntOrNull(),
         maxCmc = nums["maxCmc"]?.toIntOrNull(),

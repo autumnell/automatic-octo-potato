@@ -333,7 +333,7 @@ internal fun BulkCard(cards: Int) {
     }
     if (editing) {
         var text by remember { mutableStateOf(if (rate % 1.0 == 0.0) rate.toInt().toString() else rate.toString()) }
-        val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0 }
+        val parsed = com.mtgscanner.util.PriceInput.parse(text)
         AlertDialog(
             onDismissRequest = { editing = false },
             containerColor = Palette.Surface,
