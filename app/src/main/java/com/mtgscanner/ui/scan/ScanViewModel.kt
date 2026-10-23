@@ -1658,7 +1658,9 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun togglePause() {
-        trackGen++
+        // Drops a lookup under way and forgets what was looked up, so the card in view is read again on resume.
+        // Cards already added stay handled until they leave the frame.
+        resetTracking()
         _state.update {
             val p = !it.paused
             it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null, lookingUp = false)
