@@ -50,83 +50,6 @@ import kotlinx.serialization.json.put
 import java.io.IOException
 import java.time.LocalDate
 
-/** A Scryfall match for what the camera read, and whether it's safe to add without asking. */
-data class Identification(
-    val card: ScryfallCard,
-    val confident: Boolean,
-    /** The exact printing is known: the footer was read, or the artwork matched. */
-    val exact: Boolean = false,
-)
-
-/** A card name read with no connection, good enough to look up later. */
-data class OfflineRead(
-    val name: String, val setCode: String?, val collectorNumber: String?,
-    /** Language read off the card, when not English. */
-    val lang: String? = null,
-    /** The exact printing, when the artwork matched a downloaded art index. */
-    val scryfallId: String? = null,
-)
-
-/** One card in a checked decklist. */
-data class DeckCheckLine(
-    val name: String,
-    val section: String,
-    val needed: Int,
-    val owned: Int,
-    /** Where the owned copies are: box name to count. */
-    val boxes: List<Pair<String, Int>>,
-    val price: Double?,
-    val imageUrl: String?,
-    val oracleId: String?,
-    /** The printing the list names ("fdc", "123"), if any. */
-    val setCode: String? = null,
-    val collectorNumber: String? = null,
-    /** The list named a printing Scryfall doesn't have, so the picture and price are another printing's. */
-    val otherPrinting: Boolean = false,
-    /** Of [owned], copies kept in the deck itself; the rest are in boxes or other decks. */
-    val inDeck: Int = 0,
-    /** How many other decks hold copies of the card (they're left out of [boxes]). */
-    val otherDecks: Int = 0,
-    /** The collector number shown: the listed one, or the printing found or owned for a set-only line. */
-    val shownNumber: String? = null,
-    /** "Borderless", "Showcase"… for the printing shown; null for a normal one. */
-    val variant: String? = null,
-    /** Copies are owned, but none of the printing the list names. */
-    val ownedOtherPrinting: Boolean = false,
-) {
-    /** "LCI #287 · Borderless"; null when the list names no set. */
-    val printing: String? get() = setCode?.let { s ->
-        listOfNotNull(s.uppercase() + (shownNumber?.let { " #$it" } ?: ""), variant).joinToString(" · ")
-    }
-
-    /** "In deck ×1 · Binder ×2 · 2 other decks". */
-    val whereText: String get() = DeckPlaces.text(boxes, otherDecks)
-
-    val missing: Int get() = (needed - owned).coerceAtLeast(0)
-    /** In a section that's played (main deck, commander, companion); sideboard, maybeboard and tokens aren't. */
-    val played: Boolean get() = section in DeckCheck.PLAYED
-
-    companion object {
-        /** [boxes] name for the copies kept in the deck being checked. */
-        const val IN_DECK = "In deck"
-    }
-}
-
-/** Totals count only played lines; the other lines are kept in [lines] for showing. */
-data class DeckCheck(val lines: List<DeckCheckLine>) {
-    val needed: Int get() = lines.filter { it.played }.sumOf { it.needed }
-    val owned: Int get() = lines.filter { it.played }.sumOf { minOf(it.owned, it.needed) }
-    val missingCost: Double get() = lines.filter { it.played }.sumOf { (it.price ?: 0.0) * it.missing }
-    /** Some missing played card has no price, so [missingCost] is short. */
-    val missingCostPartial: Boolean get() = missingLines.any { it.price == null }
-    /** Played lines with copies still missing. */
-    val missingLines: List<DeckCheckLine> get() = lines.filter { it.played && it.missing > 0 }
-
-    companion object {
-        val PLAYED = setOf("Main", "Commander", "Companion", "Signature")
-    }
-}
-
 /**
  * What an import added: copies, names not found, and for Undo ([undoImport]) the copies added per row id and the box
  * made for it (null when none was).
@@ -157,11 +80,11 @@ class CollectionRepository(
     /** The on-device art model, downloaded the first time art needs comparing. */
     val artEmbedder = com.mtgscanner.scan.ArtEmbedder(context.applicationContext)
     /** Printings already in a downloaded art index are compared from there, without fetching their pictures. */
-    private val art by lazy { ArtMatcher(embedder = artEmbedder, known = { id -> artIndex.artOf(id) }) }
+    internal val art by lazy { ArtMatcher(embedder = artEmbedder, known = { id -> artIndex.artOf(id) }) }
     /** Downloaded per-set art hashes, to find cards from their artwork when no text can be read. */
     val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api, artEmbedder)
     /** Set symbol shapes, drawn from Scryfall's icons as sets are needed. */
-    private val setSymbols = com.mtgscanner.scan.SetSymbols(context.applicationContext, api)
+    internal val setSymbols = com.mtgscanner.scan.SetSymbols(context.applicationContext, api)
     val scanLog = com.mtgscanner.scan.ScanLog(context.filesDir)
 
     /** One shared read of the cards table for every screen; kept 5 s after the last screen stops watching. */
@@ -532,207 +455,13 @@ class CollectionRepository(
         get() = prefs.getLong("lastBox", Box.AUTO_SORT)
         set(v) { prefs.edit().putLong("lastBox", v).apply() }
 
-    // Identifying scans
+    // Identifying scans: identify, offlineRead and the printing pickers are in Identify.kt.
 
     /** Reads that found a card. Bounded, like the other caches, so a long scanning session doesn't keep growing it. */
-    private val lookupCache = LruCache<String, Identification>(500)
+    internal val lookupCache = LruCache<String, Identification>(500)
     /** Reads that found nothing, and when: the same garbage read isn't looked up again for [MISS_TTL_MS]. */
-    private val missCache = HashMap<String, Long>()
-
-    /**
-     * Finds the card for an OCR guess. Tries the exact printing (set + collector number) first,
-     * then the card name (corrected against the offline name list), and uses the artwork to pick
-     * the printing when the footer couldn't be read. Throws [IOException] when offline.
-     */
-    suspend fun identify(raw: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
-        // With the set lock on, a read with no set code is looked up in that set first. A set code printed on the
-        // card wins (Special Guests and The List carry their own).
-        val lock = SortPrefs.setLock?.takeIf { raw.setCode == null }
-        val guess = lock?.let { raw.copy(setCode = it) } ?: raw
-        // [skip]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing.
-        val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skip != null) "|s" else "")
-        val cached: Identification? = lookupCache.get(key)
-        if (cached == null) {
-            val missedAt = synchronized(missCache) { missCache[key] }
-            if (missedAt != null && System.currentTimeMillis() - missedAt < MISS_TTL_MS) return null
-        }
-        val base = cached ?: doIdentify(guess, skip).also { r ->
-            if (r != null) lookupCache.put(key, r)
-            else synchronized(missCache) {
-                if (missCache.size > 500) missCache.clear()
-                missCache[key] = System.currentTimeMillis()
-            }
-        }
-        base ?: return null
-        if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess)?.let { return it }
-        return base
-    }
-
-    /**
-     * The footer's number wasn't read, so the name alone gave Scryfall's newest printing. Narrows the printings
-     * by the copyright year, then the set symbol, then the artwork; with only the year to go on, the newest
-     * printing from that year. Null when nothing narrows it (keep [base]).
-     */
-    private suspend fun choosePrinting(base: Identification, guess: CardTextGuess): Identification? {
-        val year = guess.year
-        val symbol = guess.symbol
-        val hash = guess.artHash
-        val embedding = guess.artEmbedding
-        if (year == null && symbol == null && hash == null && embedding == null) return null
-        val all = runCatching { printingsCached(base.card) }.getOrNull() ?: return null
-        // With the set code read (or the set lock standing in for it), only that set's printings are candidates.
-        val set = guess.setCode
-        var pool = set?.let { s -> all.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { all } } ?: all
-        if (pool.size < 2) return null
-        pool = PrintingPick.newestFirst(pool) { it.releasedAt }
-        var narrowed = false
-        if (year != null) {
-            val inYear = PrintingPick.byYear(pool, year) { it.releasedAt }
-            if (inYear.isNotEmpty()) { pool = inYear; narrowed = true }
-        }
-        var bySymbol = false
-        val sets = pool.map { it.set.lowercase() }.distinct()
-        if (symbol != null && sets.size > 1) {
-            val winners = runCatching { setSymbols.pick(symbol, sets) }.getOrNull()
-            if (winners != null) {
-                pool = pool.filter { it.set.lowercase() in winners }
-                narrowed = true
-                bySymbol = true
-            }
-        }
-        if (pool.size > 1 && (hash != null || embedding != null)) {
-            runCatching { art.bestPrinting(pool, hash, embedding) }.getOrNull()?.let { return base.copy(card = it, exact = true) }
-        }
-        if (!narrowed) return null
-        val pick = pool.first()
-        return base.copy(card = pick, exact = base.exact || (bySymbol && pool.size == 1))
-    }
-
-    /**
-     * Printings sharing the collector number read, narrowed by the copyright year, the set symbol and the art.
-     * Returns the pick and whether it's sure (one printing left, or the art matched).
-     */
-    private suspend fun narrowSameNumber(same: List<ScryfallCard>, guess: CardTextGuess): Pair<ScryfallCard, Boolean> {
-        if (same.size == 1) return same[0] to true
-        var pool = PrintingPick.newestFirst(same) { it.releasedAt }
-        guess.year?.let { y -> PrintingPick.byYear(pool, y) { it.releasedAt }.takeIf { it.isNotEmpty() }?.let { pool = it } }
-        val symbol = guess.symbol
-        val sets = pool.map { it.set.lowercase() }.distinct()
-        if (pool.size > 1 && symbol != null && sets.size > 1) {
-            runCatching { setSymbols.pick(symbol, sets) }.getOrNull()?.let { winners ->
-                pool.filter { it.set.lowercase() in winners }.takeIf { it.isNotEmpty() }?.let { pool = it }
-            }
-        }
-        if (pool.size > 1 && (guess.artHash != null || guess.artEmbedding != null)) {
-            runCatching { art.bestPrinting(pool, guess.artHash, guess.artEmbedding) }.getOrNull()?.let { return it to true }
-        }
-        return pool.first() to (pool.size == 1)
-    }
-
-    private val printingsCache = LruCache<String, List<ScryfallCard>>(300)
-    private suspend fun printingsCached(card: ScryfallCard): List<ScryfallCard> {
-        val k = card.oracleId ?: card.name
-        printingsCache.get(k)?.let { return it }
-        val list = api.printings(card)
-        printingsCache.put(k, list)
-        return list
-    }
-
-    /** What to save for later when the camera read a name but Scryfall can't be reached. */
-    suspend fun offlineRead(guess: CardTextGuess): OfflineRead? {
-        val best = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }.firstOrNull()?.takeIf { it.score >= 0.85 }
-        if (best != null) return OfflineRead(best.name, guess.setCode, guess.collectorNumber, lang = guess.lang)
-        // No English name (only the footer, or a name in Japanese, Chinese or Korean): set and number find it later.
-        val set = guess.setCode ?: return null
-        val number = guess.collectorNumber ?: return null
-        return OfflineRead(guess.printedName ?: "${set.uppercase()} #$number", set, number, lang = guess.lang)
-    }
-
-    private suspend fun doIdentify(guess: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
-        // Real card names close to what was read come first, then the raw text.
-        // Comparing against every card name is heavy: keep it off the main thread.
-        val corrected = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }
-        val names = (corrected.map { it.name } + guess.nameCandidates).distinct()
-        fun bestSimilarity(card: ScryfallCard): Double {
-            val cardNames = listOf(card.name) + card.name.split(" // ")
-            return names.maxOfOrNull { n -> cardNames.maxOf { CardTextParser.similarity(n, it) } } ?: 0.0
-        }
-
-        if (guess.setCode != null && guess.collectorNumber != null) {
-            val card = runCatching { api.bySetAndNumber(guess.setCode, guess.collectorNumber) }
-                .onFailure { if (it is IOException && it !is ScryfallException) throw it }
-                .getOrNull()
-            if (card != null) {
-                val sim = bestSimilarity(card)
-                // If we couldn't read a name, trust the footer; otherwise the name has to agree.
-                if (names.isEmpty() || sim >= 0.6) return Identification(card, confident = true, exact = true)
-            }
-            // A token prints its card set's code: the number may be in the token set ("tmom") instead.
-            if (names.isNotEmpty()) {
-                val token = runCatching { api.bySetAndNumber("t" + guess.setCode, guess.collectorNumber) }
-                    .onFailure { if (it is IOException && it !is ScryfallException) throw it }
-                    .getOrNull()
-                if (token != null && bestSimilarity(token) >= 0.6) return Identification(token, confident = true, exact = true)
-            }
-        }
-
-        // The name read is a token's or emblem's: look in the extras, which the name lookup is not made for.
-        corrected.firstOrNull()?.takeIf { it.extra && it.score >= 0.85 }?.let { t ->
-            runCatching { findExtra(t.name, guess) }
-                .onFailure { if (it is IOException && it !is ScryfallException) throw it }
-                .getOrNull()?.let { return it }
-        }
-
-        val knownGood = corrected.firstOrNull()?.takeIf { it.score >= 0.85 }?.name
-        for (name in names) {
-            val inSet = guess.setCode?.let { set -> runCatching { api.named(name, set) }.getOrNull() }
-            val card = inSet ?: api.named(name) ?: continue
-            val sim = bestSimilarity(card)
-            if (sim < 0.5) continue
-            val confident = sim >= 0.85 || card.name == knownGood
-            // Skipped anyway (a basic land with "Skip basics" on): don't search its many printings.
-            if (skip?.invoke(card) == true) return Identification(card, confident = confident)
-            // Fuzzy search returns the newest printing; with the collector number but no set code (2003-2019 cards
-            // print "241/350"), several sets can have that number: narrow them, and it's exact only if one is left.
-            val number = guess.collectorNumber
-            if (inSet == null && number != null) {
-                val same = runCatching { printingsCached(card) }.getOrNull().orEmpty()
-                    .filter { it.collectorNumber.equals(number, ignoreCase = true) }
-                if (same.isNotEmpty()) {
-                    val (pick, sure) = narrowSameNumber(same, guess)
-                    return Identification(pick, confident = confident, exact = sure)
-                }
-            }
-            return Identification(card, confident = confident, exact = inSet != null && number != null)
-        }
-        guess.printedName?.let { printed -> return identifyPrinted(printed, guess) }
-        return null
-    }
-
-    /**
-     * A name read in Japanese, Chinese or Korean: searched among Scryfall's printed names in that language, the
-     * whole name first, then each half (one misread letter spoils a search), and the closest printed name taken
-     * when it's close enough. The English printing with the same set and number is used when there is one, so
-     * prices, art indexes and printing choice work as for any card; the language read is recorded with it.
-     */
-    private suspend fun identifyPrinted(printed: String, guess: CardTextGuess): Identification? {
-        val lang = guess.lang?.takeIf { it in com.mtgscanner.scan.CjkNames.LANGS }
-        for (term in com.mtgscanner.scan.CjkNames.searchTerms(printed)) {
-            val found = runCatching { api.searchPrinted(term, lang) }
-                .onFailure { if (it is IOException && it !is ScryfallException) throw it }
-                .getOrNull().orEmpty()
-            if (found.isEmpty()) continue
-            val names = found.map { c -> c to (c.printedName ?: c.cardFaces.orEmpty().firstNotNullOfOrNull { it.printedName }) }
-            val (card, score) = com.mtgscanner.scan.CjkNames.best(printed, names) ?: continue
-            val english = if (card.lang != "en") {
-                runCatching { api.bySetAndNumber(card.set, card.collectorNumber) }
-                    .onFailure { if (it is IOException && it !is ScryfallException) throw it }
-                    .getOrNull()?.takeIf { it.oracleId == null || it.oracleId == card.oracleId }
-            } else null
-            return Identification(english ?: card, confident = score >= 0.85)
-        }
-        return null
-    }
+    internal val missCache = HashMap<String, Long>()
+    internal val printingsCache = LruCache<String, List<ScryfallCard>>(300)
 
     // Adding and editing
 
@@ -1138,87 +867,7 @@ class CollectionRepository(
 
     suspend fun deleteDeck(id: Long) = dao.deleteDeck(id)
 
-    /**
-     * Compares a decklist with the collection: what's owned, where it is, and what's missing. [places] are boxes
-     * and decks' card rows; copies kept in [deckSlotId] (this deck's own cards) count as in the deck.
-     */
-    suspend fun checkDeck(text: String, cards: List<CollectionCard>, places: List<Box>, deckSlotId: Long? = null): DeckCheck {
-        val lines = DecklistParser.parse(text)
-        // This deck's own rows (normally one), and every place by id.
-        val ownDeck = places.firstOrNull { it.id == deckSlotId }?.deckId?.takeIf { it != 0L }
-        val ownSlots = places.filter { it.id == deckSlotId || (ownDeck != null && it.deckId == ownDeck) }.map { it.id }.toSet()
-        val placeInfo = places.associate { it.id to DeckPlaces.Place(it.placeName(), it.deckId) }
-        fun key(n: String) = com.mtgscanner.util.CardNames.key(n)
-        val byName = cards.groupBy { key(it.name) }
-        // Hand owned copies out line by line, so a card in both the main deck and sideboard isn't counted twice.
-        // Played sections (main deck, commander, companion) get them first.
-        val left = byName.mapValues { (_, cs) -> cs.sumOf { it.quantity } }.toMutableMap()
-        val ownedFor = IntArray(lines.size)
-        val order = lines.indices.sortedBy { if (lines[it].section in DeckCheck.PLAYED) 0 else 1 }
-        for (i in order) {
-            val l = lines[i]
-            val k = key(l.name)
-            val have = minOf(left[k] ?: 0, l.quantity)
-            left[k] = (left[k] ?: 0) - have
-            ownedFor[i] = have
-        }
-        // Of those, the copies already kept in this deck, handed out the same way.
-        val inDeckLeft: MutableMap<String, Int> = if (ownSlots.isEmpty()) HashMap() else
-            byName.mapValues { (_, cs) -> cs.filter { it.boxId in ownSlots }.sumOf { it.quantity } }.toMutableMap()
-        val inDeckFor = IntArray(lines.size)
-        for (i in order) {
-            val k = key(lines[i].name)
-            val n = minOf(inDeckLeft[k] ?: 0, ownedFor[i])
-            inDeckLeft[k] = (inDeckLeft[k] ?: 0) - n
-            inDeckFor[i] = n
-        }
-        // Copies of the exact printing a line names, for its picture and price.
-        val samePrinting = lines.map { l ->
-            if (l.setCode == null) emptyList()
-            else byName[key(l.name)].orEmpty().filter { PrintingLookup.samePrinting(l.setCode, l.collectorNumber, it.setCode, it.collectorNumber) }
-        }
-        // Prices and pictures for missing cards, and for printings named but not owned, come from Scryfall:
-        // that set's printing (and number) first. Ignore failures (offline).
-        val toLook = lines.indices.filter { ownedFor[it] < lines[it].quantity || (lines[it].setCode != null && samePrinting[it].isEmpty()) }
-        val looked = runCatching {
-            val wants = toLook.map { PrintingLookup.Wanted(lines[it].name, lines[it].setCode, lines[it].collectorNumber) }
-            val found = PrintingLookup.resolve(wants) { ids -> api.identify(ids.map(PrintingLookup::json)) }
-            // A set with no number: show that set's normal printing, not a borderless or showcase one.
-            api.preferRegular(wants, found)
-        }.getOrNull()
-        val lookedUp = HashMap<Int, ScryfallCard>()
-        looked?.forEachIndexed { k, c -> if (c != null) lookedUp[toLook[k]] = c }
-        return DeckCheck(lines.mapIndexed { i, l ->
-            val owned = byName[key(l.name)].orEmpty()
-            val exact = samePrinting[i]
-            val sc = lookedUp[i]
-            val named = l.setCode != null
-            val where = DeckPlaces.where(owned.map { it.boxId to it.quantity }, placeInfo, ownSlots)
-            // The printing shown: a copy of the listed one, else the one Scryfall found for the line.
-            val scShown = sc?.takeIf { named && PrintingLookup.samePrinting(l.setCode, null, it.set, it.collectorNumber) }
-            DeckCheckLine(
-                name = owned.firstOrNull()?.name ?: sc?.name ?: l.name,
-                section = l.section,
-                needed = l.quantity,
-                owned = ownedFor[i],
-                boxes = where.boxes,
-                otherDecks = where.otherDecks,
-                inDeck = inDeckFor[i],
-                shownNumber = l.collectorNumber ?: exact.map { it.collectorNumber }.distinct().singleOrNull() ?: scShown?.collectorNumber,
-                variant = if (!named) null else if (exact.isNotEmpty()) SetPrintings.label(exact.first().treatments)
-                    else scShown?.let { SetPrintings.label(it.treatments) },
-                ownedOtherPrinting = named && ownedFor[i] > 0 && exact.isEmpty(),
-                price = exact.mapNotNull { it.priceUsd }.minOrNull()
-                    ?: (if (named) sc?.prices?.usd?.toDoubleOrNull() else null)
-                    ?: owned.mapNotNull { it.priceUsd }.minOrNull() ?: sc?.prices?.usd?.toDoubleOrNull(),
-                imageUrl = exact.firstOrNull()?.imageUrl ?: (if (named) sc?.imageUrl else null) ?: owned.firstOrNull()?.imageUrl ?: sc?.imageUrl,
-                oracleId = owned.firstOrNull()?.oracleId ?: sc?.oracleId,
-                setCode = l.setCode,
-                collectorNumber = l.collectorNumber,
-                otherPrinting = named && exact.isEmpty() && sc != null && !PrintingLookup.samePrinting(l.setCode, l.collectorNumber, sc.set, sc.collectorNumber),
-            )
-        })
-    }
+    // The deck check (checkDeck) is in DeckCheck.kt.
 
     // Wishlist
 
@@ -1347,7 +996,7 @@ class CollectionRepository(
 
     companion object {
         /** How long a read that found nothing isn't looked up again. */
-        private const val MISS_TTL_MS = 30_000L
+        internal const val MISS_TTL_MS = 30_000L
         /** The value snapshot waits for this much quiet after a change… */
         private const val CHANGE_IDLE_MS = 3_000L
         /** …or this many changes. */
