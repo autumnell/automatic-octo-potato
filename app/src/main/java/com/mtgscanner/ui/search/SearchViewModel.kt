@@ -8,12 +8,14 @@ import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.placeName
 import com.mtgscanner.data.observePlaces
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -98,12 +100,12 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         cards.filter { it.oracleId != null }.groupBy { it.oracleId!! }.forEach { (k, rows) -> out["o:$k"] = summarize(rows) }
         cards.groupBy { it.name.lowercase() }.forEach { (k, rows) -> out["n:$k"] = summarize(rows) }
         out.toMap()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** Different collector numbers owned per set code (lowercase), for the Sets tab. */
     val ownedBySet: StateFlow<Map<String, Int>> = repo.observeAll().map { cards ->
         cards.groupBy { it.setCode.lowercase() }.mapValues { (_, rows) -> rows.map { it.collectorNumber.lowercase() }.distinct().size }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private var suggestJob: Job? = null
     private var searchJob: Job? = null
