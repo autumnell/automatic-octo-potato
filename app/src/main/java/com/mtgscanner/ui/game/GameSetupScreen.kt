@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -132,22 +135,34 @@ fun GameSetupScreen(onPlay: () -> Unit) {
 
             // The setup as one line: tap a word to change it.
             Spacer(Modifier.height(12.dp))
-            FlowRow(verticalArrangement = Arrangement.Center) {
-                Pick(format.label, GameFormat.entries.map { it.label }) { i ->
+            val words = buildList {
+                add(format.label); add(if (players == 1) "1 player" else "$players players"); add("$life life")
+                if (format.commanderDamage) add(if (partners) "partners" else "no partners")
+            }
+            // Shrink the words to keep the setup on one line, whatever the screen width.
+            val base = MaterialTheme.typography.headlineSmall
+            val measurer = rememberTextMeasurer()
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val avail = constraints.maxWidth - with(LocalDensity.current) { (4.dp * words.size).roundToPx() }
+                val full = remember(words, base) { measurer.measure(words.joinToString(" · "), base, maxLines = 1, softWrap = false).size.width }
+                val style = if (full <= avail || full == 0) base else base.copy(fontSize = base.fontSize * (avail.toFloat() / full) * 0.98f)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Pick(style, format.label, GameFormat.entries.map { it.label }) { i ->
                     val f = GameFormat.entries[i]
                     format = f; life = f.life; players = f.defaultPlayers
                     if (!f.commanderDamage) partners = false
                 }
-                Dot()
-                Pick(if (players == 1) "1 player" else "$players players", (1..Player.MAX_PLAYERS).map { "$it" }) { players = it + 1 }
-                Dot()
-                Pick("$life life", listOf("20", "25", "30", "40", "Other…")) { i ->
+                Dot(style)
+                Pick(style, if (players == 1) "1 player" else "$players players", (1..Player.MAX_PLAYERS).map { "$it" }) { players = it + 1 }
+                Dot(style)
+                Pick(style, "$life life", listOf("20", "25", "30", "40", "Other…")) { i ->
                     if (i == 4) customLife = true else life = listOf(20, 25, 30, 40)[i]
                 }
                 if (format.commanderDamage) {
-                    Dot()
-                    Pick(if (partners) "partners" else "no partners", listOf("No partners", "Partners")) { partners = it == 1 }
+                    Dot(style)
+                    Pick(style, if (partners) "partners" else "no partners", listOf("No partners", "Partners")) { partners = it == 1 }
                 }
+            }
             }
 
             Spacer(Modifier.height(10.dp))
@@ -188,12 +203,13 @@ fun GameSetupScreen(onPlay: () -> Unit) {
 
 /** A word in the setup line, underlined, that opens a short list to pick from. */
 @Composable
-private fun Pick(text: String, options: List<String>, onPick: (Int) -> Unit) {
+private fun Pick(style: TextStyle, text: String, options: List<String>, onPick: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         Text(
             text,
-            style = MaterialTheme.typography.headlineSmall.copy(textDecoration = TextDecoration.Underline),
+            style = style.copy(textDecoration = TextDecoration.Underline),
+            maxLines = 1, softWrap = false,
             color = Palette.Text,
             modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { open = true }.padding(horizontal = 2.dp, vertical = 4.dp),
         )
@@ -204,8 +220,8 @@ private fun Pick(text: String, options: List<String>, onPick: (Int) -> Unit) {
 }
 
 @Composable
-private fun Dot() {
-    Text(" · ", style = MaterialTheme.typography.headlineSmall, color = Palette.Muted, modifier = Modifier.padding(vertical = 4.dp))
+private fun Dot(style: TextStyle) {
+    Text(" · ", style = style, maxLines = 1, color = Palette.Muted, modifier = Modifier.padding(vertical = 4.dp))
 }
 
 /** The table seats laid out the way the life counter will show them, with names to type on each seat. */

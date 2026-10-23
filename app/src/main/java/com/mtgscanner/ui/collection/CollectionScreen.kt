@@ -742,10 +742,21 @@ private fun WishlistTab(vm: CollectionViewModel) {
     val shown = remember(wishlist, query, sort) {
         WishlistSorting.apply(wishlist, query, sort, { it.name }, { it.priceUsd }, { it.addedAt })
     }
+    // Scryfall names for the typed text, so cards can be added right here.
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(query) {
+        suggestions = emptyList()
+        if (query.trim().length < 2) return@LaunchedEffect
+        delay(300)
+        suggestions = vm.suggestCards(query)
+    }
+    val onList = remember(wishlist) { wishlist.mapTo(HashSet()) { it.name.lowercase() } }
+    val toAdd = suggestions.filter { it.lowercase() !in onList }.take(5)
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             if (wishlist.isEmpty()) {
                 EmptyState(title = "Wishlist is empty")
+                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Add a card")
             } else {
                 SectionHeader("${wishlist.sumOf { it.wanted }} wanted") {
                     if (AppSettings.showPrices) {
@@ -758,14 +769,28 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     }
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share wishlist", tint = Palette.Icon) }
                 }
-                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search wishlist")
+                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search or add a card")
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     WishlistSort.entries.filter { AppSettings.showPrices || it != WishlistSort.PRICE }.forEach { s ->
                         SelectPill(s.label, sort == s, { sortName = s.name })
                     }
                 }
-                if (shown.isEmpty()) EmptyState("No matches", Modifier.padding(top = 16.dp))
+                if (shown.isEmpty() && toAdd.isEmpty()) EmptyState("No matches", Modifier.padding(top = 16.dp))
             }
+        }
+        if (toAdd.isNotEmpty()) {
+            item { SectionHeader("Add to wishlist") }
+            items(toAdd, key = { "add:$it" }) { name ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = name == toAdd.first(), last = name == toAdd.last())
+                        .clickable { vm.wishByName(name); query = "" }.padding(start = 14.dp, end = 4.dp).heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Icon(Icons.Outlined.Add, "Add $name", tint = Palette.Icon, modifier = Modifier.padding(12.dp))
+                }
+            }
+            item { Spacer(Modifier.height(12.dp)) }
         }
         items(shown, key = { "w${it.id}" }) { w ->
             Row(
