@@ -134,8 +134,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
@@ -249,9 +252,13 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         .flatMapLatest { sid -> if (sid == null) flowOf(emptyList()) else repo.observePriceHistory(sid) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Every tag used anywhere in the collection, for suggestions. */
-    val allTags: StateFlow<List<String>> = repo.observeAll()
+    /** The whole collection, read once for the flows below that need it. */
+    private val allRows = repo.observeAll().shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    /** Every tag used anywhere in the collection, for suggestions; only collected while the tag dialog is open. */
+    val allTags: StateFlow<List<String>> = allRows
         .map { all -> all.flatMap { it.userTagList() }.distinct().sorted() }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun addTag(tag: String) = viewModelScope.launch { repo.addTag(listOf(currentId.value), tag) }
@@ -327,9 +334,9 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Row ids in this card's box, in swipe order; only re-sorted when the collection or the box changes, not on edits to this card. */
-    private val boxOrder: kotlinx.coroutines.flow.Flow<List<Long>> = combine(card.map { it?.boxId }.distinctUntilChanged(), repo.observeAll()) { boxId, all ->
+    private val boxOrder: kotlinx.coroutines.flow.Flow<List<Long>> = combine(card.map { it?.boxId }.distinctUntilChanged(), allRows) { boxId, all ->
         if (boxId == null) emptyList() else boxOrderOf(boxId, all)
-    }.distinctUntilChanged()
+    }.flowOn(Dispatchers.Default).distinctUntilChanged()
 
     /** The other cards in the same box, in name order, for swiping. */
     val neighbors: StateFlow<Neighbors> = combine(card.map { it?.id }.distinctUntilChanged(), boxOrder) { id, order ->
@@ -348,19 +355,24 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     private val _rulings = MutableStateFlow(Fetched<List<com.mtgscanner.data.ScryfallRuling>>())
     val rulings: StateFlow<Fetched<List<com.mtgscanner.data.ScryfallRuling>>> = _rulings
 
+    /** Every row of this card, any printing, found in one pass over the collection. */
+    private val sameCardRows: StateFlow<List<CollectionCard>> = combine(
+        card.map { c -> c?.let { it.oracleId to it.name } }.distinctUntilChanged(),
+        allRows,
+    ) { key, all ->
+        if (key == null) emptyList<CollectionCard>()
+        else all.filter { if (key.first != null) it.oracleId == key.first else it.name == key.second }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Copies owned of each printing of this card (by Scryfall id), across all boxes. */
-    val ownedPrintings: StateFlow<Map<String, Int>> = combine(card, repo.observeAll()) { c, all ->
-        if (c == null) emptyMap<String, Int>()
-        else all.filter { if (c.oracleId != null) it.oracleId == c.oracleId else it.name == c.name }
-            .groupBy { it.scryfallId }
-            .mapValues { (_, rows) -> rows.sumOf { it.quantity } }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    val ownedPrintings: StateFlow<Map<String, Int>> = sameCardRows
+        .map { rows -> rows.groupBy { it.scryfallId }.mapValues { (_, r) -> r.sumOf { it.quantity } } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** (box id, copies) for every row of this card, any printing: the "where are my copies" line. */
-    val copyRows: StateFlow<List<Pair<Long, Int>>> = combine(card, repo.observeAll()) { c, all ->
-        if (c == null) emptyList<Pair<Long, Int>>()
-        else all.filter { if (c.oracleId != null) it.oracleId == c.oracleId else it.name == c.name }.map { it.boxId to it.quantity }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val copyRows: StateFlow<List<Pair<Long, Int>>> = sameCardRows
+        .map { rows -> rows.map { it.boxId to it.quantity } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun loadPrintings(force: Boolean = false) {
         val c = card.value ?: return
@@ -444,7 +456,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
     var confirmDelete by remember { mutableStateOf(false) }
     var addingTag by remember { mutableStateOf(false) }
     val history by vm.priceHistory.collectAsStateWithLifecycle()
-    val allTags by vm.allTags.collectAsStateWithLifecycle()
     val live by vm.live.collectAsStateWithLifecycle()
     val loaded by vm.loaded.collectAsStateWithLifecycle()
     var moveTarget by remember { mutableStateOf<MoveDest?>(null) }
@@ -849,7 +860,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
         com.mtgscanner.ui.loans.LendDialog(c, onDismiss = { lending = false })
     }
 
-    if (addingTag) TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
+    if (addingTag) {
+        val allTags by vm.allTags.collectAsStateWithLifecycle()
+        TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
+    }
 
     if (confirmDelete) {
         AlertDialog(

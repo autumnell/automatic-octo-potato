@@ -274,7 +274,7 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                val groups = groupPrintings(all, filter)
+                val groups = remember(all, filter) { groupPrintings(all, filter) }
                 if (groups.isEmpty()) {
                     Text("No match", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(vertical = 8.dp))
                 } else {
