@@ -47,7 +47,8 @@ suspend fun CollectionRepository.keptIn(oracleId: String?): List<Pair<Long, Int>
  */
 suspend fun CollectionRepository.rowToRemove(card: ScryfallCard, foil: Boolean): com.mtgscanner.data.db.CollectionCard? {
     val owned = copiesOf(card.oracleId, card.name).filter { it.quantity > 0 }
-    val deckSlots = dao.allBoxes().filter { it.deckId != 0L }.mapTo(HashSet()) { it.id }
+    // allBoxes() leaves decks' rows out; allPlaces() has them.
+    val deckSlots = dao.allPlaces().filter { it.deckId != 0L }.mapTo(HashSet()) { it.id }
     val rows = owned.filter { it.boxId !in deckSlots }.ifEmpty { owned }
     return rows.firstOrNull { it.scryfallId == card.id && it.foil == foil }
         ?: rows.firstOrNull { it.scryfallId == card.id }
