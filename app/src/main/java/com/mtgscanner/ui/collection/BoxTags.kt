@@ -140,11 +140,13 @@ private fun QrCamera(onText: (String) -> Unit) {
             val analysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
+            // One buffer for every frame (the analyzer runs on one thread); a new one only when the frame size changes.
+            var bytes = ByteArray(0)
             analysis.setAnalyzer(executor) { image ->
                 try {
                     val plane = image.planes[0]
                     val buf = plane.buffer
-                    val bytes = ByteArray(buf.remaining())
+                    if (bytes.size != buf.remaining()) bytes = ByteArray(buf.remaining())
                     buf.get(bytes)
                     val text = QrCodes.decode(bytes, plane.rowStride, image.width, image.height)
                     if (text != null) main.execute { if (!disposed) onTextNow(text) }
