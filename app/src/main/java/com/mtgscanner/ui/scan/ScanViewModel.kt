@@ -1470,8 +1470,7 @@ class ScanViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun selectArtModel(m: com.mtgscanner.scan.ArtModel) = repo.artEmbedder.select(m)
 
     /** Set codes of the cards in the collection, most cards first. */
-    suspend fun ownedSets(): List<String> =
-        repo.observeAll().first().groupBy { it.setCode.lowercase() }.entries.sortedByDescending { it.value.size }.map { it.key }
+    suspend fun ownedSets(): List<String> = repo.dao.ownedSetCodes()
 
     // Binder page mode
 

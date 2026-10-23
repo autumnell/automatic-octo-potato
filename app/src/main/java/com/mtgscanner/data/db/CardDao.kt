@@ -101,6 +101,10 @@ interface CardDao {
     @Query("SELECT boxId, COALESCE(SUM(quantity), 0) AS n FROM cards GROUP BY boxId")
     suspend fun boxCounts(): List<BoxCount>
 
+    /** Set codes of the cards held, lowercase, most rows first. */
+    @Query("SELECT LOWER(setCode) FROM cards GROUP BY LOWER(setCode) ORDER BY COUNT(*) DESC")
+    suspend fun ownedSetCodes(): List<String>
+
     /**
      * Copies and value per box, worked out in SQL so the box list doesn't read every card. Value matches
      * [totalPrice]: proxies count 0, else the condition price or the near-mint price for the finish.
