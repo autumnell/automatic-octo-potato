@@ -19,6 +19,7 @@ import com.mtgscanner.data.BackupIO
 import com.mtgscanner.data.PriceMove
 import com.mtgscanner.data.db.nearMintPrice
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.AppSettings
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -89,6 +90,7 @@ object PriceAlerts {
     /** Starts or stops the daily check to match the setting. */
     fun schedule(context: Context) {
         val wm = WorkManager.getInstance(context)
+        if (idle(context) && CardAlertStore.hasAny(context)) wakeIfOwned(context)
         if (!AppSettings.alertsWanted(context) && (!CardAlertStore.hasAny(context) || idle(context))) {
             wm.cancelUniqueWork(WORK)
             return
@@ -97,6 +99,19 @@ object PriceAlerts {
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         wm.enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.KEEP, req)
+    }
+
+    /** Turns the daily check back on once a card with an alert is owned again (say, sold and then added back). */
+    private fun wakeIfOwned(context: Context) {
+        val app = context.applicationContext as? MtgApp ?: return
+        app.repository.appScope.launch {
+            val owned = runCatching { app.repository.dao.all() }.getOrNull() ?: return@launch
+            val keys = owned.mapTo(HashSet()) { CardPriceAlert.key(it.scryfallId, it.foil) }
+            if (CardAlertStore.load(app).any { it.key in keys }) {
+                setIdle(app, false)
+                schedule(app)
+            }
+        }
     }
 
     /** Whether a notification would actually be shown: permission granted and notifications on for the app. */

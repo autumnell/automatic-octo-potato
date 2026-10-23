@@ -70,7 +70,11 @@ object DeckDiffs {
     }
 
     private data class Printing(val set: String?, val number: String?, val foil: Boolean) {
-        val label: String? get() = set?.let { s -> s.uppercase() + (number?.let { " $it" } ?: "") }
+        /** "CMR 263", "CMR 263 foil", "Foil" (foil, no set), or null. Foil shows so a foil-only change doesn't read "CMR 263 → CMR 263". */
+        val label: String? get() {
+            val base = set?.let { s -> s.uppercase() + (number?.let { " $it" } ?: "") }
+            return if (!foil) base else base?.let { "$it foil" } ?: "Foil"
+        }
     }
 
     private fun byPrinting(lines: List<DeckLine>): Map<Printing, Int> {

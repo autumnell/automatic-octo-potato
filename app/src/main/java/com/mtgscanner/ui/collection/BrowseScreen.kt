@@ -123,7 +123,7 @@ import com.mtgscanner.ui.components.ToolChip
 import com.mtgscanner.ui.components.cardPrice
 import com.mtgscanner.ui.components.cardPriceShort
 import com.mtgscanner.ui.components.moneySuffix
-import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -136,6 +136,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import com.mtgscanner.data.Binder
 import com.mtgscanner.ui.detail.CardDetailScreen
 import com.mtgscanner.ui.theme.Corners
@@ -176,10 +177,12 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // Each card's change over the last week, for the 7d column of the list. History is in dollars.
     val showWeek = AppSettings.showPrices && !grid && AppSettings.currency != PriceCurrency.EUR
-    val week by produceState(emptyMap<Long, Double>(), ui.groups, showWeek) {
+    // Every shown card in list order, flattened once per list change rather than on each tap.
+    val shownCards = remember(ui.groups) { ui.groups.flatMap { it.second } }
+    val week by produceState(emptyMap<Long, Double>(), shownCards, showWeek) {
         value = if (!showWeek) emptyMap() else {
             val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
-            val cards = ui.groups.flatMap { it.second }
+            val cards = shownCards
             withContext(Dispatchers.Default) { runCatching { weekChanges(repo, cards) }.getOrDefault(emptyMap()) }
         }
     }
@@ -187,17 +190,18 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
     Row(Modifier.fillMaxSize().background(Palette.Background)) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
-        val pickedValue = remember(selected, ui.groups) {
-            SelectionValue.total(
-                ui.groups.flatMap { it.second }.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) },
-                selected,
-            )
+        val pickedRows = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) } }
+        val pickedEur = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitEur(), it.quantity, it.proxy) } }
+        val currency = AppSettings.currency
+        val pickedValue = remember(selected, pickedRows, pickedEur, currency) {
+            if (selected.isEmpty()) null
+            else formatMoney(SelectionValue.total(pickedRows, selected), SelectionValue.total(pickedEur, selected)).takeIf { it != "--" }
         }
         if (picking) SelectionBar(
             selected.size, ui.boxes, deckChoices, vm, onTag = { tagging = true }, onEdit = { editing = true },
             value = if (AppSettings.showPrices) pickedValue else null,
             onCopy = {
-                val names = ui.groups.flatMap { it.second }.filter { it.id in selected }.map { it.name }.distinct()
+                val names = shownCards.filter { it.id in selected }.map { it.name }.distinct()
                 com.mtgscanner.util.CopyText.copy(ctx, names.joinToString("\n"), if (names.size == 1) "Card name" else "Card names")
             },
         )
@@ -382,7 +386,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
 
 /** Top bar while picking cards: how many, and what to do with them. */
 @Composable
-private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, value: Double?, onCopy: () -> Unit) {
+private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm: BrowseViewModel, onTag: () -> Unit, onEdit: () -> Unit, value: String?, onCopy: () -> Unit) {
     var moveMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
@@ -391,7 +395,7 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm
     ) {
         IconButton(onClick = vm::clearSelection) { Icon(Icons.Outlined.Close, "Stop picking") }
         Text(
-            if (value != null) "$count selected · ${formatUsd(value)}" else "$count selected",
+            if (value != null) "$count selected · $value" else "$count selected",
             style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         IconButton(onClick = vm::selectAll) { Icon(Icons.Outlined.SelectAll, "Select all") }
         Box {
@@ -653,6 +657,8 @@ private fun CardGrid(
     val state = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val headers = remember(groups) { ListSections.headerIndices(groups) }
+    /** Copies per section, counted once per list change instead of in every header. */
+    val counts = remember(groups) { groups.map { g -> g.second.sumOf { it.quantity } } }
     val rail = remember(groups, headers) { ListSections.rail(groups, headers) }
     val jumpBar = remember(groups, rail, byName) { JumpBar.shows(byName, groups.sumOf { it.second.size }, rail) }
     /** The section pinned to the top, or -1 while its own header is in place. */
@@ -675,8 +681,8 @@ private fun CardGrid(
             groups.forEachIndexed { gi, (title, cards) ->
                 if (title.isNotEmpty()) {
                     item(key = "h-$gi-$title", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                        if (tabs) DividerTabHead(title, cards.sumOf { it.quantity }, gi, Modifier.padding(top = 14.dp, bottom = 6.dp))
-                        else SectionHead(title, cards.sumOf { it.quantity }, Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp))
+                        if (tabs) DividerTabHead(title, counts[gi], gi, Modifier.padding(top = 14.dp, bottom = 6.dp))
+                        else SectionHead(title, counts[gi], Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp))
                     }
                 }
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
@@ -698,9 +704,8 @@ private fun CardGrid(
         // The current section stays at the top while its cards scroll under it.
         val p = pinned
         if (p >= 0 && p < groups.size) {
-            val (title, cards) = groups[p]
             SectionHead(
-                title, cards.sumOf { it.quantity },
+                groups[p].first, counts[p],
                 Modifier.fillMaxWidth().background(Palette.Background).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
             )
         }
@@ -832,8 +837,17 @@ private fun Thumb(c: CollectionCard, width: androidx.compose.ui.unit.Dp, onClick
 
 private val SET_COL = 48.dp
 private val USD_COL = 64.dp
+
+/** The price column, wider with a larger system font so prices don't clip. */
+@Composable
+private fun usdCol(): Dp = USD_COL * LocalDensity.current.fontScale.coerceAtLeast(1f)
 private val WEEK_COL = 52.dp
 private val COL_GAP = 8.dp
+
+// Row text styles, made once rather than for every row.
+private val Mono11 = monoStyle(11.sp)
+private val Mono12 = monoStyle(12.sp)
+private val Mono14 = monoStyle(14.sp)
 
 /** Each card's change per copy since a week ago, for the cards that have that much history. */
 private suspend fun weekChanges(repo: CollectionRepository, cards: List<CollectionCard>): Map<Long, Double> {
@@ -870,7 +884,7 @@ private fun ListHeader(end: Dp) {
             if (AppSettings.showPrices) {
                 Text(
                     if (AppSettings.currency == PriceCurrency.EUR) "EUR" else "USD",
-                    style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(USD_COL),
+                    style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(usdCol()),
                 )
                 if (weekColumn()) Text("7d", style = style, color = Palette.Muted, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.width(WEEK_COL))
             }
@@ -905,7 +919,7 @@ private fun PriceRow(
         Row(Modifier.width(SET_COL), verticalAlignment = Alignment.CenterVertically) {
             SetMark(c.setCode, c.rarity)
             Spacer(Modifier.width(4.dp))
-            Text(c.setCode.uppercase(), style = monoStyle(11.sp), color = Palette.Muted, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+            Text(c.setCode.uppercase(), style = Mono11, color = Palette.Muted, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
         }
         if (!dense) Thumb(c, 30.dp, onClick)
         Column(Modifier.weight(1f)) {
@@ -918,7 +932,7 @@ private fun PriceRow(
                 )
                 if (c.quantity > 1) {
                     Spacer(Modifier.width(6.dp))
-                    Text("×${c.quantity}", style = monoStyle(12.sp), color = Palette.Muted, maxLines = 1)
+                    Text("×${c.quantity}", style = Mono12, color = Palette.Muted, maxLines = 1)
                 }
                 if (c.foil) { Spacer(Modifier.width(6.dp)); FoilTag() }
             }
@@ -940,12 +954,12 @@ private fun PriceRow(
         if (AppSettings.showPrices) {
             val price = rowPrice(c)
             Text(
-                price, style = monoStyle(if (price.length > 7) 12.sp else 14.sp), color = Palette.Text,
-                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(USD_COL),
+                price, style = if (price.length > 7) Mono12 else Mono14, color = Palette.Text,
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(usdCol()),
             )
             val change = week?.let { WeekChange.label(it) }.orEmpty()
             if (weekColumn()) Text(
-                change, style = monoStyle(if (change.length > 6) 11.sp else 12.sp), color = Palette.Muted,
+                change, style = if (change.length > 6) Mono11 else Mono12, color = Palette.Muted,
                 textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(WEEK_COL),
             )
         }

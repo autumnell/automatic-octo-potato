@@ -1,0 +1,42 @@
+# Startup profile: Android compiles these ahead of time on install, so the first launch and the
+# first scroll of the main screens skip the interpreter. AGP packages this file into release builds
+# (and rewrites it with R8's mapping); profileinstaller applies it on install.
+
+# App start
+HSPLcom/mtgscanner/MtgApp;->**(**)**
+HSPLcom/mtgscanner/MainActivity;->**(**)**
+HSPLcom/mtgscanner/MainActivity**;->**(**)**
+HSPLcom/mtgscanner/MainActivityKt**;->**(**)**
+HSPLcom/mtgscanner/ui/ViewModelFactory;->**(**)**
+Lcom/mtgscanner/MtgApp;
+Lcom/mtgscanner/MainActivity;
+Lcom/mtgscanner/ui/ViewModelFactory;
+
+# Theme (Palette) and shared components
+HSPLcom/mtgscanner/ui/theme/**;->**(**)**
+HSPLcom/mtgscanner/ui/components/**;->**(**)**
+Lcom/mtgscanner/ui/theme/**;
+Lcom/mtgscanner/ui/components/**;
+
+# Home
+HSPLcom/mtgscanner/ui/home/**;->**(**)**
+Lcom/mtgscanner/ui/home/**;
+
+# Collection and Browse
+HSPLcom/mtgscanner/ui/collection/**;->**(**)**
+Lcom/mtgscanner/ui/collection/**;
+
+# Scan
+HSPLcom/mtgscanner/ui/scan/**;->**(**)**
+Lcom/mtgscanner/ui/scan/**;
+
+# Room database and DAOs (including the generated _Impl classes)
+HSPLcom/mtgscanner/data/db/**;->**(**)**
+Lcom/mtgscanner/data/db/**;
+
+# Repository and sorting
+HSPLcom/mtgscanner/data/CollectionRepository**;->**(**)**
+HSPLcom/mtgscanner/data/Sorting**;->**(**)**
+HSPLcom/mtgscanner/data/SortPrefs**;->**(**)**
+HSPLcom/mtgscanner/data/BoxRules**;->**(**)**
+HSPLcom/mtgscanner/data/BoxPrefs**;->**(**)**

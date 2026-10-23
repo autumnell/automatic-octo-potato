@@ -13,4 +13,8 @@ object WidgetText {
             else -> "Updated ${min / (24 * 60)}d ago"
         }
     }
+
+    /** "Prices updated 3h ago" for Home; empty when prices were never fetched. */
+    fun pricesUpdated(at: Long, now: Long): String =
+        updated(at, now).takeIf { it.isNotEmpty() }?.let { "Prices " + it.replaceFirstChar { c -> c.lowercaseChar() } }.orEmpty()
 }

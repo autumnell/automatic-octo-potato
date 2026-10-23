@@ -270,13 +270,13 @@ fun PackStartDialog(vm: ScanViewModel) {
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Pack") }, placeholder = { Text("e.g. Bloomburrow play booster") })
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
-                    cost, { cost = it.filter { c -> c.isDigit() || c == '.' } }, singleLine = true,
+                    cost, { cost = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }, singleLine = true,
                     label = { Text("Paid (optional)") }, prefix = { Text("$") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { vm.startPack(name.trim(), cost.toDoubleOrNull()) }) { Text("Start") } },
+        confirmButton = { TextButton(onClick = { vm.startPack(name.trim(), com.mtgscanner.ui.sell.Sales.parsePrice(cost)) }) { Text("Start") } },
         dismissButton = { TextButton(onClick = { vm.showPackStart(false) }) { Text("Cancel") } },
     )
 }

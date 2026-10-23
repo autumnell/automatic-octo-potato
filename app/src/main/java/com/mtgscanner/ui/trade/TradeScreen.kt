@@ -45,6 +45,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.mtgscanner.ui.decks.FromPhotoButton
+import com.mtgscanner.ui.decks.appendList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +90,7 @@ import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.ruleBelow
+import com.mtgscanner.ui.components.panelRow
 
 /** A card on one side of a trade. [owned] is set for cards you give away. */
 @kotlinx.serialization.Serializable
@@ -257,8 +260,18 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 }
                 val gives = u.give.mapNotNull { g -> g.owned?.let { o -> o.id to minOf(g.qty, o.quantity) } }
                 val before = repo.snapshot(gives.map { it.first })
-                gives.forEach { (id, n) -> repo.remove(id, n) }
-                val added = adds.map { (c, item, box) -> repo.add(c, item.foil, item.qty, box, item.lang, item.condition) to item.qty }
+                val added = mutableListOf<Pair<Long, Int>>()
+                try {
+                    gives.forEach { (id, n) -> repo.remove(id, n) }
+                    adds.forEach { (c, item, box) -> added += repo.add(c, item.foil, item.qty, box, item.lang, item.condition) to item.qty }
+                } catch (e: Exception) {
+                    // Half a trade is worse than none: put back what already changed.
+                    runCatching {
+                        added.forEach { (id, n) -> repo.remove(id, n) }
+                        repo.restore(before)
+                    }
+                    throw e
+                }
                 val where = leftover?.let { repo.box(it)?.name } ?: "a box"
                 Undo.offer(if (unsorted > 0) "Trade saved. $unsorted fit no box, put in $where" else "Trade saved") {
                     added.forEach { (id, n) -> repo.remove(id, n) }
@@ -332,9 +345,11 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
             }
             LazyColumn(Modifier.weight(1f)) {
                 item { SideHeader("You give", onAdd = { picking = "give" }) }
-                items(ui.give, key = { it.key }) { TradeRow(it, vm) }
+                items(ui.give, key = { it.key }) { TradeRow(it, vm, first = it === ui.give.first(), last = it === ui.give.last()) }
                 item { SideHeader("You get", onAdd = { picking = "get" }) }
-                items(ui.get, key = { it.key }) { g -> TradeRow(g, vm, onEdit = { editing = g.key; showPrintings = false }) }
+                items(ui.get, key = { it.key }) { g ->
+                    TradeRow(g, vm, first = g === ui.get.first(), last = g === ui.get.last(), onEdit = { editing = g.key; showPrintings = false })
+                }
                 if (ui.give.isEmpty() && ui.get.isEmpty()) {
                     item {
                         if (collection.isEmpty()) {
@@ -424,9 +439,10 @@ private fun SideHeader(title: String, onAdd: () -> Unit) {
 }
 
 @Composable
-private fun TradeRow(item: TradeItem, vm: TradeViewModel, onEdit: (() -> Unit)? = null) {
+private fun TradeRow(item: TradeItem, vm: TradeViewModel, first: Boolean, last: Boolean, onEdit: (() -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last)
+            .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(item.imageUrl, Modifier.width(40.dp), zoom = true, onTap = onEdit)
@@ -479,8 +495,10 @@ private fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Col
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Text("Their want list", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Their want list", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                FromPhotoButton({ text = appendList(text, it) })
+            }
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },

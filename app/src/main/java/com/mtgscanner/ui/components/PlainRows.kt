@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -12,6 +13,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
 
@@ -33,4 +35,25 @@ fun Modifier.ruleAbove(): Modifier = drawBehind {
 @Composable
 fun PlainGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface), content = content)
+}
+
+/**
+ * One row of a panel that runs over several rows of a LazyColumn, like [PlainGroup] in pieces: the [Palette.Surface]
+ * fill, rounded on top for the [first] row and at the bottom for the [last], with an inset [Palette.Rule] under every
+ * row but the last. Put the side margin (usually 16dp) before it and the row's own padding after it.
+ */
+fun Modifier.panelRow(first: Boolean, last: Boolean): Modifier {
+    val r = Corners.Small
+    val none: Dp = 0.dp
+    val shape = RoundedCornerShape(
+        topStart = if (first) r else none, topEnd = if (first) r else none,
+        bottomStart = if (last) r else none, bottomEnd = if (last) r else none,
+    )
+    val panel = this.clip(shape).background(Palette.Surface)
+        .padding(top = if (first) 4.dp else none, bottom = if (last) 4.dp else none)
+    return if (last) panel else panel.drawBehind {
+        val h = 1.dp.toPx()
+        val inset = 10.dp.toPx()
+        drawRect(Palette.Rule, Offset(inset, size.height - h), Size(size.width - 2 * inset, h))
+    }
 }

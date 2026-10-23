@@ -38,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +60,7 @@ import com.mtgscanner.ui.components.AutoSizeText
 import com.mtgscanner.ui.components.textInfo
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.onFill
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.components.PlaceholderRows
 import com.mtgscanner.ui.components.ruleBelow
@@ -198,15 +198,13 @@ private fun RulingRow(r: ScryfallRuling) {
     }
 }
 
-private val NotLegalBg = Color(0xFF3A3C42)
-
 @Composable
 private fun LegalityCell(status: String, format: String, modifier: Modifier) {
     val (label, bg, fg) = when (status) {
-        "legal" -> Triple("LEGAL", Palette.Success, Color.White)
-        "banned" -> Triple("BANNED", Palette.Danger, Color.White)
-        "restricted" -> Triple("RESTRICTED", Palette.Gold, Color(0xFF1B1B1B))
-        else -> Triple("NOT LEGAL", NotLegalBg, Color(0xFFB4B5BC))
+        "legal" -> Triple("LEGAL", Palette.Success, onFill(Palette.Success))
+        "banned" -> Triple("BANNED", Palette.Danger, onFill(Palette.Danger))
+        "restricted" -> Triple("RESTRICTED", Palette.Gold, onFill(Palette.Gold))
+        else -> Triple("NOT LEGAL", Palette.SurfaceHigh, Palette.Muted)
     }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(

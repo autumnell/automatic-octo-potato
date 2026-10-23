@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -75,7 +75,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import com.mtgscanner.ui.components.ruleBelow
+import com.mtgscanner.ui.components.panelRow
 
 /** One loan with the row its copies live in (null when the card has left the collection) and that row's box. */
 data class LoanRow(val loan: Loan, val card: CollectionCard?, val boxName: String?)
@@ -133,17 +133,20 @@ fun LoansScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
                     val n = rows.sumOf { it.loan.quantity }
                     SectionHeader("$who · ${if (n == 1) "1 card" else "$n cards"}")
                 }
-                items(rows, key = { it.loan.id }) { r -> LoanItem(r, onOpen = { r.card?.let { onOpenCard(it.id) } }, onReturned = { vm.returned(r.loan) }) }
+                itemsIndexed(rows, key = { _, r -> r.loan.id }) { i, r ->
+                    LoanItem(r, first = i == 0, last = i == rows.lastIndex, onOpen = { r.card?.let { onOpenCard(it.id) } }, onReturned = { vm.returned(r.loan) })
+                }
             }
         }
     }
 }
 
 @Composable
-private fun LoanItem(r: LoanRow, onOpen: () -> Unit, onReturned: () -> Unit) {
+private fun LoanItem(r: LoanRow, first: Boolean, last: Boolean, onOpen: () -> Unit, onReturned: () -> Unit) {
     val c = r.card
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = c != null, onClick = onOpen).padding(start = 20.dp, end = 8.dp).ruleBelow().padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(enabled = c != null, onClick = onOpen)
+            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c?.smallImageUrl, Modifier.width(40.dp), zoom = c != null)
