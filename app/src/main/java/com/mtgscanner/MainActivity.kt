@@ -109,6 +109,13 @@ import com.mtgscanner.ui.trade.TradeScreen
 import com.mtgscanner.ui.settings.SettingsScreen
 import com.mtgscanner.ui.theme.MtgTheme
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.components.ruleAbove
+import com.mtgscanner.ui.theme.Corners
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.font.FontWeight
 
 class MainActivity : ComponentActivity() {
     /** Where a widget tap asked to go ("scan" or "home"); cleared once handled. */
@@ -408,8 +415,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
 }
 
 /**
- * The bottom tabs. Scan sits in the middle as a bigger, raised accent button: it's what the app is
- * for. The other tabs look like a standard navigation bar.
+ * The bottom tabs: a dark bar with a hairline on top. The selected tab is in the text color (no pill);
+ * Scan sits in the middle as a small accent block: it's what the app is for.
  */
 @Composable
 private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
@@ -417,8 +424,9 @@ private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
         Modifier
             .fillMaxWidth()
             .background(Palette.NavBar)
+            .ruleAbove()
             .windowInsetsPadding(NavigationBarDefaults.windowInsets)
-            .defaultMinSize(minHeight = 80.dp)
+            .defaultMinSize(minHeight = 72.dp)
             .selectableGroup(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -434,8 +442,8 @@ private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
                     icon = { Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null) },
                     label = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Palette.Accent,
-                        selectedTextColor = Palette.Accent,
+                        selectedIconColor = Palette.Text,
+                        selectedTextColor = Palette.Text,
                         indicatorColor = Color.Transparent,
                         unselectedIconColor = Palette.Muted,
                         unselectedTextColor = Palette.Muted,
@@ -446,34 +454,24 @@ private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
     }
 }
 
-/** The raised Scan button: a solid accent circle that sits a little above the bar. */
+/** The Scan tab: a 44dp accent block with square-ish corners and a white label, inset 8dp from its neighbours. */
 @Composable
 private fun RowScope.ScanTab(selected: Boolean, onClick: () -> Unit) {
-    Column(
+    Box(
         Modifier
             .weight(1f)
+            .padding(horizontal = 8.dp)
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(Corners.Small))
+            .background(Palette.Accent)
             .semantics { this.selected = selected; role = Role.Tab }
             .clickable(onClickLabel = "Scan", onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .offset(y = (-14).dp)
-                .size(58.dp)
-                .shadow(10.dp, CircleShape, ambientColor = Palette.Accent, spotColor = Palette.Accent)
-                .clip(CircleShape)
-                .background(Palette.Accent)
-                // A ring in the bar's color sets it into the bar.
-                .border(3.dp, Palette.NavBar, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(28.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Scan", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = Palette.OnAccent)
         }
-        Text(
-            "Scan",
-            style = MaterialTheme.typography.labelMedium,
-            color = if (selected) Palette.Accent else Palette.Muted,
-            modifier = Modifier.offset(y = (-10).dp),
-        )
     }
 }
