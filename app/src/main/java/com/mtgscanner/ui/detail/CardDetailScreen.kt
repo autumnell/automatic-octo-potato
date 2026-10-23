@@ -278,6 +278,8 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         if (path.isBlank()) return@launch
         repo.update(c.copy(photo = ""))
         Undo.offer("Photo removed") {
+            // From Recent actions this can run after the file was deleted.
+            if (!java.io.File(path).exists()) { Undo.offer("Photo is gone"); return@offer }
             val now = repo.cardOnce(currentId.value) ?: repo.cardOnce(c.id)
             if (now != null && now.photo.isBlank()) repo.update(now.copy(photo = path))
         }
