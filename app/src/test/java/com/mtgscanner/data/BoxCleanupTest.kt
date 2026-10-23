@@ -26,6 +26,14 @@ class BoxCleanupTest {
         assertEquals(5L, SpreadCopies.find(rows, listOf(5, 7), byPrinting = false).single().target)
     }
 
+    @Test fun spreadLeavesRowsThatDontFitTheTarget() {
+        val rows = listOf(row(1, "Bolt", 1, qty = 2), row(2, "Bolt", 2), row(3, "Bolt", 3))
+        val g = SpreadCopies.find(rows, listOf(1, 2, 3), byPrinting = false, fits = { r, _ -> r.id != 3L }).single()
+        assertEquals(listOf(2L to 1L), g.moves)
+        assertEquals(1, g.toMove)
+        assertTrue(SpreadCopies.find(rows, listOf(1, 2, 3), byPrinting = false, fits = { _, _ -> false }).isEmpty())
+    }
+
     @Test fun spreadSkipsBoxesLeftOutAndSingleBoxCards() {
         val rows = listOf(row(1, "Bolt", 1), row(2, "Bolt", 9), row(3, "Bolt", 1, set = "m10"))
         assertTrue(SpreadCopies.find(rows, listOf(1), byPrinting = false).isEmpty())

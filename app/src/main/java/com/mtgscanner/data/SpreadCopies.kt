@@ -18,16 +18,22 @@ object SpreadCopies {
         val target: Long,
         /** Row id → [target]. */
         val moves: List<Pair<Long, Long>>,
-    ) {
-        val toMove: Int get() = perBox.filter { it.first != target }.sumOf { it.second }
-    }
+        /** Copies in [moves]. */
+        val toMove: Int,
+    )
 
     /**
      * Cards whose copies sit in more than one of [boxOrder] (box ids in Auto-sort order). Rows in other boxes are
      * left out, so the caller skips trade binders, decks and the like by leaving them out of [boxOrder].
-     * [byPrinting]: only copies of the same set and collector number count as the same card.
+     * [byPrinting]: only copies of the same set and collector number count as the same card. A row stays where it
+     * is when it doesn't [fit] the target box's rules (so it wouldn't just show up in "to sort" again).
      */
-    fun find(rows: List<Row>, boxOrder: List<Long>, byPrinting: Boolean): List<Group> {
+    fun find(
+        rows: List<Row>,
+        boxOrder: List<Long>,
+        byPrinting: Boolean,
+        fits: (Row, Long) -> Boolean = { _, _ -> true },
+    ): List<Group> {
         val rank = HashMap<Long, Int>()
         boxOrder.forEachIndexed { i, id -> rank.putIfAbsent(id, i) }
         return rows.filter { it.boxId in rank && it.qty > 0 }
@@ -38,13 +44,16 @@ object SpreadCopies {
                     .sortedWith(compareByDescending<Pair<Long, Int>> { it.second }.thenBy { rank[it.first] ?: Int.MAX_VALUE })
                 if (perBox.size < 2) return@mapNotNull null
                 val target = perBox.first().first
+                val moving = rs.filter { it.boxId != target && fits(it, target) }
+                if (moving.isEmpty()) return@mapNotNull null
                 Group(
                     key = k,
                     name = rs.first().name,
                     setCode = if (byPrinting) rs.first().setCode else null,
                     perBox = perBox,
                     target = target,
-                    moves = rs.filter { it.boxId != target }.map { it.id to target },
+                    moves = moving.map { it.id to target },
+                    toMove = moving.sumOf { it.qty },
                 )
             }
             .sortedWith(compareBy<Group>({ NameKey.of(it.name) }, { it.setCode.orEmpty() }))

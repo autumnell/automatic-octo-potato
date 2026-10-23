@@ -37,6 +37,8 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Share
@@ -207,6 +209,12 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     /** Cards whose name contains [query], each with its box, divider and spot. */
     suspend fun findCards(query: String): List<Found> = withContext(Dispatchers.Default) { repo.findCard(query) }
+
+    /** Copies of a card spread over boxes (see BoxCleanup.kt). */
+    suspend fun spread(byPrinting: Boolean): List<SpreadRow> = runCatching { repo.spreadCopies(byPrinting) }.getOrDefault(emptyList())
+
+    /** Cards under the bulk floor still in a value box, with where they go now. */
+    suspend fun cheapInValue(): List<SortItem> = runCatching { repo.cheapInValueBoxes() }.getOrDefault(emptyList())
 
     /** Every card, by name, for sharing the whole collection. */
     suspend fun allCards(): List<CollectionCard> = repo.allCards().sortedBy { it.name }
@@ -506,7 +514,7 @@ fun CollectionScreen(
                 CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true })
                 CollectionTab.DECKS -> DecksTab(onOpenDeck)
                 CollectionTab.WISHLIST -> WishlistTab(vm)
-                CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE))
+                CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE), onOpenCard = onOpenCard)
             }
             }
         }
@@ -993,19 +1001,28 @@ private fun ToolsTab(
     onSets: () -> Unit, onExtras: () -> Unit,
     onLoans: () -> Unit = {}, onSell: () -> Unit = {},
     showTrade: Boolean = true,
+    onOpenCard: (Long) -> Unit = {},
 ) {
     val trade = if (showTrade) ui.boxes.filter { it.kind == "trade" } else emptyList()
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf<BoxSummary?>(null) }
+    var spreading by remember { mutableStateOf(false) }
+    var cheap by remember { mutableStateOf(false) }
     sharing?.let { b ->
         ShareDialog(b.name, scope, onDismiss = { sharing = null }) { vm.cardsIn(b.id).map { it.shareLine() } }
     }
+    if (spreading) SpreadCopiesSheet(vm, ui.boxes, onDismiss = { spreading = false })
+    if (cheap) CheapInValueSheet(vm, ui.boxes, onOpenCard = { cheap = false; onOpenCard(it) }, onDismiss = { cheap = false })
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             ToolRow(Icons.Outlined.ContentCopy, "Extras finder") { onExtras() }
             ToolRow(Icons.Outlined.GridView, "Set tracker") { onSets() }
             ToolRow(Icons.Outlined.Sell, "Sell") { onSell() }
             ToolRow(Icons.Outlined.Person, "Loans") { onLoans() }
+            if (ui.boxes.size > 1) {
+                ToolRow(Icons.Outlined.Layers, "Spread-out copies") { spreading = true }
+                ToolRow(Icons.Outlined.Flag, "Cheap in value boxes") { cheap = true }
+            }
             if (showTrade) ToolGroup("Trade binders")
             if (showTrade && trade.isEmpty()) {
                 Text(
