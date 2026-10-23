@@ -71,6 +71,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -784,13 +785,16 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
 private fun SwipeRow(onMove: () -> Unit, onSell: () -> Unit, content: @Composable () -> Unit) {
     // One swipe can confirm more than once; act on the first only.
     val last = remember { longArrayOf(0L) }
+    // The swipe state keeps its first callback, so read the row's latest actions (and card) through these.
+    val move by rememberUpdatedState(onMove)
+    val sell by rememberUpdatedState(onSell)
     val state = rememberSwipeToDismissBoxState(confirmValueChange = { v ->
         val now = android.os.SystemClock.uptimeMillis()
         if (v != SwipeToDismissBoxValue.Settled && now - last[0] > 600) {
             last[0] = now
             when (v) {
-                SwipeToDismissBoxValue.StartToEnd -> onMove()
-                SwipeToDismissBoxValue.EndToStart -> onSell()
+                SwipeToDismissBoxValue.StartToEnd -> move()
+                SwipeToDismissBoxValue.EndToStart -> sell()
                 else -> Unit
             }
         }
