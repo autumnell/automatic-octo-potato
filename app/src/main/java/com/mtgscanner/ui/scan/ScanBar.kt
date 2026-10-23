@@ -115,7 +115,7 @@ fun ScanToggleBar(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mo
             DropdownMenu(expanded = langMenu, onDismissRequest = { langMenu = false }) {
                 ScanBarPrefs.LANGS.forEach { (code, label) ->
                     DropdownMenuItem(
-                        text = { Text(label, color = if (code == lang) Palette.Accent else Palette.Text) },
+                        text = { Text(label, color = if (code == lang) Palette.AccentText else Palette.Text) },
                         onClick = { ScanBarPrefs.updateLang(code); langMenu = false },
                     )
                 }
@@ -130,7 +130,7 @@ fun ScanToggleBar(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mo
             DropdownMenu(expanded = condMenu, onDismissRequest = { condMenu = false }) {
                 ScanBarPrefs.CONDITIONS.forEach { code ->
                     DropdownMenuItem(
-                        text = { Text(code, color = if (code == c) Palette.Accent else Palette.Text) },
+                        text = { Text(code, color = if (code == c) Palette.AccentText else Palette.Text) },
                         onClick = { ScanBarPrefs.updateCondition(code); condMenu = false },
                     )
                 }
@@ -145,7 +145,7 @@ fun ScanToggleBar(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mo
             DropdownMenu(expanded = qtyMenu, onDismissRequest = { qtyMenu = false }) {
                 ScanBarPrefs.QUANTITIES.forEach { n ->
                     DropdownMenuItem(
-                        text = { Text("+$n", color = if (n == q) Palette.Accent else Palette.Text) },
+                        text = { Text("+$n", color = if (n == q) Palette.AccentText else Palette.Text) },
                         onClick = { ScanBarPrefs.updateQuantity(n); qtyMenu = false },
                     )
                 }
@@ -212,7 +212,7 @@ fun LastCardBar(
         }
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
-            Text(scryfallPriceShort(e.card, e.foil), color = Palette.Gold, style = MaterialTheme.typography.titleSmall)
+            Text(scryfallPriceShort(e.card, e.foil), color = Color.White, style = MaterialTheme.typography.titleSmall)
         }
         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Open card", tint = Palette.OnDarkMuted)
         if (onSameAgain != null) {
@@ -253,7 +253,7 @@ fun SetPickSheet(vm: ScanViewModel) {
                 item(key = "auto") {
                     SetRowItem(
                         title = "Auto", sub = "Any set", selected = lock == null,
-                        icon = { Icon(Icons.Outlined.LockOpen, null, tint = if (lock == null) Palette.Accent else Palette.Icon, modifier = Modifier.size(22.dp)) },
+                        icon = { Icon(Icons.Outlined.LockOpen, null, tint = if (lock == null) Palette.AccentText else Palette.Icon, modifier = Modifier.size(22.dp)) },
                         onClick = { vm.setLock(null) },
                     )
                 }
@@ -278,7 +278,7 @@ fun SetPickSheet(vm: ScanViewModel) {
 private fun SetRow(s: ScryfallSet, selected: Boolean, onClick: () -> Unit) {
     SetRowItem(
         title = s.name, sub = s.code.uppercase() + (s.releasedAt?.take(4)?.let { " · $it" } ?: ""), selected = selected,
-        icon = { SetIcon(s.code, size = 22.dp, tint = if (selected) Palette.Accent else Palette.Text, url = s.iconSvgUri) },
+        icon = { SetIcon(s.code, size = 22.dp, tint = if (selected) Palette.AccentText else Palette.Text, url = s.iconSvgUri) },
         onClick = onClick,
     )
 }
@@ -294,7 +294,7 @@ private fun SetRowItem(title: String, sub: String, selected: Boolean, icon: @Com
         Column(Modifier.weight(1f)) {
             Text(
                 title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                color = if (selected) Palette.Accent else Palette.Text,
+                color = if (selected) Palette.AccentText else Palette.Text,
             )
             Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }

@@ -193,7 +193,7 @@ private val NamesSaver = listSaver<SnapshotStateList<String>, String>(
 
 @Composable
 private fun Label(text: String) {
-    Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+    Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.Text, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
 }
 
 /** A small selectable chip for the setup rows. */
@@ -204,14 +204,14 @@ private fun Chip(text: String, selected: Boolean, modifier: Modifier = Modifier,
         modifier
             .height(48.dp)
             .clip(shape)
-            .background(if (selected) Palette.Accent.copy(alpha = 0.18f) else Palette.SurfaceHigh)
-            .border(1.dp, if (selected) Palette.Accent else Color.Transparent, shape)
+            .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
+            .border(1.dp, if (selected) Palette.Text else Palette.Outline, shape)
             .selectable(selected = selected, onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text, style = MaterialTheme.typography.labelLarge, color = if (selected) Palette.AccentText else Palette.Text,
+            text, style = MaterialTheme.typography.labelLarge, color = Palette.Text,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

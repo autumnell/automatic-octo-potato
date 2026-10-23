@@ -78,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.theme.AppSettings
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
@@ -89,6 +90,7 @@ import com.mtgscanner.ui.theme.ThemeMode
 import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.PriceStyle
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlainGroup
 
 private val settingsTabs = listOf("Look", "Prices", "Data")
 
@@ -109,12 +111,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text("Settings", style = MaterialTheme.typography.headlineSmall)
             }
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                settingsTabs.forEachIndexed { i, t -> SelectPill(t, tab == i, { tab = i }) }
-            }
+            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = 4.dp, bottom = 6.dp), horizontalPadding = 16.dp)
             // Each branch is its own call site, so each tab keeps its own scroll position.
             when (tab) {
                 0 -> Page { LookTab() }
@@ -166,14 +163,14 @@ private fun LookTab() {
 
     SectionLabel("Accent color")
     val fromCollection = ThemeSettings.accentFromCollection
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
         Column {
             ToggleRow(
                 "From my collection",
                 if (fromCollection) "Now ${colorName(ThemeSettings.collectionColor)}" else "Your most-owned color",
                 fromCollection,
             ) { ThemeSettings.updateAccentFromCollection(it) }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -231,7 +228,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
 
     if (AppSettings.scanLogUnlocked) {
         SectionLabel("Troubleshooting")
-        Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+        PlainGroup(Modifier.padding(horizontal = 4.dp)) {
             Row(
                 Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -246,7 +243,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
     }
 
     SectionLabel("About")
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
         Column {
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -264,7 +261,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
                 TextButton(onClick = onTour) { Text("Show tour") }
             }
             CrashReportRow()
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text(
                 "Data from Scryfall. Unofficial; Magic is © Wizards of the Coast.",
                 style = MaterialTheme.typography.bodySmall,
@@ -288,8 +285,8 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val (bg, fg, icon) = when (mode) {
-        ThemeMode.DARK -> Triple(Color(0xFF16171A), Color(0xFFEDEDEF), Icons.Outlined.DarkMode)
-        ThemeMode.LIGHT -> Triple(Color(0xFFF4F4F7), Color(0xFF17181C), Icons.Outlined.LightMode)
+        ThemeMode.DARK -> Triple(Color(0xFF161513), Color(0xFFECE8E1), Icons.Outlined.DarkMode)
+        ThemeMode.LIGHT -> Triple(Color(0xFFF3F0E8), Color(0xFF1C1B19), Icons.Outlined.LightMode)
         ThemeMode.SYSTEM -> Triple(Palette.SurfaceHigh, Palette.Text, Icons.Outlined.PhoneAndroid)
     }
     Row(
@@ -392,7 +389,7 @@ private fun Preview() {
             Column(Modifier.weight(1f)) {
                 Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.AccentText)
+                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             }
             SelectPill("Selected", true, onClick = {})
         }

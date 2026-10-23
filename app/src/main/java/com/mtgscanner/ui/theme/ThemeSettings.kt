@@ -15,6 +15,7 @@ data class AccentPreset(val name: String, val color: Color)
 /** Appearance choices from the Settings page, saved on the phone and readable from any composable. */
 object ThemeSettings {
     val presets = listOf(
+        AccentPreset("Oxblood", Color(0xFF9E3A33)),
         AccentPreset("Ember", Color(0xFFF28C38)),
         AccentPreset("Flame", Color(0xFFE5533D)),
         AccentPreset("Crimson", Color(0xFFD7263D)),
@@ -34,8 +35,12 @@ object ThemeSettings {
 
     var mode by mutableStateOf(ThemeMode.DARK)
         private set
-    /** Gold is the default accent. */
-    val defaultAccent: Color = presets.first { it.name == "Gold" }.color
+    /** Oxblood red is the default accent. */
+    val defaultAccent: Color = presets.first { it.name == "Oxblood" }.color
+    /** [defaultAccent] as shown in light mode: a little darker. */
+    val defaultAccentLight: Color = Color(0xFF8A2F29)
+    /** The default before the "Small step" look; a saved accent still on it moves to the new default once. */
+    private val oldDefaultAccent: Color = Color(0xFFE6B422)
 
     var accent by mutableStateOf(defaultAccent)
         private set
@@ -64,6 +69,14 @@ object ThemeSettings {
         prefs = p
         mode = runCatching { ThemeMode.valueOf(p.getString("mode", null) ?: "DARK") }.getOrDefault(ThemeMode.DARK)
         accent = Color(p.getInt("accent", defaultAccent.toArgb()))
+        if (!p.getBoolean("smallStepLook", false)) {
+            // One time: the old default gold becomes the new default red.
+            if (accent.toArgb() == oldDefaultAccent.toArgb()) {
+                accent = defaultAccent
+                p.edit().putInt("accent", defaultAccent.toArgb()).apply()
+            }
+            p.edit().putBoolean("smallStepLook", true).apply()
+        }
         if (p.contains("custom")) customAccent = Color(p.getInt("custom", 0))
         trueBlack = p.getBoolean("trueBlack", false)
         accentFromCollection = p.getBoolean("accentFromCollection", false)

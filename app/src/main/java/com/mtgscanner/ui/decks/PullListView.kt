@@ -46,6 +46,7 @@ import kotlinx.serialization.json.Json
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Pull list checkmarks per deck (deck id to [PullItem.key]s), kept in SharedPreferences. */
 object PullChecksStore {
@@ -138,7 +139,7 @@ fun PullListView(
             item(key = "leads") { SectionHeader("Commander") }
             items(first.items, key = { "l" + it.second.key }) { (box, p) -> PullRow(p, p.key in checked, where = box) { onToggle(p.key) } }
             items(first.missing, key = { "lm" + it.name }) { m -> MissingRow(m, note = "Missing") }
-            item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
+            item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Rule) }
         }
         for (g in rest.groups) {
             item(key = "b${g.boxId}") { SectionHeader("${g.boxName} (${g.items.sumOf { it.qty }})") }
@@ -168,7 +169,7 @@ private fun MissingRow(m: PullMissing, note: String? = null) {
 @Composable
 private fun PullRow(p: PullItem, ticked: Boolean, where: String? = null, onToggle: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 8.dp, end = 16.dp, top = 2.dp, bottom = 2.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 8.dp, end = 20.dp).ruleBelow().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(ticked, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))

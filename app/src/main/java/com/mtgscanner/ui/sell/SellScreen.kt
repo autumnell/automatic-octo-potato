@@ -59,6 +59,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.QuantityStepper
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -71,6 +72,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Asking price per copy: your own, or the market price. */
 fun CollectionCard.salePrice(): Double? = askPrice ?: unitPrice()
@@ -160,10 +162,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> U
             }
         }
         if (AppSettings.showPrices) {
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectPill("My sell list", tab == 0, { tab = 0 })
-                SelectPill("Card Kingdom offers", tab == 1, { tab = 1 })
-            }
+            UnderlineTabs(listOf("My sell list", "Card Kingdom offers"), tab, { tab = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
         }
         if (tab == 1) BuylistContent(onOpenCard) else SellListContent(vm, onBrowse)
     }
@@ -183,7 +182,7 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
                 Column(Modifier.padding(14.dp)) {
                     if (list.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${list.sumOf { it.quantity }} cards", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
+                        Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text)
                     }
                     if (earned > 0) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Earned", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -217,7 +216,7 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
 
 @Composable
 private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(c.smallImageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
@@ -231,7 +230,7 @@ private fun SellRow(c: CollectionCard, onClick: () -> Unit) {
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatUsd(c.salePrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+                Text(formatUsd(c.salePrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                 Text(if (c.askPrice != null) "Ask" else "Market", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             }
         }

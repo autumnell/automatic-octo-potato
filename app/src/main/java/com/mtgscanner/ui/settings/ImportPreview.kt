@@ -112,7 +112,7 @@ internal fun ImportPreviewDialog(
                             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.AccentText)
+                        Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.Text)
                         Icon(if (isOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Icon)
                     }
                     if (isOpen) {
@@ -134,7 +134,7 @@ internal fun ImportPreviewDialog(
 
                 val other = plan.otherPrinting
                 if (other.isNotEmpty()) {
-                    HorizontalDivider(color = Palette.Outline, modifier = Modifier.padding(vertical = 6.dp))
+                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = 6.dp))
                     Text("Other printing (${other.sumOf { plan.rows[it].quantity }})", style = MaterialTheme.typography.titleSmall, color = Palette.GoldText)
                     other.forEach { i ->
                         val r = plan.rows[i]
@@ -149,7 +149,7 @@ internal fun ImportPreviewDialog(
                 }
 
                 if (missing.isNotEmpty()) {
-                    HorizontalDivider(color = Palette.Outline, modifier = Modifier.padding(vertical = 6.dp))
+                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = 6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "Not found (${missing.sumOf { plan.rows[it].quantity }})",

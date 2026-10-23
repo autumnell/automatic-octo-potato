@@ -79,6 +79,7 @@ import com.mtgscanner.ui.components.ManaCost
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.ui.components.SetMark
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.formatMoney
 import com.mtgscanner.ui.components.scryfallPriceShort
 import com.mtgscanner.ui.components.formatUsd
@@ -87,6 +88,7 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.components.PlaceholderCards
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 @Composable
 fun SearchScreen(
@@ -143,23 +145,7 @@ fun SearchScreen(
 
 @Composable
 private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Palette.Background)) {
-        listOf("Cards" to Icons.Outlined.Style, "Sets" to Icons.AutoMirrored.Outlined.ViewList).forEachIndexed { i, (label, icon) ->
-            TabItem(label, icon, selected == i, Modifier.weight(1f)) { onSelect(i) }
-        }
-    }
-}
-
-@Composable
-private fun TabItem(label: String, icon: ImageVector, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clickable(onClick = onClick)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (selected) Palette.Text else Palette.Icon, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) Palette.Text else Palette.Muted)
-        }
-        Box(Modifier.fillMaxWidth().height(3.dp).background(if (selected) Palette.Accent else Palette.Outline.copy(alpha = 0.4f)))
-    }
+    UnderlineTabs(listOf("Cards", "Sets"), selected, onSelect, Modifier.background(Palette.Background))
 }
 
 @Composable
@@ -262,7 +248,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.AccentText, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(ui.ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.Text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${ui.results.size}${if (ui.hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
                 IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
             }
@@ -293,7 +279,7 @@ private fun Results(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned>
 @Composable
 private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick).padding(6.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl, Modifier.width(46.dp), zoom = true)
@@ -317,7 +303,7 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatMoney(c.prices.usd?.toDoubleOrNull(), c.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.AccentText)
+                Text(formatMoney(c.prices.usd?.toDoubleOrNull(), c.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.Text)
                 CardKingdom.buyPrice(c.id, foil = c.prices.usd == null && c.prices.usdFoil != null)?.let {
                     Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                 }
@@ -409,7 +395,7 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, In
 @Composable
 private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {
@@ -432,7 +418,7 @@ private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
         Text(
             if (owned > 0) "$owned / ${s.cardCount}" else "${s.cardCount}",
             style = MaterialTheme.typography.labelLarge,
-            color = if (owned > 0) Palette.AccentText else Palette.Muted,
+            color = if (owned > 0) Palette.Text else Palette.Muted,
         )
     }
 }

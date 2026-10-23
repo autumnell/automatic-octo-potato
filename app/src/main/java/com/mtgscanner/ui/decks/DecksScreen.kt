@@ -119,6 +119,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.Mana
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
@@ -143,6 +144,7 @@ import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 /** A saved deck with how much of it you own, plus what its tile shows. */
 data class DeckRow(
@@ -1046,10 +1048,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                     ui.format, ui.commanders, ui.leadArt, ui.issues,
                     onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
                 )
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectPill("Cards", view == 0, { view = 0 })
-                    SelectPill("Pull list", view == 1, { view = 1 })
-                }
+                UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
                 when (view) {
                     1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
@@ -1225,7 +1224,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
         if (leads.isNotEmpty()) {
             item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
             itemsIndexed(leads, key = { i, _ -> "c$i" }) { _, l -> DeckLineRow(l, missingView = l.missing > 0, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
-            item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Outline) }
+            item { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Rule) }
         }
         // Keys by position: the same card can be listed twice (two printings).
         if (missing.isNotEmpty()) {
@@ -1266,7 +1265,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 @Composable
 private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
     // Tap to pick the printing.
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -1312,7 +1311,7 @@ private fun DeckLineRow(l: DeckCheckLine, missingView: Boolean, onClick: () -> U
         if (missingView) {
             // A fixed right-aligned slot so prices line up down the list.
             if (AppSettings.showPrices) Text(
-                formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText,
+                formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp).widthIn(min = 64.dp),
             )
         }

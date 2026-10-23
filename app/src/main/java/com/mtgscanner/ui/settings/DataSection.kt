@@ -88,6 +88,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlainGroup
 
 /** Settings jobs (backup, import, restore…) run one at a time, in the app's scope, so leaving Settings doesn't stop them. */
 object DataJobs {
@@ -460,7 +461,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         }
     }
 
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
         Column {
             busy?.let {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -468,18 +469,18 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                     Spacer(Modifier.width(10.dp))
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }
-                HorizontalDivider(color = Palette.Outline)
+                HorizontalDivider(color = Palette.Rule)
             }
             Action(Icons.Outlined.FileUpload, "Import CSV", "ManaBox, Moxfield, Archidekt, Deckbox…") {
                 csvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
             }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Action(Icons.Outlined.FileDownload, "Export", "CSV or insurance PDF") { choosingExport = true }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Action(Icons.Outlined.Save, "Back up", "Save everything to a file") {
                 backupLauncher.launch("grimoire-backup-${LocalDate.now()}.zip")
             }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             val weekly = DriveBackup.uri != null
             ToggleRow("Weekly backup", if (weekly) "Last backup: ${backupDay(DriveBackup.lastBackup)}" else "To Drive or a folder", weekly) { on ->
                 if (on) weeklyLauncher.launch("grimoire-backup.zip") else DriveBackup.disable(ctx.applicationContext)
@@ -489,23 +490,23 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                     TextButton(onClick = { vm.backupNow(ctx) }) { Text("Back up now") }
                 }
             }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             ToggleRow("Quiet at night", "No sound 10 pm to 8 am", quietNights) { on ->
                 quietNights = on
                 Notifications.setQuietNights(ctx.applicationContext, on)
             }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
             }
             if (canUndoRestore) {
-                HorizontalDivider(color = Palette.Outline)
+                HorizontalDivider(color = Palette.Rule)
                 Action(Icons.AutoMirrored.Outlined.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
             }
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Action(Icons.Outlined.History, "Recent actions", "Undo any of the last 10") { com.mtgscanner.ui.components.Undo.showRecent.value = true }
             if (pending.isNotEmpty()) {
-                HorizontalDivider(color = Palette.Outline)
+                HorizontalDivider(color = Palette.Rule)
                 Action(Icons.Outlined.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }
             }
         }

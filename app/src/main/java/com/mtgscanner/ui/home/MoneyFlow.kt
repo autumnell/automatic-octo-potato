@@ -104,7 +104,7 @@ private fun PaidRow(p: PaidSummary) {
         }
         Column(Modifier.weight(1f)) {
             Text("Worth", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-            Text(formatUsd(p.worth), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
+            Text(formatUsd(p.worth), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(if (p.copies == 1) "1 card" else "${p.copies} cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
@@ -121,6 +121,6 @@ private fun MoneyRow(month: String, spent: String, sold: String, worth: String, 
         Text(month, style = style, color = Palette.Muted, modifier = Modifier.width(44.dp))
         Text(spent, style = style, color = muted, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))
         Text(sold, style = style, color = if (header) Palette.Muted else Palette.Success, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))
-        Text(worth, style = style, color = if (header) Palette.Muted else Palette.AccentText, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1.2f))
+        Text(worth, style = style, color = if (header) Palette.Muted else Palette.Text, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1.2f))
     }
 }

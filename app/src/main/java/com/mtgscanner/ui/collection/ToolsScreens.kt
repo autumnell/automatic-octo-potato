@@ -111,6 +111,7 @@ import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderCards
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 /** How much of a set you own: different collector numbers, out of the main set (or every printing, with variants). */
 data class SetProgress(
@@ -544,7 +545,7 @@ private fun SetHeader(
                 Text(
                     "You own $have of $total",
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (have >= total) Palette.Success else Palette.AccentText,
+                    color = if (have >= total) Palette.Success else Palette.Text,
                     modifier = Modifier.weight(1f),
                 )
                 if (missingCost != null && AppSettings.showPrices) {
@@ -591,7 +592,7 @@ private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
 @Composable
 private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).clickable(onClick = onClick).padding(6.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), zoom = true)
@@ -612,7 +613,7 @@ private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
         }
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
-            Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+            Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
         }
     }
 }
@@ -657,7 +658,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
                         Text(g.name, style = MaterialTheme.typography.titleSmall)
                         Text("You have ${g.owned} · keep ${g.keep} · ${g.extra} extra", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(g.extraValue), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Accent)
+                    if (AppSettings.showPrices) Text(formatUsd(g.extraValue), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                 }
             }
         }

@@ -565,7 +565,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                             )
                         }
                         c.releasedAt?.let { InfoChip { Text(it.take(4), style = MaterialTheme.typography.labelMedium) } }
-                        if (AppSettings.showPrices) InfoChip { Text(cardPrice(c), style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
+                        if (AppSettings.showPrices) InfoChip { Text(cardPrice(c), style = MaterialTheme.typography.labelMedium, color = Palette.Text) }
                         InfoChip {
                             Text(
                                 listOf("Added ${shortDate(c.addedAt)}", c.acquiredFrom).filter { it.isNotBlank() }.joinToString(" · "),
@@ -632,7 +632,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                                             Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(start = 12.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText)
+                                            Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.Text)
                                             IconButton(onClick = { vm.removeTag(t) }) {
                                                 Icon(Icons.Outlined.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Icon)
                                             }
@@ -654,7 +654,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         Row(verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
                                 Text("Price each", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                                Text(cardPrice(c), style = MaterialTheme.typography.headlineMedium, color = Palette.AccentText)
+                                Text(cardPrice(c), style = MaterialTheme.typography.headlineMedium, color = Palette.Text)
                                 if (c.conditionPrice != null && c.condition != "NM" && c.nearMintPrice() != null) {
                                     Text("${c.condition} · near mint ${formatUsd(c.nearMintPrice())}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 }
@@ -933,11 +933,11 @@ private fun MorePicker(
                 onClick = { open = false; onLend() },
             )
             DropdownMenuItem(
-                text = { Text(if (c.purchasePrice == null) "Paid…" else "Paid: ${formatUsd(c.purchasePrice)}", color = if (c.purchasePrice != null) Palette.AccentText else Palette.Text) },
+                text = { Text(if (c.purchasePrice == null) "Paid…" else "Paid: ${formatUsd(c.purchasePrice)}", color = Palette.Text) },
                 onClick = { open = false; onPaid() },
             )
             DropdownMenuItem(
-                text = { Text(if (c.acquiredFrom.isBlank()) "From…" else "From: ${c.acquiredFrom}", color = if (c.acquiredFrom.isNotBlank()) Palette.AccentText else Palette.Text) },
+                text = { Text(if (c.acquiredFrom.isBlank()) "From…" else "From: ${c.acquiredFrom}", color = Palette.Text) },
                 onClick = { open = false; onFrom() },
             )
             if (onCamera != null) DropdownMenuItem(
@@ -1059,7 +1059,7 @@ private fun EventRow(e: CardEvent) {
     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             e.kind.replaceFirstChar(Char::uppercase),
-            style = MaterialTheme.typography.labelMedium, color = Palette.AccentText,
+            style = MaterialTheme.typography.labelMedium, color = Palette.Text,
             modifier = Modifier.width(64.dp),
         )
         Text(e.detail, style = MaterialTheme.typography.bodySmall, maxLines = 1, modifier = Modifier.weight(1f))
@@ -1144,7 +1144,7 @@ private fun DropChip(label: String, onClick: () -> Unit, leading: (@Composable (
 
 @Composable
 private fun Badge(text: String) {
-    InfoChip { Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText) }
+    InfoChip { Text(text, style = MaterialTheme.typography.labelMedium, color = Palette.Text) }
 }
 
 @Composable
@@ -1194,7 +1194,7 @@ private fun SpecialPicker(
                 onClick = { open = false; onAltered(!c.altered) },
             )
             DropdownMenuItem(
-                text = { Text(if (c.graded.isBlank()) "Graded…" else "Graded: ${c.graded}", color = if (c.graded.isNotBlank()) Palette.AccentText else Palette.Text) },
+                text = { Text(if (c.graded.isBlank()) "Graded…" else "Graded: ${c.graded}", color = Palette.Text) },
                 onClick = { open = false; onGraded() },
             )
             DropdownMenuItem(
@@ -1208,7 +1208,7 @@ private fun SpecialPicker(
                 onClick = { open = false; onForSale(!c.forSale) },
             )
             DropdownMenuItem(
-                text = { Text(if (c.askPrice == null) "Ask price…" else "Ask: ${formatUsd(c.askPrice)}", color = if (c.askPrice != null) Palette.AccentText else Palette.Text) },
+                text = { Text(if (c.askPrice == null) "Ask price…" else "Ask: ${formatUsd(c.askPrice)}", color = Palette.Text) },
                 onClick = { open = false; onAsk() },
             )
         }
@@ -1283,7 +1283,7 @@ private fun BoxPicker(boxes: List<CardBox>, decks: List<Deck>, places: List<Card
                 )
             }
             if (decks.isNotEmpty()) {
-                HorizontalDivider(color = Palette.Outline)
+                HorizontalDivider(color = Palette.Rule)
                 Text(
                     "Decks", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
                     modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),

@@ -34,6 +34,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.PriceAlerts
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.PlainGroup
 
 /** Show or hide prices everywhere, and daily price alerts. */
 @Composable
@@ -59,9 +60,9 @@ fun PricesSection() {
             com.mtgscanner.widget.CollectionWidget.refresh(ctx)
         }
         if (AppSettings.showPrices) {
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             CurrencyRow()
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             ToggleRow(
                 "Price alerts",
                 "Daily, for big moves",
@@ -139,9 +140,8 @@ private fun openNotificationSettings(ctx: android.content.Context) {
 
 @Composable
 internal fun Card(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column { content() }
-    }
+    // Plain rows on the background, closed by a rule; rows keep their own 16dp inset.
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) { content() }
 }
 
 @Composable

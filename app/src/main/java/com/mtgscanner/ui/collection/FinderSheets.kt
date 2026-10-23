@@ -18,12 +18,13 @@ import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.FoilTag
 import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.components.ruleBelow
 
 /** A card found by the Boxes search: picture, name, set, and exactly where it is. */
 @Composable
 internal fun FoundRow(c: CollectionCard, where: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(40.dp))
@@ -39,7 +40,7 @@ internal fun FoundRow(c: CollectionCard, where: String, onClick: () -> Unit) {
                 Spacer(Modifier.width(6.dp))
                 Text(c.setCode, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             }
-            Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.AccentText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

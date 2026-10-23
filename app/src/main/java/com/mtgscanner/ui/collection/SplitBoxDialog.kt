@@ -82,7 +82,7 @@ private fun HalfRow(range: String, copies: Int) {
     Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(range, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            Text(if (copies == 1) "1 card" else "$copies cards", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
+            Text(if (copies == 1) "1 card" else "$copies cards", style = MaterialTheme.typography.labelLarge, color = Palette.Text)
         }
     }
 }

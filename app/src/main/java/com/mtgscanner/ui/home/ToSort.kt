@@ -140,7 +140,7 @@ internal fun ToSortSection(
                     Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Palette.Icon, modifier = Modifier.size(14.dp).padding(horizontal = 2.dp))
                     Text(
                         listOfNotNull(ui.boxNames[item.to], item.spot).joinToString(" · "),
-                        style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1,
+                        style = MaterialTheme.typography.labelMedium, color = Palette.Text, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.8f).padding(start = 4.dp),
                     )
                 }
@@ -150,7 +150,7 @@ internal fun ToSortSection(
             }
             GradientButton("Sort", onSort, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
         }
-        if (ui.items.isNotEmpty() && ui.unknown.isNotEmpty()) HorizontalDivider(color = Palette.Outline)
+        if (ui.items.isNotEmpty() && ui.unknown.isNotEmpty()) HorizontalDivider(color = Palette.Rule)
         if (ui.unknown.isNotEmpty()) {
             Text(
                 if (ui.unknown.size == 1) "1 unknown scan" else "${ui.unknown.size} unknown scans",

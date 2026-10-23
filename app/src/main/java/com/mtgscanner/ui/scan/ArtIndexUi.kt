@@ -47,6 +47,7 @@ import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.ruleBelow
 
 /**
  * Art match settings in the scanner's settings sheet: which sets have an art index, the download under way,
@@ -64,7 +65,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
     val names = remember(sets) { sets.associate { it.code to it.name } }
 
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Text("Art match", style = MaterialTheme.typography.labelLarge, color = Palette.Accent, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+        Text("Art match", style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
         Text("Finds cards by their art when no text reads.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
 
         ArtModelPicker(vm)
@@ -111,7 +112,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
         val lock = SortPrefs.setLock
         have.forEach { s ->
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                SetIcon(s.set, size = 18.dp, tint = if (s.set == lock) Palette.Accent else Palette.Text)
+                SetIcon(s.set, size = 18.dp, tint = if (s.set == lock) Palette.AccentText else Palette.Text)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(names[s.set] ?: s.set.uppercase(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -247,7 +248,7 @@ private fun ArtSetPicker(vm: ScanViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun PickRow(code: String, title: String, sub: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SetIcon(code, size = 20.dp, tint = Palette.Text)

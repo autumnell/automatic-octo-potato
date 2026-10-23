@@ -258,7 +258,7 @@ private fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> 
             BOX_TEMPLATES.forEach { t ->
                 Surface(onClick = { onTemplate(t) }, shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh) {
                     Column(Modifier.width(150.dp).padding(12.dp)) {
-                        Text(t.name, style = MaterialTheme.typography.titleSmall, color = Palette.AccentText, maxLines = 1)
+                        Text(t.name, style = MaterialTheme.typography.titleSmall, color = Palette.Text, maxLines = 1)
                         Text(t.blurb, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
                     }
                 }
@@ -569,7 +569,7 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
             Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleSmall)
-                    Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.AccentText else Palette.Muted, maxLines = 1)
+                    Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.Text else Palette.Muted, maxLines = 1)
                 }
                 Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Icon)
             }
@@ -599,7 +599,7 @@ private fun LivePreview(rules: BoxRules, editingId: Long?) {
     Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Background, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             Text("Preview", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-            Text(rules.describe(), style = MaterialTheme.typography.bodyMedium, color = Palette.AccentText)
+            Text(rules.describe(), style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
             Spacer(Modifier.height(6.dp))
             Text(
                 when {

@@ -54,6 +54,8 @@ import com.mtgscanner.ui.components.boxColor
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.components.ruleBelow
+import androidx.compose.ui.graphics.Color
 
 /**
  * Every sorting rule in one place: the order Auto-sort checks boxes in, the fallback box, keep a
@@ -93,8 +95,8 @@ fun AutoSortOrderSheet(
             order.forEachIndexed { i, id ->
                 val b = byId[id] ?: return@forEachIndexed
                 val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
-                Surface(Modifier.fillMaxWidth().padding(vertical = 3.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh) {
-                    Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(Modifier.fillMaxWidth().ruleBelow(), color = Color.Transparent) {
+                    Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("${i + 1}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.width(22.dp))
                         Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(10.dp))
@@ -112,7 +114,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("When nothing fits", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text(
                 "Box for cards that fit nothing.",
@@ -129,7 +131,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Keep a playset", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text("Extras go to another box.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Spacer(Modifier.height(8.dp))
@@ -144,7 +146,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Bulk floor", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text("Cheaper cards go to bulk.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Spacer(Modifier.height(8.dp))
@@ -164,7 +166,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Price buffer", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Text(
                 "Re-sort leaves cards near a price line where they are.",
@@ -179,7 +181,7 @@ fun AutoSortOrderSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text("Box check reminder", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Spacer(Modifier.height(8.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

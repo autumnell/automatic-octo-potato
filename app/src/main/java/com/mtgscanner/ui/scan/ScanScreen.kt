@@ -133,6 +133,7 @@ import java.util.concurrent.Executors
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.CardShape
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.ruleBelow
 
 @Composable
 fun ScanScreen(
@@ -481,7 +482,7 @@ private fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
                 if (count > 99) "99+" else "$count",
                 color = Color.Black,
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(50)).background(Palette.Gold)
+                modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold)
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             )
         }
@@ -573,7 +574,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                         leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null) },
                         onClick = { vm.setBox(CardBox.AUTO_SORT); boxMenu = false },
                     )
-                    HorizontalDivider(color = Palette.Outline)
+                    HorizontalDivider(color = Palette.Rule)
                     boxes.forEach { b ->
                         DropdownMenuItem(
                             text = {
@@ -586,7 +587,7 @@ private fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMod
                             onClick = { vm.setBox(b.id); boxMenu = false },
                         )
                     }
-                    HorizontalDivider(color = Palette.Outline)
+                    HorizontalDivider(color = Palette.Rule)
                     DropdownMenuItem(
                         text = { Text("New box…") },
                         leadingIcon = { Icon(Icons.Outlined.Add, null, tint = Palette.Icon) },
@@ -611,7 +612,7 @@ private fun RoundIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tint: Color = Color.White, modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onClick),
+        modifier.size(44.dp).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
 }
@@ -734,7 +735,7 @@ private fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
-                        if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge.merge(TabularNums), color = Palette.Accent)
+                        if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge.merge(TabularNums), color = Palette.Text)
                         state.owned?.let { n ->
                             if (AppSettings.showPrices) Spacer(Modifier.width(10.dp))
                             Text(
@@ -824,13 +825,13 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
         Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Scan settings", style = MaterialTheme.typography.titleLarge)
             ScanSettingsEditor()
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             ArtIndexSection(vm)
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             SettingRow("Volume buttons scan", "Up adds, down skips.", VolumeKeys.enabled, VolumeKeys::update)
-            HorizontalDivider(color = Palette.Outline)
+            HorizontalDivider(color = Palette.Rule)
             Text(
                 "Show hints",
                 style = MaterialTheme.typography.titleSmall,
@@ -839,7 +840,7 @@ private fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
                     .padding(vertical = 14.dp),
             )
             if (state.pendingCount > 0) {
-                HorizontalDivider(color = Palette.Outline)
+                HorizontalDivider(color = Palette.Rule)
                 Text(
                     "${state.pendingCount} cards saved while offline. They're added automatically when you're back online.",
                     style = MaterialTheme.typography.bodySmall,
@@ -871,7 +872,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
         Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
-                Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Gold)
+                Text("${state.sessionCount} cards${priceSuffix(state.sessionValue)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
             }
             if (state.sessionCount >= 2) {
                 val n = minOf(5, state.sessionCount)
@@ -900,7 +901,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                 Text(
                     "$boxName · ${entries.sumOf { it.count }} cards",
                     style = MaterialTheme.typography.titleSmall,
-                    color = Palette.Accent,
+                    color = Palette.Text,
                     modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
                 )
             }
@@ -909,7 +910,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                     Modifier
                         .fillMaxWidth()
                         .clickable(enabled = e.deckId == 0L) { vm.showList(false); onOpenCard(e.rowId) }
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CardImage(e.card.smallImageUrl, Modifier.width(44.dp))
@@ -932,7 +933,7 @@ private fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Lo
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Accent)
+                    if (AppSettings.showPrices) Text(formatUsd(e.value), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                     IconButton(onClick = { vm.remove(e) }) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection", tint = Palette.Danger) }
                 }
             }

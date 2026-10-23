@@ -67,6 +67,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Everything a pull list is worked out from. */
 data class BuylistInput(val cards: List<CollectionCard>, val boxes: List<Box>, val loans: List<Loan>)
@@ -154,7 +155,7 @@ internal fun ColumnScope.BuylistContent(onOpenCard: (Long) -> Unit) {
 @Composable
 private fun PullRow(p: BuyPull, box: String?, on: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
     val c = p.card
-    Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 4.dp, end = 20.dp).ruleBelow().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Checkbox(on, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
         CardImage(c.smallImageUrl, Modifier.width(36.dp), zoom = true)
         Spacer(Modifier.width(10.dp))
@@ -168,7 +169,7 @@ private fun PullRow(p: BuyPull, box: String?, on: Boolean, onToggle: () -> Unit,
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End) {
-            Text(formatUsd(p.total), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+            Text(formatUsd(p.total), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
             if (p.copies > 1) Text("${formatUsd(p.each)} each", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }
     }

@@ -78,7 +78,7 @@ fun ScanLogScreen(onBack: () -> Unit) {
             return@Column
         }
         LazyColumn(Modifier.fillMaxSize()) {
-            items(list.orEmpty()) { e -> LogRow(e); HorizontalDivider(color = Palette.Outline) }
+            items(list.orEmpty()) { e -> LogRow(e); HorizontalDivider(color = Palette.Rule) }
             item { Spacer(Modifier.navigationBarsPadding().padding(8.dp)) }
         }
     }

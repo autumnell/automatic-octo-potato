@@ -55,6 +55,7 @@ import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.OwnedBadge
 import com.mtgscanner.ui.components.RarityDot
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.AutoSizeText
 import com.mtgscanner.ui.components.textInfo
@@ -62,6 +63,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.components.PlaceholderRows
+import com.mtgscanner.ui.components.ruleBelow
 
 /** Something fetched on demand: [key] says what it was fetched for. */
 data class Fetched<T>(
@@ -128,19 +130,18 @@ private fun rulingDate(day: String): String = runCatching {
 @Composable
 fun CardInfoTabs(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewModel) {
     var tab by rememberSaveable { mutableStateOf("rules") }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SelectPill("Rules", tab == "rules", onClick = { tab = "rules" })
-        SelectPill("Versions", tab == "versions", onClick = { tab = "versions" })
-    }
+    UnderlineTabs(
+        listOf("Rules", "Versions"), if (tab == "rules") 0 else 1,
+        { tab = if (it == 0) "rules" else "versions" }, horizontalPadding = 0.dp,
+    )
     Spacer(Modifier.height(10.dp))
     if (tab == "rules") RulesTab(c, live, vm) else VersionsTab(c, vm)
 }
 
 @Composable
 private fun TabPanel(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(14.dp)) { content() }
-    }
+    // Plain on the background, under the underline tabs.
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) { content() }
 }
 
 @Composable
@@ -189,7 +190,7 @@ private fun RulingRow(r: ScryfallRuling) {
     Column {
         Text(
             rulingDate(r.publishedAt) + if (r.source == "wotc") " · WotC" else "",
-            style = MaterialTheme.typography.labelSmall, color = Palette.AccentText,
+            style = MaterialTheme.typography.labelSmall, color = Palette.Muted,
         )
         Spacer(Modifier.height(2.dp))
         Text(r.comment, style = MaterialTheme.typography.bodySmall)
@@ -306,7 +307,7 @@ private fun SetHeader(code: String, name: String, icon: String?) {
         AsyncImage(
             model = icon ?: "https://svgs.scryfall.io/sets/${code.lowercase()}.svg",
             contentDescription = null,
-            colorFilter = ColorFilter.tint(Palette.AccentText),
+            colorFilter = ColorFilter.tint(Palette.Text),
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(8.dp))
@@ -324,13 +325,10 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
         Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(Corners.Small))
-                .then(
-                    if (current) Modifier.background(Palette.Accent.copy(alpha = 0.12f)).border(1.dp, Palette.Accent.copy(alpha = 0.6f), RoundedCornerShape(Corners.Small))
-                    else Modifier,
-                )
+                .then(if (current) Modifier.background(Palette.SurfaceHigh) else Modifier)
                 .clickable { menu = true }
-                .padding(horizontal = 6.dp, vertical = 5.dp),
+                .ruleBelow()
+                .padding(horizontal = 6.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CardImage(p.smallImageUrl, Modifier.width(34.dp), zoom = true)
@@ -342,7 +340,7 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
                     Text("#${p.collectorNumber}", style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                     if (current) {
                         Spacer(Modifier.width(6.dp))
-                        Text("This", style = MaterialTheme.typography.labelSmall, color = Palette.AccentText)
+                        Text("This", style = MaterialTheme.typography.labelSmall, color = Palette.Text)
                     }
                 }
                 val extra = listOfNotNull(p.lang.takeIf { !it.equals("en", true) }?.uppercase(), p.releasedAt?.take(4)) +
@@ -384,7 +382,7 @@ private fun PriceCell(price: String?, foil: Boolean = false) {
     AutoSizeText(
         if (price == null) "--" else formatUsd(price),
         style = MaterialTheme.typography.labelMedium,
-        color = if (price == null) Palette.Muted else if (foil) Palette.GoldText else Palette.AccentText,
+        color = if (price == null) Palette.Muted else if (foil) Palette.GoldText else Palette.Text,
         textAlign = TextAlign.End,
         modifier = Modifier.width(56.dp),
     )
