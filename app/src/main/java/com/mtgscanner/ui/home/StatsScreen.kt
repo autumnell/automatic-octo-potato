@@ -53,13 +53,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.mtgscanner.MtgApp
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.ui.collection.BrowseLaunch
@@ -102,12 +99,6 @@ class StatsViewModel(repo: CollectionRepository) : ViewModel() {
     }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BoxValues(emptyList(), emptyMap()))
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { StatsViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
-        }
-    }
 }
 
 /** Collection value by set, color, rarity and box, money paid and sold, the most valuable cards and bulk. */
@@ -117,7 +108,7 @@ fun StatsScreen(
     onOpenCard: (Long) -> Unit,
     /** Opens Browse of the whole collection; set [BrowseLaunch] first. */
     onBrowseAll: () -> Unit,
-    vm: StatsViewModel = viewModel(factory = StatsViewModel.Factory),
+    vm: StatsViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ctx = LocalContext.current
     remember { HomePrefs.load(ctx) }

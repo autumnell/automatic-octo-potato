@@ -44,13 +44,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.mtgscanner.MtgApp
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.data.CardKingdom
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.CollectionCard
@@ -110,12 +107,6 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
             repo.cardOnce(c.id)?.let { repo.update(it.copy(forSale = true)) }
         }
     }
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { SellViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
-        }
-    }
 }
 
 /** Plain text of the sell list, for the share sheet. */
@@ -142,7 +133,7 @@ fun sellText(cards: List<CollectionCard>): String = buildString {
  */
 @Composable
 fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> Unit = {}, startTab: Int = 0) {
-    val vm: SellViewModel = viewModel(factory = SellViewModel.Factory)
+    val vm: SellViewModel = viewModel(factory = AppViewModels.Factory)
     val cards by vm.cards.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     var tab by rememberSaveable { mutableIntStateOf(if (AppSettings.showPrices) startTab else 0) }

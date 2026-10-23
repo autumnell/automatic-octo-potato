@@ -40,13 +40,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mtgscanner.MtgApp
+import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.LoanMath
 import com.mtgscanner.data.cancelLoan
@@ -95,12 +93,6 @@ class LoansViewModel(private val repo: CollectionRepository) : ViewModel() {
         repo.returned(loan)
         Undo.offer("${loan.name} back from ${loan.who}") { repo.putLoanBack(loan) }
     }
-
-    companion object {
-        val Factory = viewModelFactory {
-            initializer { LoansViewModel((this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as MtgApp).repository) }
-        }
-    }
 }
 
 private val sinceFormat = DateTimeFormatter.ofPattern("MMM d", Locale.US)
@@ -113,7 +105,7 @@ internal fun sinceText(millis: Long): String = runCatching {
 /** Who has what, since when, with Returned on each. */
 @Composable
 fun LoansScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
-    val vm: LoansViewModel = viewModel(factory = LoansViewModel.Factory)
+    val vm: LoansViewModel = viewModel(factory = AppViewModels.Factory)
     val people by vm.people.collectAsStateWithLifecycle()
     Haptics.Attach()
 
