@@ -1001,7 +1001,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
                     Column(horizontalAlignment = Alignment.End) {
                         if (showValue) Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = text)
                         val pct = stats?.changePercent
-                        if (showChange && stats != null && pct != null) {
+                        if (showChange && stats != null && pct != null && boxChangeShown()) {
                             Text(
                                 boxChangeLabel(stats.change, pct),
                                 style = MaterialTheme.typography.labelMedium.merge(TabularNums),
