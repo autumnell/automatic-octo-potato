@@ -70,11 +70,18 @@ class ScryfallApi(
     /** All printings of a card, newest first. */
     suspend fun printings(card: ScryfallCard): List<ScryfallCard> = printingsOf(card.oracleId, card.name)
 
-    /** All printings of the card with this oracle id (or exact [name] when there's none), newest first. Every page. */
-    suspend fun printingsOf(oracleId: String?, name: String): List<ScryfallCard> {
+    /**
+     * All printings of the card with this oracle id (or exact [name] when there's none), newest first. Every page.
+     * [narrow] adds search terms ("year>=1997 year<=1999", "cn:241") so only the likely printings come back.
+     */
+    suspend fun printingsOf(oracleId: String?, name: String, narrow: String = ""): List<ScryfallCard> {
         val q = oracleId?.let { "oracleid:$it" } ?: exactNameQuery(name)
-        return searchAll("$q include:extras", unique = "prints", maxPages = 12, order = "released")
+        return searchAll("$q $narrow include:extras".replace("  ", " "), unique = "prints", maxPages = 12, order = "released")
     }
+
+    /** Every card in a set, tokens and extras included, in set order. */
+    suspend fun setCards(code: String): List<ScryfallCard> =
+        searchAll("e:${code.lowercase()} include:extras", unique = "prints", maxPages = 12, order = "set")
 
     /** Official rulings for a card, oldest first. Empty when there are none. */
     suspend fun rulings(id: String): List<ScryfallRuling> {

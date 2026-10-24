@@ -57,9 +57,12 @@ internal object CardParts {
     }
 
     /** Draws card parts with OpenCV's warpPerspective when [cv] is there, else with [CardWarp] (a Canvas). */
-    fun drawer(src: Bitmap, cv: CvCards.Frame?): Draw {
-        if (cv == null) return { q, p, w, h -> CardWarp.render(src, q, p, w, h) }
-        return { q, p, w, h -> cvSafe { cv.render(q, p, w, h) } ?: CardWarp.render(src, q, p, w, h) }
+    fun drawer(src: Bitmap, cv: CvCards.Frame?): Draw = drawer({ src }, cv)
+
+    /** As above, with the frame's Bitmap made only if OpenCV fails to draw a part. */
+    fun drawer(src: () -> Bitmap, cv: CvCards.Frame?): Draw {
+        if (cv == null) return { q, p, w, h -> CardWarp.render(src(), q, p, w, h) }
+        return { q, p, w, h -> cvSafe { cv.render(q, p, w, h) } ?: CardWarp.render(src(), q, p, w, h) }
     }
 
     /** OCR lines of a strip drawn from [part] of the card, placed on a card [cardH] pixels tall. */

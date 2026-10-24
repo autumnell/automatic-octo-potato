@@ -41,6 +41,34 @@ object CvCards {
     /** OpenCV failed in a way that will happen again (a missing native method): stop using it. */
     fun disable() { state = -1 }
 
+    /**
+     * Converts a camera frame straight into [reuse] (RGBA), with no Bitmap in between: the Y plane and the
+     * interleaved chroma are read in place, as OpenCV's own camera view does. False when the frame isn't laid out
+     * that way (the caller then makes a Bitmap as before). Call before the frame is closed.
+     */
+    fun yuvInto(image: androidx.camera.core.ImageProxy, reuse: Mat): Boolean {
+        if (image.format != android.graphics.ImageFormat.YUV_420_888) return false
+        val planes = image.planes
+        if (planes.size < 3 || planes[0].pixelStride != 1 || planes[1].pixelStride != 2 || planes[2].pixelStride != 2) return false
+        val w = image.width
+        val h = image.height
+        if (w % 2 != 0 || h % 2 != 0) return false
+        val made = ArrayList<Mat>(3)
+        try {
+            val y = Mat(h, w, CvType.CV_8UC1, planes[0].buffer, planes[0].rowStride.toLong()).also { made += it }
+            val uv1 = Mat(h / 2, w / 2, CvType.CV_8UC2, planes[1].buffer, planes[1].rowStride.toLong()).also { made += it }
+            val uv2 = Mat(h / 2, w / 2, CvType.CV_8UC2, planes[2].buffer, planes[2].rowStride.toLong()).also { made += it }
+            when (uv2.dataAddr() - uv1.dataAddr()) {
+                1L -> Imgproc.cvtColorTwoPlane(y, uv1, reuse, Imgproc.COLOR_YUV2RGBA_NV12)
+                -1L -> Imgproc.cvtColorTwoPlane(y, uv2, reuse, Imgproc.COLOR_YUV2RGBA_NV21)
+                else -> return false
+            }
+            return true
+        } finally {
+            made.forEach { runCatching { it.release() } }
+        }
+    }
+
     /** Longest side of the picture the outline is searched in; corners are then refined at full size. */
     private const val FIND_PX = 480.0
 
@@ -48,10 +76,17 @@ object CvCards {
      * One camera frame copied into OpenCV, for finding the card and drawing parts of it. [reuse] is a Mat kept
      * between frames so a new 8 MB buffer isn't made each time; it's filled, not released, here.
      */
-    class Frame(src: Bitmap, private val reuse: Mat) {
+    class Frame(src: Bitmap?, private val reuse: Mat) {
         init {
-            Utils.bitmapToMat(src, reuse)
+            // Null: [reuse] already holds the frame (see [yuvInto]).
+            if (src != null) Utils.bitmapToMat(src, reuse)
         }
+
+        val width: Int get() = reuse.cols()
+        val height: Int get() = reuse.rows()
+
+        /** The frame as a new Bitmap, for the few reads that need one. */
+        fun toBitmap(): Bitmap = Bitmap.createBitmap(reuse.cols(), reuse.rows(), Bitmap.Config.ARGB_8888).also { Utils.matToBitmap(reuse, it) }
 
         private val mats = ArrayList<Mat>()
         private fun <T : Mat> keep(m: T): T = m.also { mats += it }
