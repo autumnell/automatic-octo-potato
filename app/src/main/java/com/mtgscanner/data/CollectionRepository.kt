@@ -86,6 +86,8 @@ class CollectionRepository(
     val setCodes = com.mtgscanner.scan.SetCodes(context.filesDir, api)
     /** Cards the scanner identified before, kept on the phone. */
     internal val identifyStore = IdentifyStore(context.filesDir)
+    /** Printings and whole sets, kept on the phone (see Identify.kt). */
+    internal val cardLists = CardListCache(context.filesDir)
     /** The on-device art model, downloaded the first time art needs comparing. */
     val artEmbedder = com.mtgscanner.scan.ArtEmbedder(context.applicationContext)
     /** Printings already in a downloaded art index are compared from there, without fetching their pictures. */
@@ -480,6 +482,12 @@ class CollectionRepository(
     /** Reads that found nothing, and when: the same garbage read isn't looked up again for [MISS_TTL_MS]. */
     internal val missCache = HashMap<String, Long>()
     internal val printingsCache = LruCache<String, List<ScryfallCard>>(300)
+    /** Whole sets' cards by set code (lower case), loaded ahead of scanning (see Identify.kt). */
+    internal val setCards = LruCache<String, List<ScryfallCard>>(8)
+    /** Sets being loaded now, so each is fetched once. */
+    internal val setsLoading = HashSet<String>()
+    /** Set codes of the last few cards identified, newest last: a run from one set loads that set. */
+    internal val recentSets = ArrayDeque<String>()
     /** Lookups under way by key, so a lookup started early (see prefetch) is joined, not repeated. */
     internal val inFlight = HashMap<String, kotlinx.coroutines.Deferred<Identification?>>()
 

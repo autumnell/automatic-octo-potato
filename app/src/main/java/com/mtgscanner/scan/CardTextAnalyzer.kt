@@ -218,8 +218,10 @@ class CardTextAnalyzer(
         busy.set(true)
         lastRun = now
         movedSinceRead = false
-        // Only frames that passed the card check are turned into a picture; the camera hands over YUV.
-        val bitmap: Bitmap = try {
+        // Only frames that passed the card check are turned into a picture; the camera hands over YUV. With OpenCV,
+        // the frame goes straight into it and a Bitmap is made only if a read needs one.
+        val direct: CvCards.Frame? = if (page) null else directFrame(image)
+        val given: Bitmap? = if (direct != null) null else try {
             frameToBitmap(image)
         } catch (t: Throwable) {
             busy.set(false)
@@ -227,25 +229,30 @@ class CardTextAnalyzer(
             return
         }
         image.close()
-        val reused = bitmap === frameBitmap
+        val reused = given != null && given === frameBitmap
 
         scope.launch {
             var crop: Bitmap? = null
             var small: Bitmap? = null
-            var cv: CvCards.Frame? = null
+            var cv: CvCards.Frame? = direct
+            var made: Bitmap? = null
+            // The whole frame as a Bitmap: the one handed over, or made from OpenCV's copy when first needed.
+            fun picture(): Bitmap = given ?: made ?: cv!!.toBitmap().also { made = it }
+            val frameW = given?.width ?: direct!!.width
+            val frameH = given?.height ?: direct!!.height
             try {
-                if (page) onPage(readPage(bitmap, rotation))
+                if (page) onPage(readPage(picture(), rotation))
                 else {
-                    val guide = guideArea(bitmap.width, bitmap.height, rotation)
+                    val guide = guideArea(frameW, frameH, rotation)
                     var a = area ?: ReadArea(guide, isCard = false)
                     // OpenCV finds the card's corners more exactly, and even where the card check saw no clear outline.
-                    cv = cvFrame(bitmap)
+                    if (cv == null && given != null) cv = cvFrame(given)
                     val found = cv?.let { f -> CardParts.cvSafe { f.findQuad(guide) } }
                     if (found != null) {
                         val bounds = CvCards.boundsOf(found)
-                        a = ReadArea(FrameGeometry.grow(bounds, 0.15, bitmap.width, bitmap.height), isCard = true, outline = bounds, quad = found)
+                        a = ReadArea(FrameGeometry.grow(bounds, 0.15, frameW, frameH), isCard = true, outline = bounds, quad = found)
                     }
-                    val draw = CardParts.drawer(bitmap, cv)
+                    val draw = CardParts.drawer({ picture() }, cv)
                     val quad = a.quad
                     val cjk = CjkNames.scriptFor(scanLang())
                     // A found card: read just its name bar and footer, straightened and sharp.
@@ -264,6 +271,7 @@ class CardTextAnalyzer(
                         // No complete footer from the strips: read the whole card too, as before (its rules
                         // text also tells the language), and take the best of both.
                         val b = a.box
+                        val bitmap = picture()
                         val c = if (b.width >= 32 && b.height >= 32 && (b.width < bitmap.width || b.height < bitmap.height)) {
                             Bitmap.createBitmap(bitmap, b.left, b.top, b.width, b.height)
                         } else bitmap
@@ -289,7 +297,8 @@ class CardTextAnalyzer(
                 cv?.let { runCatching { it.release() } }
                 small?.recycle()
                 crop?.recycle()
-                if (!reused) bitmap.recycle()
+                made?.recycle()
+                if (given != null && !reused) given.recycle()
                 busy.set(false)
             }
         }
@@ -308,6 +317,15 @@ class CardTextAnalyzer(
             return bmp
         }
         return image.toBitmap()
+    }
+
+    /** The camera frame converted straight into OpenCV, or null when OpenCV isn't loaded or the layout is unusual. */
+    private fun directFrame(image: ImageProxy): CvCards.Frame? {
+        if (!CvCards.ready) return null
+        return CardParts.cvSafe {
+            val m = cvMat ?: Mat().also { cvMat = it }
+            if (CvCards.yuvInto(image, m)) CvCards.Frame(null, m) else null
+        }
     }
 
     /** The frame copied into OpenCV, or null when OpenCV isn't loaded or fails. */

@@ -39,6 +39,8 @@ suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCa
     // card wins (Special Guests and The List carry their own).
     val lock = SortPrefs.setLock?.takeIf { read.setCode == null }
     val guess = lock?.let { read.copy(setCode = it) } ?: read
+    // Sorting one set: have its whole card list on the phone, so each card is found without asking Scryfall.
+    SortPrefs.setLock?.let { preloadSet(it) }
     // [skip]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing.
     val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skip != null) "|s" else "")
     // Seen this session, or on this phone in the last few days (prices that old are fine for a scan).
@@ -56,9 +58,46 @@ suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCa
         identifyStore.get(key, Long.MAX_VALUE) ?: throw e
     }
     base ?: return null
+    noteSet(base.card.set)
     if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess)?.let { return it }
     return base
 }
+
+/** A run of [SET_RUN] cards from one set loads that set's list (see [preloadSet]). */
+private fun CollectionRepository.noteSet(set: String) {
+    val code = set.lowercase()
+    val run = synchronized(recentSets) {
+        recentSets.addLast(code)
+        while (recentSets.size > SET_RUN) recentSets.removeFirst()
+        recentSets.size == SET_RUN && recentSets.all { it == code }
+    }
+    if (run) preloadSet(code)
+}
+
+private const val SET_RUN = 3
+
+/**
+ * Loads a whole set's cards in the background (a few requests), from the phone when saved in the last few days.
+ * While loaded, cards from that set are found without asking Scryfall, even offline.
+ */
+fun CollectionRepository.preloadSet(set: String) {
+    val code = set.lowercase()
+    if (setCards.get(code) != null) return
+    if (!synchronized(setsLoading) { setsLoading.add(code) }) return
+    appScope.launch {
+        try {
+            val saved = cardLists.get("set:$code")
+            val list = saved ?: runCatching { api.setCards(code) }.getOrNull()?.also { if (it.isNotEmpty()) cardLists.put("set:$code", it) }
+                ?: cardLists.get("set:$code", Long.MAX_VALUE)
+            if (!list.isNullOrEmpty()) setCards.put(code, list)
+        } finally {
+            synchronized(setsLoading) { setsLoading.remove(code) }
+        }
+    }
+}
+
+/** The loaded list of [set]'s cards, or null when it isn't loaded. */
+private fun CollectionRepository.loadedSet(set: String?): List<ScryfallCard>? = set?.let { setCards.get(it.lowercase()) }
 
 /**
  * Starts looking up a first good read in the background, so the lookup made once a second frame agrees finds the
@@ -103,9 +142,15 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
     val hash = guess.artHash
     val embedding = guess.artEmbedding
     if (year == null && symbol == null && hash == null && embedding == null) return null
-    val all = runCatching { printingsCached(base.card) }.getOrNull() ?: return null
     // With the set code read (or the set lock standing in for it), only that set's printings are candidates.
     val set = guess.setCode
+    // From the loaded set when there is one; else from Scryfall, only around the year read when one was, so a
+    // card with hundreds of printings (basic lands) is one short search.
+    val inLoaded = loadedSet(set)?.filter { c -> c.oracleId != null && c.oracleId == base.card.oracleId }?.takeIf { it.isNotEmpty() }
+    val all = inLoaded ?: runCatching {
+        val near = year?.takeIf { set == null }?.let { y -> printingsCached(base.card, "year>=${y - 1} year<=${y + 1}") }
+        near?.takeIf { it.isNotEmpty() } ?: printingsCached(base.card)
+    }.getOrNull() ?: return null
     var pool = set?.let { s -> all.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { all } } ?: all
     if (pool.size < 2) return null
     pool = PrintingPick.newestFirst(pool) { it.releasedAt }
@@ -153,11 +198,22 @@ private suspend fun CollectionRepository.narrowSameNumber(same: List<ScryfallCar
     return pool.first() to (pool.size == 1)
 }
 
-private suspend fun CollectionRepository.printingsCached(card: ScryfallCard): List<ScryfallCard> {
-    val k = card.oracleId ?: card.name
+/**
+ * A card's printings ([narrow]ed by extra search terms), from memory, then the phone (a few days old at most),
+ * then Scryfall. Offline, an older saved list stands in.
+ */
+private suspend fun CollectionRepository.printingsCached(card: ScryfallCard, narrow: String = ""): List<ScryfallCard> {
+    val k = "prints:" + (card.oracleId ?: card.name) + (if (narrow.isBlank()) "" else "|$narrow")
     printingsCache.get(k)?.let { return it }
-    val list = api.printings(card)
+    cardLists.get(k)?.let { printingsCache.put(k, it); return it }
+    val list = try {
+        api.printingsOf(card.oracleId, card.name, narrow)
+    } catch (e: IOException) {
+        if (e is ScryfallException) throw e
+        cardLists.get(k, Long.MAX_VALUE) ?: throw e
+    }
     printingsCache.put(k, list)
+    cardLists.put(k, list)
     return list
 }
 
@@ -180,6 +236,22 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
     fun bestSimilarity(card: ScryfallCard): Double {
         val cardNames = listOf(card.name) + card.name.split(" // ")
         return names.maxOfOrNull { n -> cardNames.maxOf { CardTextParser.similarity(n, it) } } ?: 0.0
+    }
+
+    // The set is loaded (set lock, or a run of cards from it): look there first, no download needed.
+    loadedSet(guess.setCode)?.let { local ->
+        val number = guess.collectorNumber
+        if (number != null) {
+            local.firstOrNull { it.collectorNumber.equals(number, ignoreCase = true) }?.let { c ->
+                if (names.isEmpty() || bestSimilarity(c) >= 0.6) return Identification(c, confident = true, exact = true)
+            }
+        }
+        if (names.isNotEmpty()) {
+            val best = local.maxByOrNull { bestSimilarity(it) }
+            if (best != null && bestSimilarity(best) >= 0.85 && skip?.invoke(best) != true) {
+                return Identification(best, confident = true, exact = number != null && best.collectorNumber.equals(number, ignoreCase = true))
+            }
+        }
     }
 
     if (guess.setCode != null && guess.collectorNumber != null) {
@@ -220,7 +292,8 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
         // print "241/350"), several sets can have that number: narrow them, and it's exact only if one is left.
         val number = guess.collectorNumber
         if (inSet == null && number != null) {
-            val same = runCatching { printingsCached(card) }.getOrNull().orEmpty()
+            // Only the printings with that number: one short search instead of every printing.
+            val same = runCatching { printingsCached(card, "cn:${number.lowercase()}") }.getOrNull().orEmpty()
                 .filter { it.collectorNumber.equals(number, ignoreCase = true) }
             if (same.isNotEmpty()) {
                 val (pick, sure) = narrowSameNumber(same, guess)
