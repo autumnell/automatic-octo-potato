@@ -140,9 +140,13 @@ internal fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
     var camera by remember { mutableStateOf<Camera?>(null) }
+    val scanSettings by com.mtgscanner.scan.ScanPrefs.settings.collectAsStateWithLifecycle()
+    val sharper = scanSettings.sharperFrames
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, sharper) {
         val executor = Executors.newSingleThreadExecutor()
+        // Set once bound: the analyzer asks the camera to focus on the card it finds.
+        val bound = java.util.concurrent.atomic.AtomicReference<Pair<Camera, ImageAnalysis>?>(null)
         val analyzer = CardTextAnalyzer(
             onGuess = vm::onGuess,
             isPaused = { vm.isPaused },
@@ -152,6 +156,16 @@ internal fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             wantsArt = vm::wantsArt,
             embed = vm::embedArt,
             scanLang = { com.mtgscanner.data.ScanBarPrefs.lang },
+            holding = vm::holdingCard,
+            onFocus = focus@{ x, y, w, h ->
+                val (cam, use) = bound.get() ?: return@focus
+                // Points in the analysis frame's own pixels; the factory maps them to the sensor.
+                val point = androidx.camera.core.SurfaceOrientedMeteringPointFactory(w.toFloat(), h.toFloat(), use).createPoint(x, y)
+                val action = androidx.camera.core.FocusMeteringAction.Builder(
+                    point, androidx.camera.core.FocusMeteringAction.FLAG_AF or androidx.camera.core.FocusMeteringAction.FLAG_AE,
+                ).setAutoCancelDuration(4, java.util.concurrent.TimeUnit.SECONDS).build()
+                runCatching { cam.cameraControl.startFocusAndMetering(action) }
+            },
         )
         val providerFuture = ProcessCameraProvider.getInstance(ctx)
         // The camera can take a moment to start; if the screen closed meanwhile, don't bind it.
@@ -166,7 +180,11 @@ internal fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
                         .setResolutionStrategy(
                             // 1080p: the footer's small print is drawn from these pixels. Whole-card reads are
                             // scaled down to about the size they had at 720p, so they stay quick.
-                            ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
+                            // "Sharper frames" asks for 1440p: about a third more pixels across the card.
+                            ResolutionStrategy(
+                                if (sharper) Size(2560, 1440) else Size(1920, 1080),
+                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                            ),
                         )
                         .build(),
                 )
@@ -180,13 +198,24 @@ internal fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             camera = runCatching {
                 provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
             }.getOrNull()
+            camera?.let { bound.set(it to analysis) }
         }, ContextCompat.getMainExecutor(ctx))
 
         onDispose {
             disposed = true
+            bound.set(null)
             if (providerFuture.isDone) runCatching { providerFuture.get().unbindAll() }
             analyzer.close()
             executor.shutdown()
+        }
+    }
+
+    // The starting zoom from Scan settings; pinching still changes it.
+    LaunchedEffect(camera, scanSettings.zoom) {
+        camera?.let { cam ->
+            val z = cam.cameraInfo.zoomState.value
+            val ratio = if (z == null) scanSettings.zoom else scanSettings.zoom.coerceIn(z.minZoomRatio, z.maxZoomRatio)
+            runCatching { cam.cameraControl.setZoomRatio(ratio) }
         }
     }
 

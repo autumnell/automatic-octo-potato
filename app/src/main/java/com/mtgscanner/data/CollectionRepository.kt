@@ -82,6 +82,10 @@ class CollectionRepository(
     private val prefs = context.getSharedPreferences("collection", Context.MODE_PRIVATE)
     internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val nameIndex = NameIndex(context.filesDir, api)
+    /** Real set codes, to correct a misread footer. */
+    val setCodes = com.mtgscanner.scan.SetCodes(context.filesDir, api)
+    /** Cards the scanner identified before, kept on the phone. */
+    internal val identifyStore = IdentifyStore(context.filesDir)
     /** The on-device art model, downloaded the first time art needs comparing. */
     val artEmbedder = com.mtgscanner.scan.ArtEmbedder(context.applicationContext)
     /** Printings already in a downloaded art index are compared from there, without fetching their pictures. */
@@ -121,6 +125,7 @@ class CollectionRepository(
      */
     fun startBackgroundWork() {
         appScope.launch { runCatching { nameIndex.load() } }
+        appScope.launch { runCatching { setCodes.load() } }
         appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.allPhotos()) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }
@@ -475,6 +480,8 @@ class CollectionRepository(
     /** Reads that found nothing, and when: the same garbage read isn't looked up again for [MISS_TTL_MS]. */
     internal val missCache = HashMap<String, Long>()
     internal val printingsCache = LruCache<String, List<ScryfallCard>>(300)
+    /** Lookups under way by key, so a lookup started early (see prefetch) is joined, not repeated. */
+    internal val inFlight = HashMap<String, kotlinx.coroutines.Deferred<Identification?>>()
 
     // Adding and editing
 

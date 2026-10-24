@@ -42,7 +42,7 @@ internal typealias Draw = (FloatArray, FloatArray, Int, Int) -> Bitmap?
 class CardTextAnalyzer(
     private val onGuess: (CardTextGuess) -> Unit,
     private val isPaused: () -> Boolean = { false },
-    private val minIntervalMs: Long = 250,
+    private val minIntervalMs: Long = 150,
     /** Binder page mode: when this returns true, the next frame is read as a 3x3 page. */
     private val wantsPage: () -> Boolean = { false },
     private val onPage: (List<CardTextGuess>) -> Unit = {},
@@ -54,6 +54,13 @@ class CardTextAnalyzer(
     private val embed: (Bitmap) -> ArtVector? = { null },
     /** The language picked in the scan bar (a Scryfall code); a CJK one has its reader go first. */
     private val scanLang: () -> String? = { null },
+    /**
+     * A card was found in the guide: focus and meter there. The point (x, y) is in the frame's own pixels, which
+     * are [w] by [h]. Called once per card, and again when its frames keep coming out blurry.
+     */
+    private val onFocus: (x: Float, y: Float, w: Int, h: Int) -> Unit = { _, _, _, _ -> },
+    /** The card in view is already handled: read it less often until something moves (saves battery and heat). */
+    private val holding: () -> Boolean = { false },
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -100,6 +107,16 @@ class CardTextAnalyzer(
     /** When the wait for a steady binder page started; 0 when not waiting. */
     private var pageWaitSince = 0L
 
+    /** When the camera was last asked to focus on the card in view; 0 when it should be (a new card, or blur). */
+    @Volatile private var focusedAt = 0L
+    /** Something moved (or the guide emptied) since the last read: a new card may be there. */
+    @Volatile private var movedSinceRead = true
+    /** Blurry frames in a row of the card in view: two ask the camera to focus again. */
+    private var blurRun = 0
+
+    /** Blurry frames of the card in view are skipped rather than misread. Analysis coroutine only. */
+    private val sharp = StripQuality.Tracker()
+
     /** The last whole-card read, by the name read on the name bar: a card held still is read whole only once. */
     @Volatile private var lastWhole: Pair<String, CardTextGuess>? = null
 
@@ -118,6 +135,8 @@ class CardTextAnalyzer(
         /** The clockwise turn of the frame that stood the card upright, when the strips could be read. */
         val turn: Int?,
         val glare: Boolean,
+        /** Clearly blurrier than recent frames of this card: not read. */
+        val blurry: Boolean = false,
     )
 
     /** The last art embeddings worked out, by the art hash they came with: a card held still isn't embedded again. */
@@ -164,6 +183,18 @@ class CardTextAnalyzer(
             }
             lastGate = now
             val result = runCatching { checkCard(image, rotation) }.getOrNull()
+            if (result?.first?.state == GateState.EMPTY) {
+                focusedAt = 0L
+                sharp.reset()
+            }
+            if (result == null || !result.first.runOcr) movedSinceRead = true
+            // A card in the guide: have the camera focus on it, rather than wherever its own focus settles.
+            result?.second?.outline?.let { o ->
+                if (focusedAt == 0L) {
+                    focusedAt = now
+                    runCatching { onFocus((o.left + o.right) / 2f, (o.top + o.bottom) / 2f, image.width, image.height) }
+                }
+            }
             if (result != null && !result.first.runOcr) {
                 if (result.first.state == GateState.EMPTY && now - lastRun >= minIntervalMs) {
                     // Nothing in the guide: tell the scanner, so it knows the card has left.
@@ -178,12 +209,15 @@ class CardTextAnalyzer(
             }
             area = result?.second
         }
-        if (now - lastRun < minIntervalMs) {
+        // A handled card held still is read now and then, to notice when it changes; anything moving is read at once.
+        val interval = if (!page && !movedSinceRead && holding()) HOLD_INTERVAL_MS else minIntervalMs
+        if (now - lastRun < interval) {
             image.close()
             return
         }
         busy.set(true)
         lastRun = now
+        movedSinceRead = false
         // Only frames that passed the card check are turned into a picture; the camera hands over YUV.
         val bitmap: Bitmap = try {
             frameToBitmap(image)
@@ -216,6 +250,8 @@ class CardTextAnalyzer(
                     val cjk = CjkNames.scriptFor(scanLang())
                     // A found card: read just its name bar and footer, straightened and sharp.
                     val strips = if (quad != null) runCatching { readStrips(quad, rotation, draw, cjk) }.getOrNull() else null
+                    // Out of focus: reading it would only give a misread. The next frame will do.
+                    if (strips?.blurry == true) return@launch
                     val stripGuess = strips?.guess
                     val stripName = stripGuess?.nameKey
                     val seenWhole = lastWhole?.takeIf { stripName != null && it.first == stripName }?.second
@@ -352,23 +388,38 @@ class CardTextAnalyzer(
             val q = CardQuad.ordered(quad, turn)
             val name = CardParts.name(q, cardH, draw) ?: continue
             val footer = CardParts.footer(q, cardH, draw)
+            var nameRead: Bitmap? = null
+            var footerRead: Bitmap? = null
             try {
                 if (i == 0) {
                     glare = glareIn(name, CardWarp.NAME, CardWarp.NAME_GLARE) ||
                         (footer != null && glareIn(footer, CardWarp.FOOTER, CardWarp.FOOTER_GLARE))
+                    // The footer's small print shows blur first; without one, the name bar.
+                    val s = runCatching { CardParts.sharpness(footer ?: name) }.getOrNull()
+                    val blurry = s != null && sharp.blurry(s)
+                    if (blurry) { blurRun++; if (blurRun >= 2) { blurRun = 0; focusedAt = 0L } } else blurRun = 0
+                    if (blurry) return StripRead(CardTextGuess(emptyList(), null, null, 0), null, glare, blurry = true)
                 }
-                val nameLines = stripLines(name, CardWarp.NAME, cardH, if (cjk != null) reader(cjk) else recognizer)
-                val footerLines = if (footer != null) stripLines(footer, CardWarp.FOOTER, cardH) else emptyList()
+                // Low-contrast strips (foils, dark frames, dim light) are read with their contrast stretched.
+                nameRead = runCatching { CardParts.stretched(name) }.getOrNull()
+                footerRead = footer?.let { f -> runCatching { CardParts.stretched(f) }.getOrNull() }
+                // Both strips in one read when the same reader reads both; a CJK name bar has its own reader.
+                val (nameLines, footerLines) = if (footer != null && cjk == null) {
+                    CardParts.stackedLines(nameRead ?: name, footerRead ?: footer, cardH, recognizer)
+                } else {
+                    stripLines(nameRead ?: name, CardWarp.NAME, cardH, if (cjk != null) reader(cjk) else recognizer) to
+                        (if (footer != null) stripLines(footerRead ?: footer, CardWarp.FOOTER, cardH) else emptyList())
+                }
                 if (nameLines.isEmpty() && footerLines.isEmpty()) continue
                 // Names only from the name bar: the footer's artist line is not a card name.
                 val names = CardTextParser.parse(nameLines).nameCandidates
                 var g = CardTextParser.parse(nameLines + footerLines, footerAnywhere = true).copy(nameCandidates = names)
                 if (year == null) year = g.year
-                val footerRead = g.setCode != null && g.collectorNumber != null
-                val nameRead = names.firstOrNull()?.let { CardTextParser.readableScore(it) >= 4 } == true
-                val printed = if (cjk != null && !nameRead) CjkNames.names(nameLines).firstOrNull() else null
+                val footerOk = g.setCode != null && g.collectorNumber != null
+                val nameOk = names.firstOrNull()?.let { CardTextParser.readableScore(it) >= 4 } == true
+                val printed = if (cjk != null && !nameOk) CjkNames.names(nameLines).firstOrNull() else null
                 if (printed != null) g = withPrinted(g, printed, cjk!!, footerLines)
-                if (footerRead || nameRead || printed != null) {
+                if (footerOk || nameOk || printed != null) {
                     preferredTurn = norm(turn - rotation)
                     return StripRead(g, turn, glare)
                 }
@@ -376,6 +427,8 @@ class CardTextAnalyzer(
             } finally {
                 name.recycle()
                 footer?.recycle()
+                nameRead?.recycle()
+                footerRead?.recycle()
             }
         }
         // No name in Latin letters either way up: maybe it's printed in Japanese, Chinese or Korean.
@@ -575,7 +628,9 @@ class CardTextAnalyzer(
 
     private companion object {
         /** How often the card check runs. Two steady checks in a row start a read. */
-        const val GATE_INTERVAL_MS = 100L
+        const val GATE_INTERVAL_MS = 66L
+        /** How often a handled card held still is read again. */
+        const val HOLD_INTERVAL_MS = 700L
         /** "Capture page" reads no sooner than this after the tap, and waits at most this long for a steady frame. */
         const val PAGE_MIN_WAIT_MS = 300L
         const val PAGE_MAX_WAIT_MS = 2_500L

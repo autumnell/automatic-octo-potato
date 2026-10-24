@@ -3,6 +3,8 @@ package com.mtgscanner.data
 import com.mtgscanner.scan.CardTextGuess
 import com.mtgscanner.scan.CardTextParser
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
@@ -31,27 +33,63 @@ data class OfflineRead(
  * the printing when the footer couldn't be read. Throws [IOException] when offline.
  */
 suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
+    // A misread set code ("0TJ") is corrected to a real one first, so the exact footer lookup still works.
+    val read = raw.setCode?.let { s -> raw.copy(setCode = setCodes.fix(s, raw.collectorNumber)) } ?: raw
     // With the set lock on, a read with no set code is looked up in that set first. A set code printed on the
     // card wins (Special Guests and The List carry their own).
-    val lock = SortPrefs.setLock?.takeIf { raw.setCode == null }
-    val guess = lock?.let { raw.copy(setCode = it) } ?: raw
+    val lock = SortPrefs.setLock?.takeIf { read.setCode == null }
+    val guess = lock?.let { read.copy(setCode = it) } ?: read
     // [skip]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing.
     val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skip != null) "|s" else "")
+    // Seen this session, or on this phone in the last few days (prices that old are fine for a scan).
     val cached: Identification? = lookupCache.get(key)
+        ?: identifyStore.get(key, IdentifyStore.FRESH_MS)?.also { lookupCache.put(key, it) }
     if (cached == null) {
         val missedAt = synchronized(missCache) { missCache[key] }
         if (missedAt != null && System.currentTimeMillis() - missedAt < CollectionRepository.MISS_TTL_MS) return null
     }
-    val base = cached ?: doIdentify(guess, skip).also { r ->
-        if (r != null) lookupCache.put(key, r)
-        else synchronized(missCache) {
-            if (missCache.size > 500) missCache.clear()
-            missCache[key] = System.currentTimeMillis()
-        }
+    val base = cached ?: try {
+        sharedLookup(key) { doIdentify(guess, skip) }
+    } catch (e: IOException) {
+        // Offline: an older saved match is better than none.
+        if (e is ScryfallException) throw e
+        identifyStore.get(key, Long.MAX_VALUE) ?: throw e
     }
     base ?: return null
     if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess)?.let { return it }
     return base
+}
+
+/**
+ * Starts looking up a first good read in the background, so the lookup made once a second frame agrees finds the
+ * answer ready (or joins the one under way). Errors are left for that lookup to see.
+ */
+fun CollectionRepository.prefetch(raw: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null) {
+    appScope.launch { runCatching { identify(raw, skip) } }
+}
+
+/**
+ * Runs [block] for [key] once: a second caller while it runs waits for the same answer. The answer is cached
+ * (sure matches on the phone too) before anyone gets it.
+ */
+private suspend fun CollectionRepository.sharedLookup(key: String, block: suspend () -> Identification?): Identification? {
+    val job = synchronized(inFlight) {
+        inFlight[key] ?: appScope.async {
+            block().also { r ->
+                if (r != null) {
+                    lookupCache.put(key, r)
+                    identifyStore.put(key, r)
+                } else synchronized(missCache) {
+                    if (missCache.size > 500) missCache.clear()
+                    missCache[key] = System.currentTimeMillis()
+                }
+            }
+        }.also { d ->
+            inFlight[key] = d
+            d.invokeOnCompletion { synchronized(inFlight) { if (inFlight[key] === d) inFlight.remove(key) } }
+        }
+    }
+    return job.await()
 }
 
 /**
@@ -124,7 +162,8 @@ private suspend fun CollectionRepository.printingsCached(card: ScryfallCard): Li
 }
 
 /** What to save for later when the camera read a name but Scryfall can't be reached. */
-suspend fun CollectionRepository.offlineRead(guess: CardTextGuess): OfflineRead? {
+suspend fun CollectionRepository.offlineRead(raw: CardTextGuess): OfflineRead? {
+    val guess = raw.setCode?.let { s -> raw.copy(setCode = setCodes.fix(s, raw.collectorNumber)) } ?: raw
     val best = withContext(Dispatchers.Default) { nameIndex.correct(guess.nameCandidates) }.firstOrNull()?.takeIf { it.score >= 0.85 }
     if (best != null) return OfflineRead(best.name, guess.setCode, guess.collectorNumber, lang = guess.lang)
     // No English name (only the footer, or a name in Japanese, Chinese or Korean): set and number find it later.

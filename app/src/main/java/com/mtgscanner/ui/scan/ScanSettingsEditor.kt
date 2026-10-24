@@ -87,6 +87,17 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
         Toggle("Flash the frame", "In the box's color.", s.flash) { on -> update { it.copy(flash = on) } }
         Toggle("Say the box", "Stack mode reads out where each card goes.", s.speakBox) { on -> update { it.copy(speakBox = on) } }
         Toggle("Auto flashlight", "On when it's too dark.", s.autoTorch) { on -> update { it.copy(autoTorch = on) } }
+
+        Heading("Camera")
+        Toggle("Sharper frames", "Reads small print better. Uses a bit more battery.", s.sharperFrames) { on -> update { it.copy(sharperFrames = on) } }
+        Text("Zoom", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+        Text("Hold the phone farther back for less blur and glare.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        Row(Modifier.padding(top = 6.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(1f, 1.5f, 2f).forEach { z ->
+                val label = if (z == 1f) "1×" else if (z == 2f) "2×" else "1.5×"
+                SelectPill(label, s.zoom == z, { update { it.copy(zoom = z) } })
+            }
+        }
     }
 }
 

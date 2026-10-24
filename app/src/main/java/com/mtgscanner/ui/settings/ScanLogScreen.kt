@@ -78,6 +78,9 @@ fun ScanLogScreen(onBack: () -> Unit) {
             return@Column
         }
         LazyColumn(Modifier.fillMaxSize()) {
+            com.mtgscanner.scan.ScanLogStats.of(list.orEmpty())?.let { st ->
+                item { Text(st.text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) }
+            }
             items(list.orEmpty()) { e -> LogRow(e); HorizontalDivider(color = Palette.Rule) }
             item { Spacer(Modifier.navigationBarsPadding().padding(8.dp)) }
         }
@@ -99,7 +102,7 @@ private fun LogRow(e: ScanLogEntry) {
             Spacer(Modifier.width(8.dp))
             Text(logTime.format(Date(e.at)), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             Spacer(Modifier.weight(1f))
-            if (e.ms > 0) Text("${e.ms} ms", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+            if (e.ms > 0) Text((if (e.seenMs > 0) "${e.seenMs} ms in view · " else "") + "${e.ms} ms", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }
         e.matchName?.let { Text("$it · ${e.matchSet?.uppercase()} #${e.matchNumber}", style = MaterialTheme.typography.titleSmall) }
         val read = buildString {

@@ -26,6 +26,10 @@ data class ScanLogEntry(
     val matchSet: String? = null,
     val matchNumber: String? = null,
     val ms: Long = 0,
+    /** From the card first giving a read to this answer: what scanning a card feels like. 0 when not known. */
+    val seenMs: Long = 0,
+    /** Frames read before this lookup started. */
+    val frames: Int = 0,
     val note: String? = null,
 )
 
@@ -86,6 +90,7 @@ class ScanLog(private val dir: File) {
     /** Plain text to paste into a message. */
     fun asText(list: List<ScanLogEntry>): String = buildString {
         appendLine("Grimoire scan log (${list.size} lookups, newest first)")
+        ScanLogStats.of(list)?.let { appendLine(it.text) }
         val fmt = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
         list.forEach { e ->
             append(fmt.format(java.util.Date(e.at))).append("  ").append(e.outcome.uppercase())
@@ -94,10 +99,35 @@ class ScanLog(private val dir: File) {
             if (e.art) append("  art")
             if (e.matchName != null) append("  -> ${e.matchName} (${e.matchSet?.uppercase()} #${e.matchNumber})")
             append("  ${e.ms}ms")
+            if (e.seenMs > 0) append("  seen=${e.seenMs}ms frames=${e.frames}")
             e.note?.let { append("  note=").append(it) }
             appendLine()
         }
     }
 
     companion object { const val MAX = 500 }
+}
+
+/** How scanning is going, over the log: the share matched and how long a card takes. Pure, for tests. */
+data class ScanLogStats(val lookups: Int, val matchedShare: Double, val medianSeenMs: Long?, val medianLookupMs: Long?) {
+    /** "92% matched · 0.8 s per card (lookup 0.3 s)". */
+    val text: String get() = buildString {
+        append("${(matchedShare * 100).toInt()}% matched")
+        medianSeenMs?.let { append(" · %.1f s per card".format(java.util.Locale.US, it / 1000.0)) }
+        medianLookupMs?.let { append(" (lookup %.1f s)".format(java.util.Locale.US, it / 1000.0)) }
+    }
+
+    companion object {
+        fun of(list: List<ScanLogEntry>): ScanLogStats? {
+            if (list.isEmpty()) return null
+            fun median(xs: List<Long>): Long? = xs.sorted().takeIf { it.isNotEmpty() }?.let { it[it.size / 2] }
+            val matched = list.count { it.outcome == "matched" }
+            return ScanLogStats(
+                lookups = list.size,
+                matchedShare = matched.toDouble() / list.size,
+                medianSeenMs = median(list.filter { it.outcome == "matched" && it.seenMs > 0 }.map { it.seenMs }),
+                medianLookupMs = median(list.filter { it.ms > 0 }.map { it.ms }),
+            )
+        }
+    }
 }
