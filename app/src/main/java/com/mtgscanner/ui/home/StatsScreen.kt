@@ -195,6 +195,21 @@ fun StatsScreen(
                 onRow = { browse(Filters(set = it.key, sort = SortBy.PRICE)) },
             )
 
+            if (s.byYear.size > 1) {
+                SectionHeader("By year added")
+                Breakdown(
+                    s.byYear.map { r ->
+                        val ch = s.yearChange[r.key]
+                        if (prices && ch != null && kotlin.math.abs(ch) >= 0.5) r.copy(label = "${r.label} · ${if (ch >= 0) "up" else "down"} ${formatUsd(kotlin.math.abs(ch))}") else r
+                    },
+                    prices,
+                    note = if (prices && s.yearChange.isNotEmpty()) "Up or down from what you paid, or the price when added." else null,
+                    lead = null,
+                    bar = { Palette.Accent },
+                    onRow = {},
+                )
+            }
+
             if (prices && s.top.isNotEmpty()) {
                 SectionHeader("Most valuable")
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = 10.dp, vertical = 4.dp)) {

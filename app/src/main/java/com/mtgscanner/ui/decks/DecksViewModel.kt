@@ -98,6 +98,7 @@ import com.mtgscanner.data.addDeckRows
 import com.mtgscanner.data.deckSlotId
 import com.mtgscanner.data.deleteDeckAndCards
 import com.mtgscanner.data.observePlaces
+import com.mtgscanner.data.observeLoans
 import com.mtgscanner.data.undoDeckDelete
 import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.ScryfallCard
@@ -222,6 +223,11 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
                 .collectLatest { (decks, cover) -> refreshMeta(decks, cover) }
         }
     }
+
+    /** Who has each lent deck, by deck id (only decks with every copy out). */
+    val lentTo: StateFlow<Map<Long, String>> = combine(repo.observeAll(), repo.observePlaces(), repo.observeLoans()) { cards, places, loans ->
+        com.mtgscanner.data.DeckLoanMath.lentTo(cards, places, loans)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private fun stamp(d: Deck, cover: String?) = "${d.updatedAt}|${cover.orEmpty()}"
 

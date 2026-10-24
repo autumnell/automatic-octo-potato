@@ -154,6 +154,7 @@ import com.mtgscanner.ui.components.panelRow
 fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory = AppViewModels.Factory)) {
     val decks by vm.decks.collectAsStateWithLifecycle()
     val shelf by vm.shelf.collectAsStateWithLifecycle()
+    val lentTo by vm.lentTo.collectAsStateWithLifecycle()
     var folderId by rememberSaveable { mutableStateOf<Long?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var naming by remember { mutableStateOf(false) }
@@ -260,6 +261,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
             items(shown, key = { "d" + it.deck.id }) { row ->
                 DeckTile(
                     row = row,
+                    lentTo = lentTo[row.deck.id],
                     onOpen = { onOpenDeck(row.deck.id) },
                     onMove = { moving = row },
                     onCover = { covering = row },
@@ -327,7 +329,7 @@ private fun TileArt(url: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCover: () -> Unit) {
+private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: () -> Unit, onCover: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val owned = row.fullyOwned
@@ -375,6 +377,12 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
+                    if (lentTo != null) {
+                        Text(
+                            "Lent to $lentTo", style = MaterialTheme.typography.bodySmall, color = Palette.AccentText,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {

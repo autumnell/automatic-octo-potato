@@ -112,6 +112,7 @@ import com.mtgscanner.data.Found
 import com.mtgscanner.data.LastChecked
 import com.mtgscanner.data.LastCheckedMath
 import com.mtgscanner.data.findCard
+import com.mtgscanner.data.boxToDeck
 import com.mtgscanner.ui.home.SortItem
 import com.mtgscanner.ui.home.cardsToSort
 import com.mtgscanner.data.Sorting
@@ -366,6 +367,14 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         }
         if (undo == null) _message.value = msg else Undo.offer(msg) { repo.undoBox(undo) }
     }
+
+    /** Moves every card in a box into a deck ([deckId]), or a new deck named [name] when it's 0, with Undo. */
+    fun moveBoxToDeck(boxId: Long, deckId: Long, name: String) = viewModelScope.launch {
+        val r = repo.boxToDeck(boxId, deckId, name) ?: return@launch
+        Undo.offer(if (deckId == 0L) "Made deck $name" else "Moved to the deck") { r.second() }
+    }
+
+    fun observeDecks() = repo.observeDecks()
 
     /** Sorts a catch-all box: cards that fit another box's rules move there. */
     fun sortBox(id: Long, name: String) = viewModelScope.launch {

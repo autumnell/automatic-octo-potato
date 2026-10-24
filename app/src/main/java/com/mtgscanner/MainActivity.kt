@@ -226,6 +226,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             "scan" -> nav.goToTab("scan")
             "home" -> nav.goToTab("home")
             "search" -> nav.goToTab("search")
+            "collection" -> nav.goToTab("collection")
             "check" -> { com.mtgscanner.util.OpenRequests.priceCheck.value = true; nav.goToTab("scan") }
             "settings" -> nav.navigate("settings") { launchSingleTop = true }
             else -> openRequest?.takeIf { (it.startsWith("card/") || it.startsWith("browse/")) && it.substringAfter('/').toLongOrNull() != null }?.let { nav.navigate(it) }

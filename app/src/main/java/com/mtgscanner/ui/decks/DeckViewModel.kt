@@ -191,6 +191,9 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     /** The Changes sheet for a saved deck's new list (DeckChanges.kt). */
     val changes = DeckChangesHost(repo, viewModelScope, saveList = { text, after -> _ui.update { it.copy(text = text) }; commit(after) }, restore = ::showSaved)
 
+    /** Lend, upgrade, proxies and building with another deck (DeckTools.kt). */
+    val tools = DeckTools(repo, viewModelScope, deckId = { _ui.value.id }, reload = { showSaved(it) })
+
     private var saving = false
     private var wishing = false
     private var deleting = false
@@ -201,6 +204,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     init {
         DeckShelfStore.init(repo.appContext)
         PullChecksStore.init(repo.appContext)
+        DeckPageCache.init(repo.appContext)
         viewModelScope.launch {
             val deck = if (deckId != 0L) repo.observeDeck(deckId).first() else null
             val text = deck?.text ?: ""
@@ -211,8 +215,13 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val format = deck?.format?.ifEmpty { null } ?: DeckFormats.guess(lines)
             val commanders = DeckCommanders.decode(deck?.commanders).takeUnless { it.isEmpty } ?: DeckCommanders.fromLines(lines)
             savedText = text
+            // What the page showed last time, until the cards are looked up again.
+            val cached = if (deck == null) null else DeckPageCache.get(deckId, DeckPageCache.stamp(text, format, commanders.encode()))
             _ui.update {
-                it.copy(loaded = true, name = deck?.name ?: "", text = text, editing = deck == null, format = format, commanders = commanders)
+                it.copy(
+                    loaded = true, name = deck?.name ?: "", text = text, editing = deck == null, format = format, commanders = commanders,
+                    shape = cached?.shape(), leadArt = cached?.leadArt.orEmpty(), edhrec = cached?.edhrec,
+                )
             }
             if (deck != null) { check(); refreshLeads() }
         }
@@ -298,6 +307,10 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 .mapNotNull { (n, q) -> info[DeckNames.key(n)]?.let { ShapeCard(q, it.cmc, it.typeLine, it.manaCost) } }
             val shape = DeckShapeMath.of(shapeCards)
             _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec, shape = shape) }
+            // Saved only when every card was found, so a page opened offline doesn't keep a short curve.
+            if (info.isNotEmpty() && shapeCards.size == played.size + s.commanders.all.count { DeckNames.key(it) !in playedKeys }) {
+                DeckPageCache.put(s.id, DeckPageCache.stamp(s.text, s.format, s.commanders.encode()), shape, art, edhrec)
+            }
         }
     }
 

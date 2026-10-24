@@ -35,6 +35,7 @@ object WhatsNew {
     val NOTES: Map<Int, String> = mapOf(
         1 to "New: copy a deck list, volume-button scanning, pull down to refresh prices.",
         96 to "Stats and tiles follow your currency. More changes can be undone.",
+        120 to "New in decks: lend a whole deck, upgrade from your cards, print proxies. Weekly ban and reprint alerts.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

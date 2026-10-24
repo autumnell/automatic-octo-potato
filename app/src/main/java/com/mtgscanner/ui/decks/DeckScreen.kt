@@ -166,6 +166,8 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     val dirty = ui.editing && ui.text.trim() != vm.savedText.trim()
+    val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
+    val printProxies = DeckToolsLayer(vm.tools, ui, repo)
     DeckChangesLayer(vm.changes, dirty, onDiscard = { if (ui.id == 0L) onBack() else vm.cancelEdit() }) { url ->
         vm.changes.updateFromLink(ui.id, vm.savedText, url)
     }
@@ -193,9 +195,17 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                             DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
                             if (ui.check != null) DropdownMenuItem(text = { Text("Sample hand") }, onClick = { menu = false; sampling = true })
                             DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
+                            DeckToolsMenuItems(vm.tools, ui, inDeck, close = { menu = false }, onPrint = { printProxies() })
                         }
                     }
                 }
+            }
+            val lentTo by vm.tools.lentTo.collectAsStateWithLifecycle()
+            if (!ui.editing) lentTo?.let {
+                Text(
+                    "Lent to $it", style = MaterialTheme.typography.bodySmall, color = Palette.AccentText,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+                )
             }
             if (!ui.loaded) return@Column
             if (ui.editing) Editor(ui, vm)
