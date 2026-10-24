@@ -59,9 +59,33 @@ suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCa
     }
     base ?: return null
     noteSet(base.card.set)
-    if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess)?.let { return it }
-    return base
+    val result = (if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess) else null) ?: base
+    // Matched from the list on the phone with prices a few days old: today's follow in the background.
+    if (localCards.isStale(result.card.id)) freshenLater(result.card.id)
+    return result
 }
+
+/**
+ * The printing with that set code and number: from the card list on the phone when it's there, so there's no wait.
+ * Scryfall is asked only when the list is missing or doesn't know the set yet (a set newer than the list).
+ */
+private suspend fun CollectionRepository.cardAt(set: String, number: String): ScryfallCard? {
+    if (localCards.ready) {
+        val local = withContext(Dispatchers.IO) { localCards.bySetAndNumber(set, number) ?: if (localCards.hasSet(set)) MISSING else null }
+        if (local === MISSING) return null
+        if (local != null) return local
+    }
+    return api.bySetAndNumber(set, number)
+}
+
+/** The printing a real card name stands for, from the phone when the list is there; else Scryfall's name lookup. */
+private suspend fun CollectionRepository.cardNamed(name: String, set: String? = null): ScryfallCard? {
+    if (localCards.ready) withContext(Dispatchers.IO) { localCards.named(name, set) }?.let { return it }
+    return api.named(name, set)
+}
+
+/** Stands for "the list knows the set, and the card isn't in it". */
+private val MISSING = ScryfallCard(id = "", name = "", set = "", setName = "", collectorNumber = "", rarity = "")
 
 /** A run of [SET_RUN] cards from one set loads that set's list (see [preloadSet]). */
 private fun CollectionRepository.noteSet(set: String) {
@@ -86,6 +110,8 @@ fun CollectionRepository.preloadSet(set: String) {
     if (!synchronized(setsLoading) { setsLoading.add(code) }) return
     appScope.launch {
         try {
+            val onPhone = if (localCards.ready) withContext(Dispatchers.IO) { localCards.inSet(code) }.takeIf { it.isNotEmpty() } else null
+            if (onPhone != null) { setCards.put(code, onPhone); return@launch }
             val saved = cardLists.get("set:$code")
             val list = saved ?: runCatching { api.setCards(code) }.getOrNull()?.also { if (it.isNotEmpty()) cardLists.put("set:$code", it) }
                 ?: cardLists.get("set:$code", Long.MAX_VALUE)
@@ -205,6 +231,11 @@ private suspend fun CollectionRepository.narrowSameNumber(same: List<ScryfallCar
 private suspend fun CollectionRepository.printingsCached(card: ScryfallCard, narrow: String = ""): List<ScryfallCard> {
     val k = "prints:" + (card.oracleId ?: card.name) + (if (narrow.isBlank()) "" else "|$narrow")
     printingsCache.get(k)?.let { return it }
+    // Every printing is on the phone: the narrowing terms only shorten a search, and callers filter anyway.
+    val oracle = card.oracleId
+    if (oracle != null && localCards.ready) {
+        withContext(Dispatchers.IO) { localCards.printings(oracle) }.takeIf { it.isNotEmpty() }?.let { printingsCache.put(k, it); return it }
+    }
     cardLists.get(k)?.let { printingsCache.put(k, it); return it }
     val list = try {
         api.printingsOf(card.oracleId, card.name, narrow)
@@ -255,7 +286,7 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
     }
 
     if (guess.setCode != null && guess.collectorNumber != null) {
-        val card = runCatching { api.bySetAndNumber(guess.setCode, guess.collectorNumber) }
+        val card = runCatching { cardAt(guess.setCode, guess.collectorNumber) }
             .onFailure { if (it is IOException && it !is ScryfallException) throw it }
             .getOrNull()
         if (card != null) {
@@ -265,7 +296,7 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
         }
         // A token prints its card set's code: the number may be in the token set ("tmom") instead.
         if (names.isNotEmpty()) {
-            val token = runCatching { api.bySetAndNumber("t" + guess.setCode, guess.collectorNumber) }
+            val token = runCatching { cardAt("t" + guess.setCode, guess.collectorNumber) }
                 .onFailure { if (it is IOException && it !is ScryfallException) throw it }
                 .getOrNull()
             if (token != null && bestSimilarity(token) >= 0.6) return Identification(token, confident = true, exact = true)
@@ -281,8 +312,8 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
 
     val knownGood = corrected.firstOrNull()?.takeIf { it.score >= 0.85 }?.name
     for (name in names) {
-        val inSet = guess.setCode?.let { set -> runCatching { api.named(name, set) }.getOrNull() }
-        val card = inSet ?: api.named(name) ?: continue
+        val inSet = guess.setCode?.let { set -> runCatching { cardNamed(name, set) }.getOrNull() }
+        val card = inSet ?: cardNamed(name) ?: continue
         val sim = bestSimilarity(card)
         if (sim < 0.5) continue
         val confident = sim >= 0.85 || card.name == knownGood

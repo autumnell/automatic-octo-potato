@@ -65,6 +65,19 @@ class CardTextAnalyzer(
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
+    init {
+        // The reader loads its model on first use, which made the first card after opening Scan slow. Reading a
+        // small made-up picture now does that while the camera starts.
+        runCatching {
+            val bmp = android.graphics.Bitmap.createBitmap(240, 60, android.graphics.Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(bmp).apply {
+                drawColor(android.graphics.Color.WHITE)
+                drawText("Llanowar Elves", 8f, 40f, android.graphics.Paint().apply { textSize = 28f; color = android.graphics.Color.BLACK })
+            }
+            recognizer.process(com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)).addOnCompleteListener { bmp.recycle() }
+        }
+    }
+
     /** The CJK readers, each made the first time it's needed (each loads its own model). Analysis thread only. */
     private val cjkReaders = HashMap<CjkScript, TextRecognizer>()
 

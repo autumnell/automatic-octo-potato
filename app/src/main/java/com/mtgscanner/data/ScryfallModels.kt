@@ -51,6 +51,8 @@ data class ScryfallCard(
     @SerialName("purchase_uris") val purchaseUris: Map<String, String> = emptyMap(),
     /** "boosterfun", "prerelease", "surgefoil"…: what kind of promo or variant a printing is. */
     @SerialName("promo_types") val promoTypes: List<String> = emptyList(),
+    /** Only on Arena or Magic Online: never scanned, so the card list on the phone leaves it out. */
+    val digital: Boolean = false,
 ) {
     /** Special printings, used by box rules: borderless, showcase, extended art, full art, etched, promo. */
     val treatments: List<String>
