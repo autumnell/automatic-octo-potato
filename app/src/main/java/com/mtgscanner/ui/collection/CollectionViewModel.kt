@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.data.undoWishes
+import com.mtgscanner.data.wishSnapshot
 import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.components.formatMoneyShort
 import com.mtgscanner.data.db.totalEur
@@ -387,6 +389,20 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     }
 
     fun setWanted(item: WishlistItem, wanted: Int) = viewModelScope.launch { repo.setWishWanted(item, wanted) }
+
+    /** Card names from Scryfall for the wishlist's add box. */
+    suspend fun suggestCards(text: String): List<String> =
+        runCatching { repo.api.autocomplete(text.trim()) }.getOrDefault(emptyList())
+
+    /** Adds one copy of the named card to the wishlist, with Undo. */
+    fun wishByName(name: String) = viewModelScope.launch {
+        val card = runCatching { repo.api.named(name) }.getOrNull()
+        val oracle = card?.oracleId
+        if (oracle == null) { _message.value = "Couldn't find $name"; return@launch }
+        val before = repo.wishSnapshot(listOf(oracle))
+        repo.addToWishlist(card)
+        Undo.offer("Added ${card.name} to wishlist") { repo.undoWishes(listOf(oracle), before) }
+    }
 
     /** A box's cards by name, read when needed (cover picker, binder share). */
     suspend fun cardsIn(boxId: Long): List<CollectionCard> = repo.cardsInBox(boxId).sortedBy { it.name }

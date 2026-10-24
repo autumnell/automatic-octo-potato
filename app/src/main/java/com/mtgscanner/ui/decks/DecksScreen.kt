@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -45,13 +44,14 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Style
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -313,6 +313,9 @@ private fun TileArt(url: String?, modifier: Modifier = Modifier) {
 @Composable
 private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCover: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    val owned = row.cards > 0 && row.owned >= row.cards
+    val status = DeckStatusStore.get(ctx, row.deck.id)
     Surface(onClick = onOpen, shape = TileShape, color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(1.35f)) {
@@ -334,11 +337,18 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                         row.identity.forEach { c -> Mana.Symbol(c.toString(), 15.dp) }
                     }
                 }
-                if (row.cards > 0 && row.owned >= row.cards) {
-                    Icon(
-                        Icons.Filled.CheckCircle, "Complete", tint = Palette.Success,
-                        modifier = Modifier.align(Alignment.TopStart).padding(6.dp).size(20.dp)
-                            .clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f)),
+                // Top left: "Owned" once every card is owned, else the status picked from the menu.
+                val tag = if (owned) "Owned" else status?.label
+                if (tag != null) {
+                    Text(
+                        tag,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        modifier = Modifier.align(Alignment.TopStart).padding(6.dp)
+                            .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
                     )
                 }
             }
@@ -357,10 +367,23 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
                         DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
+                        // A fully owned deck always shows "Owned".
+                        if (!owned) {
+                            HorizontalDivider(color = Palette.Rule)
+                            DeckStatus.entries.forEach { st ->
+                                DropdownMenuItem(
+                                    text = { Text(st.label) },
+                                    onClick = { menu = false; DeckStatusStore.set(ctx, row.deck.id, if (status == st) null else st) },
+                                    trailingIcon = { if (status == st) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
+                                )
+                            }
+                        }
                     }
                 }
             }
-            Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp)) {
+            if (owned) {
+                Spacer(Modifier.height(8.dp))
+            } else Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp)) {
                 LinearProgressIndicator(
                     progress = { if (row.cards == 0) 0f else row.owned.toFloat() / row.cards },
                     modifier = Modifier.fillMaxWidth().height(4.dp),

@@ -4,19 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
+import androidx.core.content.res.ResourcesCompat
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.R
@@ -152,7 +154,6 @@ object Mana {
     val Green = Color(0xFF93B483)
     val Colorless = Color(0xFFBEB9B2)
     val Gold = Color(0xFFE0C068)
-    private val Ink = Color(0xFF111111)
 
     private fun colorOf(c: Char): Color = when (c) {
         'w' -> White; 'u' -> Blue; 'b' -> Black; 'r' -> Red; 'g' -> Green; else -> Colorless
@@ -187,15 +188,52 @@ object Mana {
                 start = Offset.Zero, end = Offset.Infinite,
             ),
         )
-        val density = LocalDensity.current
-        Box(Modifier.size(size).clip(CircleShape).then(bg), contentAlignment = Alignment.Center) {
-            if (g.second == null) {
-                Text(g.main, fontFamily = Family, color = Ink, fontSize = with(density) { (size * 0.72f).toSp() }, textAlign = TextAlign.Center, maxLines = 1)
-            } else {
-                val small = with(density) { (size * 0.42f).toSp() }
-                Text(g.main, fontFamily = Family, color = Ink, fontSize = small, maxLines = 1, modifier = Modifier.align(BiasAlignment(-0.5f, -0.5f)))
-                Text(g.second, fontFamily = Family, color = Ink, fontSize = small, maxLines = 1, modifier = Modifier.align(BiasAlignment(0.5f, 0.5f)))
+        val paint = rememberGlyphPaint()
+        Box(
+            Modifier.size(size).clip(CircleShape).then(bg).drawBehind {
+                val second = g.second
+                if (second == null) {
+                    drawGlyph(paint, g.main, this.size.minDimension * 0.62f, center)
+                } else {
+                    val q = this.size.minDimension / 4f
+                    drawGlyph(paint, g.main, this.size.minDimension * 0.36f, Offset(center.x - q * 0.8f, center.y - q * 0.8f))
+                    drawGlyph(paint, second, this.size.minDimension * 0.36f, Offset(center.x + q * 0.8f, center.y + q * 0.8f))
+                }
+            },
+        )
+    }
+
+    /** A paint with the Mana font, made once per composition. Null when the font can't be loaded. */
+    @Composable
+    private fun rememberGlyphPaint(): android.graphics.Paint? {
+        val ctx = LocalContext.current
+        return remember {
+            runCatching { ResourcesCompat.getFont(ctx, R.font.mana) }.getOrNull()?.let { tf ->
+                android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = tf
+                }
             }
+        }
+    }
+
+    private val glyphBounds = android.graphics.Rect()
+
+    /** The glyph color inside the colored circles. */
+    private const val INK = 0xFF111111.toInt()
+
+    /**
+     * Draws [glyph] with its ink centered on [at] at [px] text size. Centering by the glyph's own bounds, not the
+     * font's line box, keeps every symbol in the middle of its circle (the font's glyphs sit a little high).
+     */
+    private fun DrawScope.drawGlyph(paint: android.graphics.Paint?, glyph: String, px: Float, at: Offset, color: Int = INK) {
+        paint ?: return
+        paint.textSize = px
+        paint.color = color
+        synchronized(glyphBounds) {
+            paint.getTextBounds(glyph, 0, glyph.length, glyphBounds)
+            val x = at.x - glyphBounds.exactCenterX()
+            val y = at.y - glyphBounds.exactCenterY()
+            drawContext.canvas.nativeCanvas.drawText(glyph, x, y, paint)
         }
     }
 
@@ -203,19 +241,19 @@ object Mana {
     @Composable
     fun MultiSymbol(size: Dp = 16.dp) {
         val g = glyph("multicolor") ?: return
-        val density = LocalDensity.current
-        Box(Modifier.size(size).clip(CircleShape).background(Gold), contentAlignment = Alignment.Center) {
-            Text(g.main, fontFamily = Family, color = Ink, fontSize = with(density) { (size * 0.72f).toSp() }, textAlign = TextAlign.Center, maxLines = 1)
-        }
+        val paint = rememberGlyphPaint()
+        Box(
+            Modifier.size(size).clip(CircleShape).background(Gold).drawBehind {
+                drawGlyph(paint, g.main, this.size.minDimension * 0.62f, center)
+            },
+        )
     }
 
     /** A bare glyph (no circle), tinted, for icons like day and night. */
     @Composable
     fun Icon(name: String, color: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
         val g = glyph(name) ?: return
-        val density = LocalDensity.current
-        Box(modifier.size(size), contentAlignment = Alignment.Center) {
-            Text(g.main, fontFamily = Family, color = color, fontSize = with(density) { size.toSp() }, maxLines = 1)
-        }
+        val paint = rememberGlyphPaint()
+        Box(modifier.size(size).drawBehind { drawGlyph(paint, g.main, this.size.minDimension * 0.9f, center, color.toArgb()) })
     }
 }

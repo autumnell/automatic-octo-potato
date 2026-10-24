@@ -111,14 +111,14 @@ object BackupCodec {
 /** Backup, restore and CSV import for [CollectionRepository]. */
 internal object BackupIO {
     /** SharedPreferences files that hold the user's organisation and options, saved in backups. */
-    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links")
+    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links", "deck_status")
 
     /**
      * Files keyed by box or deck id: the shelf and box-check start dates ([BoxPrefs]), when boxes were last checked
      * ([LastChecked]) and deck links. A restore keeps the backup's ids, so these must come from the backup too.
      * They're saved even when empty, so a backup without them is from an older version.
      */
-    private val ID_PREFS = listOf("boxes", "box_checked", "deck_links")
+    private val ID_PREFS = listOf("boxes", "box_checked", "deck_links", "deck_status")
 
     /** What the app held just before the last restore, so a restore can be undone. */
     private const val SAFETY_FILE = "before-restore.json"
