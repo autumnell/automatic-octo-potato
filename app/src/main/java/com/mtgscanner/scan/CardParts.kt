@@ -83,6 +83,50 @@ internal object CardParts {
     }
 
     /**
+     * The name bar and footer read in one pass: drawn one above the other on white, with a gap so their lines
+     * can't run together, and the lines split back by where they sit. One read instead of two.
+     */
+    suspend fun stackedLines(
+        name: Bitmap, footer: Bitmap, cardH: Float, reader: TextRecognizer,
+    ): Pair<List<OcrLine>, List<OcrLine>> {
+        val gap = maxOf(24, name.height / 2)
+        val combo = Bitmap.createBitmap(maxOf(name.width, footer.width), name.height + gap + footer.height, Bitmap.Config.ARGB_8888)
+        try {
+            android.graphics.Canvas(combo).apply {
+                drawColor(android.graphics.Color.WHITE)
+                drawBitmap(name, 0f, 0f, null)
+                drawBitmap(footer, 0f, (name.height + gap).toFloat(), null)
+            }
+            val text = reader.process(InputImage.fromBitmap(combo, 0)).await()
+            val split = name.height + gap / 2
+            val nameLines = ArrayList<OcrLine>()
+            val footerLines = ArrayList<OcrLine>()
+            for (block in text.textBlocks) for (line in block.lines) {
+                val box = line.boundingBox ?: continue
+                if (box.centerY() < split) {
+                    nameLines += place(line.text, box.left, box.top, box.right, box.bottom, name, CardWarp.NAME, cardH)
+                } else {
+                    val dy = name.height + gap
+                    footerLines += place(line.text, box.left, box.top - dy, box.right, box.bottom - dy, footer, CardWarp.FOOTER, cardH)
+                }
+            }
+            return nameLines to footerLines
+        } finally {
+            combo.recycle()
+        }
+    }
+
+    /** A line found at (l, t, r, b) in a [strip] drawn from [part], placed on a card [cardH] pixels tall. */
+    private fun place(text: String, l: Int, t: Int, r: Int, b: Int, strip: Bitmap, part: FloatArray, cardH: Float): OcrLine {
+        val cardW = cardH * (63f / 88f)
+        val sx = strip.width / ((part[2] - part[0]) * cardW)
+        val sy = strip.height / ((part[3] - part[1]) * cardH)
+        val ox = part[0] * cardW
+        val oy = part[1] * cardH
+        return OcrLine(text, (ox + l / sx).toInt(), (oy + t / sy).toInt(), (ox + r / sx).toInt(), (oy + b / sy).toInt())
+    }
+
+    /**
      * The art window of the straightened card: its hash, and its embedding when [embed] gives one
      * (called with the hash and the art picture, which is recycled afterwards).
      */

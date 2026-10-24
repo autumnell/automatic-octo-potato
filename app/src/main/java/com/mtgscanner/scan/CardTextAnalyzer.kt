@@ -42,7 +42,7 @@ internal typealias Draw = (FloatArray, FloatArray, Int, Int) -> Bitmap?
 class CardTextAnalyzer(
     private val onGuess: (CardTextGuess) -> Unit,
     private val isPaused: () -> Boolean = { false },
-    private val minIntervalMs: Long = 250,
+    private val minIntervalMs: Long = 150,
     /** Binder page mode: when this returns true, the next frame is read as a 3x3 page. */
     private val wantsPage: () -> Boolean = { false },
     private val onPage: (List<CardTextGuess>) -> Unit = {},
@@ -59,6 +59,8 @@ class CardTextAnalyzer(
      * are [w] by [h]. Called once per card, and again when its frames keep coming out blurry.
      */
     private val onFocus: (x: Float, y: Float, w: Int, h: Int) -> Unit = { _, _, _, _ -> },
+    /** The card in view is already handled: read it less often until something moves (saves battery and heat). */
+    private val holding: () -> Boolean = { false },
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -107,6 +109,8 @@ class CardTextAnalyzer(
 
     /** When the camera was last asked to focus on the card in view; 0 when it should be (a new card, or blur). */
     @Volatile private var focusedAt = 0L
+    /** Something moved (or the guide emptied) since the last read: a new card may be there. */
+    @Volatile private var movedSinceRead = true
     /** Blurry frames in a row of the card in view: two ask the camera to focus again. */
     private var blurRun = 0
 
@@ -183,6 +187,7 @@ class CardTextAnalyzer(
                 focusedAt = 0L
                 sharp.reset()
             }
+            if (result == null || !result.first.runOcr) movedSinceRead = true
             // A card in the guide: have the camera focus on it, rather than wherever its own focus settles.
             result?.second?.outline?.let { o ->
                 if (focusedAt == 0L) {
@@ -204,12 +209,15 @@ class CardTextAnalyzer(
             }
             area = result?.second
         }
-        if (now - lastRun < minIntervalMs) {
+        // A handled card held still is read now and then, to notice when it changes; anything moving is read at once.
+        val interval = if (!page && !movedSinceRead && holding()) HOLD_INTERVAL_MS else minIntervalMs
+        if (now - lastRun < interval) {
             image.close()
             return
         }
         busy.set(true)
         lastRun = now
+        movedSinceRead = false
         // Only frames that passed the card check are turned into a picture; the camera hands over YUV.
         val bitmap: Bitmap = try {
             frameToBitmap(image)
@@ -395,8 +403,13 @@ class CardTextAnalyzer(
                 // Low-contrast strips (foils, dark frames, dim light) are read with their contrast stretched.
                 nameRead = runCatching { CardParts.stretched(name) }.getOrNull()
                 footerRead = footer?.let { f -> runCatching { CardParts.stretched(f) }.getOrNull() }
-                val nameLines = stripLines(nameRead ?: name, CardWarp.NAME, cardH, if (cjk != null) reader(cjk) else recognizer)
-                val footerLines = if (footer != null) stripLines(footerRead ?: footer, CardWarp.FOOTER, cardH) else emptyList()
+                // Both strips in one read when the same reader reads both; a CJK name bar has its own reader.
+                val (nameLines, footerLines) = if (footer != null && cjk == null) {
+                    CardParts.stackedLines(nameRead ?: name, footerRead ?: footer, cardH, recognizer)
+                } else {
+                    stripLines(nameRead ?: name, CardWarp.NAME, cardH, if (cjk != null) reader(cjk) else recognizer) to
+                        (if (footer != null) stripLines(footerRead ?: footer, CardWarp.FOOTER, cardH) else emptyList())
+                }
                 if (nameLines.isEmpty() && footerLines.isEmpty()) continue
                 // Names only from the name bar: the footer's artist line is not a card name.
                 val names = CardTextParser.parse(nameLines).nameCandidates
@@ -615,7 +628,9 @@ class CardTextAnalyzer(
 
     private companion object {
         /** How often the card check runs. Two steady checks in a row start a read. */
-        const val GATE_INTERVAL_MS = 100L
+        const val GATE_INTERVAL_MS = 66L
+        /** How often a handled card held still is read again. */
+        const val HOLD_INTERVAL_MS = 700L
         /** "Capture page" reads no sooner than this after the tap, and waits at most this long for a steady frame. */
         const val PAGE_MIN_WAIT_MS = 300L
         const val PAGE_MAX_WAIT_MS = 2_500L

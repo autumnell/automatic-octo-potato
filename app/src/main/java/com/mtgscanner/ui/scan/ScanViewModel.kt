@@ -215,6 +215,9 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         lastAddedArt = art
         artChangeFrames = 0
     }
+    /** The card in view was already added or set aside: the camera can read it less often until it moves. */
+    fun holdingCard(): Boolean = lastAutoAddedId != null
+
     private fun forgetHandled() {
         lastAutoAddedId = null
         lastAutoAddedOracle = null
