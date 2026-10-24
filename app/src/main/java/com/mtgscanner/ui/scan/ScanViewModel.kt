@@ -18,6 +18,7 @@ import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
 import com.mtgscanner.data.identify
 import com.mtgscanner.data.offlineRead
+import com.mtgscanner.data.prefetch
 import com.mtgscanner.data.ownedCopies
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
@@ -188,6 +189,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     private val pool = FramePool()
     /** Keys already looked up for the card in view. */
     private val lookedUp = HashSet<String>()
+    /** Keys whose lookup was started early, on their first frame (see [handleGuess]). */
+    private val prefetched = HashSet<String>()
+    /** When the card in view first gave a read; 0 when none is in view. For the scan log's timings. */
+    private var cardSeenAt = 0L
     /** Bumps when tracking resets (pause, skip, mode change), so a lookup that was under way is dropped. */
     private var trackGen = 0
     private var lastAutoAddedId: String? = null
@@ -287,6 +292,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 leave.reset()
                 forgetHandled()
                 pool.clear()
+                prefetched.clear()
+                cardSeenAt = 0L
                 lastKey = null
                 lastName = null
                 lastFooter = null
@@ -303,6 +310,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             return
         }
         leave.seen()
+        if (cardSeenAt == 0L) cardSeenAt = System.currentTimeMillis()
         val name = guess.nameKey
         val footer = if (guess.setCode != null && guess.collectorNumber != null) key.takeIf { '#' in it } else null
         val agrees = (name != null && name == lastName) || (footer != null && footer == lastFooter)
@@ -335,23 +343,39 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             }
         }
 
+        val nameGood = guess.nameCandidates.firstOrNull()?.let { com.mtgscanner.scan.CardTextParser.readableScore(it) >= 4 } == true
+        // The footer and a clear name on one frame: the lookup checks they agree, so one frame is enough when
+        // it finds that exact printing. Anything less waits for the next frame as usual.
+        val oneFrame = sameKeyFrames == 1 && footer != null && nameGood && key !in lookedUp
+        // A first good read starts the lookup in the background, so it's ready when the next frame agrees.
+        if (!oneFrame && sameKeyFrames == 1 && (footer != null || nameGood) && key !in lookedUp && prefetched.add(key)) {
+            if (prefetched.size > 40) prefetched.clear()
+            repo.prefetch(guess, earlySkip())
+        }
         // Wait for two frames that agree, so a blurry half-read doesn't trigger a lookup.
-        if (sameKeyFrames < 2 || key in lookedUp) return
+        if (!oneFrame && (sameKeyFrames < 2 || key in lookedUp)) return
         // Already looked up by the exact footer: a name-only read adds nothing.
         if (footer == null && lookedUp.any { '#' in it }) return
         // No full footer: the printing comes from the year, symbol and art, so give them a frame more unless
         // they're all here.
         if (footer == null && sameKeyFrames < POOL_FRAMES && !pool.complete) return
         lookedUp += key
-        lookup(if (footer == null) pool.pooled(guess) else guess)
+        lookup(if (footer == null) pool.pooled(guess) else guess, single = oneFrame, key = key)
     }
 
-    private fun lookup(guess: CardTextGuess) {
+    /** [single]: looked up on one frame; only an exact, sure answer is used, else the next frame tries again. */
+    private fun lookup(guess: CardTextGuess, single: Boolean = false, key: String? = guess.key) {
         _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null, offline = null) }
         val gen = trackGen
         viewModelScope.launch {
             val started = System.currentTimeMillis()
             val result = runCatching { repo.identify(guess, earlySkip()) }
+            if (single && result.getOrNull()?.let { it.exact && it.confident } != true) {
+                // Not sure from one frame: let the next agreeing frame look it up (the answer is cached).
+                if (gen == trackGen && key != null) lookedUp.remove(key)
+                _state.update { it.copy(lookingUp = false) }
+                return@launch
+            }
             logLookup(guess, result, System.currentTimeMillis() - started)
             // Paused, skipped or switched mode meanwhile: the answer is no longer wanted.
             if (gen != trackGen || _state.value.paused) {
@@ -744,6 +768,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                         read = (guess.nameCandidates + listOfNotNull(guess.printedName)).take(4), setCode = guess.setCode, collectorNumber = guess.collectorNumber,
                         art = guess.artHash != null, outcome = outcome, matchName = id?.card?.name, matchSet = id?.card?.set,
                         matchNumber = id?.card?.collectorNumber, ms = ms, note = err?.message,
+                        seenMs = cardSeenAt.takeIf { it > 0 }?.let { System.currentTimeMillis() - it } ?: 0, frames = sameKeyFrames,
                     ),
                 )
             }

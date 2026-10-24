@@ -42,6 +42,10 @@ data class ScanSettings(
     val autoTorch: Boolean = true,
     /** Stack mode: say the box name out loud for each card. */
     val speakBox: Boolean = false,
+    /** Camera frames at 1440p instead of 1080p: sharper small print, a little more battery. */
+    val sharperFrames: Boolean = false,
+    /** Starting zoom (1, 1.5 or 2): lets you hold the phone farther back, with less blur and glare. */
+    val zoom: Float = 1f,
 ) {
     /** Whether a match is sure enough to add without asking. */
     fun accepts(exact: Boolean, confident: Boolean): Boolean = when (level) {

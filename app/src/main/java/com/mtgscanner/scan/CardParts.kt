@@ -30,6 +30,22 @@ internal object CardParts {
     fun footer(q: FloatArray, cardH: Float, draw: Draw): Bitmap? =
         CardWarp.renderScaled(q, CardWarp.FOOTER, cardH, FOOTER_SCALE, draw = draw)
 
+    /** How sharp a strip is (see [StripQuality.sharpness]). */
+    fun sharpness(strip: Bitmap): Double = StripQuality.sharpness(CardWarp.luma(strip), strip.width, strip.height)
+
+    /**
+     * A low-contrast strip redrawn in gray with its contrast stretched, which the text reader takes better (foils,
+     * dark frames, dim light); null when the strip is fine as it is.
+     */
+    fun stretched(strip: Bitmap): Bitmap? {
+        val luma = CardWarp.luma(strip)
+        val (lo, hi) = StripQuality.levels(luma)
+        if (!StripQuality.flat(lo, hi) || hi - lo < 12) return null
+        val out = StripQuality.stretch(luma, lo, hi)
+        val px = IntArray(out.size) { val v = out[it]; (0xFF shl 24) or (v shl 16) or (v shl 8) or v }
+        return Bitmap.createBitmap(px, strip.width, strip.height, Bitmap.Config.ARGB_8888)
+    }
+
     /** Runs an OpenCV step; null when it fails. A missing native piece turns OpenCV off for good. */
     inline fun <T> cvSafe(block: () -> T): T? = try {
         block()
