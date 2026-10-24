@@ -4,6 +4,8 @@ import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.totalEur
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
+import java.time.Instant
+import java.time.ZoneId
 
 /** One line of a breakdown: copies and their value ([eur] in euros). [key] is what Browse filters on (set code, color letter, rarity). */
 data class StatRow(val key: String, val label: String, val cards: Int, val value: Double, val eur: Double = 0.0)
@@ -30,6 +32,10 @@ data class CollectionStats(
     val paid: PaidSummary = PaidSummary(),
     /** Commons and uncommons under 50¢, for the bulk estimate. */
     val bulkCards: Int = 0,
+    /** By the year cards were added, newest first; [StatRow.key] is the year. */
+    val byYear: List<StatRow> = emptyList(),
+    /** By year: today's value minus what was paid (or the price when added), for copies where that's known. USD. */
+    val yearChange: Map<String, Double> = emptyMap(),
 )
 
 /** Collection breakdowns for the Stats screen, kept free of Android so they can be tested. Proxies count as cards but are worth $0. */
@@ -40,7 +46,7 @@ object StatsMath {
     /** The rarity row key for tokens, emblems and art cards, kept apart so they don't swell the commons. */
     const val TOKENS = "tokens"
 
-    fun compute(cards: List<CollectionCard>, topN: Int = 20): CollectionStats {
+    fun compute(cards: List<CollectionCard>, topN: Int = 20, zone: ZoneId = ZoneId.systemDefault()): CollectionStats {
         val bySet = cards.groupBy { it.setCode }.map { (code, rows) ->
             StatRow(code, rows.first().setName.ifBlank { code.uppercase() }, rows.sumOf { it.quantity }, rows.sumOf { it.totalPrice() }, rows.sumOf { it.totalEur() })
         }.sortedWith(compareByDescending<StatRow> { it.value }.thenByDescending { it.cards }.thenBy { it.label })
@@ -91,6 +97,25 @@ object StatsMath {
             top = top,
             paid = paid,
             bulkCards = HomeMath.bulk(cards, 0.0).cards,
+            byYear = byYear(cards, zone),
+            yearChange = yearChange(cards, zone),
         )
     }
+
+    private fun yearOf(c: CollectionCard, zone: ZoneId) = Instant.ofEpochMilli(c.addedAt).atZone(zone).year.toString()
+
+    /** Copies and value by the year they were added, newest first. */
+    fun byYear(cards: List<CollectionCard>, zone: ZoneId = ZoneId.systemDefault()): List<StatRow> =
+        cards.filter { it.addedAt > 0 }.groupBy { yearOf(it, zone) }
+            .map { (y, rows) -> StatRow(y, y, rows.sumOf { it.quantity }, rows.sumOf { it.totalPrice() }, rows.sumOf { it.totalEur() }) }
+            .sortedByDescending { it.key }
+
+    /**
+     * For each year: what copies added then are worth today minus what they cost (price paid, else the price
+     * when added). Copies with neither, and proxies, are left out.
+     */
+    fun yearChange(cards: List<CollectionCard>, zone: ZoneId = ZoneId.systemDefault()): Map<String, Double> =
+        cards.filter { it.addedAt > 0 && !it.proxy && (it.purchasePrice ?: it.priceAtAdd) != null }
+            .groupBy { yearOf(it, zone) }
+            .mapValues { (_, rows) -> rows.sumOf { it.totalPrice() - (it.purchasePrice ?: it.priceAtAdd ?: 0.0) * it.quantity } }
 }

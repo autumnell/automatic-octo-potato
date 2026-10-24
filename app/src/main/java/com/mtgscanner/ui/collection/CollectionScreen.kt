@@ -307,6 +307,7 @@ private fun BoxesTab(
     var editing by remember { mutableStateOf<BoxSummary?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<BoxSummary?>(null) }
+    var toDeck by remember { mutableStateOf<BoxSummary?>(null) }
     var ordering by remember { mutableStateOf(false) }
     var sorting by remember { mutableStateOf<BoxSummary?>(null) }
     var sortingNew by remember { mutableStateOf<BoxSummary?>(null) }
@@ -409,6 +410,7 @@ private fun BoxesTab(
                             onSplit = { splitting = b }, onTrade = { onTrade(b.id) }, onLayout = { laying = b }, warning = dead[b.id],
                             onNfc = if (nfc) ({ tagging = b }) else null,
                             onShare = { sharing = b },
+                            onToDeck = { toDeck = b },
                             layout = layout,
                             checked = LastCheckedMath.label(checkedAt[b.id], now),
                         )
@@ -494,6 +496,9 @@ private fun BoxesTab(
     sharing?.let { b ->
         ShareDialog(b.name, scope, onDismiss = { sharing = null }) { vm.cardsIn(b.id).map { it.shareLine() } }
     }
+    toDeck?.let { b ->
+        BoxToDeckDialog(b, remember { vm.observeDecks() }, onDismiss = { toDeck = null }) { deckId, name -> vm.moveBoxToDeck(b.id, deckId, name); toDeck = null }
+    }
     deleting?.let { b -> DeleteBoxDialog(b, ui.boxes.filter { it.id != b.id && it.kind != "trade" && it.kind != "deck" }, onDismiss = { deleting = null }) { moveTo ->
         vm.deleteBox(b.id, moveTo); deleting = null
     } }
@@ -509,6 +514,7 @@ private fun BoxCard(
     /** Writes the box's link to an NFC tag; null on phones without NFC. */
     onNfc: (() -> Unit)? = null,
     onShare: () -> Unit = {},
+    onToDeck: () -> Unit = {},
     /** Which details show, and full or compact. */
     layout: CollectionLayout = CollectionLayout.DEFAULT,
     /** "Checked 3w ago", or null when never checked. */
@@ -534,6 +540,7 @@ private fun BoxCard(
                 if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onShare() })
+                if (b.cards > 0) DropdownMenuItem(text = { Text("Move to a deck") }, onClick = { menu = false; onToDeck() })
                 if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { menu = false; onNfc() })
                 DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
@@ -755,6 +762,10 @@ private fun WishlistTab(vm: CollectionViewModel) {
         suggestions = vm.suggestCards(query)
     }
     val wishDecks by vm.wishDecks.collectAsStateWithLifecycle()
+    // New printings found by the weekly watch (Reprint · SET).
+    val watchCtx = androidx.compose.ui.platform.LocalContext.current
+    remember { com.mtgscanner.work.WatchStore.load(watchCtx) }
+    val watch by com.mtgscanner.work.WatchStore.state.collectAsStateWithLifecycle()
     val gotIt by vm.gotIt.collectAsStateWithLifecycle()
     // "Deck" sort: one group per deck that wants cards (each card under its first deck A to Z), then the rest.
     val groups: List<Pair<String?, List<WishlistItem>>> = remember(shown, sort, wishDecks) {
@@ -826,6 +837,9 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(w.name, style = MaterialTheme.typography.titleSmall)
+                        com.mtgscanner.work.WatchStore.tag(watch, w.oracleId)?.let { tag ->
+                            Text(tag, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1)
+                        }
                         val decks = wishDecks[CardNames.key(w.name)].orEmpty()
                         val more = if (group != null) decks.drop(1) else decks
                         Text(

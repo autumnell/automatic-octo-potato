@@ -130,26 +130,7 @@ data class PriceData(val movers: List<PriceMover> = emptyList())
 
 class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     val ui: StateFlow<HomeUi> = combine(repo.observeAll(), repo.observeSnapshots(), repo.observeBoxes()) { all, history, boxes ->
-        val top = all.filter { !it.proxy && (it.unitPrice() ?: 0.0) > 0 }.maxByOrNull { it.unitPrice() ?: 0.0 }
-        HomeUi(
-            loaded = true,
-            totalCards = all.sumOf { it.quantity },
-            uniqueCards = all.map { it.oracleId ?: it.name }.distinct().size,
-            totalValue = all.sumOf { it.totalPrice() },
-            totalEur = all.sumOf { it.totalEur() },
-            sets = all.map { it.setCode }.distinct().size,
-            foils = all.filter { it.foil }.sumOf { it.quantity },
-            recent = all.sortedByDescending { it.addedAt }.take(12),
-            // Proxies are worth $0 today, so leave them out of "since added" on both sides.
-            valueAtAdd = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { (it.priceWhenAdded() ?: 0.0) * it.quantity },
-            valueNowTracked = all.filter { !it.proxy && it.priceAtAdd != null }.sumOf { it.totalPrice() },
-            history = history,
-            gainers = all.filter { !it.proxy && (it.changeSinceAdded() ?: 0.0) > 0.0 }
-                .sortedByDescending { (it.changeSinceAdded() ?: 0.0) * it.quantity }.take(12),
-            boxCount = boxes.size,
-            heroArt = artCropUrl(top?.imageUrl),
-            colorLetter = AccentMath.dominant(all.map { it.colorIdentity to it.quantity }),
-        )
+        HomeSummary.of(all).copy(history = history, boxCount = boxes.size)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
 
     /** Cards to move and unknown scans, for "To be sorted". */

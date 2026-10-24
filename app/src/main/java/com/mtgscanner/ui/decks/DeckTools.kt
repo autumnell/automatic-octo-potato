@@ -1,0 +1,370 @@
+package com.mtgscanner.ui.decks
+
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.DeckFormats
+import com.mtgscanner.data.DeckLoanMath
+import com.mtgscanner.data.LoanMath
+import com.mtgscanner.data.ParsedDecks
+import com.mtgscanner.data.UpgradeIdea
+import com.mtgscanner.data.addToDeckList
+import com.mtgscanner.data.cancelLoan
+import com.mtgscanner.data.db.Deck
+import com.mtgscanner.data.deckById
+import com.mtgscanner.data.lendDeck
+import com.mtgscanner.data.observeLoans
+import com.mtgscanner.data.observePlaces
+import com.mtgscanner.data.putLoanBack
+import com.mtgscanner.data.returnDeck
+import com.mtgscanner.data.upgradeIdeas
+import com.mtgscanner.ui.components.CardImage
+import com.mtgscanner.ui.components.EmptyState
+import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.Undo
+import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.TabularNums
+import com.mtgscanner.util.DecklistParser
+import com.mtgscanner.util.ProxySheet
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** What the Upgrade sheet shows. */
+data class UpgradeUi(val loading: Boolean = true, val ideas: List<UpgradeIdea> = emptyList(), val failed: Boolean = false, val added: Set<String> = emptySet())
+
+/**
+ * The deck page's extra tools: lend the whole deck, upgrade it from your own cards, print proxies of what's
+ * missing, and see what you're short on to build it alongside another deck.
+ */
+class DeckTools(
+    private val repo: CollectionRepository,
+    private val scope: CoroutineScope,
+    private val deckId: () -> Long,
+    /** Shows the saved deck again after its list changed here. */
+    private val reload: suspend (Deck) -> Unit,
+) {
+    /** Who has this deck, when every copy kept in it is lent; else null. */
+    val lentTo: StateFlow<String?> = combine(repo.observeAll(), repo.observePlaces(), repo.observeLoans()) { cards, places, loans ->
+        DeckLoanMath.lentTo(cards, places, loans)[deckId()]
+    }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Names lent to before, for quick picks. */
+    val recentNames: StateFlow<List<String>> = repo.observeLoans().map { LoanMath.recentNames(it) }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    var lending by mutableStateOf(false)
+    var upgrade by mutableStateOf<UpgradeUi?>(null)
+        private set
+    var pickingOther by mutableStateOf(false)
+    var other by mutableStateOf<Deck?>(null)
+    var printing by mutableStateOf(false)
+        private set
+
+    fun lend(who: String) {
+        val id = deckId()
+        lending = false
+        scope.launch {
+            val made = repo.lendDeck(id, who)
+            if (made.isEmpty()) { Undo.offer("Nothing to lend"); return@launch }
+            Undo.offer("Lent to ${LoanMath.cleanName(who)}") { made.forEach { repo.cancelLoan(it) } }
+        }
+    }
+
+    fun returned() {
+        val id = deckId()
+        scope.launch {
+            val gone = repo.returnDeck(id)
+            if (gone.isEmpty()) return@launch
+            Undo.offer("Deck returned") { gone.forEach { repo.putLoanBack(it) } }
+        }
+    }
+
+    /** Opens the Upgrade sheet for a commander deck: [identity] is the commanders' colors. */
+    fun openUpgrade(commanders: List<String>, identity: String, text: String) {
+        upgrade = UpgradeUi()
+        scope.launch {
+            val names = DecklistParser.parse(text).map { it.name }.toSet()
+            val ideas = runCatching { repo.upgradeIdeas(commanders, identity, names) }.getOrNull()
+            upgrade = upgrade?.copy(loading = false, ideas = ideas.orEmpty(), failed = ideas == null)
+        }
+    }
+
+    fun closeUpgrade() { upgrade = null }
+
+    /** Adds one copy of an idea to the deck's main list, with Undo. */
+    fun add(idea: UpgradeIdea) {
+        val id = deckId()
+        scope.launch {
+            repo.addToDeckList(id, idea.name, 1) ?: return@launch
+            upgrade = upgrade?.let { it.copy(added = it.added + idea.name) }
+            repo.deckById(id)?.let { reload(it) }
+            Undo.offer("Added ${idea.name}") {
+                repo.addToDeckList(id, idea.name, -1)
+                upgrade = upgrade?.let { it.copy(added = it.added - idea.name) }
+                repo.deckById(id)?.let { reload(it) }
+            }
+        }
+    }
+
+    /** Writes proxies of [missing] (name, picture, copies) to [uri]. */
+    fun printProxies(ctx: Context, uri: Uri, missing: List<Triple<String, String?, Int>>) {
+        if (printing) return
+        printing = true
+        Undo.offer("Making proxies…")
+        scope.launch {
+            try {
+                val copies = missing.flatMap { (n, url, q) -> List(q.coerceAtLeast(0)) { n to url } }
+                val n = withContext(Dispatchers.IO) {
+                    runCatching {
+                        (runCatching { ctx.contentResolver.openOutputStream(uri, "wt") }.getOrNull() ?: ctx.contentResolver.openOutputStream(uri))
+                            ?.use { ProxySheet.write(copies, it) }
+                    }.getOrNull()
+                }
+                Undo.offer(if (n == null) "Couldn't save the proxies" else if (n == 1) "1 proxy saved" else "$n proxies saved")
+            } finally {
+                printing = false
+            }
+        }
+    }
+}
+
+/** The tools' lines in the deck's ⋮ menu. */
+@Composable
+fun DeckToolsMenuItems(tools: DeckTools, ui: DeckUi, inDeck: Int, close: () -> Unit, onPrint: () -> Unit) {
+    val lent by tools.lentTo.collectAsStateWithLifecycle()
+    if (lent != null) {
+        DropdownMenuItem(text = { Text("Mark returned") }, onClick = { close(); tools.returned() })
+    } else if (inDeck > 0) {
+        DropdownMenuItem(text = { Text("Lend deck") }, onClick = { close(); tools.lending = true })
+    }
+    val leads = ui.commanders.commanders
+    if (DeckFormats.isCommander(ui.format) && leads.isNotEmpty()) {
+        DropdownMenuItem(text = { Text("Upgrade from your cards") }, onClick = {
+            close()
+            val identity = "WUBRG".filter { c -> leads.any { c in ui.leadInfo[it.lowercase()]?.identity.orEmpty().uppercase() } }
+            tools.openUpgrade(leads, identity, ui.text)
+        })
+    }
+    if (ui.check?.missingLines?.isNotEmpty() == true) {
+        DropdownMenuItem(text = { Text("Print proxies") }, onClick = { close(); onPrint() })
+    }
+    DropdownMenuItem(text = { Text("Build with another deck") }, onClick = { close(); tools.pickingOther = true })
+}
+
+/** The tools' dialogs and sheets. Call [print] to ask where to save the proxies. */
+@Composable
+fun DeckToolsLayer(tools: DeckTools, ui: DeckUi, repo: CollectionRepository): () -> Unit {
+    val ctx = LocalContext.current
+    val missing = ui.check?.missingLines.orEmpty()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null) tools.printProxies(ctx, uri, missing.map { Triple(it.name, it.imageUrl, it.missing) })
+    }
+    if (tools.lending) LendDeckDialog(tools, ui.name)
+    tools.upgrade?.let { UpgradeSheet(it, tools) }
+    if (tools.pickingOther) PickOtherDeck(tools, repo, ui.id)
+    tools.other?.let { BothSheet(it, ui, repo) { tools.other = null } }
+    return { launcher.launch("${ui.name.ifBlank { "Deck" }} proxies.pdf") }
+}
+
+@Composable
+private fun LendDeckDialog(tools: DeckTools, deckName: String) {
+    var who by remember { mutableStateOf("") }
+    val recent by tools.recentNames.collectAsStateWithLifecycle()
+    val name = LoanMath.cleanName(who)
+    AlertDialog(
+        onDismissRequest = { tools.lending = false },
+        containerColor = Palette.Surface,
+        title = { Text("Lend deck", maxLines = 1) },
+        text = {
+            Column {
+                Text(deckName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = who,
+                    onValueChange = { who = it.take(30) },
+                    label = { Text("To") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (recent.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        recent.forEach { n -> SelectPill(n, n.equals(name, ignoreCase = true), { who = n }) }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("Every card kept in the deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            }
+        },
+        confirmButton = { TextButton(onClick = { tools.lend(name) }, enabled = name.isNotEmpty()) { Text("Lend") } },
+        dismissButton = { TextButton(onClick = { tools.lending = false }) { Text("Cancel") } },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
+    ModalBottomSheet(
+        onDismissRequest = tools::closeUpgrade,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Palette.Surface,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding()) {
+            Text("From your cards", style = MaterialTheme.typography.titleLarge)
+            Text("Cards you own that decks with this commander play", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Spacer(Modifier.height(8.dp))
+            when {
+                state.loading -> Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.Center) {
+                    CircularProgressIndicator(Modifier.size(28.dp), color = Palette.Accent)
+                }
+                state.failed -> EmptyState("Couldn't reach EDHREC or Scryfall", Modifier.padding(vertical = 24.dp))
+                state.ideas.isEmpty() -> EmptyState("Nothing new in your boxes", Modifier.padding(vertical = 24.dp))
+                else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
+                    items(state.ideas, key = { it.name }) { idea ->
+                        val added = idea.name in state.added
+                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CardImage(idea.imageUrl, Modifier.width(40.dp), zoom = true)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(idea.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val share = idea.share?.let { "In ${(it * 100).toInt()}% of decks · " }.orEmpty()
+                                Text(
+                                    share + idea.where.joinToString(", ").ifEmpty { "${idea.copies} owned" },
+                                    style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            IconButton(onClick = { if (!added) tools.add(idea) }, enabled = !added) {
+                                if (added) Icon(Icons.Outlined.Check, "Added", tint = Palette.Accent)
+                                else Icon(Icons.Outlined.Add, "Add to deck", tint = Palette.Icon)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun PickOtherDeck(tools: DeckTools, repo: CollectionRepository, selfId: Long) {
+    val flow = remember(repo) { repo.observeDecks() }
+    val decks by flow.collectAsStateWithLifecycle(emptyList())
+    val others = decks.filter { it.id != selfId }.sortedBy { it.name.lowercase() }
+    AlertDialog(
+        onDismissRequest = { tools.pickingOther = false },
+        containerColor = Palette.Surface,
+        title = { Text("Build with", maxLines = 1) },
+        text = {
+            if (others.isEmpty()) Text("No other decks", color = Palette.Muted)
+            else LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                items(others, key = { it.id }) { d ->
+                    Text(
+                        d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth().clickable { tools.pickingOther = false; tools.other = d }.padding(vertical = 12.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = { tools.pickingOther = false }) { Text("Cancel") } },
+    )
+}
+
+/** Cards this deck and [other] both play, and how many you're short to have both built at once. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BothSheet(other: Deck, ui: DeckUi, repo: CollectionRepository, onDismiss: () -> Unit) {
+    val ownedFlow = remember(repo) { repo.observeOwnedByName() }
+    val owned by ownedFlow.collectAsStateWithLifecycle(emptyMap())
+    val rows = remember(ui.text, other, owned) { SharedCards.both(DecklistParser.parse(ui.text), ParsedDecks.of(other), owned) }
+    val short = rows.filter { it.short > 0 }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Palette.Surface,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding()) {
+            Text("With ${other.name}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                when {
+                    rows.isEmpty() -> "No cards in common"
+                    short.isEmpty() -> "${rows.size} in common · enough of each to build both"
+                    else -> "${rows.size} in common · short ${short.sumOf { it.short }} to build both"
+                },
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+            )
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
+                items(rows, key = { it.name }) { r ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(r.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(
+                            if (r.short > 0) "Short ${r.short}" else "${r.owned} owned",
+                            style = MaterialTheme.typography.bodySmall.merge(TabularNums),
+                            color = if (r.short > 0) Palette.AccentText else Palette.Muted,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}

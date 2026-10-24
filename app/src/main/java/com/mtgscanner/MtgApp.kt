@@ -47,6 +47,7 @@ class MtgApp : Application(), ImageLoaderFactory {
             override fun onActivityDestroyed(activity: Activity) {}
         })
         com.mtgscanner.work.PriceAlerts.schedule(this)
+        com.mtgscanner.work.WatchWorker.schedule(this)
         com.mtgscanner.work.Notifications.dropDigest(this)
     }
 
