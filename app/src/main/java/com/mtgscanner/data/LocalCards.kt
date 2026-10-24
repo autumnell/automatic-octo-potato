@@ -1,0 +1,307 @@
+package com.mtgscanner.data
+
+import android.content.ContentValues
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.net.ConnectivityManager
+import com.mtgscanner.util.CardNames
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.DecodeSequenceMode
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeToSequence
+import okhttp3.Request
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.time.LocalDate
+import java.util.concurrent.TimeUnit
+import java.util.zip.Deflater
+import java.util.zip.Inflater
+
+/** What the card list on the phone is doing, for Settings. */
+data class LocalCardsStatus(
+    val cards: Int = 0,
+    /** Day of the last update ("2026-10-24"); empty before the first download. */
+    val updated: String = "",
+    /** 0..1 while the first download runs, else null. */
+    val progress: Float? = null,
+    val failed: Boolean = false,
+)
+
+/** Picking among a card's printings found on the phone, kept free of Android so it can be tested. */
+object LocalPick {
+    /**
+     * The printing a name alone stands for, like Scryfall's name lookup: English first, then regular printings
+     * over promos, then the newest.
+     */
+    fun newest(cards: List<ScryfallCard>): ScryfallCard? =
+        cards.sortedWith(
+            compareBy<ScryfallCard> { if (it.lang == "en") 0 else 1 }
+                .thenBy { if (it.promo) 1 else 0 }
+                .thenByDescending { it.releasedAt ?: "" },
+        ).firstOrNull()
+
+    /** The fields a scan needs, without the ones only the card page shows (it reads those fresh from Scryfall). */
+    fun slim(c: ScryfallCard): ScryfallCard = c.copy(legalities = emptyMap(), relatedUris = emptyMap(), purchaseUris = emptyMap())
+
+    /** Days to look back when asking for new cards: from the day before the last update, so a late addition isn't missed. */
+    fun since(updated: String): String = runCatching { LocalDate.parse(updated).minusDays(1).toString() }.getOrDefault(updated)
+}
+
+/**
+ * Every printing on Scryfall, kept on the phone so scans are matched without waiting on Scryfall, and offline.
+ * The first time, the whole list is downloaded once (on Wi-Fi). After that, only cards released since the last
+ * update are asked for, when the app opens.
+ */
+class LocalCards(private val context: Context, private val api: ScryfallApi) {
+    private val dbFile get() = context.getDatabasePath(DB_NAME)
+    private val tmpFile get() = context.getDatabasePath("$DB_NAME.tmp")
+    private val prefs get() = context.getSharedPreferences("local_cards", Context.MODE_PRIVATE)
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
+    private val lock = Mutex()
+
+    @Volatile private var db: SQLiteDatabase? = null
+    private val _status = MutableStateFlow(LocalCardsStatus())
+    val status: StateFlow<LocalCardsStatus> = _status
+
+    /** On unless turned off in Settings › Scanning. */
+    var enabled: Boolean
+        get() = prefs.getBoolean(KEY_ON, true)
+        set(v) { prefs.edit().putBoolean(KEY_ON, v).apply() }
+
+    /** True once the list is on the phone. */
+    val ready: Boolean get() = db != null
+
+    private fun open(): SQLiteDatabase? {
+        db?.let { return it }
+        if (!dbFile.exists()) return null
+        return runCatching { SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE) }.getOrNull()?.also { db = it }
+    }
+
+    /** Opens the saved list, then downloads it or adds new cards. Call when the app opens. */
+    suspend fun sync() = lock.withLock {
+        withContext(Dispatchers.IO) {
+            if (!enabled) return@withContext
+            tmpFile.delete()
+            val d = open()
+            _status.value = LocalCardsStatus(count(d), prefs.getString(KEY_DAY, "").orEmpty())
+            val today = LocalDate.now().toString()
+            val updated = prefs.getString(KEY_DAY, "").orEmpty()
+            if (d == null) {
+                // The whole list is a large download: only on Wi-Fi (or another unmetered network).
+                if (!unmetered()) return@withContext
+                runCatching { downloadAll() }.onFailure { tmpFile.delete(); _status.value = _status.value.copy(progress = null, failed = true) }
+            } else if (updated != today) {
+                runCatching { addNew(LocalPick.since(updated)) }
+            }
+        }
+    }
+
+    /** Turns the list off and deletes it. */
+    suspend fun clear() = lock.withLock {
+        withContext(Dispatchers.IO) {
+            db?.close()
+            db = null
+            SQLiteDatabase.deleteDatabase(dbFile)
+            tmpFile.delete()
+            prefs.edit().remove(KEY_DAY).apply()
+            _status.value = LocalCardsStatus()
+        }
+    }
+
+    private fun unmetered(): Boolean {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        return !cm.isActiveNetworkMetered
+    }
+
+    private fun count(d: SQLiteDatabase?): Int =
+        d?.let { runCatching { it.rawQuery("SELECT COUNT(*) FROM cards", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 } }.getOrNull() } ?: 0
+
+    private fun create(d: SQLiteDatabase) {
+        d.execSQL("CREATE TABLE IF NOT EXISTS cards (id TEXT PRIMARY KEY, setc TEXT, num TEXT, oracle TEXT, nk TEXT, fk TEXT, released TEXT, priced TEXT, data BLOB)")
+        d.execSQL("CREATE INDEX IF NOT EXISTS cards_setnum ON cards(setc, num)")
+        d.execSQL("CREATE INDEX IF NOT EXISTS cards_oracle ON cards(oracle)")
+        d.execSQL("CREATE INDEX IF NOT EXISTS cards_nk ON cards(nk)")
+        d.execSQL("CREATE INDEX IF NOT EXISTS cards_fk ON cards(fk)")
+    }
+
+    private fun put(d: SQLiteDatabase, c: ScryfallCard, day: String) {
+        if (c.digital) return
+        val v = ContentValues(9)
+        v.put("id", c.id)
+        v.put("setc", c.set.lowercase())
+        v.put("num", c.collectorNumber.lowercase())
+        v.put("oracle", c.oracleId)
+        v.put("nk", CardNames.key(c.name))
+        v.put("fk", CardNames.key(CardNames.front(c.name)))
+        v.put("released", c.releasedAt)
+        v.put("priced", day)
+        v.put("data", pack(json.encodeToString(ScryfallCard.serializer(), LocalPick.slim(c))))
+        d.insertWithOnConflict("cards", null, v, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Downloads Scryfall's list of every printing into a new file, then puts it in place. */
+    @OptIn(ExperimentalSerializationApi::class)
+    private suspend fun downloadAll() {
+        val uri = api.bulkDownloadUri("default_cards") ?: error("No bulk list")
+        _status.value = _status.value.copy(progress = 0f, failed = false)
+        val client = sharedHttpClient.newBuilder().readTimeout(60, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
+        val req = Request.Builder().url(uri).header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
+        tmpFile.parentFile?.mkdirs()
+        val d = SQLiteDatabase.openOrCreateDatabase(tmpFile, null)
+        val day = LocalDate.now().toString()
+        try {
+            create(d)
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) error("Download failed ${resp.code}")
+                val body = resp.body ?: error("Empty download")
+                val total = body.contentLength()
+                val counting = CountingStream(body.byteStream())
+                var n = 0
+                d.beginTransaction()
+                try {
+                    for (c in json.decodeToSequence(counting, ScryfallCard.serializer(), DecodeSequenceMode.ARRAY_WRAPPED)) {
+                        put(d, c, day)
+                        n++
+                        if (n % 2000 == 0) {
+                            // Turned off in Settings while downloading: stop and leave nothing behind.
+                            if (!enabled) error("Turned off")
+                            d.setTransactionSuccessful(); d.endTransaction(); d.beginTransaction()
+                            // Without a length (compressed download), progress is shown by cards against a typical count.
+                            val p = if (total > 0) counting.count.toFloat() / total else n / 110_000f
+                            _status.value = _status.value.copy(progress = p.coerceIn(0f, 0.99f))
+                        }
+                    }
+                    d.setTransactionSuccessful()
+                } finally {
+                    d.endTransaction()
+                }
+                if (n < 10_000) error("Too few cards")
+            }
+        } finally {
+            d.close()
+        }
+        db?.close()
+        db = null
+        SQLiteDatabase.deleteDatabase(dbFile)
+        if (!tmpFile.renameTo(dbFile)) error("Couldn't save the card list")
+        val today = LocalDate.now().toString()
+        prefs.edit().putString(KEY_DAY, today).apply()
+        val opened = open()
+        _status.value = LocalCardsStatus(count(opened), today)
+    }
+
+    /** Asks Scryfall only for cards released since [since], and adds them. */
+    private suspend fun addNew(since: String) {
+        val found = api.searchAll("date>=$since include:extras", unique = "prints", maxPages = 30, order = "released")
+        val today = LocalDate.now().toString()
+        val d = open() ?: return
+        if (found.isNotEmpty()) write(d) { found.forEach { put(d, it, today) } }
+        prefs.edit().putString(KEY_DAY, today).apply()
+        _status.value = LocalCardsStatus(count(d), today)
+    }
+
+    private inline fun write(d: SQLiteDatabase, block: () -> Unit) {
+        d.beginTransaction()
+        try { block(); d.setTransactionSuccessful() } finally { d.endTransaction() }
+    }
+
+    /** Saves today's prices for cards just fetched from Scryfall. */
+    fun update(fresh: List<ScryfallCard>) {
+        val d = db ?: return
+        val today = LocalDate.now().toString()
+        runCatching { write(d) { fresh.forEach { put(d, it, today) } } }
+        fresh.forEach { staleIds.remove(it.id) }
+    }
+
+    /** Printings read from the list whose prices are a few days old (see [isStale]). */
+    private val staleIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** The card came from the list with prices more than [STALE_DAYS] old: worth asking Scryfall for today's. */
+    fun isStale(id: String): Boolean = id in staleIds
+
+    private fun query(sql: String, vararg args: String): List<ScryfallCard> {
+        val d = db ?: return emptyList()
+        val oldDay = LocalDate.now().minusDays(STALE_DAYS).toString()
+        return runCatching {
+            d.rawQuery(sql, args).use { c ->
+                val out = ArrayList<ScryfallCard>(c.count)
+                while (c.moveToNext()) {
+                    val card = runCatching { json.decodeFromString(ScryfallCard.serializer(), unpack(c.getBlob(0))) }.getOrNull() ?: continue
+                    if ((c.getString(1) ?: "") < oldDay) staleIds.add(card.id)
+                    out += card
+                }
+                out
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** The printing with that set code and collector number, or null when the list doesn't have it (or isn't on the phone). */
+    fun bySetAndNumber(set: String, number: String): ScryfallCard? =
+        query("SELECT data, priced FROM cards WHERE setc = ? AND num = ? LIMIT 1", set.lowercase(), number.lowercase()).firstOrNull()
+
+    /** The printing a card name stands for ([set]'s, when given), matching the whole name or its front face. */
+    fun named(name: String, set: String? = null): ScryfallCard? {
+        val k = CardNames.key(name)
+        if (k.isEmpty()) return null
+        val all = if (set != null) query("SELECT data, priced FROM cards WHERE (nk = ? OR fk = ?) AND setc = ?", k, k, set.lowercase())
+        else query("SELECT data, priced FROM cards WHERE nk = ? OR fk = ?", k, k)
+        return LocalPick.newest(all)
+    }
+
+    /** Whether the list has any card from [set]: a set it doesn't know is newer than the list, so Scryfall is asked. */
+    fun hasSet(set: String): Boolean {
+        val d = db ?: return false
+        return runCatching { d.rawQuery("SELECT 1 FROM cards WHERE setc = ? LIMIT 1", arrayOf(set.lowercase())).use { it.moveToFirst() } }.getOrDefault(false)
+    }
+
+    /** Every card in a set, tokens and extras included. */
+    fun inSet(set: String): List<ScryfallCard> = query("SELECT data, priced FROM cards WHERE setc = ?", set.lowercase())
+
+    /** Every printing of a card, by oracle id. */
+    fun printings(oracleId: String): List<ScryfallCard> = query("SELECT data, priced FROM cards WHERE oracle = ?", oracleId)
+
+    private class CountingStream(private val inner: java.io.InputStream) : java.io.FilterInputStream(inner) {
+        var count = 0L
+        override fun read(): Int = super.read().also { if (it >= 0) count++ }
+        override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { if (it > 0) count += it }
+    }
+
+    companion object {
+        private const val DB_NAME = "local-cards.db"
+        private const val KEY_DAY = "updated"
+        private const val KEY_ON = "on"
+        private const val STALE_DAYS = 2L
+
+        fun pack(s: String): ByteArray {
+            val input = s.toByteArray(Charsets.UTF_8)
+            val d = Deflater(Deflater.BEST_SPEED)
+            d.setInput(input)
+            d.finish()
+            val out = ByteArrayOutputStream(input.size / 2 + 16)
+            val buf = ByteArray(4096)
+            while (!d.finished()) out.write(buf, 0, d.deflate(buf))
+            d.end()
+            return out.toByteArray()
+        }
+
+        fun unpack(b: ByteArray): String {
+            val inf = Inflater()
+            inf.setInput(b)
+            val out = ByteArrayOutputStream(b.size * 3)
+            val buf = ByteArray(4096)
+            while (!inf.finished()) {
+                val n = inf.inflate(buf)
+                if (n == 0 && (inf.needsInput() || inf.needsDictionary())) break
+                out.write(buf, 0, n)
+            }
+            inf.end()
+            return out.toString(Charsets.UTF_8.name())
+        }
+    }
+}

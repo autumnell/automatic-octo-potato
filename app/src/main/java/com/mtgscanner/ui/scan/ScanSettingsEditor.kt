@@ -19,6 +19,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -98,6 +100,28 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
                 SelectPill(label, s.zoom == z, { update { it.copy(zoom = z) } })
             }
         }
+        LocalCardsRow()
+    }
+}
+
+/** Every card kept on the phone, so scans don't wait on Scryfall: on or off, and how far along it is. */
+@Composable
+private fun LocalCardsRow() {
+    val repo = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
+    val local = repo.localCards
+    val st by local.status.collectAsStateWithLifecycle()
+    var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(local.enabled) }
+    val body = when {
+        !on -> "Matches cards without waiting on Scryfall, even offline. About 50 MB."
+        st.progress != null -> "Downloading… ${(st.progress!! * 100).toInt()}%"
+        st.cards > 0 -> "${"%,d".format(st.cards)} cards · new ones added when the app opens"
+        st.failed -> "Download failed. Tries again next time on Wi-Fi."
+        else -> "Downloads next time the app opens on Wi-Fi. About 50 MB."
+    }
+    Toggle("Card list on phone", body, on) { v ->
+        on = v
+        local.enabled = v
+        repo.appScope.launch { if (v) local.sync() else local.clear() }
     }
 }
 

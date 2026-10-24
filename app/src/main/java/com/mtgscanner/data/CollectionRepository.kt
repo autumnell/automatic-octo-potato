@@ -88,6 +88,8 @@ class CollectionRepository(
     internal val identifyStore = IdentifyStore(context.filesDir)
     /** Printings and whole sets, kept on the phone (see Identify.kt). */
     internal val cardLists = CardListCache(context.filesDir)
+    /** Every printing, on the phone (LocalCards.kt). */
+    val localCards = LocalCards(context, api)
     /** The on-device art model, downloaded the first time art needs comparing. */
     val artEmbedder = com.mtgscanner.scan.ArtEmbedder(context.applicationContext)
     /** Printings already in a downloaded art index are compared from there, without fetching their pictures. */
@@ -128,6 +130,7 @@ class CollectionRepository(
     fun startBackgroundWork() {
         appScope.launch { runCatching { nameIndex.load() } }
         appScope.launch { runCatching { setCodes.load() } }
+        appScope.launch { runCatching { localCards.sync() } }
         appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.allPhotos()) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }

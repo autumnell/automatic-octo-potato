@@ -54,6 +54,14 @@ class ScryfallApi(
         return getOrNull(url)
     }
 
+    /** Where Scryfall's bulk file of [type] ("default_cards") can be downloaded, or null. */
+    suspend fun bulkDownloadUri(type: String): String? {
+        val url = base.newBuilder().addPathSegments("bulk-data/$type").build()
+        val body = request(Request.Builder().url(url).build()) ?: return null
+        val o = json.parseToJsonElement(body) as? JsonObject ?: return null
+        return (o["download_uri"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+    }
+
     /** Exact printing by set code and collector number. */
     suspend fun bySetAndNumber(set: String, number: String): ScryfallCard? {
         val url = base.newBuilder()
