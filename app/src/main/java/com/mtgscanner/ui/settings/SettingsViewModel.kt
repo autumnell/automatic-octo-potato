@@ -419,7 +419,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun resolvePending() = run("Looking up saved scans…") {
         val r = repo.resolvePendingWithUndo()
-        val message = "Added ${r.added} saved cards"
+        val message = if (r.added == 1) "Added 1 saved card" else "Added ${r.added} saved cards"
         if (r.rows.isEmpty()) return@run message
         com.mtgscanner.ui.components.Undo.offer(message) { repo.undoPending(r) }
         null

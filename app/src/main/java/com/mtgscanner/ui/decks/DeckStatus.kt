@@ -43,6 +43,14 @@ object DeckStatusStore {
         }
     }
 
+    /** Reads the file again, after a backup restore replaced or cleared it. */
+    @Synchronized
+    fun reload(context: Context) {
+        statuses.clear()
+        loaded = false
+        load(context)
+    }
+
     fun get(context: Context, deckId: Long): DeckStatus? {
         load(context)
         return statuses[deckId]
@@ -88,11 +96,11 @@ object DeckOwnership {
 
 /** A deck tagged Want, Maybe or Testing whose cards are now all owned: Home says so once. */
 @Composable
-fun DeckCompleteNotes(complete: List<Pair<Long, String>>, onOpen: () -> Unit) {
+fun DeckCompleteNotes(complete: List<Pair<Long, String>>, onOpen: (Long) -> Unit) {
     val ctx = LocalContext.current
     complete.filter { DeckStatusStore.get(ctx, it.first) != null }.forEach { (id, name) ->
         Row(
-            Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 20.dp, end = 4.dp),
+            Modifier.fillMaxWidth().clickable { onOpen(id) }.padding(start = 20.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

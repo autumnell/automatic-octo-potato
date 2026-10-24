@@ -1,5 +1,9 @@
 package com.mtgscanner.ui.trade
 
+import com.mtgscanner.data.db.unitEur
+import com.mtgscanner.data.wishSnapshot
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -86,6 +90,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
@@ -101,6 +107,10 @@ data class TradeItem(
     /** For cards you get: the finish, condition and language they're added with. */
     val foil: Boolean = false, val condition: String = "NM", val lang: String = "en",
 ) {
+    /** [price] in euros, from the same row or printing. */
+    val eur: Double? get() = owned?.unitEur()
+        ?: card?.let { (if (foil) it.prices.eurFoil ?: it.prices.eur else it.prices.eur)?.toDoubleOrNull() }
+
     /** What Card Kingdom pays for one copy, when known. */
     val buyPrice: Double? get() = owned?.let { CardKingdom.buyPrice(it.scryfallId, it.foil) } ?: card?.let { CardKingdom.buyPrice(it.id, foil) }
 }
@@ -114,6 +124,8 @@ data class TradeUi(
 ) {
     val giveValue: Double get() = give.sumOf { (it.price ?: 0.0) * it.qty }
     val getValue: Double get() = get.sumOf { (it.price ?: 0.0) * it.qty }
+    val giveEur: Double get() = give.sumOf { (it.eur ?: 0.0) * it.qty }
+    val getEur: Double get() = get.sumOf { (it.eur ?: 0.0) * it.qty }
 }
 
 class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -126,6 +138,7 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** The trade binder's cards: what you can give. */
     val collection: StateFlow<List<CollectionCard>> = combine(repo.observeAll(), binderId) { all, id -> all.filter { it.boxId == id } }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val binderName: StateFlow<String> = combine(repo.observeBoxes(), binderId) { boxes, id -> boxes.firstOrNull { it.id == id }?.name.orEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
@@ -246,7 +259,8 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
         val u = _ui.value
         _ui.update { it.copy(busy = true) }
         viewModelScope.launch {
-            val result = runCatching {
+            // Finishes even if the screen closes meanwhile, so a trade is never left half done.
+            val result = withContext(NonCancellable) { runCatching {
                 // Work out every destination before changing anything.
                 val binder = binderId.value.takeIf { it >= 0 && repo.box(it) != null }
                 var leftover: Long? = binder
@@ -268,14 +282,20 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 if (gives.isEmpty() && adds.isEmpty()) return@runCatching "Those cards aren't in the binder now"
                 val before = repo.snapshot(gives.map { it.first })
                 val added = mutableListOf<Pair<Long, Int>>()
+                // Cards you get count off the wishlist, as they do when scanned or added from Search.
+                val wishes = repo.wishSnapshot(adds.mapNotNull { it.first.oracleId })
                 try {
                     gives.forEach { (id, n) -> repo.remove(id, n) }
-                    adds.forEach { (c, item, box) -> added += repo.add(c, item.foil, item.qty, box, item.lang, item.condition) to item.qty }
+                    adds.forEach { (c, item, box) ->
+                        added += repo.add(c, item.foil, item.qty, box, item.lang, item.condition) to item.qty
+                        repo.fulfilWish(c.oracleId, item.qty)
+                    }
                 } catch (e: Exception) {
                     // Half a trade is worse than none: put back what already changed.
                     runCatching {
                         added.forEach { (id, n) -> repo.remove(id, n) }
                         repo.restore(before)
+                        wishes.values.forEach { repo.restoreWish(it) }
                     }
                     throw e
                 }
@@ -287,9 +307,10 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
                 Undo.offer((listOf("Trade saved") + notes).joinToString(". ")) {
                     added.forEach { (id, n) -> repo.remove(id, n) }
                     repo.restore(before)
+                    wishes.values.forEach { repo.restoreWish(it) }
                 }
                 null
-            }
+            } }
             Haptics.tick()
             val problem = result.getOrNull()
             _ui.value = when {

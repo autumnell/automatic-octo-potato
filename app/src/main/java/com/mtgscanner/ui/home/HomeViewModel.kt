@@ -216,9 +216,8 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Decks whose played cards are all owned, by id and name, for the "is complete" note. */
-    val completeDecks: StateFlow<List<Pair<Long, String>>> = combine(repo.observeDecks(), repo.observeAll()) { decks, all ->
-        val owned = all.groupBy { com.mtgscanner.util.CardNames.key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
-        decks.filter { com.mtgscanner.ui.decks.DeckOwnership.complete(com.mtgscanner.util.DecklistParser.parse(it.text), owned) }
+    val completeDecks: StateFlow<List<Pair<Long, String>>> = combine(repo.observeDecks(), repo.observeOwnedByName()) { decks, owned ->
+        decks.filter { com.mtgscanner.ui.decks.DeckOwnership.complete(com.mtgscanner.data.ParsedDecks.of(it), owned) }
             .map { it.id to it.name }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

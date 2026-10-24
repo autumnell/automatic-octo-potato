@@ -4,6 +4,8 @@ import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.placeName
 import com.mtgscanner.util.DecklistParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** One card in a checked decklist. */
 data class DeckCheckLine(
@@ -31,6 +33,8 @@ data class DeckCheckLine(
     val variant: String? = null,
     /** Copies are owned, but none of the printing the list names. */
     val ownedOtherPrinting: Boolean = false,
+    /** [price] in euros, picked the same way. */
+    val priceEur: Double? = null,
 ) {
     /** "LCI #287 · Borderless"; null when the list names no set. */
     val printing: String? get() = setCode?.let { s ->
@@ -69,7 +73,8 @@ data class DeckCheck(val lines: List<DeckCheckLine>) {
  * Compares a decklist with the collection: what's owned, where it is, and what's missing. [places] are boxes
  * and decks' card rows; copies kept in [deckSlotId] (this deck's own cards) count as in the deck.
  */
-suspend fun CollectionRepository.checkDeck(text: String, cards: List<CollectionCard>, places: List<Box>, deckSlotId: Long? = null): DeckCheck {
+suspend fun CollectionRepository.checkDeck(text: String, cards: List<CollectionCard>, places: List<Box>, deckSlotId: Long? = null): DeckCheck = withContext(Dispatchers.Default) {
+    // Parsing and matching a long list against a big collection is too slow for the main thread.
     val lines = DecklistParser.parse(text)
     // This deck's own rows (normally one), and every place by id.
     val ownDeck = places.firstOrNull { it.id == deckSlotId }?.deckId?.takeIf { it != 0L }
@@ -115,7 +120,7 @@ suspend fun CollectionRepository.checkDeck(text: String, cards: List<CollectionC
     }.getOrNull()
     val lookedUp = HashMap<Int, ScryfallCard>()
     looked?.forEachIndexed { k, c -> if (c != null) lookedUp[toLook[k]] = c }
-    return DeckCheck(lines.mapIndexed { i, l ->
+    DeckCheck(lines.mapIndexed { i, l ->
         val owned = byName[key(l.name)].orEmpty()
         val exact = samePrinting[i]
         val sc = lookedUp[i]
@@ -138,6 +143,9 @@ suspend fun CollectionRepository.checkDeck(text: String, cards: List<CollectionC
             price = exact.mapNotNull { it.priceUsd }.minOrNull()
                 ?: (if (named) sc?.prices?.usd?.toDoubleOrNull() else null)
                 ?: owned.mapNotNull { it.priceUsd }.minOrNull() ?: sc?.prices?.usd?.toDoubleOrNull(),
+            priceEur = exact.mapNotNull { it.priceEur }.minOrNull()
+                ?: (if (named) sc?.prices?.eur?.toDoubleOrNull() else null)
+                ?: owned.mapNotNull { it.priceEur }.minOrNull() ?: sc?.prices?.eur?.toDoubleOrNull(),
             imageUrl = exact.firstOrNull()?.imageUrl ?: (if (named) sc?.imageUrl else null) ?: owned.firstOrNull()?.imageUrl ?: sc?.imageUrl,
             oracleId = owned.firstOrNull()?.oracleId ?: sc?.oracleId,
             setCode = l.setCode,

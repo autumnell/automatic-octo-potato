@@ -62,6 +62,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.panelRow
@@ -76,7 +78,7 @@ class BuylistViewModel(private val repo: CollectionRepository) : ViewModel() {
     // Decks' card rows too, so a copy kept in a deck says which deck.
     val input: StateFlow<BuylistInput?> = combine(repo.observeAll(), repo.observePlaces(), repo.observeLoans()) { cards, boxes, loans ->
         BuylistInput(cards, boxes, loans)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Moves the pulled copies to the Sold list at the buylist price, with one Undo for all. */
     fun markSold(items: List<BuyPull>) = viewModelScope.launch {

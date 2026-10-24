@@ -38,7 +38,7 @@ suspend fun CollectionRepository.wantAllWithUndo(wants: List<Pair<ScryfallCard, 
 
 /** The cheapest paper printing of [card] with a USD price, or [card] when there's none or Scryfall can't be reached. */
 suspend fun CollectionRepository.cheapestPrinting(card: ScryfallCard): ScryfallCard {
-    val prints = runCatching { api.search(exactNameQuery(card.name) + " game:paper", unique = "prints", order = "usd") }.getOrDefault(emptyList())
+    val prints = runCatching { api.search(exactNameQuery(card.name) + " game:paper", unique = "prints", order = "usd", dir = "asc") }.getOrDefault(emptyList())
     return prints.filter { it.oracleId == card.oracleId }
         .minByOrNull { it.prices.usd?.toDoubleOrNull() ?: Double.MAX_VALUE }
         ?.takeIf { it.prices.usd?.toDoubleOrNull() != null } ?: card

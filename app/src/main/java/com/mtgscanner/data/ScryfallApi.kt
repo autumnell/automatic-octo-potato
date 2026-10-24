@@ -83,11 +83,12 @@ class ScryfallApi(
         return decode(RulingList.serializer(), body).data
     }
 
-    suspend fun search(query: String, unique: String = "cards", order: String = "name"): List<ScryfallCard> {
+    suspend fun search(query: String, unique: String = "cards", order: String = "name", dir: String? = null): List<ScryfallCard> {
         val url = base.newBuilder().addPathSegments("cards/search")
             .addQueryParameter("q", query)
             .addQueryParameter("unique", unique)
             .addQueryParameter("order", order)
+            .apply { if (dir != null) addQueryParameter("dir", dir) }
             .build()
         val body = request(Request.Builder().url(url).build()) ?: return emptyList()
         return decode(CardList.serializer(), body).data
