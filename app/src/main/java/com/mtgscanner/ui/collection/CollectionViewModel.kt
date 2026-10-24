@@ -419,7 +419,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun startGotIt(item: WishlistItem) {
         _gotIt.value = item to null
         viewModelScope.launch {
-            val list = runCatching { repo.api.printingsOf(item.oracleId, item.name) }.getOrDefault(emptyList()).filter { !it.digital }
+            val list = runCatching { repo.api.printingsOf(item.oracleId, item.name) }.getOrDefault(emptyList())
             if (_gotIt.value?.first?.id != item.id) return@launch
             if (list.isEmpty()) { _gotIt.value = null; _message.value = "Couldn't reach Scryfall"; return@launch }
             _gotIt.value = item to list
