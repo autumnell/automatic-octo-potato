@@ -121,7 +121,10 @@ import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.components.Undo
-import com.mtgscanner.ui.components.formatUsd
+import com.mtgscanner.ui.components.formatMoney
+import com.mtgscanner.ui.components.formatMoneyShort
+import com.mtgscanner.ui.components.primaryValue
+import com.mtgscanner.util.PriceCurrency
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.DeckLine
@@ -335,11 +338,15 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     val needed = played.sumOf { it.needed }
     val have = played.sumOf { minOf(it.owned, it.needed) }
     val missingCost = played.sumOf { (it.price ?: 0.0) * it.missing }
+    val missingEur = played.sumOf { (it.priceEur ?: 0.0) * it.missing }
     // A missing card with no price: "$12.30 + ?", or "--" when none has one, never a short total.
+    val euros = AppSettings.currency == PriceCurrency.EUR
+    val partial = played.any { it.missing > 0 && (if (euros) it.priceEur else it.price) == null }
+    val shown = if (euros) missingEur else missingCost
     val missingCostText = when {
-        !check.missingCostPartial -> formatUsd(missingCost)
-        missingCost > 0 -> formatUsd(missingCost) + " + ?"
-        else -> formatUsd(null as Double?)
+        !partial -> formatMoney(missingCost, missingEur)
+        shown > 0 -> formatMoney(missingCost, missingEur) + " + ?"
+        else -> formatMoney(null, null)
     }
     // A commander deck lists its commanders (and companion, signature spell) first.
     val (leads, rest) = PullListMath.leadsFirst(check.lines.filter { DeckFind.matches(it.name, find) }, leadsOf(ui), { it.name }, DeckNames::key)
@@ -357,8 +364,9 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             }
             // Small print: the deck's value and where its owned copies are.
             val value = played.sumOf { (it.price ?: 0.0) * it.needed }
+            val valueEur = played.sumOf { (it.priceEur ?: 0.0) * it.needed }
             val small = listOfNotNull(
-                if (AppSettings.showPrices && value > 0) "Value ${formatUsd(value)}" else null,
+                if (AppSettings.showPrices && primaryValue(value, valueEur) > 0) "Value ${formatMoney(value, valueEur)}" else null,
                 if (have > 0) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
             if (small.isNotEmpty()) {
@@ -502,7 +510,7 @@ private fun DeckLineRow(
         if (missingView) {
             // A fixed right-aligned slot so prices line up down the list.
             if (AppSettings.showPrices) Text(
-                formatUsd(l.price?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text,
+                formatMoneyShort(l.price?.times(l.missing), l.priceEur?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp).widthIn(min = 64.dp),
             )
         }

@@ -38,6 +38,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -95,6 +97,14 @@ class CollectionRepository(
         dao.observeAll().shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
     fun observeAll(): Flow<List<CollectionCard>> = allCards
+
+    /** Copies owned by card name ([com.mtgscanner.util.CardNames.key]), worked out once per change for every screen. */
+    private val ownedNames: Flow<Map<String, Int>> = allCards
+        .map { all -> OwnedNames.of(all) }
+        .flowOn(Dispatchers.Default)
+        .shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
+    fun observeOwnedByName(): Flow<Map<String, Int>> = ownedNames
     fun observe(id: Long): Flow<CollectionCard?> = dao.observe(id)
     fun observeBoxes(): Flow<List<Box>> = dao.observeBoxes()
     fun observeSnapshots(): Flow<List<ValueSnapshot>> = dao.observeSnapshots()
@@ -944,7 +954,7 @@ class CollectionRepository(
     /** Looks up cards saved while offline and adds them. Returns how many were added. */
     suspend fun resolvePending(): Int = resolvePendingWithUndo().added
 
-    /** What a lookup of saved scans did: how many it added, the copies per row id, and the saved scans it used up. */
+    /** What a lookup of saved scans did: how many copies it added, the copies per row id, and the saved scans it used up. */
     class PendingResult(val added: Int, val rows: List<Pair<Long, Int>>, val used: List<PendingScan>)
 
     /** [resolvePending], keeping exactly what it added so Undo takes off only that. */
@@ -976,7 +986,7 @@ class CollectionRepository(
                 if (c != null) addPendingCard(p, c)?.let { rows += it to p.quantity; used += p }
             }
         }
-        return PendingResult(rows.size, rows, used)
+        return PendingResult(rows.sumOf { it.second }, rows, used)
     }
 
     /**

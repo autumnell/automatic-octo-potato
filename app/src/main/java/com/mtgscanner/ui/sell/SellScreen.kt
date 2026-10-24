@@ -66,6 +66,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
@@ -80,6 +82,7 @@ class SellViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Cards marked for sale, by name. Null until loaded. */
     val cards: StateFlow<List<CollectionCard>?> = repo.observeAll()
         .map { all -> all.filter { it.forSale }.sortedBy { it.name.lowercase() } }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // Each change re-reads the row, so a stale copy from the list never overwrites newer edits.

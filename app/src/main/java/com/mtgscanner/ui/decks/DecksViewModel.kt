@@ -125,7 +125,6 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.DeckLine
-import com.mtgscanner.util.DecklistParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
@@ -168,11 +167,7 @@ data class DeckRow(
 internal val PLAYED = DeckCheck.PLAYED
 
 /** Parsed lists by deck id, so a collection change doesn't reparse every deck. */
-private val parsedDecks = java.util.concurrent.ConcurrentHashMap<Long, Pair<String, List<DeckLine>>>()
-
-private fun parsed(d: Deck): List<DeckLine> =
-    parsedDecks[d.id]?.takeIf { it.first == d.text }?.second
-        ?: DecklistParser.parse(d.text).also { parsedDecks[d.id] = d.text to it }
+private fun parsed(d: Deck): List<DeckLine> = com.mtgscanner.data.ParsedDecks.of(d)
 
 class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
     init {
@@ -186,10 +181,9 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val liveMeta = MutableStateFlow<Map<Long, DeckMeta>>(emptyMap())
     private val tried = mutableSetOf<String>()
 
-    val decks: StateFlow<List<DeckRow>?> = combine(repo.observeDecks(), repo.observeAll(), DeckShelfStore.state, liveMeta) { decks, cards, shelf, live ->
+    val decks: StateFlow<List<DeckRow>?> = combine(repo.observeDecks(), repo.observeOwnedByName(), DeckShelfStore.state, liveMeta) { decks, owned, shelf, live ->
         // Same name matching as the deck check, and each owned copy counts toward one line only.
         fun key(n: String) = com.mtgscanner.util.CardNames.key(n)
-        val owned = cards.groupBy { key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
         val folderIds = shelf.folders.map { it.id }.toSet()
         decks.map { d ->
             val lines = parsed(d)

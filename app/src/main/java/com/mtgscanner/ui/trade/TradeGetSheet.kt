@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.trade
 
+import com.mtgscanner.ui.components.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -74,7 +75,7 @@ internal fun GetCardSheet(
                     }
                     if (AppSettings.showPrices) {
                         Spacer(Modifier.height(6.dp))
-                        Text(formatUsd(item.price), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
+                        Text(formatMoney(item.price, item.eur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
                         item.buyPrice?.let { Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted) }
                     }
                     TextButton(onClick = onPrintings, contentPadding = PaddingValues(0.dp)) {

@@ -68,6 +68,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -86,7 +88,7 @@ class LoansViewModel(private val repo: CollectionRepository) : ViewModel() {
             LoanMath.byPerson(loans).map { (who, list) ->
                 who to list.map { l -> LoanMath.rowFor(l, cards).let { c -> LoanRow(l, c, c?.let { names[it.boxId] }) } }
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The copies came back, with Undo. */
     fun returned(loan: Loan) = viewModelScope.launch {

@@ -265,6 +265,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onGoals = { nav.navigate("goals") },
                     onStats = { nav.navigate("stats") },
                     onOpenSet = { nav.navigate("set/$it") },
+                    onOpenDeck = { nav.navigate("deck/$it") },
                 )
               }
             }

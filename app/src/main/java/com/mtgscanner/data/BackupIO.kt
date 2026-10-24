@@ -267,6 +267,7 @@ internal object BackupIO {
         com.mtgscanner.scan.ScanPrefs.init(context)
         com.mtgscanner.ui.theme.AppSettings.init(context)
         com.mtgscanner.work.CardAlertStore.reload(context)
+        com.mtgscanner.ui.decks.DeckStatusStore.reload(context)
     }
 
     /**
@@ -289,6 +290,7 @@ internal object BackupIO {
         }
         BoxPrefs.reload(context)
         LastChecked.reload(context)
+        com.mtgscanner.ui.decks.DeckStatusStore.reload(context)
     }
 
     /** Whether restoring [b] changes settings that some screens only read at start-up. */

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.trade
 
+import com.mtgscanner.ui.components.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -128,8 +129,8 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                     Column(Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("You give ${formatUsd(ui.giveValue)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
-                                Text("You get ${formatUsd(ui.getValue)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
+                                Text("You give ${formatMoney(ui.giveValue, ui.giveEur)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
+                                Text("You get ${formatMoney(ui.getValue, ui.getEur)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
                             }
                             ChangeText(ui.getValue - ui.giveValue, ui.giveValue, MaterialTheme.typography.titleMedium)
                         }
@@ -246,7 +247,7 @@ private fun TradeRow(item: TradeItem, vm: TradeViewModel, first: Boolean, last: 
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val prices = if (AppSettings.showPrices) " · ${formatUsd(item.price)}" + item.buyPrice?.let { " · CK buys ${formatUsd(it)}" }.orEmpty() else ""
+            val prices = if (AppSettings.showPrices) " · ${formatMoney(item.price, item.eur)}" + item.buyPrice?.let { " · CK buys ${formatUsd(it)}" }.orEmpty() else ""
             Text((if (item.card != null) item.getLabel() else item.set) + prices, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         QuantityStepper(item.qty, onChange = { vm.setQty(item, it.coerceAtMost(item.owned?.quantity ?: 99)) })

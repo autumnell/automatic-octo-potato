@@ -1,7 +1,6 @@
 package com.mtgscanner.ui.collection
 
 import com.mtgscanner.ui.decks.DeckOwnership
-import com.mtgscanner.util.DecklistParser
 import com.mtgscanner.util.CardNames
 import com.mtgscanner.data.cheapestPrinting
 import com.mtgscanner.data.DeckCheck
@@ -432,9 +431,11 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         val item = _gotIt.value?.first ?: return
         _gotIt.value = null
         viewModelScope.launch {
-            val target = repo.pickBox(card, false) ?: repo.lastBoxId.takeIf { it > 0 }
-            if (target == null) { _message.value = "No box's rules fit ${card.name}. Add it from Search instead."; return@launch }
-            val rowId = repo.add(card, false, 1, target)
+            // A printing that only comes in foil is added as foil.
+            val foil = !card.hasNonFoil
+            // No box's rules fit: the Anything box, made if needed, so the card never lands in a deleted box.
+            val target = repo.pickBox(card, foil) ?: repo.anythingBox()
+            val rowId = repo.add(card, foil, 1, target)
             val wish = repo.wishlistItem(item.oracleId)
             repo.fulfilWish(item.oracleId, 1)
             Undo.offer("Added ${card.name} · off wishlist") {
@@ -445,11 +446,10 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     }
 
     /** For each wishlist card (by [CardNames.key]), the decks whose lists play it and aren't complete, A to Z. */
-    val wishDecks: StateFlow<Map<String, List<String>>> = combine(repo.observeDecks(), repo.observeAll()) { decks, all ->
-        val owned = all.groupBy { CardNames.key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+    val wishDecks: StateFlow<Map<String, List<String>>> = combine(repo.observeDecks(), repo.observeOwnedByName()) { decks, owned ->
         val map = HashMap<String, MutableList<String>>()
         decks.sortedBy { it.name.lowercase() }.forEach { d ->
-            val lines = DecklistParser.parse(d.text)
+            val lines = com.mtgscanner.data.ParsedDecks.of(d)
             if (DeckOwnership.complete(lines, owned)) return@forEach
             lines.filter { it.section in DeckCheck.PLAYED }.map { CardNames.key(it.name) }.distinct()
                 .forEach { k -> map.getOrPut(k) { mutableListOf() }.add(d.name) }

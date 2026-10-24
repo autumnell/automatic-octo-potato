@@ -203,16 +203,23 @@ object Mana {
         )
     }
 
-    /** A paint with the Mana font, made once per composition. Null when the font can't be loaded. */
+    /** One paint with the Mana font for every symbol on screen. Null when the font can't be loaded. */
+    @Volatile private var sharedPaint: android.graphics.Paint? = null
+    @Volatile private var paintFailed = false
+
     @Composable
     private fun rememberGlyphPaint(): android.graphics.Paint? {
         val ctx = LocalContext.current
-        return remember {
-            runCatching { ResourcesCompat.getFont(ctx, R.font.mana) }.getOrNull()?.let { tf ->
-                android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    typeface = tf
-                }
-            }
+        return remember { glyphPaint(ctx) }
+    }
+
+    private fun glyphPaint(ctx: android.content.Context): android.graphics.Paint? {
+        sharedPaint?.let { return it }
+        if (paintFailed) return null
+        return synchronized(this) {
+            sharedPaint ?: runCatching { ResourcesCompat.getFont(ctx.applicationContext, R.font.mana) }.getOrNull()
+                ?.let { tf -> android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { typeface = tf } }
+                .also { sharedPaint = it; if (it == null) paintFailed = true }
         }
     }
 
@@ -227,9 +234,9 @@ object Mana {
      */
     private fun DrawScope.drawGlyph(paint: android.graphics.Paint?, glyph: String, px: Float, at: Offset, color: Int = INK) {
         paint ?: return
-        paint.textSize = px
-        paint.color = color
         synchronized(glyphBounds) {
+            paint.textSize = px
+            paint.color = color
             paint.getTextBounds(glyph, 0, glyph.length, glyphBounds)
             val x = at.x - glyphBounds.exactCenterX()
             val y = at.y - glyphBounds.exactCenterY()
