@@ -117,7 +117,7 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     }
 
     /**
-     * Saves a finished game to the stats once, when the table moves on from it (Done, Play again,
+     * Saves a finished game to the stats once, when the table moves on from it (Done, Rematch,
      * or a new game). Not the moment someone hits 0, so a mis-tap that's undone isn't counted.
      */
     private fun saveIfWon() {

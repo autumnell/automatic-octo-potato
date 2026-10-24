@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.components.PrintingsSheet
+import com.mtgscanner.util.CardNames
 import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.components.formatMoneyShort
 import com.mtgscanner.data.db.totalEur
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -730,6 +733,7 @@ private fun ToolsTab(
 }
 
 /** Cards you want. Tap one to change how many; delete offers Undo. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WishlistTab(vm: CollectionViewModel) {
     val wishlist by vm.wishlist.collectAsStateWithLifecycle()
@@ -749,6 +753,14 @@ private fun WishlistTab(vm: CollectionViewModel) {
         if (query.trim().length < 2) return@LaunchedEffect
         delay(300)
         suggestions = vm.suggestCards(query)
+    }
+    val wishDecks by vm.wishDecks.collectAsStateWithLifecycle()
+    val gotIt by vm.gotIt.collectAsStateWithLifecycle()
+    // "Deck" sort: one group per deck that wants cards (each card under its first deck A to Z), then the rest.
+    val groups: List<Pair<String?, List<WishlistItem>>> = remember(shown, sort, wishDecks) {
+        if (sort != WishlistSort.DECK) listOf(null to shown)
+        else shown.groupBy { wishDecks[CardNames.key(it.name)]?.firstOrNull() ?: "Loose" }.toList()
+            .sortedWith(compareBy<Pair<String, List<WishlistItem>>> { it.first == "Loose" }.thenBy { it.first.lowercase() })
     }
     val onList = remember(wishlist) { wishlist.mapTo(HashSet()) { it.name.lowercase() } }
     val toAdd = suggestions.filter { it.lowercase() !in onList }.take(5)
@@ -770,7 +782,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share wishlist", tint = Palette.Icon) }
                 }
                 SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search or add a card")
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     WishlistSort.entries.filter { AppSettings.showPrices || it != WishlistSort.PRICE }.forEach { s ->
                         SelectPill(s.label, sort == s, { sortName = s.name })
                     }
@@ -781,36 +793,59 @@ private fun WishlistTab(vm: CollectionViewModel) {
         if (toAdd.isNotEmpty()) {
             item { SectionHeader("Add to wishlist") }
             items(toAdd, key = { "add:$it" }) { name ->
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = name == toAdd.first(), last = name == toAdd.last())
-                        .clickable { vm.wishByName(name); query = "" }.padding(start = 14.dp, end = 4.dp).heightIn(min = 48.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                    Icon(Icons.Outlined.Add, "Add $name", tint = Palette.Icon, modifier = Modifier.padding(12.dp))
+                // Tap adds one; hold to pick how many.
+                var counts by remember { mutableStateOf(false) }
+                Box {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = name == toAdd.first(), last = name == toAdd.last())
+                            .combinedClickable(onClick = { vm.wishByName(name); query = "" }, onLongClick = { counts = true })
+                            .padding(start = 14.dp, end = 4.dp).heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Icon(Icons.Outlined.Add, "Add $name", tint = Palette.Icon, modifier = Modifier.padding(12.dp))
+                    }
+                    DropdownMenu(expanded = counts, onDismissRequest = { counts = false }) {
+                        (1..4).forEach { n ->
+                            DropdownMenuItem(text = { Text("Want $n") }, onClick = { counts = false; vm.wishByName(name, n); query = "" })
+                        }
+                    }
                 }
             }
             item { Spacer(Modifier.height(12.dp)) }
         }
-        items(shown, key = { "w${it.id}" }) { w ->
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = w === shown.first(), last = w === shown.last())
-                    .clickable { editing = w }.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(w.name, style = MaterialTheme.typography.titleSmall)
-                    Text("Want ${w.wanted}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        groups.forEach { (group, rows) ->
+            if (group != null) item(key = "g:$group") { SectionHeader(group) }
+            items(rows, key = { "w${it.id}" }) { w ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = w === rows.first(), last = w === rows.last())
+                        .clickable { editing = w }.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(w.name, style = MaterialTheme.typography.titleSmall)
+                        val decks = wishDecks[CardNames.key(w.name)].orEmpty()
+                        val more = if (group != null) decks.drop(1) else decks
+                        Text(
+                            "Want ${w.wanted}" + if (more.isNotEmpty()) " · ${if (group != null) "also " else ""}${more.joinToString(", ")}" else "",
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+                    IconButton(onClick = { vm.startGotIt(w) }) { Icon(Icons.Outlined.Check, "Got it", tint = Palette.Icon) }
+                    IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Outlined.DeleteOutline, "Remove", tint = Palette.Icon) }
                 }
-                if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
-                IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Outlined.DeleteOutline, "Remove", tint = Palette.Icon) }
             }
+            if (group != null) item(key = "s:$group") { Spacer(Modifier.height(8.dp)) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
     if (sharing) ShareDialog("Wishlist", scope, carts = true, onDismiss = { sharing = false }) { wishlist.map { it.shareLine() } }
+    gotIt?.let { (w, printings) ->
+        PrintingsSheet(printings, w.scryfallId, vm::gotItPrinting, vm::cancelGotIt)
+    }
     editing?.let { w ->
         WantedDialog(w, onSave = { n -> vm.setWanted(w, n); editing = null }, onDismiss = { editing = null })
     }

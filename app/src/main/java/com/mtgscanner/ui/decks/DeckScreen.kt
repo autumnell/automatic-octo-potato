@@ -323,6 +323,8 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
     var find by rememberSaveable { mutableStateOf("") }
+    var showShared by rememberSaveable { mutableStateOf(false) }
+    val shared by vm.shared.collectAsStateWithLifecycle()
     val check = ui.check
     if (ui.checking || check == null) {
         PlaceholderRows(6, Modifier.padding(16.dp))
@@ -353,12 +355,39 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
             }
-            if (have > 0) {
+            // Small print: the deck's value and where its owned copies are.
+            val value = played.sumOf { (it.price ?: 0.0) * it.needed }
+            val small = listOfNotNull(
+                if (AppSettings.showPrices && value > 0) "Value ${formatUsd(value)}" else null,
+                if (have > 0) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
+            )
+            if (small.isNotEmpty()) {
                 Text(
-                    "$inDeck in the deck · ${have - inDeck} elsewhere",
+                    small.joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
                     modifier = Modifier.padding(start = 20.dp, end = 16.dp, bottom = 6.dp),
                 )
+            }
+            if (shared.isNotEmpty()) {
+                Text(
+                    "${shared.size} ${if (shared.size == 1) "card" else "cards"} also in other decks " + if (showShared) "▴" else "▾",
+                    style = MaterialTheme.typography.bodySmall, color = Palette.AccentText,
+                    modifier = Modifier.clickable { showShared = !showShared }.padding(start = 20.dp, end = 16.dp, top = 2.dp, bottom = 8.dp),
+                )
+                if (showShared) {
+                    Column(Modifier.padding(start = 20.dp, end = 16.dp, bottom = 8.dp)) {
+                        shared.forEach { c ->
+                            Row(Modifier.padding(vertical = 3.dp)) {
+                                Text(c.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    c.decks.joinToString(", "), style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                                    modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             if (played.any { it.missing > 0 }) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {

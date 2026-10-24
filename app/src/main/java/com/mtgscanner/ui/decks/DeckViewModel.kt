@@ -223,6 +223,11 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         places to places.firstOrNull { id != 0L && it.deckId == id }?.id
     }
 
+    /** This deck's cards that other decks play too. */
+    val shared: StateFlow<List<SharedCard>> = combine(_ui.map { it.id to it.text }.distinctUntilChanged(), repo.observeDecks()) { (id, text), decks ->
+        SharedCards.of(DecklistParser.parse(text), decks.filter { it.id != id }.map { it.name to DecklistParser.parse(it.text) })
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Copies kept in this deck. */
     val inDeck: StateFlow<Int> = combine(places, repo.observeAll()) { (_, slot), cards ->
         if (slot == null) 0 else cards.filter { it.boxId == slot }.sumOf { it.quantity }

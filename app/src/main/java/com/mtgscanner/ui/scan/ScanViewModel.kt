@@ -684,7 +684,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     private suspend fun swapLine(key: Long, card: ScryfallCard, foil: Boolean) {
         val cur = latest[key] ?: _state.value.session.firstOrNull { it.key == key } ?: return
         if (cur.key in removedKeys) return
-        val updated = if (cur.deckId != 0L) cur.copy(card = card, foil = foil) else {
+        val updated = if (!cur.inCollection) cur.copy(card = card, foil = foil) else {
             repo.remove(cur.rowId, cur.count)
             val facts = card.facts(foil)
             val chosen = chooseBox(card, facts, _state.value.boxId)
@@ -900,6 +900,33 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         if (!auto) Undo.offer("Added ${card.name} to ${deck.name}") { takeBack(entry.key, qty) }
     }
 
+    /** Scan to wishlist: the card goes on the wishlist, not into the collection. */
+    private suspend fun addToWish(card: ScryfallCard, qty: Int, foil: Boolean, fromReview: Boolean, auto: Boolean) {
+        if (runCatching { repo.addToWishlist(card, qty) }.isFailure) return
+        val wanted = runCatching { repo.wishlistItem(card.oracleId)?.wanted }.getOrNull() ?: qty
+        val s = _state.value
+        val merge = mergeTarget(s, card, foil, 0, 0, 0)?.takeIf { it.toWishlist }
+        val entry = merge?.copy(count = merge.count + qty, at = System.currentTimeMillis())
+            ?: ScanEntry(++entryKeys, 0, card, foil, qty, "Wishlist", 0, note = "want $wanted", toWishlist = true)
+        latest[entry.key] = entry
+        _state.update {
+            it.copy(
+                session = if (merge != null) replaceIn(it.session, entry) else listOf(entry) + it.session,
+                addedPulse = it.addedPulse + 1,
+                status = "${card.name} → wishlist · want $wanted",
+                error = null,
+                wish = null,
+                lastBoxName = null,
+                current = if (fromReview || auto) it.current else null,
+                cardFoil = if (fromReview || auto) it.cardFoil else null,
+                foilHint = if (fromReview || auto) it.foilHint else false,
+                awaiting = if (fromReview) it.awaiting else false,
+            )
+        }
+        if (!_state.value.autoAdd && !fromReview) resetTracking()
+        if (!auto) Undo.offer("Added ${card.name} to wishlist") { takeBack(entry.key, qty) }
+    }
+
     private fun addCard(
         card: ScryfallCard, qty: Int, fromReview: Boolean = false, auto: Boolean = false, fromPage: Boolean = false, readLang: String? = null,
         foil: Boolean? = null,
@@ -921,6 +948,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 ScanTarget.CHECK -> return null
                 ScanTarget.REMOVE -> { removeScanned(card, isFoil, auto); return null }
                 ScanTarget.BOX -> { recordBoxScan(card, isFoil, qty, fromReview, auto); return null }
+                ScanTarget.WISHLIST -> { addToWish(card, qty, isFoil, fromReview, auto); return null }
                 ScanTarget.DECK -> {
                     val deck = s.deck
                     if (deck != null) {
@@ -1030,13 +1058,17 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     fun remove(entry: ScanEntry) {
         viewModelScope.launch {
             val e = latest[entry.key] ?: entry
-            val before = if (e.deckId == 0L) rowsBefore(listOf(e.rowId)) else emptyMap()
+            val before = if (e.inCollection) rowsBefore(listOf(e.rowId)) else emptyMap()
             val st = _state.value
             val inSort = st.sort?.entries?.any { it.key == e.key } == true
             val inPack = st.pack?.entries?.any { it.key == e.key } == true
             removeEntry(e)
             Undo.offer("Removed ${e.card.name}") {
-                if (e.deckId != 0L) repo.addToDeckList(e.deckId, e.card.name, e.count) else putBack(before, mapOf(e.rowId to e.count))
+                when {
+                    e.deckId != 0L -> repo.addToDeckList(e.deckId, e.card.name, e.count)
+                    e.toWishlist -> repo.addToWishlist(e.card, e.count)
+                    else -> putBack(before, mapOf(e.rowId to e.count))
+                }
                 if (e.wished > 0) runCatching { repo.fulfilWish(e.card.oracleId, e.wished) }
                 removedKeys.remove(e.key)
                 latest[e.key] = e
@@ -1076,7 +1108,11 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
 
     /** Takes copies back out of wherever they went: the collection or the deck list. */
     private suspend fun unstore(e: ScanEntry, qty: Int) {
-        if (e.deckId != 0L) runCatching { repo.addToDeckList(e.deckId, e.card.name, -qty) } else repo.remove(e.rowId, qty)
+        when {
+            e.deckId != 0L -> runCatching { repo.addToDeckList(e.deckId, e.card.name, -qty) }
+            e.toWishlist -> runCatching { repo.fulfilWish(e.card.oracleId, qty) }
+            else -> repo.remove(e.rowId, qty)
+        }
         giveBackWish(e, qty)
     }
 
@@ -1120,7 +1156,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 left -= q
             }
             if (picks.isEmpty()) return@launch
-            val inCollection = picks.filter { it.first.deckId == 0L }
+            val inCollection = picks.filter { it.first.inCollection }
             val before = rowsBefore(inCollection.map { it.first.rowId })
             // Copies taken per row (two lines can share a row).
             val taken = inCollection.groupBy { it.first.rowId }.mapValues { (_, l) -> l.sumOf { it.second } }
@@ -1132,6 +1168,9 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             Undo.offer("Removed last $total") {
                 putBack(before, taken)
                 val olds = picks.map { it.first }
+                olds.filter { it.toWishlist }.forEach { e ->
+                    runCatching { repo.addToWishlist(e.card, picks.first { p -> p.first.key == e.key }.second) }
+                }
                 olds.filter { it.deckId != 0L }.forEach { e ->
                     runCatching { repo.addToDeckList(e.deckId, e.card.name, picks.first { p -> p.first.key == e.key }.second) }
                 }
@@ -1396,6 +1435,13 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Back to adding to the collection. A box check is kept to look at until ended. */
+    fun startWishlist() = changeMode {
+        it.copy(
+            target = ScanTarget.WISHLIST, deck = null, stack = false, current = null, awaiting = false, owned = null,
+            status = "Adding to wishlist",
+        )
+    }
+
     fun stopTarget() = changeMode {
         it.copy(target = ScanTarget.COLLECTION, deck = null, current = null, awaiting = false, owned = null, keptIn = emptyList(), status = "Point your camera at a card")
     }

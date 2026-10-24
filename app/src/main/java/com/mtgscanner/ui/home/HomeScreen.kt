@@ -201,6 +201,8 @@ fun HomeScreen(
         Spacer(Modifier.height(12.dp))
         com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
         WhatsNewLine()
+        val complete by vm.completeDecks.collectAsStateWithLifecycle()
+        com.mtgscanner.ui.decks.DeckCompleteNotes(complete, onOpen = onCollection)
         if (ui.loaded && ui.totalCards > 0) {
             BoxCheckNudge(onCheck = { id -> com.mtgscanner.util.OpenRequests.boxCheck.value = id; onScan() })
             NewSetOffer(onOpenSet)

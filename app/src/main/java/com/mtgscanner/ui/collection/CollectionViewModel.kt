@@ -1,5 +1,11 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.decks.DeckOwnership
+import com.mtgscanner.util.DecklistParser
+import com.mtgscanner.util.CardNames
+import com.mtgscanner.data.cheapestPrinting
+import com.mtgscanner.data.DeckCheck
+import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.undoWishes
 import com.mtgscanner.data.wishSnapshot
 import com.mtgscanner.ui.components.moneySuffix
@@ -394,15 +400,62 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     suspend fun suggestCards(text: String): List<String> =
         runCatching { repo.api.autocomplete(text.trim()) }.getOrDefault(emptyList())
 
-    /** Adds one copy of the named card to the wishlist, with Undo. */
-    fun wishByName(name: String) = viewModelScope.launch {
-        val card = runCatching { repo.api.named(name) }.getOrNull()
-        val oracle = card?.oracleId
+    /** Adds [qty] copies of the named card to the wishlist, priced by its cheapest printing, with Undo. */
+    fun wishByName(name: String, qty: Int = 1) = viewModelScope.launch {
+        val found = runCatching { repo.api.named(name) }.getOrNull()
+        val oracle = found?.oracleId
         if (oracle == null) { _message.value = "Couldn't find $name"; return@launch }
+        val card = repo.cheapestPrinting(found)
         val before = repo.wishSnapshot(listOf(oracle))
-        repo.addToWishlist(card)
-        Undo.offer("Added ${card.name} to wishlist") { repo.undoWishes(listOf(oracle), before) }
+        repo.addToWishlist(card, qty)
+        Undo.offer("Added ${if (qty > 1) "$qty× " else ""}${card.name} to wishlist") { repo.undoWishes(listOf(oracle), before) }
     }
+
+    /** The wishlist row being marked "Got it", and its printings (null while loading). */
+    private val _gotIt = MutableStateFlow<Pair<WishlistItem, List<ScryfallCard>?>?>(null)
+    val gotIt: StateFlow<Pair<WishlistItem, List<ScryfallCard>?>?> = _gotIt
+
+    /** "Got it": pick the printing, then one copy goes into the collection and off the wishlist. */
+    fun startGotIt(item: WishlistItem) {
+        _gotIt.value = item to null
+        viewModelScope.launch {
+            val list = runCatching { repo.api.printingsOf(item.oracleId, item.name) }.getOrDefault(emptyList())
+            if (_gotIt.value?.first?.id != item.id) return@launch
+            if (list.isEmpty()) { _gotIt.value = null; _message.value = "Couldn't reach Scryfall"; return@launch }
+            _gotIt.value = item to list
+        }
+    }
+
+    fun cancelGotIt() { _gotIt.value = null }
+
+    fun gotItPrinting(card: ScryfallCard) {
+        val item = _gotIt.value?.first ?: return
+        _gotIt.value = null
+        viewModelScope.launch {
+            val target = repo.pickBox(card, false) ?: repo.lastBoxId.takeIf { it > 0 }
+            if (target == null) { _message.value = "No box's rules fit ${card.name}. Add it from Search instead."; return@launch }
+            val rowId = repo.add(card, false, 1, target)
+            val wish = repo.wishlistItem(item.oracleId)
+            repo.fulfilWish(item.oracleId, 1)
+            Undo.offer("Added ${card.name} · off wishlist") {
+                repo.remove(rowId, 1)
+                if (wish != null) repo.restoreWish(wish)
+            }
+        }
+    }
+
+    /** For each wishlist card (by [CardNames.key]), the decks whose lists play it and aren't complete, A to Z. */
+    val wishDecks: StateFlow<Map<String, List<String>>> = combine(repo.observeDecks(), repo.observeAll()) { decks, all ->
+        val owned = all.groupBy { CardNames.key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
+        val map = HashMap<String, MutableList<String>>()
+        decks.sortedBy { it.name.lowercase() }.forEach { d ->
+            val lines = DecklistParser.parse(d.text)
+            if (DeckOwnership.complete(lines, owned)) return@forEach
+            lines.filter { it.section in DeckCheck.PLAYED }.map { CardNames.key(it.name) }.distinct()
+                .forEach { k -> map.getOrPut(k) { mutableListOf() }.add(d.name) }
+        }
+        map
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** A box's cards by name, read when needed (cover picker, binder share). */
     suspend fun cardsIn(boxId: Long): List<CollectionCard> = repo.cardsInBox(boxId).sortedBy { it.name }

@@ -85,7 +85,12 @@ data class ScanEntry(
     val wish: WishlistItem? = null,
     /** Copies of this line that came off the wishlist. */
     val wished: Int = 0,
+    /** Set when the card went on the wishlist instead of into the collection ([rowId] is then 0). */
+    val toWishlist: Boolean = false,
 ) {
+    /** The copies went into the collection (not a deck list or the wishlist). */
+    val inCollection: Boolean get() = deckId == 0L && !toWishlist
+
     /** "Rares → Blue" */
     val where: String get() = if (spot != null && boxName.isNotEmpty()) "$boxName → $spot" else boxName
     val value: Double get() = (card.usdPrice(foil) ?: 0.0) * count
@@ -131,7 +136,7 @@ fun sortNote(d: SortDecision?): String? = when (d?.reason) {
  * Where scanned cards go: the collection, a deck list, nowhere (price check), out of the collection (scan to
  * remove), or into a box check's list.
  */
-enum class ScanTarget { COLLECTION, DECK, CHECK, REMOVE, BOX }
+enum class ScanTarget { COLLECTION, DECK, CHECK, REMOVE, BOX, WISHLIST }
 
 /** One pocket of a binder page. [card] is null when it couldn't be read or found. */
 data class PageSlot(
