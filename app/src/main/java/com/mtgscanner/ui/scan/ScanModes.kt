@@ -35,6 +35,7 @@ import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -177,6 +178,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                             on -> {}
                             t.target == ScanTarget.CHECK -> vm.startCheck()
                             t.target == ScanTarget.REMOVE -> vm.startRemove()
+                            t.target == ScanTarget.WISHLIST -> vm.startWishlist()
                             else -> vm.stopTarget()
                         }
                         into = false
@@ -193,6 +195,7 @@ private class IntoChoice(val target: ScanTarget, val label: String, val icon: an
 private val INTO = listOf(
     IntoChoice(ScanTarget.COLLECTION, "Collection", Icons.Outlined.CollectionsBookmark),
     IntoChoice(ScanTarget.DECK, "Deck", Icons.Outlined.Style),
+    IntoChoice(ScanTarget.WISHLIST, "Wishlist", Icons.Outlined.FavoriteBorder),
     IntoChoice(ScanTarget.CHECK, "Just check", Icons.Outlined.Sell),
     IntoChoice(ScanTarget.REMOVE, "Remove", Icons.Outlined.RemoveCircleOutline),
 )

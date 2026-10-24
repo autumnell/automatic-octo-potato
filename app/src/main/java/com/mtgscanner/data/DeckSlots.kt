@@ -4,6 +4,9 @@ import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.facts
+import com.mtgscanner.ui.decks.DeckLinkStore
+import com.mtgscanner.ui.decks.DeckStatus
+import com.mtgscanner.ui.decks.DeckStatusStore
 import kotlinx.coroutines.flow.Flow
 
 /*
@@ -41,7 +44,12 @@ suspend fun CollectionRepository.moveToAutoBox(rowId: Long, qty: Int) {
 }
 
 /** What deleting a deck changed, so Undo can bring the deck and its cards back. */
-class DeckDeleteUndo internal constructor(val deck: Deck, internal val slot: CollectionRepository.BoxUndo?)
+class DeckDeleteUndo internal constructor(
+    val deck: Deck,
+    internal val slot: CollectionRepository.BoxUndo?,
+    internal val link: String? = null,
+    internal val status: DeckStatus? = null,
+)
 
 /**
  * Deletes a deck. Its cards go to boxes by the Auto-sort rules, or leave the collection with [removeCards].
@@ -53,11 +61,18 @@ suspend fun CollectionRepository.deleteDeckAndCards(deckId: Long, removeCards: B
     val undo = slot?.let { boxUndo(it.id) }
     if (slot != null) deleteBox(slot.id, if (removeCards) null else Box.AUTO_SORT)
     dao.deleteDeck(deckId)
-    return DeckDeleteUndo(deck, undo)
+    // The deck's saved link and tag go with it, so nothing is left behind in settings.
+    val link = DeckLinkStore.get(appContext, deckId)
+    val status = DeckStatusStore.get(appContext, deckId)
+    DeckLinkStore.set(appContext, deckId, null)
+    DeckStatusStore.set(appContext, deckId, null)
+    return DeckDeleteUndo(deck, undo, link, status)
 }
 
 /** Brings back a deleted deck with the same id, and its cards as they were. */
 suspend fun CollectionRepository.undoDeckDelete(u: DeckDeleteUndo) {
     dao.putDeck(u.deck)
     u.slot?.let { undoBox(it) }
+    u.link?.let { DeckLinkStore.set(appContext, u.deck.id, it) }
+    u.status?.let { DeckStatusStore.set(appContext, u.deck.id, it) }
 }

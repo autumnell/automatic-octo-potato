@@ -155,6 +155,7 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Just checking · not adding"
                         ScanTarget.DECK -> "Deck: ${state.deck?.name.orEmpty()}"
+                        ScanTarget.WISHLIST -> "Adding to wishlist"
                         ScanTarget.REMOVE -> "Removing from collection"
                         ScanTarget.BOX -> "Checking ${state.boxCheck?.boxName.orEmpty()}"
                         ScanTarget.COLLECTION -> if (auto) "Auto-sorting into boxes" else "Adding to ${box!!.name}"

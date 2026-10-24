@@ -258,10 +258,16 @@ object Game {
         return prev.copy(players = players, undoStack = s.undoStack.dropLast(1), recorded = s.recorded)
     }
 
-    /** Same players and format, fresh life totals. */
-    fun restart(s: GameState): GameState =
-        GameState.new(s.format, s.players.size, s.startingLife, s.players.map { it.name }, s.partners)
+    /**
+     * Rematch: same players and format, fresh life totals. When turns were tracked, the next seat after
+     * last game's first player goes first.
+     */
+    fun restart(s: GameState): GameState {
+        val first = s.firstSeat?.let { (it + 1) % s.players.size }
+        return GameState.new(s.format, s.players.size, s.startingLife, s.players.map { it.name }, s.partners)
             .let { g -> g.copy(players = g.players.mapIndexed { i, p -> p.copy(color = s.players[i].color, art = s.players[i].art) }) }
+            .let { g -> if (first != null) g.copy(active = first, firstSeat = first, turn = 1) else g }
+    }
 }
 
 /** One finished game, kept for the stats. */

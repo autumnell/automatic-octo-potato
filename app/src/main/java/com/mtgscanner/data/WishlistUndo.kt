@@ -35,3 +35,11 @@ suspend fun CollectionRepository.wantAllWithUndo(wants: List<Pair<ScryfallCard, 
     }
     return WishlistBatch(count, touched.size) { undoWishes(touched, before) }
 }
+
+/** The cheapest paper printing of [card] with a USD price, or [card] when there's none or Scryfall can't be reached. */
+suspend fun CollectionRepository.cheapestPrinting(card: ScryfallCard): ScryfallCard {
+    val prints = runCatching { api.search(exactNameQuery(card.name), unique = "prints", order = "usd") }.getOrDefault(emptyList())
+    return prints.filter { !it.digital && it.oracleId == card.oracleId }
+        .minByOrNull { it.prices.usd?.toDoubleOrNull() ?: Double.MAX_VALUE }
+        ?.takeIf { it.prices.usd?.toDoubleOrNull() != null } ?: card
+}

@@ -187,4 +187,15 @@ class GameModelTest {
         assertEquals("No monarch", m.history.last().what)
         assertEquals(-1, m.history.last().player)
     }
+
+    @Test fun rematchMovesFirstPlayerToTheNextSeat() {
+        val started = Game.nextTurn(commander, now = 0)
+        val first = started.firstSeat!!
+        val again = Game.restart(started)
+        assertEquals((first + 1) % 4, again.firstSeat)
+        assertEquals(again.firstSeat, again.active)
+        assertEquals(listOf(40, 40, 40, 40), again.players.map { it.life })
+        // No turns tracked: nobody is picked.
+        assertNull(Game.restart(commander).active)
+    }
 }

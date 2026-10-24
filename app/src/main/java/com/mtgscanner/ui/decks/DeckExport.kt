@@ -50,5 +50,6 @@ suspend fun CollectionRepository.duplicateDeck(deckId: Long): Long? {
     val d = observeDeck(deckId).first() ?: return null
     val id = saveDeck(0L, d.name + " copy", d.text, d.format, d.commanders)
     DeckShelfStore.state.value.folderOf[deckId]?.let { DeckShelfStore.moveDeck(id, it) }
+    DeckStatusStore.get(appContext, deckId)?.let { DeckStatusStore.set(appContext, id, it) }
     return id
 }

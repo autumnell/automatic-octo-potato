@@ -294,10 +294,10 @@ private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.85f)) {
         Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
-            Text("Tap Done or Play again to save.",
+            Text("Tap Done or Rematch to save.",
                 color = Palette.OnDarkMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
             Row {
-                TextButton(onClick = onRestart) { Text("Play again") }
+                TextButton(onClick = onRestart) { Text("Rematch") }
                 TextButton(onClick = onDone) { Text("Done") }
             }
         }

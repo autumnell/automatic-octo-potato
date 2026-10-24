@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -167,13 +168,20 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     BackHandler(enabled = folder != null) { folderId = null }
     val all = decks.orEmpty()
     val q = query.trim()
-    val searching = q.isNotEmpty()
+    // The tag filter: "Owned", "Want", "Maybe" or "Testing"; null shows every deck.
+    var picked by rememberSaveable { mutableStateOf<String?>(null) }
+    val ctx = LocalContext.current
+    val tags = all.associate { it.deck.id to deckTag(ctx, it) }
+    val tagsShown = DeckTags.ALL.filter { t -> tags.values.any { it == t } }
+    val tag = picked?.takeIf { it in tagsShown }
+    val searching = q.isNotEmpty() || tag != null
     val shown = when {
-        searching -> all.filter { it.deck.name.contains(q, ignoreCase = true) }
+        searching -> all.filter { it.deck.name.contains(q, ignoreCase = true) && (tag == null || tags[it.deck.id] == tag) }
         folder != null -> all.filter { it.folderId == folder.id }
         else -> all.filter { it.folderId == null }
     }
     val folderTiles = when {
+        tag != null -> emptyList()
         searching -> shelf.folders.filter { it.name.contains(q, ignoreCase = true) }
         folder != null -> emptyList()
         else -> shelf.folders
@@ -236,6 +244,14 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            if (tagsShown.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "tags") {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SelectPill("All", tag == null, { picked = null })
+                        tagsShown.forEach { t -> SelectPill(t, tag == t, { picked = if (tag == t) null else t }) }
+                    }
+                }
             }
             items(folderTiles, key = { "f" + it.id }) { f ->
                 val inside = all.filter { it.folderId == f.id }
@@ -314,7 +330,7 @@ private fun TileArt(url: String?, modifier: Modifier = Modifier) {
 private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCover: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
-    val owned = row.cards > 0 && row.owned >= row.cards
+    val owned = row.fullyOwned
     val status = DeckStatusStore.get(ctx, row.deck.id)
     Surface(onClick = onOpen, shape = TileShape, color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
         Column {
@@ -338,7 +354,7 @@ private fun DeckTile(row: DeckRow, onOpen: () -> Unit, onMove: () -> Unit, onCov
                     }
                 }
                 // Top left: "Owned" once every card is owned, else the status picked from the menu.
-                val tag = if (owned) "Owned" else status?.label
+                val tag = deckTag(ctx, row)
                 if (tag != null) {
                     Text(
                         tag,
