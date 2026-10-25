@@ -237,6 +237,16 @@ class CardTextParserTest {
             .forEach { assertTrue(it, !CardTextParser.looksLikeTitle(it)) }
     }
 
+    @Test fun keywordLinesAreNotNames() {
+        listOf("Flying", "First strike, trample", "Deathtouch, lifelink.", "Hexproof")
+            .forEach { assertTrue(it, CardTextParser.isKeywordLine(it)) }
+        listOf("Vigilance", "Flash", "Flying Men", "Reach of Branches", "Lightning Bolt")
+            .forEach { assertTrue(it, !CardTextParser.isKeywordLine(it)) }
+        // Title not read (glare): the keyword line at the top of what was read gives no name.
+        val lines = listOf(line("Flying", 100), line("When this enters, draw a card.", 130), line("Illus. Someone", 300))
+        assertTrue(CardTextParser.parse(lines).nameCandidates.isEmpty())
+    }
+
     @Test fun typeLineCheck() {
         listOf("Instant", "Legendary Creature — Mutant Hero", "Basic Land — Forest", "Artifact Creature - Golem")
             .forEach { assertTrue(it, CardTextParser.isTypeLine(it)) }
