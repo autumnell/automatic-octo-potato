@@ -253,6 +253,13 @@ fun ScanScreen(
             ScanFeedback.play(ctx, state.settings.asideSound)
         }
     }
+    LaunchedEffect(state.batchPulse) {
+        // Batch: the usual add sound and buzz, so you know to flip the next card.
+        if (vm.freshBatch(state.batchPulse)) {
+            if (state.settings.vibrate) Haptics.added(view)
+            ScanFeedback.play(ctx, state.settings.sound)
+        }
+    }
     LaunchedEffect(state.skipPulse) {
         // Stack mode: a soft tick so you know a skipped card was seen.
         if (vm.freshSkip(state.skipPulse) && state.stack && state.settings.sound != com.mtgscanner.scan.ScanSound.NONE) ScanFeedback.tick(ctx)
@@ -307,6 +314,7 @@ fun ScanScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             PackChip(state, vm)
+                            BatchChip(state, vm)
                             SortChip(state, vm)
                             BoxCheckChip(state, vm)
                             RemoveChip(state, vm)

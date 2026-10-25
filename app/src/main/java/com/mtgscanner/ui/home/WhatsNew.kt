@@ -36,6 +36,7 @@ object WhatsNew {
         1 to "New: copy a deck list, volume-button scanning, pull down to refresh prices.",
         96 to "Stats and tiles follow your currency. More changes can be undone.",
         120 to "New in decks: lend a whole deck, upgrade from your cards, print proxies. Weekly ban and reprint alerts.",
+        127 to "Faster scanning: batch mode, loose cards in one shot, set lock reads the number. Price check shows today's price.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

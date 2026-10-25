@@ -17,6 +17,8 @@ import com.mtgscanner.data.addToDeckList
 import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
 import com.mtgscanner.data.identify
+import com.mtgscanner.data.cardById
+import com.mtgscanner.data.freshCard
 import com.mtgscanner.data.offlineRead
 import com.mtgscanner.data.prefetch
 import com.mtgscanner.data.ownedCopies
@@ -89,6 +91,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         )
         // Removing ignores the skip rules: a sold basic land still comes out.
         st.target == ScanTarget.REMOVE -> s.copy(skipBasics = false, skipTokens = false, skipUnder = null)
+        // Batch keeps scanning by itself; every card waits on the list to be checked.
+        st.batch != null -> s.copy(autoAdd = true, unsure = UnsureAction.ASIDE)
         st.stack -> s.copy(autoAdd = true, unsure = UnsureAction.ASIDE, sound = ScanSound.BEEP, asideSound = ScanSound.DOUBLE)
         else -> s
     }
@@ -244,6 +248,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     fun freshAside(pulse: Int): Boolean = (pulse > seenAside).also { if (it) seenAside = pulse }
 
     private var seenSkip = 0
+    private var seenBatch = 0
+
+    /** True once for each new batch pulse. */
+    fun freshBatch(pulse: Int): Boolean = (pulse > seenBatch).also { if (it) seenBatch = pulse }
 
     /** True once for each new skip pulse. */
     fun freshSkip(pulse: Int): Boolean = (pulse > seenSkip).also { if (it) seenSkip = pulse }
@@ -253,7 +261,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         get() = _state.value.let {
             // The first-run hints cover the screen: don't add cards behind them.
             if (it.anySheetOpen || !ScanBarPrefs.hintsSeen || boxes.value.isNullOrEmpty()) true
-            else if (it.pageMode) it.paused || !it.wantPage || it.pageLoading
+            else if (it.pageMode) it.paused || !(it.wantPage || it.wantSpread) || it.pageLoading
             else it.paused || ((!it.autoAdd || it.awaiting) && (it.current != null || it.offline != null)) || it.lookingUp
         }
 
@@ -337,8 +345,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         val art = guess.artHash
         val added = lastAddedArt
         if (_state.value.autoAdd && art != null && added != null && lastAutoAddedOracle != null) {
-            artChangeFrames = if (ImageHash.distance(art, added) > ART_CHANGED) artChangeFrames + 1 else 0
-            if (artChangeFrames >= 2) {
+            val d = ImageHash.distance(art, added)
+            artChangeFrames = if (d > ART_CHANGED) artChangeFrames + 1 else 0
+            // Plainly different art is a new card at once; a smaller change waits a frame more, in case of glare.
+            if (artChangeFrames >= 2 || d > ART_CHANGED_CLEARLY) {
                 forgetHandled()
                 lookedUp.clear()
                 pool.clear()
@@ -492,7 +502,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         val gen = trackGen
         viewModelScope.launch {
             val started = System.currentTimeMillis()
-            val result = runCatching { repo.api.byId(hit.id) }
+            val result = runCatching { repo.cardById(hit.id) }
             if (AppSettings.scanLogUnlocked) {
                 val outcome = when {
                     result.exceptionOrNull()?.let { isOffline(it) } == true -> "offline"
@@ -559,6 +569,11 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 }
                 return
             }
+            // Batch: every card goes on the list to review, nothing is added yet.
+            if (_state.value.batch != null) {
+                toBatch(card, readLang, art, id.exact)
+                return
+            }
             if (!s.accepts(id.exact, id.confident)) {
                 when (s.unsure) {
                     UnsureAction.ASIDE -> {
@@ -600,6 +615,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 current = card,
                 cardFoil = if (same) it.cardFoil else null,
                 foilHint = same && it.foilHint,
+                priceFresh = same && it.priceFresh,
                 confident = id.confident || accepted,
                 awaiting = s.autoAdd && !accepted,
                 wish = wish,
@@ -612,6 +628,28 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         if (accepted && !alreadyHandled(card, id.exact)) {
             markHandled(card, art, id.exact)
             addCard(card, ScanBarPrefs.quantity, auto = true, readLang = readLang)
+        }
+        // Price check: today's price, not the one saved with the card list.
+        if (target == ScanTarget.CHECK) {
+            viewModelScope.launch {
+                val fresh = repo.freshCard(card.id) ?: return@launch
+                _state.update { if (it.current?.id == fresh.id) it.copy(current = fresh, priceFresh = true) else it }
+            }
+        }
+    }
+
+    private var batchKeys = 0
+
+    /** Puts a match on the batch list, once while it stays in view. */
+    private fun toBatch(card: ScryfallCard, lang: String?, art: Long?, exact: Boolean) {
+        if (alreadyHandled(card, exact)) {
+            _state.update { it.copy(lookingUp = false) }
+            return
+        }
+        markHandled(card, art, exact)
+        _state.update {
+            val list = it.batch.orEmpty() + PhotoItem(++batchKeys, card.name, card, lang)
+            it.copy(lookingUp = false, current = null, batch = list, batchPulse = it.batchPulse + 1, status = "${card.name} · ${list.size} to review")
         }
     }
 
@@ -1524,6 +1562,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         const val UNKNOWN_AFTER_MS = 3_000L
         /** Art hashes further apart than this (of 64 bits) are different artwork. */
         const val ART_CHANGED = 22
+        /** Art this different is another card on one frame. */
+        const val ART_CHANGED_CLEARLY = 34
         /** Frames agreeing on a name (no footer) before its printing is picked from their pooled year, symbol and art. */
         const val POOL_FRAMES = 3
     }

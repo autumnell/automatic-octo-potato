@@ -126,6 +126,19 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         }
     }
 
+    /** On Wi-Fi (or another network that isn't metered). */
+    fun onWifi(): Boolean = unmetered()
+
+    /** Art matching for your biggest sets, downloaded on Wi-Fi (on unless turned off in Settings › Data). */
+    var artAuto: Boolean
+        get() = prefs.getBoolean(KEY_ART, true)
+        set(v) { prefs.edit().putBoolean(KEY_ART, v).apply() }
+
+    /** The day the biggest sets' art was last checked; once a week is enough. */
+    var artCheckedDay: String
+        get() = prefs.getString(KEY_ART_DAY, "").orEmpty()
+        set(v) { prefs.edit().putString(KEY_ART_DAY, v).apply() }
+
     private fun unmetered(): Boolean {
         val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
         return !cm.isActiveNetworkMetered
@@ -272,6 +285,9 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         return runCatching { d.rawQuery("SELECT 1 FROM cards WHERE setc = ? LIMIT 1", arrayOf(set.lowercase())).use { it.moveToFirst() } }.getOrDefault(false)
     }
 
+    /** One printing by its Scryfall id, or null when the list doesn't have it. */
+    fun byId(id: String): ScryfallCard? = query("SELECT data, priced FROM cards WHERE id = ? LIMIT 1", id).firstOrNull()
+
     /** Every card in a set, tokens and extras included. */
     fun inSet(set: String): List<ScryfallCard> = query("SELECT data, priced FROM cards WHERE setc = ?", set.lowercase())
 
@@ -288,6 +304,8 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         private const val DB_NAME = "local-cards.db"
         private const val KEY_DAY = "updated"
         private const val KEY_ON = "on"
+        private const val KEY_ART = "art"
+        private const val KEY_ART_DAY = "art_day"
         private const val STALE_DAYS = 2L
 
         fun pack(s: String): ByteArray {

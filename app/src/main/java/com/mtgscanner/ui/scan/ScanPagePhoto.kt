@@ -17,6 +17,7 @@ import com.mtgscanner.data.addToDeckList
 import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
 import com.mtgscanner.data.identify
+import com.mtgscanner.data.cardById
 import com.mtgscanner.data.offlineRead
 import com.mtgscanner.data.ownedCopies
 import com.mtgscanner.data.db.Box
@@ -75,7 +76,7 @@ fun ScanViewModel.capturePage() = _state.update { it.copy(wantPage = true, pause
 /** Stops waiting for a page read, if it's taking too long. */
 fun ScanViewModel.cancelCapture() = _state.update {
     pageJob?.cancel()
-    it.copy(wantPage = false, pageLoading = false, status = "Binder page in the frame, or pick a photo")
+    it.copy(wantPage = false, wantSpread = false, pageLoading = false, status = "Binder page in the frame, or pick a photo")
 }
 
 /** Called by the analyzer with one guess per pocket, left to right, top to bottom. */
@@ -147,13 +148,25 @@ fun ScanViewModel.addPage() {
 }
 
 /** Reads every card in the picture at [uri], then looks each one up. */
-fun ScanViewModel.readPhoto(uri: android.net.Uri) {
+fun ScanViewModel.readPhoto(uri: android.net.Uri) = readCards("Photo") { com.mtgscanner.scan.PhotoCards.decode(repo.appContext, uri) }
+
+/** Loose cards on the table: reads every card in the next steady camera frame. */
+fun ScanViewModel.captureSpread() = _state.update { it.copy(wantSpread = true, paused = false, status = "Hold still…") }
+
+/** Called by the analyzer with the frame, turned upright; this takes it over. */
+fun ScanViewModel.onSpread(frame: android.graphics.Bitmap) {
+    _state.update { it.copy(wantSpread = false, status = "Binder page in the frame, or pick a photo") }
+    readCards("Cards in view") { frame }
+}
+
+/** Reads every card in the picture [load] gives (recycled after), then looks each one up, for the review sheet. */
+private fun ScanViewModel.readCards(title: String, load: () -> android.graphics.Bitmap?) {
     photoJob?.cancel()
-    _state.update { it.copy(photo = PhotoRun()) }
+    _state.update { it.copy(photo = PhotoRun(title = title)) }
     photoJob = viewModelScope.launch {
         val reads = withContext(Dispatchers.Default) {
             runCatching {
-                val bmp = com.mtgscanner.scan.PhotoCards.decode(repo.appContext, uri)
+                val bmp = load()
                 if (bmp == null) null
                 else try {
                     com.mtgscanner.scan.PhotoCards.read(bmp, { b -> repo.artEmbedder.embed(b) }, repo.artIndex.hasAny)
@@ -167,7 +180,7 @@ fun ScanViewModel.readPhoto(uri: android.net.Uri) {
             return@launch
         }
         val items = reads.mapIndexed { i, r -> async { photoItem(i, r) } }.awaitAll()
-        _state.update { s -> s.photo?.let { s.copy(photo = PhotoRun(loading = false, items = items)) } ?: s }
+        _state.update { s -> s.photo?.let { s.copy(photo = PhotoRun(loading = false, items = items, title = title)) } ?: s }
     }
 }
 
@@ -182,7 +195,7 @@ private suspend fun ScanViewModel.photoItem(i: Int, r: com.mtgscanner.scan.Photo
             val hit = runCatching {
                 repo.artIndex.match(g.artOnly.toLongArray(), SortPrefs.setLock, embeddings.filter { it.model == model }.map { it.values }, model)
             }.getOrNull()
-            hit?.let { h -> runCatching { repo.api.byId(h.id) }.getOrNull() }
+            hit?.let { h -> runCatching { repo.cardById(h.id) }.getOrNull() }
         }
         else -> null
     }
@@ -201,14 +214,16 @@ fun ScanViewModel.photoRemove(key: Int) = _state.update {
 
 fun ScanViewModel.closePhoto() {
     photoJob?.cancel()
-    _state.update { it.copy(photo = null) }
+    // A batch being reviewed: what's left goes back on the list.
+    _state.update { s -> s.copy(photo = null, batch = s.photo?.takeIf { it.fromBatch }?.items ?: s.batch) }
 }
 
 /** Adds every found card from the photo, with the scan bar's copies, one after another; one Undo for all. */
 fun ScanViewModel.addPhoto() {
     val st = _state.value
     val items = st.photo?.items.orEmpty().filter { it.card != null }
-    _state.update { it.copy(photo = null) }
+    // A batch reviewed and added starts a fresh list, still in batch mode.
+    _state.update { it.copy(photo = null, batch = if (st.photo?.fromBatch == true) emptyList() else it.batch) }
     if (st.target == ScanTarget.CHECK || items.isEmpty()) return
     val qty = ScanBarPrefs.quantity
     viewModelScope.launch {

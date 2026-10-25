@@ -69,3 +69,14 @@ private suspend fun CollectionRepository.savePrices(fresh: List<ScryfallCard>) {
         }
     }
 }
+
+/**
+ * Today's prices for [id], straight from Scryfall (price check shows what a card is worth now, not what the
+ * list on the phone saved). Saved to the list and to your copies too. Null when Scryfall can't be reached.
+ */
+suspend fun CollectionRepository.freshCard(id: String): ScryfallCard? {
+    val fresh = runCatching { api.byId(id) }.getOrNull() ?: return null
+    runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { localCards.update(listOf(fresh)) } }
+    runCatching { savePrices(listOf(fresh)) }
+    return fresh
+}

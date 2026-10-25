@@ -38,7 +38,13 @@ data class ArtDownload(val set: String, val done: Int, val total: Int, val queue
  * fetches every card's small image from Scryfall once and keeps only its art hash. They're read from disk the
  * first time a match is needed, and again after a download or delete.
  */
-class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val embedder: ArtEmbedder? = null) {
+class ArtIndexStore(
+    filesDir: File,
+    private val api: ScryfallApi,
+    private val embedder: ArtEmbedder? = null,
+    /** A set's cards from the list on the phone, so building its index asks Scryfall only for pictures. */
+    private val fromPhone: (String) -> List<ScryfallCard>? = { null },
+) {
     private val dir = File(filesDir, "art-index")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = sharedHttpClient.newBuilder().readTimeout(15, TimeUnit.SECONDS).build()
@@ -199,7 +205,8 @@ class ArtIndexStore(filesDir: File, private val api: ScryfallApi, private val em
     }
 
     private suspend fun downloadSet(set: String) {
-        val cards = api.searchAll("e:$set", unique = "prints", maxPages = 20, order = "set")
+        val cards = fromPhone(set)?.filter { !it.digital }?.takeIf { it.isNotEmpty() }
+            ?: api.searchAll("e:$set", unique = "prints", maxPages = 20, order = "set")
         if (cards.isEmpty()) throw IOException("No cards in $set")
         _download.update { it?.copy(total = cards.size) }
         // The art model first (downloaded once), so the index gets embeddings too; all of them from this one model.
