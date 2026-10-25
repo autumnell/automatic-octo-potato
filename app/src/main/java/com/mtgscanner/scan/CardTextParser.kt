@@ -336,12 +336,25 @@ object CardTextParser {
 
         val out = LinkedHashSet<String>()
         for (line in topLines) {
-            if (!looksLikeTitle(line.text)) continue
+            if (!looksLikeTitle(line.text) || isKeywordLine(line.text)) continue
             val name = cleanName(line.text) ?: continue
             out += name
             if (out.size >= 3) break
         }
         return out.toList()
+    }
+
+    // Keyword abilities printed alone on a rules line ("Flying", "First strike, trample"). Title Case like a
+    // name, but no card is named only these. Flash, Fear and Vigilance are left out: cards have those names.
+    private val KEYWORDS = setOf(
+        "flying", "first strike", "double strike", "deathtouch", "haste", "hexproof", "indestructible", "lifelink",
+        "menace", "reach", "trample", "defender", "prowess", "ward", "shroud", "intimidate", "skulk",
+    )
+
+    /** A rules line of keyword abilities only, which can look like a title when the real title wasn't read. */
+    fun isKeywordLine(text: String): Boolean {
+        val parts = text.lowercase().split(',', ';').map { it.trim().trimEnd('.') }.filter { it.isNotEmpty() }
+        return parts.isNotEmpty() && parts.all { it in KEYWORDS }
     }
 
     private val TYPE_ONLY_WORDS = setOf(

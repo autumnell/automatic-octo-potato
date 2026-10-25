@@ -141,9 +141,6 @@ class CardTextAnalyzer(
     /** Blurry frames of the card in view are skipped rather than misread. Analysis coroutine only. */
     private val sharp = StripQuality.Tracker()
 
-    /** The last whole-card read, by the name read on the name bar: a card held still is read whole only once. */
-    @Volatile private var lastWhole: Pair<String, CardTextGuess>? = null
-
     /** Reused for every frame, so a 3.7 MB bitmap isn't made four times a second. */
     private var frameBitmap: Bitmap? = null
 
@@ -234,7 +231,6 @@ class CardTextAnalyzer(
                     // Nothing in the guide: tell the scanner, so it knows the card has left.
                     lastRun = now
                     image.close()
-                    lastWhole = null
                     scope.launch { runCatching { onGuess(CardTextGuess(emptyList(), null, null, 0, guideEmpty = true)) } }
                     return
                 }
@@ -303,16 +299,12 @@ class CardTextAnalyzer(
                     // Out of focus: reading it would only give a misread. The next frame will do.
                     if (strips?.blurry == true) return@launch
                     val stripGuess = strips?.guess?.let(::locked)
-                    val stripName = stripGuess?.nameKey
-                    val seenWhole = lastWhole?.takeIf { stripName != null && it.first == stripName }?.second
-                    var guess = if (stripGuess != null && stripGuess.setCode != null && stripGuess.collectorNumber != null) {
-                        stripGuess
-                    } else if (stripGuess != null && seenWhole != null) {
-                        // Same name as the card read whole a moment ago: its rules text and footer haven't changed.
-                        CardTextParser.merge(stripGuess, seenWhole)
-                    } else {
-                        // No complete footer from the strips: read the whole card too, as before (its rules
-                        // text also tells the language), and take the best of both.
+                    // A found card is read by its name bar and footer only, not its rules text. The whole area
+                    // is read only when that gave nothing (no outline, or the outline was off); the parser still
+                    // takes names from the top and the footer from the bottom of what it reads.
+                    val stripsRead = stripGuess != null &&
+                        (stripGuess.nameCandidates.isNotEmpty() || stripGuess.printedName != null || stripGuess.collectorNumber != null)
+                    var guess = if (stripsRead) stripGuess!! else {
                         val b = a.box
                         val bitmap = picture()
                         val c = if (b.width >= 32 && b.height >= 32 && (b.width < bitmap.width || b.height < bitmap.height)) {
@@ -322,12 +314,7 @@ class CardTextAnalyzer(
                         // A big frame is read at about the size the reader worked with before, to keep it quick.
                         val readable = shrunk(c)
                         if (readable !== c) small = readable
-                        // Cropped to a found card, everything read is on it; cropped to the guide, keep to the guide.
-                        // A CJK name already read from the name bar needs no CJK read of the whole card.
-                        val wholeCjk = cjk.takeIf { stripGuess?.printedName == null }
-                        val full = readBestOrientation(readable, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP, wholeCjk)
-                        lastWhole = stripName?.let { it to full }
-                        if (stripGuess != null) CardTextParser.merge(stripGuess, full) else full
+                        readBestOrientation(readable, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP, cjk)
                     }
                     if (strips != null) guess = guess.copy(glare = strips.glare)
                     // The straightened card's art, and its set symbol, tell printings (or a textless card) apart.
