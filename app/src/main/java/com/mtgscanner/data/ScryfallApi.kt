@@ -58,17 +58,20 @@ class ScryfallApi(
      * Where Scryfall's bulk file of [type] ("default_cards") can be downloaded, or null. Read from the list of
      * bulk files: asking for one by type wants "default-cards" in the address, and "default_cards" there is a 404.
      */
-    suspend fun bulkDownloadUri(type: String): String? {
+    suspend fun bulkDownloadUri(type: String): BulkFile? {
         val url = base.newBuilder().addPathSegments("bulk-data").build()
         val body = request(Request.Builder().url(url).build()) ?: return null
         return bulkUriIn(body, type)
     }
 
-    /** The download address of the bulk file of [type] in Scryfall's list of bulk files ([body]), or null. */
-    internal fun bulkUriIn(body: String, type: String): String? {
-        val list = (json.parseToJsonElement(body) as? JsonObject)?.get("data") as? kotlinx.serialization.json.JsonArray ?: return null
-        val o = list.firstOrNull { ((it as? JsonObject)?.get("type") as? kotlinx.serialization.json.JsonPrimitive)?.content == type } as? JsonObject
-        return (o?.get("download_uri") as? kotlinx.serialization.json.JsonPrimitive)?.content
+    /** Finds the file for [type] in Scryfall's /bulk-data list. Newer lists give a gzipped JSON Lines file. */
+    internal fun bulkUriIn(body: String, type: String): BulkFile? {
+        val list = (runCatching { json.parseToJsonElement(body) }.getOrNull() as? JsonObject)?.get("data") as? kotlinx.serialization.json.JsonArray ?: return null
+        val o = list.firstOrNull { ((it as? JsonObject)?.get("type") as? kotlinx.serialization.json.JsonPrimitive)?.content == type } as? JsonObject ?: return null
+        fun str(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+        val uri = str("jsonl_download_uri") ?: str("download_uri") ?: return null
+        val size = ((o["compressed_size"] ?: o["size"]) as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0L
+        return BulkFile(uri, size)
     }
 
     /** Exact printing by set code and collector number. */
@@ -318,3 +321,6 @@ internal suspend fun <T> withBackoff(tries: Int = 3, block: suspend () -> T): T 
     }
     return block()
 }
+
+/** One of Scryfall's bulk files: where it is and roughly how many bytes it is to download (0 if unknown). */
+data class BulkFile(val uri: String, val size: Long)
