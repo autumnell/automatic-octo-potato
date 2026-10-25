@@ -44,6 +44,8 @@ class CardOutlineTest {
         assertFalse(CardOutline.cardLike(floatArrayOf(0f, 0f, 500f, 0f, 500f, 500f, 0f, 500f)))
         assertFalse(CardOutline.cardLike(floatArrayOf(0f, 0f, 900f, 0f, 900f, 200f, 0f, 200f)))
         assertFalse(CardOutline.cardLike(floatArrayOf(300f, 80f, 500f, 80f, 730f, 930f, 100f, 930f)))
+        // Close to square (0.87), which the old looser check let through.
+        assertFalse(CardOutline.cardLike(floatArrayOf(0f, 0f, 700f, 0f, 700f, 800f, 0f, 800f)))
     }
 
     @Test fun picksTheBiggestCardShapedOutline() {

@@ -171,11 +171,11 @@ object CardFinder {
         if (bw <= 0 || bh <= 0) return null
         // Fills a fair part of the guide.
         if (bw.toLong() * bh < w.toLong() * h / 5) return null
-        // Card-shaped, upright or sideways.
+        // Card-shaped (63:88), upright or sideways, allowing for a card held a little turned.
         val ratio = bw.toDouble() / bh
         val a = FrameGeometry.CARD_ASPECT
-        val upright = ratio in a * 0.8..a * 1.25
-        val sideways = ratio in (1 / a) * 0.8..(1 / a) * 1.25
+        val upright = ratio in a * 0.85..a * 1.18
+        val sideways = ratio in (1 / a) * 0.85..(1 / a) * 1.18
         if (!upright && !sideways) return null
         // Each side's edge runs along most of it.
         fun vCover(x: Int): Boolean {

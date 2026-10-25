@@ -206,7 +206,10 @@ class CardTextAnalyzer(
                 return
             }
             lastGate = now
+            // Steady but no card outline seen: only OpenCV's closer look can still find a card, so without it
+            // nothing is read. Text is only read from something card-shaped.
             val result = runCatching { checkCard(image, rotation) }.getOrNull()
+                ?.let { r -> if (r.first.state == GateState.UNSURE && !CvCards.ready) GateResult(GateState.SETTLING) to null else r }
             if (result?.first?.state == GateState.EMPTY) {
                 focusedAt = 0L
                 sharp.reset()
@@ -291,17 +294,18 @@ class CardTextAnalyzer(
                         val bounds = CvCards.boundsOf(found)
                         a = ReadArea(FrameGeometry.grow(bounds, 0.15, frameW, frameH), isCard = true, outline = bounds, quad = found)
                     }
+                    // Nothing card-shaped (63:88, upright or sideways) in the guide: no text is read from it.
+                    val quad = a.quad ?: return@launch
                     val draw = CardParts.drawer({ picture() }, cv)
-                    val quad = a.quad
                     val cjk = CjkNames.scriptFor(scanLang())
                     // A found card: read just its name bar and footer, straightened and sharp.
-                    val strips = if (quad != null) runCatching { readStrips(quad, rotation, draw, cjk) }.getOrNull() else null
+                    val strips = runCatching { readStrips(quad, rotation, draw, cjk) }.getOrNull()
                     // Out of focus: reading it would only give a misread. The next frame will do.
                     if (strips?.blurry == true) return@launch
                     val stripGuess = strips?.guess?.let(::locked)
-                    // A found card is read by its name bar and footer only, not its rules text. The whole area
-                    // is read only when that gave nothing (no outline, or the outline was off); the parser still
-                    // takes names from the top and the footer from the bottom of what it reads.
+                    // A found card is read by its name bar and footer only, not its rules text. The whole card is
+                    // read only when that gave nothing (the outline was a little off); the parser still takes
+                    // names from the top and the footer from the bottom of what it reads.
                     val stripsRead = stripGuess != null &&
                         (stripGuess.nameCandidates.isNotEmpty() || stripGuess.printedName != null || stripGuess.collectorNumber != null)
                     var guess = if (stripsRead) stripGuess!! else {
@@ -318,7 +322,7 @@ class CardTextAnalyzer(
                     }
                     if (strips != null) guess = guess.copy(glare = strips.glare)
                     // The straightened card's art, and its set symbol, tell printings (or a textless card) apart.
-                    if (quad != null) guess = runCatching { withArt(quad, rotation, strips?.turn, guess, draw) }.getOrDefault(guess)
+                    guess = runCatching { withArt(quad, rotation, strips?.turn, guess, draw) }.getOrDefault(guess)
                     onGuess(guess)
                 }
             } catch (_: Throwable) {

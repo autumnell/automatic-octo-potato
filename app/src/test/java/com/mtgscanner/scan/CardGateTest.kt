@@ -87,6 +87,8 @@ class CardGateTest {
     @Test fun smallOrOddShapesAreNotCards() {
         assertNull(CardFinder.find(withCard(table(1), 50, 60, 20, 28), w, h))
         assertNull(CardFinder.find(withCard(table(1), 5, 60, 110, 30), w, h))
+        // Nearly square (a box, a phone, a book): not card-shaped.
+        assertNull(CardFinder.find(withCard(table(1), 10, 20, 100, 115), w, h))
     }
 
     @Test fun guideCropIsCenteredAndCardShaped() {

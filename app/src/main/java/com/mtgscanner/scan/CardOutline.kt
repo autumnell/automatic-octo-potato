@@ -82,7 +82,7 @@ object CardOutline {
     /**
      * Whether an ordered convex quad could be a card seen from the phone: opposite sides of similar length (a tilt
      * shortens the far side, up to [maxTilt] of the near one), no corner sharper than [minAngle] degrees, and
-     * the average sides near 63:88 (within 22%, either way round).
+     * the average sides near 63:88 (within about 15%, either way round).
      */
     fun cardLike(q: FloatArray, maxTilt: Float = 0.62f, minAngle: Double = 55.0): Boolean {
         if (!isConvex(q)) return false
@@ -100,7 +100,7 @@ object CardOutline {
         val h = (left + right) / 2
         if (w <= 0f || h <= 0f) return false
         val ratio = minOf(w, h) / maxOf(w, h)
-        return ratio in ASPECT * 0.78f..minOf(1f, ASPECT * 1.22f)
+        return ratio in ASPECT * 0.85f..ASPECT * 1.18f
     }
 
     /**
