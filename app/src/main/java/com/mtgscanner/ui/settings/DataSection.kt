@@ -84,6 +84,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import com.mtgscanner.data.label
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -170,6 +171,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                 Notifications.setQuietNights(ctx.applicationContext, on)
             }
             HorizontalDivider(color = Palette.Rule)
+            CardListRow()
+            HorizontalDivider(color = Palette.Rule)
             Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
             }
@@ -252,6 +255,28 @@ private fun Action(icon: ImageVector, title: String, body: String, onClick: () -
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** Every card kept on the phone for the scanner: on or off, how far along, and a button to fetch it now. */
+@Composable
+private fun CardListRow() {
+    val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
+    val local = repo.localCards
+    val st by local.status.collectAsStateWithLifecycle()
+    var on by remember { mutableStateOf(local.enabled) }
+    val body = st.label(on) + if (on && st.cards > 0 && st.updated.isNotEmpty()) "\nChecked ${st.updated}" else ""
+    ToggleRow("Card list on phone", body, on) { v ->
+        on = v
+        local.enabled = v
+        repo.appScope.launch { if (v) local.sync() else local.clear() }
+    }
+    if (on && st.progress == null) {
+        Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
+            TextButton(onClick = { repo.appScope.launch { local.sync(force = true) } }) {
+                Text(if (st.cards > 0) "Check for new cards" else "Download now")
+            }
         }
     }
 }

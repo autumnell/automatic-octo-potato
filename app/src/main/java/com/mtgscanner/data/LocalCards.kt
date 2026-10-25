@@ -33,6 +33,15 @@ data class LocalCardsStatus(
     val failed: Boolean = false,
 )
 
+/** The card list's status line, shared by Settings › Data and the Scan settings. */
+fun LocalCardsStatus.label(on: Boolean): String = when {
+    !on -> "Matches cards without waiting on Scryfall, even offline. About 50 MB."
+    progress != null -> "Downloading… ${(progress * 100).toInt()}%"
+    cards > 0 -> "${"%,d".format(cards)} cards · new ones added when the app opens"
+    failed -> "Download failed. Tries again next time on Wi-Fi."
+    else -> "Downloads next time the app opens on Wi-Fi. About 50 MB."
+}
+
 /** Picking among a card's printings found on the phone, kept free of Android so it can be tested. */
 object LocalPick {
     /**
@@ -69,7 +78,7 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
     private val _status = MutableStateFlow(LocalCardsStatus())
     val status: StateFlow<LocalCardsStatus> = _status
 
-    /** On unless turned off in Settings › Scanning. */
+    /** On unless turned off in Settings › Data or the Scan settings. */
     var enabled: Boolean
         get() = prefs.getBoolean(KEY_ON, true)
         set(v) { prefs.edit().putBoolean(KEY_ON, v).apply() }
@@ -83,8 +92,11 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         return runCatching { SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE) }.getOrNull()?.also { db = it }
     }
 
-    /** Opens the saved list, then downloads it or adds new cards. Call when the app opens. */
-    suspend fun sync() = lock.withLock {
+    /**
+     * Opens the saved list, then downloads it or adds new cards. Call when the app opens.
+     * [force] ("Download now" in Settings) downloads on mobile data too and checks for new cards again today.
+     */
+    suspend fun sync(force: Boolean = false) = lock.withLock {
         withContext(Dispatchers.IO) {
             if (!enabled) return@withContext
             tmpFile.delete()
@@ -94,9 +106,9 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
             val updated = prefs.getString(KEY_DAY, "").orEmpty()
             if (d == null) {
                 // The whole list is a large download: only on Wi-Fi (or another unmetered network).
-                if (!unmetered()) return@withContext
+                if (!force && !unmetered()) return@withContext
                 runCatching { downloadAll() }.onFailure { tmpFile.delete(); _status.value = _status.value.copy(progress = null, failed = true) }
-            } else if (updated != today) {
+            } else if (force || updated != today) {
                 runCatching { addNew(LocalPick.since(updated)) }
             }
         }

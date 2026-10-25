@@ -325,8 +325,18 @@ internal fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
                 }
             }
             state.error?.let { Text(it, color = Palette.Danger, style = MaterialTheme.typography.bodySmall) }
+            CardListProgress()
         }
     }
+}
+
+/** "Getting card list 42%" while the card list downloads, so a slower first scan has a reason. */
+@Composable
+private fun CardListProgress() {
+    val repo = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
+    val st by repo.localCards.status.collectAsStateWithLifecycle()
+    val p = st.progress ?: return
+    Text("Getting card list ${(p * 100).toInt()}%", color = Palette.Muted, style = MaterialTheme.typography.bodySmall)
 }
 
 /** Big label showing which box (and divider) the last card went into, so a pile can be filed as it's scanned. */
