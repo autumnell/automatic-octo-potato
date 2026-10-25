@@ -192,10 +192,10 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         // The list needs a few hundred MB while it's built (the old one is kept until the new one is done).
         val free = runCatching { context.filesDir.usableSpace }.getOrDefault(Long.MAX_VALUE)
         if (free < MIN_FREE) error("not enough free space")
-        val uri = api.bulkDownloadUri("default_cards") ?: error("Scryfall's card list wasn't found")
+        val file = api.bulkDownloadUri("default_cards") ?: error("Scryfall's card list wasn't found")
         _status.value = _status.value.copy(progress = 0f, failed = false)
         val client = sharedHttpClient.newBuilder().readTimeout(60, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
-        val req = Request.Builder().url(uri).header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
+        val req = Request.Builder().url(file.uri).header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
         tmpFile.parentFile?.mkdirs()
         val d = SQLiteDatabase.openOrCreateDatabase(tmpFile, null)
         val day = LocalDate.now().toString()
@@ -204,19 +204,21 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) error("Download failed ${resp.code}")
                 val body = resp.body ?: error("Empty download")
-                val total = body.contentLength()
+                // Bytes as they arrive (still compressed), against the file's size.
+                val total = body.contentLength().takeIf { it > 0 } ?: file.size
                 val counting = CountingStream(body.byteStream())
+                val input = gunzipIfNeeded(counting)
                 var n = 0
                 d.beginTransaction()
                 try {
-                    for (c in json.decodeToSequence(counting, ScryfallCard.serializer(), DecodeSequenceMode.ARRAY_WRAPPED)) {
+                    for (c in json.decodeToSequence(input, ScryfallCard.serializer(), DecodeSequenceMode.AUTO_DETECT)) {
                         put(d, c, day)
                         n++
                         if (n % 2000 == 0) {
                             // Turned off in Settings while downloading: stop and leave nothing behind.
                             if (!enabled) error("Turned off")
                             d.setTransactionSuccessful(); d.endTransaction(); d.beginTransaction()
-                            // Without a length (compressed download), progress is shown by cards against a typical count.
+                            // Without any size, progress is shown by cards against a typical count.
                             val p = if (total > 0) counting.count.toFloat() / total else n / 110_000f
                             _status.value = _status.value.copy(progress = p.coerceIn(0f, 0.99f))
                         }
@@ -357,4 +359,14 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
             return out.toString(Charsets.UTF_8.name())
         }
     }
+}
+
+/** Scryfall's list now comes as a .jsonl.gz file: unzips it unless it arrives already unzipped. */
+internal fun gunzipIfNeeded(raw: java.io.InputStream): java.io.InputStream {
+    val b = java.io.BufferedInputStream(raw, 64 * 1024)
+    b.mark(2)
+    val first = b.read()
+    val second = b.read()
+    b.reset()
+    return if (first == 0x1f && second == 0x8b) java.util.zip.GZIPInputStream(b, 64 * 1024) else b
 }
