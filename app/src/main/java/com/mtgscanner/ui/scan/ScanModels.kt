@@ -155,7 +155,12 @@ data class PhotoItem(
 )
 
 /** Cards read from a photo, to check before adding. */
-data class PhotoRun(val loading: Boolean = true, val items: List<PhotoItem> = emptyList(), val failed: Boolean = false)
+data class PhotoRun(
+    val loading: Boolean = true, val items: List<PhotoItem> = emptyList(), val failed: Boolean = false,
+    val title: String = "Photo",
+    /** The batch list being reviewed: closing the sheet puts what's left back on it. */
+    val fromBatch: Boolean = false,
+)
 
 /** What the camera read, for the status line: the name, else the footer ("MOM #123"). */
 fun readLabel(g: CardTextGuess): String? =

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.GridOn
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.CollectionsBookmark
@@ -93,7 +94,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             Modifier.size(44.dp).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
             contentAlignment = Alignment.Center,
         ) {
-            val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.target != ScanTarget.COLLECTION
+            val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.batch != null || state.target != ScanTarget.COLLECTION
             Icon(Icons.Outlined.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -107,6 +108,11 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
                 text = { if (state.stack) ModeText("Stop stack mode", "Back to normal") else ModeText("Stack mode", "Hands-free, beeps on each card") },
                 leadingIcon = { Icon(Icons.Outlined.Layers, null, tint = if (state.stack) Palette.Gold else Palette.Text) },
                 onClick = { open = false; vm.setStack(!state.stack) },
+            )
+            DropdownMenuItem(
+                text = { if (state.batch != null) ModeText("Stop batch", "Review what's left") else ModeText("Batch", "Scan a pile, review, add all") },
+                leadingIcon = { Icon(Icons.Outlined.Inbox, null, tint = if (state.batch != null) Palette.Gold else Palette.Text) },
+                onClick = { open = false; vm.setBatch(state.batch == null) },
             )
             if (state.boxCheck == null) DropdownMenuItem(
                 text = { ModeText("Box check", "Scan a box, see what's missing") },
@@ -316,13 +322,25 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
             modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 12.dp, vertical = 6.dp),
         )
         Spacer(Modifier.height(10.dp))
-        if (state.wantPage || state.pageLoading) Row(verticalAlignment = Alignment.CenterVertically) {
+        if (state.wantPage || state.wantSpread || state.pageLoading) Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(color = Palette.Accent)
             Spacer(Modifier.width(12.dp))
             TextButton(onClick = vm::cancelCapture) { Text("Cancel", color = Color.White) }
         }
         else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             GradientButton("Capture page", vm::capturePage, Modifier.weight(1f), icon = Icons.Outlined.GridOn)
+            Spacer(Modifier.width(8.dp))
+            // Two to four loose cards side by side: each one is found and read.
+            Row(
+                Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
+                    .clickable { vm.captureSpread() }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.ViewModule, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Loose", color = Color.White, style = MaterialTheme.typography.labelLarge)
+            }
             Spacer(Modifier.width(8.dp))
             Row(
                 Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))

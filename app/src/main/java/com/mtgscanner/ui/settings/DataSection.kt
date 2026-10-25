@@ -85,6 +85,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import com.mtgscanner.data.label
+import com.mtgscanner.data.ART_AUTO_SETS
+import com.mtgscanner.data.artForBiggestSets
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -276,6 +278,18 @@ private fun CardListRow() {
         Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
             TextButton(onClick = { repo.appScope.launch { local.sync(force = true) } }) {
                 Text(if (st.cards > 0) "Check for new cards" else "Download now")
+            }
+        }
+    }
+    if (on) {
+        HorizontalDivider(color = Palette.Rule)
+        var art by remember { mutableStateOf(local.artAuto) }
+        ToggleRow("Match by art", "Your $ART_AUTO_SETS biggest sets, so cards with hard-to-read names are found offline. On Wi-Fi.", art) { v ->
+            art = v
+            local.artAuto = v
+            if (v) {
+                local.artCheckedDay = ""
+                repo.appScope.launch { runCatching { repo.artForBiggestSets() } }
             }
         }
     }

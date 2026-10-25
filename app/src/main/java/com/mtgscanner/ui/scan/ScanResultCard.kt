@@ -194,6 +194,11 @@ internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewMode
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
                         if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge.merge(TabularNums), color = Palette.Text)
+                        // Price check fetches today's price; say so once it's in.
+                        if (AppSettings.showPrices && state.target == ScanTarget.CHECK && state.priceFresh) {
+                            Spacer(Modifier.width(6.dp))
+                            Text("today", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(bottom = 3.dp))
+                        }
                         state.owned?.let { n ->
                             if (AppSettings.showPrices) Spacer(Modifier.width(10.dp))
                             Text(

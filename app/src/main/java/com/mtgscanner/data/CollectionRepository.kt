@@ -95,7 +95,9 @@ class CollectionRepository(
     /** Printings already in a downloaded art index are compared from there, without fetching their pictures. */
     internal val art by lazy { ArtMatcher(embedder = artEmbedder, known = { id -> artIndex.artOf(id) }) }
     /** Downloaded per-set art hashes, to find cards from their artwork when no text can be read. */
-    val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api, artEmbedder)
+    val artIndex = com.mtgscanner.scan.ArtIndexStore(context.filesDir, api, artEmbedder) { set ->
+        if (localCards.ready) localCards.inSet(set) else null
+    }
     /** Set symbol shapes, drawn from Scryfall's icons as sets are needed. */
     internal val setSymbols = com.mtgscanner.scan.SetSymbols(context.applicationContext, api)
     val scanLog = com.mtgscanner.scan.ScanLog(context.filesDir)
@@ -130,7 +132,10 @@ class CollectionRepository(
     fun startBackgroundWork() {
         appScope.launch { runCatching { nameIndex.load() } }
         appScope.launch { runCatching { setCodes.load() } }
-        appScope.launch { runCatching { localCards.sync() } }
+        appScope.launch {
+            runCatching { localCards.sync() }
+            runCatching { artForBiggestSets() }
+        }
         appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.allPhotos()) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }

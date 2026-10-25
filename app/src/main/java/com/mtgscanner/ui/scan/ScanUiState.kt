@@ -116,6 +116,14 @@ data class ScanUiState(
     val page: List<PageSlot>? = null,
     /** Cards read from a photo picked from the gallery, while the review sheet is open. */
     val photo: PhotoRun? = null,
+    /** Batch mode: cards scanned so far, to review and add at once; null when batch mode is off. */
+    val batch: List<PhotoItem>? = null,
+    /** Bumps when a card goes on the batch list, for its sound. */
+    val batchPulse: Int = 0,
+    /** Loose cards on the table: the next steady frame is read for every card in it. */
+    val wantSpread: Boolean = false,
+    /** Price check: the card on screen has today's price from Scryfall. */
+    val priceFresh: Boolean = false,
     /** Foil picked on the result card for the card on screen; null follows the Foil setting. */
     val cardFoil: Boolean? = null,
     /** Stack mode: hands-free auto-add with a beep per card and a double beep when unsure. */
