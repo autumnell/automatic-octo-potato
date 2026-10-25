@@ -31,15 +31,28 @@ data class LocalCardsStatus(
     /** 0..1 while the first download runs, else null. */
     val progress: Float? = null,
     val failed: Boolean = false,
+    /** Why the last download failed, in a few words. */
+    val reason: String? = null,
+    /** Size of the saved list in MB, once it's on the phone. */
+    val mb: Int = 0,
 )
+
+/** A download failure in a few words, for Settings. */
+internal fun downloadReason(e: Throwable): String = when (e) {
+    is android.database.sqlite.SQLiteFullException -> "phone storage is full"
+    is java.net.UnknownHostException, is java.net.ConnectException -> "no connection"
+    is java.net.SocketTimeoutException -> "the connection dropped"
+    is java.io.IOException -> if (e is ScryfallException) "Scryfall is busy" else "the connection dropped"
+    else -> e.message?.takeIf { it.length <= 40 } ?: "something went wrong"
+}
 
 /** The card list's status line, shared by Settings › Data and the Scan settings. */
 fun LocalCardsStatus.label(on: Boolean): String = when {
-    !on -> "Matches cards without waiting on Scryfall, even offline. About 50 MB."
-    progress != null -> "Downloading… ${(progress * 100).toInt()}%"
-    cards > 0 -> "${"%,d".format(cards)} cards · new ones added when the app opens"
-    failed -> "Download failed. Tries again next time on Wi-Fi."
-    else -> "Downloads next time the app opens on Wi-Fi. About 50 MB."
+    !on -> "Matches cards without waiting on Scryfall, even offline. A large download, best on Wi-Fi."
+    progress != null -> "Downloading… ${(progress * 100).toInt()}% · keep the app open"
+    cards > 0 -> "${"%,d".format(cards)} cards" + (if (mb > 0) " · $mb MB" else "") + " · new ones added when the app opens"
+    failed -> "Download failed" + (reason?.let { ": $it" } ?: "") + ". Try again, or it retries next time on Wi-Fi."
+    else -> "Downloads next time the app opens on Wi-Fi. A large download."
 }
 
 /** Picking among a card's printings found on the phone, kept free of Android so it can be tested. */
@@ -101,13 +114,16 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
             if (!enabled) return@withContext
             tmpFile.delete()
             val d = open()
-            _status.value = LocalCardsStatus(count(d), prefs.getString(KEY_DAY, "").orEmpty())
+            _status.value = LocalCardsStatus(count(d), prefs.getString(KEY_DAY, "").orEmpty(), mb = if (d != null) sizeMb() else 0)
             val today = LocalDate.now().toString()
             val updated = prefs.getString(KEY_DAY, "").orEmpty()
             if (d == null) {
                 // The whole list is a large download: only on Wi-Fi (or another unmetered network).
                 if (!force && !unmetered()) return@withContext
-                runCatching { downloadAll() }.onFailure { tmpFile.delete(); _status.value = _status.value.copy(progress = null, failed = true) }
+                runCatching { downloadAll() }.onFailure { e ->
+                    SQLiteDatabase.deleteDatabase(tmpFile)
+                    _status.value = _status.value.copy(progress = null, failed = true, reason = downloadReason(e))
+                }
             } else if (force || updated != today) {
                 runCatching { addNew(LocalPick.since(updated)) }
             }
@@ -173,7 +189,10 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
     /** Downloads Scryfall's list of every printing into a new file, then puts it in place. */
     @OptIn(ExperimentalSerializationApi::class)
     private suspend fun downloadAll() {
-        val uri = api.bulkDownloadUri("default_cards") ?: error("No bulk list")
+        // The list needs a few hundred MB while it's built (the old one is kept until the new one is done).
+        val free = runCatching { context.filesDir.usableSpace }.getOrDefault(Long.MAX_VALUE)
+        if (free < MIN_FREE) error("not enough free space")
+        val uri = api.bulkDownloadUri("default_cards") ?: error("Scryfall's card list wasn't found")
         _status.value = _status.value.copy(progress = 0f, failed = false)
         val client = sharedHttpClient.newBuilder().readTimeout(60, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
         val req = Request.Builder().url(uri).header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
@@ -218,8 +237,10 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         val today = LocalDate.now().toString()
         prefs.edit().putString(KEY_DAY, today).apply()
         val opened = open()
-        _status.value = LocalCardsStatus(count(opened), today)
+        _status.value = LocalCardsStatus(count(opened), today, mb = sizeMb())
     }
+
+    private fun sizeMb(): Int = (dbFile.length() / (1024 * 1024)).toInt()
 
     /** Asks Scryfall only for cards released since [since], and adds them. */
     private suspend fun addNew(since: String) {
@@ -228,7 +249,7 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         val d = open() ?: return
         if (found.isNotEmpty()) write(d) { found.forEach { put(d, it, today) } }
         prefs.edit().putString(KEY_DAY, today).apply()
-        _status.value = LocalCardsStatus(count(d), today)
+        _status.value = LocalCardsStatus(count(d), today, mb = sizeMb())
     }
 
     private inline fun write(d: SQLiteDatabase, block: () -> Unit) {
@@ -307,6 +328,8 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         private const val KEY_ART = "art"
         private const val KEY_ART_DAY = "art_day"
         private const val STALE_DAYS = 2L
+        /** Free space needed before downloading the list. */
+        private const val MIN_FREE = 600L * 1024 * 1024
 
         fun pack(s: String): ByteArray {
             val input = s.toByteArray(Charsets.UTF_8)

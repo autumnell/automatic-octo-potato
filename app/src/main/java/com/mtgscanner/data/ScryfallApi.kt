@@ -54,12 +54,21 @@ class ScryfallApi(
         return getOrNull(url)
     }
 
-    /** Where Scryfall's bulk file of [type] ("default_cards") can be downloaded, or null. */
+    /**
+     * Where Scryfall's bulk file of [type] ("default_cards") can be downloaded, or null. Read from the list of
+     * bulk files: asking for one by type wants "default-cards" in the address, and "default_cards" there is a 404.
+     */
     suspend fun bulkDownloadUri(type: String): String? {
-        val url = base.newBuilder().addPathSegments("bulk-data/$type").build()
+        val url = base.newBuilder().addPathSegments("bulk-data").build()
         val body = request(Request.Builder().url(url).build()) ?: return null
-        val o = json.parseToJsonElement(body) as? JsonObject ?: return null
-        return (o["download_uri"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+        return bulkUriIn(body, type)
+    }
+
+    /** The download address of the bulk file of [type] in Scryfall's list of bulk files ([body]), or null. */
+    internal fun bulkUriIn(body: String, type: String): String? {
+        val list = (json.parseToJsonElement(body) as? JsonObject)?.get("data") as? kotlinx.serialization.json.JsonArray ?: return null
+        val o = list.firstOrNull { ((it as? JsonObject)?.get("type") as? kotlinx.serialization.json.JsonPrimitive)?.content == type } as? JsonObject
+        return (o?.get("download_uri") as? kotlinx.serialization.json.JsonPrimitive)?.content
     }
 
     /** Exact printing by set code and collector number. */
