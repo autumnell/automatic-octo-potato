@@ -162,3 +162,11 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+// Temporary (probe branch only): print test output in CI.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        showStandardStreams = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
