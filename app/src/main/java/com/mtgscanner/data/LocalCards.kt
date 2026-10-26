@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.ConnectivityManager
+import com.mtgscanner.scan.CardTextParser
 import com.mtgscanner.util.CardNames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -313,6 +314,37 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
 
     /** One printing by its Scryfall id, or null when the list doesn't have it. */
     fun byId(id: String): ScryfallCard? = query("SELECT data, priced FROM cards WHERE id = ? LIMIT 1", id).firstOrNull()
+
+    /** Every printing of exactly [name] (or of a card whose front face is [name]). */
+    fun allNamed(name: String): List<ScryfallCard> {
+        val k = CardNames.key(name)
+        if (k.isEmpty()) return emptyList()
+        return query("SELECT data, priced FROM cards WHERE nk = ? OR fk = ?", k, k)
+    }
+
+    /** Printings whose name holds every one of [words] (letters and digits only), up to [limit]. */
+    fun nameHas(words: List<String>, limit: Int = 3000): List<ScryfallCard> {
+        val keys = words.map { CardTextParser.normalize(it) }.filter { it.isNotEmpty() }
+        if (keys.isEmpty()) return emptyList()
+        val where = keys.joinToString(" AND ") { "nk LIKE ?" }
+        return query("SELECT data, priced FROM cards WHERE $where LIMIT $limit", *keys.map { "%$it%" }.toTypedArray())
+    }
+
+    /** Names starting with [prefix], for suggestions as you type: front faces, one per card, shortest first. */
+    fun namesStarting(prefix: String, limit: Int = 8): List<String> {
+        val d = db ?: return emptyList()
+        val k = CardNames.key(prefix)
+        if (k.isEmpty()) return emptyList()
+        return runCatching {
+            d.rawQuery("SELECT oracle, data FROM cards WHERE nk LIKE ? GROUP BY coalesce(oracle, nk) ORDER BY length(nk), nk LIMIT ?", arrayOf("$k%", "$limit")).use { c ->
+                val out = ArrayList<String>()
+                while (c.moveToNext()) {
+                    runCatching { json.decodeFromString(ScryfallCard.serializer(), unpack(c.getBlob(1))).name }.getOrNull()?.let { out += it }
+                }
+                out
+            }
+        }.getOrDefault(emptyList())
+    }
 
     /** Every card in a set, tokens and extras included. */
     fun inSet(set: String): List<ScryfallCard> = query("SELECT data, priced FROM cards WHERE setc = ?", set.lowercase())

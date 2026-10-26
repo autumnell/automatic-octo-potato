@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.collection
 
 import com.mtgscanner.ui.decks.DeckOwnership
+import com.mtgscanner.data.suggestNames
 import com.mtgscanner.util.CardNames
 import com.mtgscanner.data.cheapestPrinting
 import com.mtgscanner.data.DeckCheck
@@ -404,13 +405,13 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun setWanted(item: WishlistItem, wanted: Int) = viewModelScope.launch { repo.setWishWanted(item, wanted) }
 
-    /** Card names from Scryfall for the wishlist's add box. */
-    suspend fun suggestCards(text: String): List<String> =
-        runCatching { repo.api.autocomplete(text.trim()) }.getOrDefault(emptyList())
+    /** Card names for the wishlist's add box: the phone's list first, then Scryfall. */
+    suspend fun suggestCards(text: String): List<String> = repo.suggestNames(text)
 
     /** Adds [qty] copies of the named card to the wishlist, priced by its cheapest printing, with Undo. */
     fun wishByName(name: String, qty: Int = 1) = viewModelScope.launch {
         val found = runCatching { repo.api.named(name) }.getOrNull()
+            ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { repo.localCards.named(name) }
         val oracle = found?.oracleId
         if (oracle == null) { _message.value = "Couldn't find $name"; return@launch }
         val card = repo.cheapestPrinting(found)

@@ -25,6 +25,7 @@ object HomeSummary {
         val unique = HashSet<String>()
         val sets = HashSet<String>()
         val identity = ArrayList<Pair<String, Int>>(all.size)
+        val byColor = IntArray(ColorSplit.KEYS.size)
         var top: CollectionCard? = null
         var topPrice = 0.0
         // Smallest first, so the head is the one to drop when a bigger one comes along.
@@ -38,6 +39,7 @@ object HomeSummary {
             unique += c.oracleId ?: c.name
             sets += c.setCode
             identity += c.colorIdentity to c.quantity
+            byColor[ColorSplit.indexOf(c.colors)] += c.quantity
             keep(recent, c, 12)
             if (c.proxy) continue
             val unit = c.unitPrice() ?: 0.0
@@ -63,6 +65,7 @@ object HomeSummary {
             gainers = drain(gains).sortedByDescending { it.second }.map { it.first },
             heroArt = artCropUrl(top?.imageUrl),
             colorLetter = AccentMath.dominant(identity),
+            colorSplit = ColorSplit.KEYS.indices.map { ColorSplit.KEYS[it] to byColor[it] }.filter { it.second > 0 },
         )
     }
 
@@ -72,4 +75,22 @@ object HomeSummary {
     }
 
     private fun <T> drain(q: PriorityQueue<T>): List<T> = ArrayList(q)
+}
+
+/** The collection split by card color for the bar on Home: one color, several (M), or none (C). */
+object ColorSplit {
+    val KEYS = listOf("W", "U", "B", "R", "G", "M", "C")
+
+    fun indexOf(colors: String): Int {
+        val letters = colors.uppercase().filter { it in "WUBRG" }.toSet()
+        return when (letters.size) {
+            0 -> 6
+            1 -> "WUBRG".indexOf(letters.first())
+            else -> 5
+        }
+    }
+
+    fun label(key: String): String = when (key) {
+        "W" -> "White"; "U" -> "Blue"; "B" -> "Black"; "R" -> "Red"; "G" -> "Green"; "M" -> "Multicolor"; else -> "Colorless"
+    }
 }

@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.goals
 
 import androidx.activity.compose.BackHandler
+import com.mtgscanner.data.suggestNames
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -100,7 +101,7 @@ class GoalsViewModel(private val repo: CollectionRepository) : ViewModel() {
     val message: StateFlow<String?> = _message
     fun messageShown() { _message.value = null }
 
-    suspend fun suggest(text: String): List<String> = runCatching { repo.api.autocomplete(text) }.getOrDefault(emptyList())
+    suspend fun suggest(text: String): List<String> = repo.suggestNames(text)
 
     /** Every printing of the card named [name]. */
     fun addCardGoal(name: String) = viewModelScope.launch {

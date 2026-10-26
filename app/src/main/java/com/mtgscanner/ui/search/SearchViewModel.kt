@@ -12,6 +12,11 @@ import com.mtgscanner.data.db.placeName
 import com.mtgscanner.data.observePlaces
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
+import com.mtgscanner.data.searchOnPhone
+import com.mtgscanner.data.nameSuggestions
+import com.mtgscanner.data.printingsFor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -54,6 +59,8 @@ data class SearchUi(
     val viewed: List<Viewed> = emptyList(),
     /** Extra Scryfall filters from the filter sheet. */
     val filters: SearchFilters = SearchFilters(),
+    /** The results came from the card list on the phone (Scryfall hasn't answered yet, or can't be reached). */
+    val fromPhone: Boolean = false,
 )
 
 /** A card opened from Search, kept for "Recently viewed". */
@@ -123,10 +130,13 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         _ui.update { it.copy(query = q) }
         suggestJob?.cancel()
         suggestJob = viewModelScope.launch {
+            if (q.isBlank() || q.contains(':')) { _ui.update { it.copy(suggestions = emptyList()) }; return@launch }
+            // Names from the card list on the phone show at once; Scryfall's (which knows tokens and very new cards) follow.
+            val mine = repo.nameSuggestions(q.trim())
+            if (mine.isNotEmpty()) _ui.update { it.copy(suggestions = mine) }
             delay(250)
-            val list = if (q.isBlank() || q.contains(':')) emptyList()
-            else runCatching { repo.api.autocomplete(q.trim(), extras = true) }.getOrDefault(emptyList())
-            _ui.update { it.copy(suggestions = list.take(8)) }
+            val list = runCatching { repo.api.autocomplete(q.trim(), extras = true) }.getOrDefault(emptyList())
+            if (list.isNotEmpty() || mine.isEmpty()) _ui.update { it.copy(suggestions = list.take(8)) }
         }
     }
 
@@ -170,15 +180,25 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         suggestJob?.cancel()
         searchJob?.cancel()
         lastRun = Triple(query, label, order)
-        _ui.update { it.copy(ranQuery = query, ranLabel = label, results = emptyList(), loading = true, hasMore = false, failed = false, error = null, moreFailed = false) }
+        _ui.update { it.copy(ranQuery = query, ranLabel = label, results = emptyList(), loading = true, hasMore = false, failed = false, error = null, moreFailed = false, fromPhone = false) }
         searchJob = viewModelScope.launch {
+            // The card list on the phone answers too: shown if Scryfall is slow, kept if it can't be reached.
+            val local = async { runCatching { repo.searchOnPhone(query, order, unique) }.getOrNull() }
+            val early = launch {
+                delay(PHONE_FIRST_MS)
+                val mine = local.await()
+                if (!mine.isNullOrEmpty()) _ui.update { if (it.ranQuery == query && it.results.isEmpty()) it.copy(results = mine, fromPhone = true) else it }
+            }
             runCatching { repo.api.searchPage(query, order, 1, unique) }
-                .onSuccess { r -> _ui.update { it.copy(results = r.data, hasMore = r.hasMore, loading = false) } }
+                .onSuccess { r -> early.cancel(); _ui.update { it.copy(results = r.data, hasMore = r.hasMore, loading = false, fromPhone = false) } }
                 .onFailure { e ->
                     // A newer search cancelled this one; it owns the spinner now.
                     if (e is kotlinx.coroutines.CancellationException) throw e
+                    early.cancel()
                     val msg = (e as? com.mtgscanner.data.ScryfallQueryException)?.message
-                    _ui.update { it.copy(loading = false, failed = true, error = msg) }
+                    val mine = if (msg == null) local.await() else null
+                    if (!mine.isNullOrEmpty()) _ui.update { it.copy(results = mine, hasMore = false, loading = false, fromPhone = true) }
+                    else _ui.update { it.copy(results = emptyList(), loading = false, failed = true, error = msg, fromPhone = false) }
                 }
         }
     }
@@ -186,7 +206,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun loadMore() {
         val s = _ui.value
         val q = s.ranQuery ?: return
-        if (s.loading || !s.hasMore) return
+        if (s.loading || !s.hasMore || s.fromPhone) return
         _ui.update { it.copy(loading = true, moreFailed = false) }
         searchJob = viewModelScope.launch {
             runCatching { repo.api.searchPage(q, order, page + 1, unique) }
@@ -220,6 +240,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun setSetFilter(q: String) = _ui.update { it.copy(setFilter = q) }
     fun toggleGrid() = _ui.update { it.copy(grid = !it.grid) }
+    fun setGrid(on: Boolean) = _ui.update { it.copy(grid = on) }
 
     fun select(card: ScryfallCard?) = _ui.update {
         if (card == null) it.copy(selected = null)
@@ -237,6 +258,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun openViewed(v: Viewed) {
         viewModelScope.launch {
             val card = runCatching { repo.api.byId(v.id) }.getOrNull()
+                ?: withContext(Dispatchers.IO) { repo.localCards.byId(v.id) }
             if (card != null) select(card) else _ui.update { it.copy(message = "Can't reach Scryfall") }
         }
     }
@@ -251,7 +273,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         _ui.update { it.copy(showPrintings = true, printings = null) }
         viewModelScope.launch {
             val list = try {
-                repo.api.printings(card)
+                repo.printingsFor(card)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -308,6 +330,11 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }
+
+    private companion object {
+        /** How long Scryfall gets before the phone's own results show. */
+        const val PHONE_FIRST_MS = 600L
+    }
 }
 
 /** Scryfall query for every printing of exactly [name]; double quotes in the name are escaped. */

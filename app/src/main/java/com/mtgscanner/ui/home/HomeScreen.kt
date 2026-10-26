@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import kotlin.math.roundToInt
 import com.mtgscanner.ui.components.formatPrimary
 import com.mtgscanner.ui.components.primaryValue
 import com.mtgscanner.data.db.totalEur
@@ -200,6 +201,14 @@ fun HomeScreen(
     ) {
         Header(onSettings, onEdit = { editing = true }, onFind = if (ui.loaded && ui.totalCards > 0) ({ finding = true }) else null)
         HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
+        // Tap a color to browse those cards: one color exactly, multicolor, or colorless.
+        if (ui.loaded && ui.colorSplit.size > 1) ColorBar(ui.colorSplit) { key ->
+            val f = when (key) {
+                "M" -> Filters(colors = setOf(com.mtgscanner.ui.collection.CardColors.LEGACY_MULTI), sort = SortBy.PRICE)
+                else -> Filters(colors = setOf(key), colorMatch = com.mtgscanner.ui.collection.ColorMatch.EXACTLY, sort = SortBy.PRICE)
+            }
+            browseWith(f, ColorSplit.label(key))
+        }
         Spacer(Modifier.height(12.dp))
         com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
         WhatsNewLine()
@@ -439,3 +448,31 @@ private fun ValueChart(points: List<ValueSnapshot>, modifier: Modifier) =
 internal fun shortDay(day: String): String = runCatching {
     java.time.LocalDate.parse(day).format(java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US))
 }.getOrDefault(day)
+
+/** The collection by color as one thin bar under the value card, with the biggest shares named below. Tap a color to browse it. */
+@Composable
+private fun ColorBar(split: List<Pair<String, Int>>, onPick: (String) -> Unit) {
+    val total = split.sumOf { it.second }.coerceAtLeast(1)
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
+        Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically) {
+            split.forEachIndexed { i, (key, n) ->
+                val color = if (key == "M") com.mtgscanner.ui.theme.MtgColors.Multi else com.mtgscanner.ui.theme.MtgColors.barFor(key[0])
+                Box(
+                    Modifier.weight(n.toFloat()).fillMaxHeight()
+                        .clickable(onClickLabel = "Browse ${ColorSplit.label(key)}") { onPick(key) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth().height(8.dp).padding(end = if (i < split.lastIndex) 2.dp else 0.dp)
+                            .clip(RoundedCornerShape(2.dp)).background(color),
+                    )
+                }
+            }
+        }
+        val top = split.sortedByDescending { it.second }.take(3)
+        Text(
+            top.joinToString(" · ") { (k, n) -> "${ColorSplit.label(k)} ${(n * 100f / total).roundToInt()}%" },
+            style = MaterialTheme.typography.labelSmall, color = Palette.Muted,
+        )
+    }
+}

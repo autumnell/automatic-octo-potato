@@ -2,6 +2,7 @@ package com.mtgscanner.ui.collection
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
@@ -371,7 +373,8 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     // Kept across rotation.
     var show by rememberSaveable { mutableStateOf(if (SetLaunch.takeMissing()) "missing" else "all") }
     var query by rememberSaveable { mutableStateOf("") }
-    var grid by rememberSaveable { mutableStateOf(true) }
+    // 0: pictures, 1: poster (the whole set small), 2: list.
+    var layout by rememberSaveable { mutableStateOf(0) }
     var confirmWish by remember { mutableStateOf(false) }
     var newBox by remember { mutableStateOf(false) }
     LaunchedEffect(code) { vm.loadSet(code) }
@@ -404,8 +407,12 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                     tint = if (isPinned) Palette.Accent else Palette.Icon,
                 )
             }
-            IconButton(onClick = { grid = !grid }) {
-                Icon(if (grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
+            IconButton(onClick = { layout = (layout + 1) % 3 }) {
+                Icon(
+                    when (layout) { 0 -> Icons.Outlined.Apps; 1 -> Icons.AutoMirrored.Outlined.List; else -> Icons.Outlined.GridView },
+                    when (layout) { 0 -> "Show as a poster"; 1 -> "Show as a list"; else -> "Show pictures" },
+                    tint = Palette.Icon,
+                )
             }
             if (toWish.isNotEmpty()) IconButton(onClick = { confirmWish = true }) {
                 Icon(Icons.Outlined.FavoriteBorder, "Add missing cards to wishlist", tint = Palette.Icon)
@@ -449,7 +456,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                     EmptyState(if (show == "missing" && q.isEmpty()) "You own the whole set" else "No cards", Modifier.padding(top = 24.dp))
                 } else {
                     LazyVerticalGrid(
-                        GridCells.Fixed(if (grid) 3 else 1),
+                        GridCells.Fixed(when (layout) { 0 -> 3; 1 -> 5; else -> 1 }),
                         contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
@@ -470,7 +477,13 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                                     val first = rows?.firstOrNull()
                                     if (first != null) onOpenCard(first.id) else search.select(c)
                                 }
-                                if (grid) SetCardTile(c, qty, open) else SetCardRow(c, qty, open)
+                                // Hold a grey card to wishlist it.
+                                val wish: (() -> Unit)? = if (qty == 0) { { vm.wishlistMissing(listOf(c)) } } else null
+                                when (layout) {
+                                    0 -> SetCardTile(c, qty, open, wish)
+                                    1 -> SetPosterTile(c, qty, open, wish)
+                                    else -> SetCardRow(c, qty, open)
+                                }
                             }
                         }
                     }
@@ -569,11 +582,29 @@ private fun SetHeader(
     }
 }
 
+/** The whole set at a glance: small pictures only, owned in color, missing in grey. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
-    Column(Modifier.padding(4.dp).clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick)) {
+private fun SetPosterTile(c: ScryfallCard, qty: Int, onClick: () -> Unit, onWish: (() -> Unit)?) {
+    Box(Modifier.padding(2.dp).clip(RoundedCornerShape(Corners.Small)).combinedClickable(onClick = onClick, onLongClick = onWish)) {
+        CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.55f), grey = qty == 0)
+        if (qty > 1) Text(
+            "$qty",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+            modifier = Modifier.align(Alignment.TopStart).padding(3.dp)
+                .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = 4.dp),
+        )
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit, onWish: (() -> Unit)?) {
+    Column(Modifier.padding(4.dp).clip(RoundedCornerShape(Corners.Small)).combinedClickable(onClick = onClick, onLongClick = onWish)) {
         Box {
-            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.45f), zoom = true)
+            // Missing cards in grey; hold one to wishlist it.
+            CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.55f), zoom = qty > 0, grey = qty == 0)
             if (qty > 0) OwnedBadge(qty, Modifier.align(Alignment.TopStart).padding(5.dp))
             val price = c.anyPrice()
             if (AppSettings.showPrices && price != null) Text(
