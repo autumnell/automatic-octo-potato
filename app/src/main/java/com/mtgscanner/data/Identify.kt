@@ -14,6 +14,8 @@ data class Identification(
     val confident: Boolean,
     /** The exact printing is known: the footer was read, or the artwork matched. */
     val exact: Boolean = false,
+    /** You picked this printing for what was read: it's kept as it is, never narrowed again. */
+    val picked: Boolean = false,
 )
 
 /** A card name read with no connection, good enough to look up later. */
@@ -33,19 +35,14 @@ data class OfflineRead(
  * the printing when the footer couldn't be read. Throws [IOException] when offline.
  */
 suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
-    // A misread set code ("0TJ") is corrected to a real one first, so the exact footer lookup still works.
-    val read = raw.setCode?.let { s -> raw.copy(setCode = setCodes.fix(s, raw.collectorNumber)) } ?: raw
-    // With the set lock on, a read with no set code is looked up in that set first. A set code printed on the
-    // card wins (Special Guests and The List carry their own).
-    val lock = SortPrefs.setLock?.takeIf { read.setCode == null }
-    val guess = lock?.let { read.copy(setCode = it) } ?: read
+    val (guess, key) = lookupKey(raw, skip != null) ?: return null
     // Sorting one set: have its whole card list on the phone, so each card is found without asking Scryfall.
     SortPrefs.setLock?.let { preloadSet(it) }
-    // [skip]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing.
-    val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skip != null) "|s" else "")
     // Seen this session, or on this phone in the last few days (prices that old are fine for a scan).
     val cached: Identification? = lookupCache.get(key)
         ?: identifyStore.get(key, IdentifyStore.FRESH_MS)?.also { lookupCache.put(key, it) }
+        // A printing you picked stays picked; only its prices are refreshed.
+        ?: identifyStore.get(key, Long.MAX_VALUE)?.takeIf { it.picked }?.also { lookupCache.put(key, it); freshenLater(it.card.id) }
     if (cached == null) {
         val missedAt = synchronized(missCache) { missCache[key] }
         if (missedAt != null && System.currentTimeMillis() - missedAt < CollectionRepository.MISS_TTL_MS) return null
@@ -59,10 +56,37 @@ suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCa
     }
     base ?: return null
     noteSet(base.card.set)
+    if (base.picked) return base
     val result = (if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess) else null) ?: base
     // Matched from the list on the phone with prices a few days old: today's follow in the background.
     if (localCards.isStale(result.card.id)) freshenLater(result.card.id)
     return result
+}
+
+/**
+ * The guess as it's looked up, and the key its match is saved under. A misread set code ("0TJ") is corrected to
+ * a real one first, so the exact footer lookup still works. With the set lock on, a read with no set code is
+ * looked up in that set first; a set code printed on the card wins (Special Guests and The List carry their own).
+ * [skipping]: a card auto-add will skip anyway (say, a basic land) isn't narrowed to its printing, so it's saved apart.
+ */
+private fun CollectionRepository.lookupKey(raw: CardTextGuess, skipping: Boolean): Pair<CardTextGuess, String>? {
+    val read = raw.setCode?.let { s -> raw.copy(setCode = setCodes.fix(s, raw.collectorNumber)) } ?: raw
+    val lock = SortPrefs.setLock?.takeIf { read.setCode == null }
+    val guess = lock?.let { read.copy(setCode = it) } ?: read
+    val key = (guess.key ?: return null) + (lock?.let { "@$it" } ?: "") + (if (skipping) "|s" else "")
+    return guess to key
+}
+
+/**
+ * You picked [card] as the right printing for what was read as [raw]: the same read gives it from now on, in this
+ * session and after a restart, instead of the match that was wrong.
+ */
+suspend fun CollectionRepository.rememberPick(raw: CardTextGuess, skipping: Boolean, card: ScryfallCard) {
+    val (_, key) = lookupKey(raw, skipping) ?: return
+    val pick = Identification(card, confident = true, exact = true, picked = true)
+    lookupCache.put(key, pick)
+    synchronized(missCache) { missCache.remove(key) }
+    identifyStore.put(key, pick)
 }
 
 /**

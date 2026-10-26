@@ -16,15 +16,11 @@ object BoxToDeckMath {
                 "${rows.sumOf { it.quantity }} ${c.name} (${c.setCode.uppercase()}) ${c.collectorNumber}"
             }
 
-    /** [text] with lines added for cards in [cards] that it doesn't list yet (under the main deck, at the end). */
+    /** [text] with lines added for cards in [cards] that it doesn't list yet, in the main deck (never under a Sideboard header). */
     fun addMissing(text: String, cards: List<CollectionCard>): String {
         val listed = DecklistParser.parse(text).map { CardNames.key(it.name) }.toSet()
         val extra = list(cards.filter { CardNames.key(it.name) !in listed })
-        return when {
-            extra.isEmpty() -> text
-            text.isBlank() -> extra
-            else -> text.trimEnd() + "\n" + extra
-        }
+        return if (extra.isEmpty()) text else DecklistParser.addToMain(text, extra)
     }
 }
 

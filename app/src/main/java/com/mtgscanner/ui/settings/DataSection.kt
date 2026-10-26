@@ -272,11 +272,11 @@ private fun CardListRow() {
     ToggleRow("Card list on phone", body, on) { v ->
         on = v
         local.enabled = v
-        repo.appScope.launch { if (v) local.sync() else local.clear() }
+        if (v) com.mtgscanner.work.CardListWorker.start(repo.appContext) else repo.appScope.launch { local.clear() }
     }
     if (on && st.progress == null) {
         Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
-            TextButton(onClick = { repo.appScope.launch { local.sync(force = true) } }) {
+            TextButton(onClick = { com.mtgscanner.work.CardListWorker.start(repo.appContext, force = true) }) {
                 Text(if (st.cards > 0) "Check for new cards" else "Download now")
             }
         }

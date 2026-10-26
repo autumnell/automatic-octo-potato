@@ -34,9 +34,9 @@ fun ScanViewModel.setBatch(on: Boolean) {
     if (!on && left.isNotEmpty()) _state.update { it.copy(photo = PhotoRun(loading = false, items = left, title = "Batch")) }
 }
 
-/** Opens the batch list to check and add. */
+/** Opens the batch list to check and add: unsure matches first, so those get checked and the rest trusted. */
 fun ScanViewModel.reviewBatch() = _state.update {
-    val items = it.batch.orEmpty()
+    val items = it.batch.orEmpty().sortedByDescending { i -> i.unsure }
     if (items.isEmpty()) it else it.copy(photo = PhotoRun(loading = false, items = items, title = "Batch", fromBatch = true), batch = emptyList())
 }
 

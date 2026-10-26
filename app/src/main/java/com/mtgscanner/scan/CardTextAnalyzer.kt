@@ -141,6 +141,19 @@ class CardTextAnalyzer(
     /** Blurry frames of the card in view are skipped rather than misread. Analysis coroutine only. */
     private val sharp = StripQuality.Tracker()
 
+    /** When something steady but with no card edges came into the guide (0: not now), and when that was last said. */
+    @Volatile private var noShapeSince = 0L
+    @Volatile private var noShapeTold = 0L
+    private var lastUnsureCheck = 0L
+
+    /** No card edges in this frame: after a while with none, tells the scanner, about once a second. */
+    private fun noShape(now: Long) {
+        if (noShapeSince == 0L) { noShapeSince = now; return }
+        if (now - noShapeSince < NO_EDGES_MS || now - noShapeTold < 1000) return
+        noShapeTold = now
+        scope.launch { runCatching { onGuess(CardTextGuess(emptyList(), null, null, 0, noEdges = true)) } }
+    }
+
     /** Reused for every frame, so a 3.7 MB bitmap isn't made four times a second. */
     private var frameBitmap: Bitmap? = null
 
@@ -207,9 +220,14 @@ class CardTextAnalyzer(
             }
             lastGate = now
             // Steady but no card outline seen: only OpenCV's closer look can still find a card, so without it
-            // nothing is read. Text is only read from something card-shaped.
-            val result = runCatching { checkCard(image, rotation) }.getOrNull()
-                ?.let { r -> if (r.first.state == GateState.UNSURE && !CvCards.ready) GateResult(GateState.SETTLING) to null else r }
+            // nothing is read. Text is only read from something card-shaped. OpenCV's look is a full picture
+            // conversion, so it's done at most every [UNSURE_CHECK_MS], not on every read.
+            val checked = runCatching { checkCard(image, rotation) }.getOrNull()
+            val unsure = checked?.first?.state == GateState.UNSURE
+            if (unsure) noShape(now) else if (checked?.first?.state != GateState.MOVING && checked?.first?.state != GateState.SETTLING) noShapeSince = 0L
+            val skipUnsure = unsure && (!CvCards.ready || now - lastUnsureCheck < UNSURE_CHECK_MS)
+            if (unsure && !skipUnsure) lastUnsureCheck = now
+            val result = checked?.let { r -> if (skipUnsure) GateResult(GateState.SETTLING) to null else r }
             if (result?.first?.state == GateState.EMPTY) {
                 focusedAt = 0L
                 sharp.reset()
@@ -295,7 +313,8 @@ class CardTextAnalyzer(
                         a = ReadArea(FrameGeometry.grow(bounds, 0.15, frameW, frameH), isCard = true, outline = bounds, quad = found)
                     }
                     // Nothing card-shaped (63:88, upright or sideways) in the guide: no text is read from it.
-                    val quad = a.quad ?: return@launch
+                    val quad = a.quad ?: run { noShape(SystemClock.elapsedRealtime()); return@launch }
+                    noShapeSince = 0L
                     val draw = CardParts.drawer({ picture() }, cv)
                     val cjk = CjkNames.scriptFor(scanLang())
                     // A found card: read just its name bar and footer, straightened and sharp.
@@ -716,6 +735,10 @@ class CardTextAnalyzer(
         const val GRID = 160
         /** A little more than the guide's share of the guide crop ([FrameGeometry.guideCrop] adds 20%). */
         const val GUIDE_IN_CROP = 0.9
+        /** Something in the guide with no card edges this long gets a hint. */
+        const val NO_EDGES_MS = 2500L
+        /** How often a steady frame with no clear outline gets OpenCV's closer look for a card. */
+        const val UNSURE_CHECK_MS = 500L
         /** Longest side, in pixels, of a whole-card read. */
         const val MAX_READ = 1024
         /** Art hashes this close are the same art held still: its embedding is reused. */

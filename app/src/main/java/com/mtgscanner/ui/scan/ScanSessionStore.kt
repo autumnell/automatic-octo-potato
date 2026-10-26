@@ -24,9 +24,18 @@ data class SavedScanSession(
     val sessionKeys: List<Long>? = null,
     val sortKeys: List<Long>? = null,
     val packKeys: List<Long>? = null,
+    /** Batch mode's list, not reviewed yet, so a pile scanned isn't lost if Android closes the app. */
+    val batch: List<BatchCard>? = null,
+    /** The batch list as it is in memory; turned into [batch] when written. */
+    @kotlinx.serialization.Transient val batchItems: List<PhotoItem>? = null,
 ) {
     val isEmpty: Boolean
-        get() = session.isEmpty() && sort == null && review.isEmpty() && pack == null && boxCheck == null && entries.isEmpty()
+        get() = session.isEmpty() && sort == null && review.isEmpty() && pack == null && boxCheck == null && entries.isEmpty() &&
+            batch.isNullOrEmpty() && batchItems.isNullOrEmpty()
+
+    /** The batch list to put back. */
+    val batchCards: List<BatchCard>
+        get() = batch ?: batchItems.orEmpty().mapNotNull { i -> i.card?.let { BatchCard(it.forSession(), i.lang, i.foil, i.unsure) } }
 
     /** The form written to disk: each line once, by key. */
     fun compact(): SavedScanSession {
@@ -44,6 +53,7 @@ data class SavedScanSession(
             sessionKeys = session.map { it.key },
             sortKeys = sort?.entries?.map { it.key },
             packKeys = pack?.entries?.map { it.key },
+            batch = batchCards.takeIf { it.isNotEmpty() },
         )
     }
 
@@ -58,18 +68,23 @@ data class SavedScanSession(
             review = review,
             pack = pack?.let { it.copy(entries = lines(packKeys, it.entries)) },
             boxCheck = boxCheck,
+            batch = batch,
         )
     }
 
     /** Same lists as [other], by reference: a cheap check that nothing worth saving changed. */
     fun sameAs(other: SavedScanSession): Boolean =
         session === other.session && sort === other.sort && review === other.review && pack === other.pack &&
-            boxCheck === other.boxCheck
+            boxCheck === other.boxCheck && batchItems === other.batchItems
 
     companion object {
-        fun of(s: ScanUiState) = SavedScanSession(s.session, s.sort, s.review, s.pack, s.boxCheck)
+        fun of(s: ScanUiState) = SavedScanSession(s.session, s.sort, s.review, s.pack, s.boxCheck, batchItems = s.batch)
     }
 }
+
+/** One card on the batch list, as saved. */
+@Serializable
+data class BatchCard(val card: ScryfallCard, val lang: String? = null, val foil: Boolean? = null, val unsure: Boolean = false)
 
 /**
  * A scan list line's card without what the scanner never reads back: store and site links, flavor text, and the

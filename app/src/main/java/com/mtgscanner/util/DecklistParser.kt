@@ -129,6 +129,29 @@ object DecklistParser {
             .map { (_, v) -> v.first().copy(quantity = v.sumOf { it.quantity }) }
     }
 
+    /**
+     * [lines] put into [text]'s main deck: after its last main-deck card, so they never land under a Sideboard,
+     * Maybeboard or Tokens header at the end. A list with no main-deck card yet gets them at the top.
+     */
+    fun addToMain(text: String, lines: String): String {
+        if (lines.isBlank()) return text
+        if (text.isBlank()) return lines
+        val all = text.lines()
+        var section = "Main"
+        var lastMain = -1
+        all.forEachIndexed { i, raw ->
+            val line = raw.trim().trimStart('-', '•', '*').trim()
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith("//") && SECTION.matchEntire(line) == null) return@forEachIndexed
+            val header = SECTION.matchEntire(line)
+            if (header != null) { section = sectionName(header.groupValues[1]); return@forEachIndexed }
+            if (TYPE_HEADER.matches(line) || COUNTED_HEADER.matches(line)) { section = "Main"; return@forEachIndexed }
+            val prefix = LINE.matchEntire(line)?.groupValues?.get(1).orEmpty()
+            if (section == "Main" && prefix.isEmpty() && !CMDR_MARK.containsMatchIn(" $line")) lastMain = i
+        }
+        val at = lastMain + 1
+        return (all.take(at) + lines.lines() + all.drop(at)).joinToString("\n").trimEnd()
+    }
+
     /** Drops foil markers and Archidekt tags from the end, keeping "[CMR]"-style set codes. */
     private fun stripTags(text: String): String {
         var rest = text.trim()

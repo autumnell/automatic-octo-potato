@@ -33,9 +33,15 @@ class CardListCache(dir: File) {
         if (list.isEmpty()) return@withContext
         runCatching {
             folder.mkdirs()
-            val tmp = File(folder, "write.tmp")
-            tmp.writeText(json.encodeToString(serializer, list))
-            tmp.renameTo(fileFor(key))
+            // Each write has its own temporary file, so two lists saved at once can't swap places.
+            val tmp = File.createTempFile("write", ".tmp", folder)
+            try {
+                tmp.writeText(json.encodeToString(serializer, list))
+                if (!tmp.renameTo(fileFor(key))) tmp.delete()
+            } catch (e: Exception) {
+                tmp.delete()
+                throw e
+            }
             trim()
         }
     }

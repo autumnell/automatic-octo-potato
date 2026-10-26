@@ -132,10 +132,8 @@ class CollectionRepository(
     fun startBackgroundWork() {
         appScope.launch { runCatching { nameIndex.load() } }
         appScope.launch { runCatching { setCodes.load() } }
-        appScope.launch {
-            runCatching { localCards.sync() }
-            runCatching { artForBiggestSets() }
-        }
+        // The card list as a background job, so its first large download carries on when the app is left.
+        if (localCards.enabled) runCatching { com.mtgscanner.work.CardListWorker.start(appContext) }
         appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.allPhotos()) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }
@@ -373,6 +371,26 @@ class CollectionRepository(
     suspend fun spotFor(boxId: Long, name: String, facts: CardFacts): String? {
         val b = dao.box(boxId) ?: return null
         return Sorting.spot(BoxLayout.of(b.divider), name, facts)
+    }
+
+    /**
+     * Where a card goes among the box's other cards, in a box kept in order: "between Opt and Ponder", "after Opt",
+     * "with its copies". The copies just added ([added] on row [rowId]) don't count, so a first copy isn't "with
+     * its copies". Null for binders (they have slots), decks, and an otherwise empty box.
+     */
+    suspend fun nearFor(boxId: Long, name: String, facts: CardFacts, rowId: Long = 0, added: Int = 0): String? {
+        val b = dao.box(boxId) ?: return null
+        if (b.deckId != 0L || Binder.isBinder(b.kind)) return null
+        val rows = cardsInBox(boxId).mapNotNull { c ->
+            when {
+                c.id != rowId -> c
+                c.quantity > added -> c.copy(quantity = c.quantity - added)
+                else -> null
+            }
+        }
+        if (rows.isEmpty()) return null
+        val layout = BoxLayout.of(b.divider)
+        return withContext(Dispatchers.Default) { Sorting.position(layout, name, facts, Placement.contents(layout, rows)).text() }
     }
 
     /**
@@ -822,6 +840,8 @@ class CollectionRepository(
                 }
             }
             dao.putPricePoints(fresh.map { it.pricePoint() })
+            // The card list on the phone gets today's prices too, so scans of owned cards needn't ask Scryfall.
+            localCards.update(fresh)
         }
         // Daily points older than 90 days thin out to weekly ones.
         runCatching { dao.thinPriceHistory(LocalDate.now().minusDays(90).toString()) }

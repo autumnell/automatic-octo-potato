@@ -2,7 +2,6 @@ package com.mtgscanner.data
 
 import androidx.room.withTransaction
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /*
@@ -45,7 +44,8 @@ private suspend fun CollectionRepository.savePrices(fresh: List<ScryfallCard>) {
     if (fresh.isEmpty()) return
     val byId = fresh.associateBy { it.id }
     val recent = System.currentTimeMillis() - 15 * 60_000L
-    val justAdded = observeAll().first().filter { it.scryfallId in byId && it.addedAt >= recent }
+    // Just the rows of these printings, not the whole collection.
+    val justAdded = byId.keys.chunked(500).flatMap { dao.byScryfallIds(it) }.filter { it.addedAt >= recent }
     db.withTransaction {
         fresh.forEach { f ->
             dao.setFreshPrinting(

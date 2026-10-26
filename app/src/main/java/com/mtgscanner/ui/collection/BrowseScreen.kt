@@ -227,7 +227,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                     else -> Icon(Icons.Outlined.GridView, "Grid view")
                 }
             }
-            if (ui.binder) Box {
+            if (ui.pagesView) Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
@@ -235,7 +235,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                         trailingIcon = { if (pagesOn) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
                         onClick = { menu = false; vm.togglePages() },
                     )
-                    DropdownMenuItem(
+                    if (ui.binder) DropdownMenuItem(
                         text = { Text("Pocket per copy") },
                         trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
                         onClick = { menu = false; vm.setPocketPerCopy(!ui.pocketPerCopy) },
@@ -346,7 +346,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 "No matches", Modifier.padding(top = 24.dp),
                 action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },
             )
-            ui.binder && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
+            ui.pagesView && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.binder && ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
             else -> CardGrid(
                 ui.groups, grid, selected, picking, dense, week,
                 slotOf = { c -> slotLabel(c, kinds[c.boxId], c.boxId in perCopy) },

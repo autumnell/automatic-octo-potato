@@ -134,12 +134,19 @@ class DeckTools(
         }
     }
 
-    /** Opens the Upgrade sheet for a commander deck: [identity] is the commanders' colors. */
-    fun openUpgrade(commanders: List<String>, identity: String, text: String) {
+    /**
+     * Opens the Upgrade sheet for a commander deck: [identity] is the commanders' colors, or null while they're
+     * still loading, when they're looked up here (else the deck would count as colorless).
+     */
+    fun openUpgrade(commanders: List<String>, identity: String?, text: String) {
         upgrade = UpgradeUi()
         scope.launch {
             val names = DecklistParser.parse(text).map { it.name }.toSet()
-            val ideas = runCatching { repo.upgradeIdeas(commanders, identity, names) }.getOrNull()
+            val colors = identity ?: runCatching {
+                val found = commanders.map { n -> repo.api.named(n) ?: error("no commander") }
+                "WUBRG".filter { c -> found.any { card -> card.colorIdentity.any { it.equals(c.toString(), ignoreCase = true) } } }
+            }.getOrNull()
+            val ideas = colors?.let { runCatching { repo.upgradeIdeas(commanders, it, names) }.getOrNull() }
             upgrade = upgrade?.copy(loading = false, ideas = ideas.orEmpty(), failed = ideas == null)
         }
     }
@@ -166,12 +173,14 @@ class DeckTools(
         if (printing) return
         printing = true
         Undo.offer("Making proxies…")
-        scope.launch {
+        // App-wide, so leaving the deck page doesn't stop the PDF halfway and leave a broken file.
+        val app = ctx.applicationContext
+        repo.appScope.launch {
             try {
                 val copies = missing.flatMap { (n, url, q) -> List(q.coerceAtLeast(0)) { n to url } }
                 val n = withContext(Dispatchers.IO) {
                     runCatching {
-                        (runCatching { ctx.contentResolver.openOutputStream(uri, "wt") }.getOrNull() ?: ctx.contentResolver.openOutputStream(uri))
+                        (runCatching { app.contentResolver.openOutputStream(uri, "wt") }.getOrNull() ?: app.contentResolver.openOutputStream(uri))
                             ?.use { ProxySheet.write(copies, it) }
                     }.getOrNull()
                 }
@@ -196,7 +205,9 @@ fun DeckToolsMenuItems(tools: DeckTools, ui: DeckUi, inDeck: Int, close: () -> U
     if (DeckFormats.isCommander(ui.format) && leads.isNotEmpty()) {
         DropdownMenuItem(text = { Text("Upgrade from your cards") }, onClick = {
             close()
-            val identity = "WUBRG".filter { c -> leads.any { c in ui.leadInfo[it.lowercase()]?.identity.orEmpty().uppercase() } }
+            // Each commander's colors, once they've loaded; null has the tools look them up first.
+            val known = leads.all { ui.leadInfo[it.lowercase()] != null }
+            val identity = if (!known) null else "WUBRG".filter { c -> leads.any { c in ui.leadInfo[it.lowercase()]?.identity.orEmpty().uppercase() } }
             tools.openUpgrade(leads, identity, ui.text)
         })
     }
