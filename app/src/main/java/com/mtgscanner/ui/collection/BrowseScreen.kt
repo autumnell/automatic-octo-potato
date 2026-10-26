@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.components.pinchToResize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -189,7 +190,20 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     }
     androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
-    Row(Modifier.fillMaxSize().background(Palette.Background)) {
+    // A box's page picks up a soft tint from its cover card's art.
+    val coverArt = remember(ui.all, boxId) {
+        if (boxId < 0) null
+        else {
+            val cover = com.mtgscanner.data.BoxCovers(ctx).covers.value[boxId]
+            com.mtgscanner.data.BoxArt.coverCard(ui.all.filter { it.boxId == boxId }, cover)?.imageUrl
+        }
+    }
+    val tint = com.mtgscanner.ui.components.rememberArtTint(com.mtgscanner.data.db.artCropUrl(coverArt))
+    val top = com.mtgscanner.ui.components.tintedBackground(tint)
+    Row(
+        Modifier.fillMaxSize().background(Palette.Background)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, Palette.Background), endY = 900f)),
+    ) {
     Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
         val pickedRows = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) } }
         val pickedEur = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitEur(), it.quantity, it.proxy) } }
@@ -357,6 +371,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 // A box with dividers lists its cards by divider: draw the headers as divider tabs.
                 tabs = f.group == GroupBy.NONE && ui.boxes.any { it.id == boxId && com.mtgscanner.data.BoxLayout.of(it.divider).hasDividers },
                 byName = f.sort == SortBy.NAME && f.group == GroupBy.NONE,
+                // Pinch out for bigger pictures, in for more cards on screen.
+                modifier = Modifier.pinchToResize(vm::bigger, vm::smaller),
             )
         }
     }
@@ -650,6 +666,7 @@ private fun CardGrid(
     onSwipeSell: (CollectionCard) -> Unit,
     tabs: Boolean = false,
     byName: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val state = rememberLazyGridState()
     val scope = rememberCoroutineScope()
@@ -666,7 +683,7 @@ private fun CardGrid(
         }
     }
     var railLetter by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize()) {
     if (!grid) ListHeader(end = (if (jumpBar) 28.dp else 10.dp) + 6.dp)
     Box(Modifier.fillMaxWidth().weight(1f)) {
         LazyVerticalGrid(

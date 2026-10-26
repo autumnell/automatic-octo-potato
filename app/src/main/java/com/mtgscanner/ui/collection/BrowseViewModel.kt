@@ -195,6 +195,23 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
     }
 
+    /** Pinching out: compact rows → list → pictures. */
+    fun bigger() {
+        when {
+            _grid.value -> Unit
+            _dense.value -> { _dense.value = false; setPref("dense", false) }
+            else -> toggleGrid()
+        }
+    }
+
+    /** Pinching in: pictures → list → compact rows. */
+    fun smaller() {
+        when {
+            _grid.value -> { toggleGrid(); if (_dense.value) { _dense.value = false; setPref("dense", false) } }
+            !_dense.value -> toggleDense()
+        }
+    }
+
     /** Binder page view instead of the list. */
     private val _pages = MutableStateFlow(pref("pages", false))
     val pages: StateFlow<Boolean> = _pages

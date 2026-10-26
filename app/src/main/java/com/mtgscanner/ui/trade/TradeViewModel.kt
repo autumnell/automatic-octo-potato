@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.trade
 
 import com.mtgscanner.data.db.unitEur
+import com.mtgscanner.data.suggestNames
 import com.mtgscanner.data.wishSnapshot
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.NonCancellable
@@ -192,8 +193,8 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun suggest(text: String) {
         suggestJob?.cancel()
         suggestJob = viewModelScope.launch {
-            delay(250)
-            val s = runCatching { repo.api.autocomplete(text) }.getOrDefault(emptyList())
+            delay(120)
+            val s = repo.suggestNames(text)
             _ui.update { it.copy(suggestions = s) }
         }
     }

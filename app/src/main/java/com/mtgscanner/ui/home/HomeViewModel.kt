@@ -123,6 +123,8 @@ data class HomeUi(
     val heroArt: String? = null,
     /** The color (W/U/B/R/G) with the most copies by color identity, for "Accent from my collection". */
     val colorLetter: Char? = null,
+    /** Copies by card color ([ColorSplit.KEYS]), for the color bar; colors with none are left out. */
+    val colorSplit: List<Pair<String, Int>> = emptyList(),
 )
 
 /** Worked out from price history: this week's movers. */

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.ui.components.pinchToResize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -240,7 +241,9 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
             else -> Results(
                 results = ui.results, hasMore = ui.hasMore, loading = ui.loading, moreFailed = ui.moreFailed,
                 grid = ui.grid, ranLabel = ui.ranLabel, owned = owned,
+                note = if (ui.fromPhone && !ui.loading) "Offline · from the card list on your phone" else null,
                 onSelect = vm::select, onLoadMore = vm::loadMore, onClear = vm::clearResults,
+                onBigger = { vm.setGrid(true) }, onSmaller = { vm.setGrid(false) },
             )
         }
     }
@@ -259,9 +262,12 @@ private fun Results(
     grid: Boolean,
     ranLabel: String?,
     owned: Map<String, Owned>,
+    note: String?,
     onSelect: (ScryfallCard) -> Unit,
     onLoadMore: () -> Unit,
     onClear: () -> Unit,
+    onBigger: () -> Unit,
+    onSmaller: () -> Unit,
 ) {
     val state = rememberLazyGridState()
     // The next page loads once the last few results are on screen.
@@ -277,7 +283,7 @@ private fun Results(
         columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
         state = state,
         contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().pinchToResize(onBigger, onSmaller),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -285,6 +291,9 @@ private fun Results(
                 Text("${results.size}${if (hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
                 IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
             }
+        }
+        if (note != null) item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
         }
         itemsIndexed(results, key = { _, c -> c.id }) { _, c ->
             val have = owned.of(c)?.count ?: 0

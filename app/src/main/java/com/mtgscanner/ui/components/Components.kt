@@ -125,6 +125,8 @@ fun CardImage(
     zoom: Boolean = false,
     /** With [zoom]: the image handles taps itself, so a parent's own long press doesn't also fire. */
     onTap: (() -> Unit)? = null,
+    /** Shown in grey, like a card you don't have. */
+    grey: Boolean = false,
 ) {
     val shape = CardShape
     val fill = Palette.SurfaceHigh
@@ -141,8 +143,14 @@ fun CardImage(
         placeholder = placeholder,
         error = placeholder,
         onError = { if (!useBackup && backup != null) useBackup = true },
+        colorFilter = if (grey) GreyFilter else null,
     )
 }
+
+/** Takes the color out of a picture. */
+private val GreyFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+    androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) },
+)
 
 private val SCRYFALL_IMAGE = Regex("""/(small|normal|large|png|art_crop|border_crop)/(front|back)/[0-9a-f]/[0-9a-f]/([0-9a-f-]{36})""")
 

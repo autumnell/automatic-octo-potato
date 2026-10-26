@@ -172,7 +172,13 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
         vm.changes.updateFromLink(ui.id, vm.savedText, url)
     }
 
-    Box(Modifier.fillMaxSize().background(Palette.Background)) {
+    // The header picks up a soft tint from the commander's (or lead card's) art.
+    val tint = com.mtgscanner.ui.components.rememberArtTint(ui.leadArt.firstOrNull()?.let { artCropUrl(it) })
+    val top = com.mtgscanner.ui.components.tintedBackground(tint)
+    Box(
+        Modifier.fillMaxSize().background(Palette.Background)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, Palette.Background), endY = 1100f)),
+    ) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }

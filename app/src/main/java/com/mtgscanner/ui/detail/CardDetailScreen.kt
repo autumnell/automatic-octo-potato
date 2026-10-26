@@ -1,5 +1,10 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.ui.components.tintedBackground
+import com.mtgscanner.ui.components.rememberArtTint
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.ScrollState
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -239,16 +244,35 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             }
         }
         if (c != null) {
+            // Art first: the card's art fills the top of the screen and the details sit on a sheet scrolled up over it.
+            val scroll = rememberScrollState()
+            val screenH = LocalConfiguration.current.screenHeightDp.dp
+            val artH = screenH * 0.52f
+            val tint = rememberArtTint(artCropUrl(c.imageUrl))
+            val sheetColor = tintedBackground(tint, 0.16f)
+            ArtBackdrop(c, artH, scroll)
             Column(
                 Modifier
                     .fillMaxSize()
                     .then(swipe)
                     .graphicsLayer { translationX = dragX * 0.4f }
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(scroll),
             ) {
                 // Only the card opened grows back into the picture it came from, not one swiped to.
-                Hero(c, sharedId = if (c.id == id) id else 0L, onPhoto = { viewingPhoto = true })
-                Column(Modifier.padding(horizontal = 16.dp).offset(y = (-12).dp)) {
+                Hero(c, sharedId = if (c.id == id) id else 0L, height = artH, onPhoto = { viewingPhoto = true })
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = screenH)
+                        .clip(RoundedCornerShape(topStart = Corners.Medium, topEnd = Corners.Medium))
+                        .background(Brush.verticalGradient(listOf(sheetColor, Palette.Background), endY = 900f))
+                        .padding(horizontal = 16.dp),
+                ) {
+                    // The sheet's handle: scroll up for everything else.
+                    Box(
+                        Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp, bottom = 10.dp)
+                            .size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Palette.Outline),
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Hold the name to copy it.
                         Text(
@@ -577,22 +601,31 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
     }
 }
 
-/** Blurred artwork backdrop with the card itself floating on top. */
+/** The card's art, full width and sharp, fixed behind the page; it drifts up slower than the sheet. */
 @Composable
-private fun Hero(c: CollectionCard, sharedId: Long, onPhoto: () -> Unit) {
-    Box(Modifier.fillMaxWidth()) {
+private fun ArtBackdrop(c: CollectionCard, height: Dp, scroll: ScrollState) {
+    Box(
+        Modifier.fillMaxWidth().height(height).background(Palette.Surface)
+            .graphicsLayer { translationY = -scroll.value * 0.4f },
+    ) {
         AsyncImage(
             model = artCropUrl(c.imageUrl),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .matchParentSize()
-                .then(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Modifier.blur(18.dp) else Modifier),
+            modifier = Modifier.fillMaxSize(),
         )
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Palette.Background.copy(alpha = 0.6f), Palette.Background))))
+        // Dark at the top for the buttons, and into the page at the bottom.
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent, Color.Transparent, Palette.Background.copy(alpha = 0.7f)))))
+    }
+}
+
+/** The see-through top of the page over the art: the card itself in the corner, and your photo of it. */
+@Composable
+private fun Hero(c: CollectionCard, sharedId: Long, height: Dp, onPhoto: () -> Unit) {
+    Box(Modifier.fillMaxWidth().height(height - 16.dp)) {
         CardImage(
             c.imageUrl,
-            Modifier.align(Alignment.Center).statusBarsPadding().padding(top = 8.dp, bottom = 20.dp).height(170.dp)
+            Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 12.dp).height(132.dp)
                 .sharedCard(sharedId)
                 .foilShimmer(c.foil),
             zoom = true,
