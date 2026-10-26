@@ -1,5 +1,10 @@
 package com.mtgscanner
 
+import com.mtgscanner.ui.home.cardsToSort
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.flowOn
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import android.graphics.Color as AndroidColor
 import android.content.res.Configuration
 import android.os.Bundle
@@ -234,6 +239,17 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         if (openRequest != null) onOpened()
     }
 
+    // Small counts on the tabs: cards waiting to be sorted, and scans saved until there's a connection.
+    val badges by remember {
+        val repo = (ctx.applicationContext as MtgApp).repository
+        kotlinx.coroutines.flow.combine(repo.observeAll(), repo.observeBoxes(), repo.observePending()) { cards, boxes, pending ->
+            TabBadges(
+                toSort = runCatching { repo.cardsToSort(cards, boxes).size }.getOrDefault(0) + pending.count { it.unknown },
+                waiting = pending.count { !it.unknown },
+            )
+        }.flowOn(kotlinx.coroutines.Dispatchers.Default)
+    }.collectAsStateWithLifecycle(TabBadges())
+
     androidx.compose.foundation.layout.Box(Modifier) {
     Scaffold(
         containerColor = Palette.Background,
@@ -241,7 +257,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         // On Scan the bottom is busy (result card, controls, strip), so the snackbar shows at the top instead.
         snackbarHost = { if (route != "scan") com.mtgscanner.ui.components.UndoSnackbarHost(snackbar) },
         bottomBar = {
-            if (tabs.any { it.route == route }) AppTabBar(route) { nav.goToTab(it) }
+            if (tabs.any { it.route == route }) AppTabBar(route, badges) { nav.goToTab(it) }
         },
     ) { padding ->
       // Card pictures can grow into the card page (see ui/detail/CardTransition.kt).
@@ -349,6 +365,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onBack = { nav.popFrom(it) },
                     onOpenCard = { id -> nav.navigate("card/$id") },
                     onTrade = { binderId -> nav.navigate("trade/$binderId") },
+                    // Swaps this box for the other one, so Back still goes where it did.
+                    onOpenBox = { other -> nav.navigate("browse/$other") { popUpTo("browse/{boxId}") { inclusive = true } } },
                 )
               }
             }
@@ -415,7 +433,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
  * Scan sits in the middle as a small accent block: it's what the app is for.
  */
 @Composable
-private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
+private fun AppTabBar(route: String?, badges: TabBadges, onTab: (String) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -430,12 +448,17 @@ private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
         tabs.forEach { tab ->
             val selected = route == tab.route
             if (tab.route == "scan") {
-                ScanTab(selected) { onTab(tab.route) }
+                ScanTab(selected, badges.waiting) { onTab(tab.route) }
             } else {
                 NavigationBarItem(
                     selected = selected,
                     onClick = { onTab(tab.route) },
-                    icon = { Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null) },
+                    icon = {
+                        val n = if (tab.route == "collection") badges.toSort else 0
+                        BadgedBox(badge = { if (n > 0) Badge(containerColor = Palette.Accent, contentColor = Palette.OnAccent) { Text(if (n > 99) "99+" else "$n") } }) {
+                            Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = if (n > 0) "$n to sort" else null)
+                        }
+                    },
                     label = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = Palette.Text,
@@ -452,7 +475,7 @@ private fun AppTabBar(route: String?, onTab: (String) -> Unit) {
 
 /** The raised Scan button: a solid accent circle that sits a little above the bar. */
 @Composable
-private fun RowScope.ScanTab(selected: Boolean, onClick: () -> Unit) {
+private fun RowScope.ScanTab(selected: Boolean, waiting: Int, onClick: () -> Unit) {
     Column(
         Modifier
             .weight(1f)
@@ -471,7 +494,17 @@ private fun RowScope.ScanTab(selected: Boolean, onClick: () -> Unit) {
                 .border(3.dp, Palette.NavBar, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(28.dp))
+            // Scans saved while offline, waiting to be looked up.
+            BadgedBox(badge = {
+                if (waiting > 0) Badge(containerColor = Palette.SurfaceHigh, contentColor = Palette.Text) { Text(if (waiting > 99) "99+" else "$waiting") }
+            }) {
+                Icon(
+                    Icons.Outlined.CameraAlt,
+                    contentDescription = if (waiting > 0) "$waiting scans waiting" else null,
+                    tint = Palette.OnAccent,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
         }
         Text(
             "Scan",
@@ -481,3 +514,6 @@ private fun RowScope.ScanTab(selected: Boolean, onClick: () -> Unit) {
         )
     }
 }
+
+/** Counts shown on the bottom tabs. */
+private data class TabBadges(val toSort: Int = 0, val waiting: Int = 0)

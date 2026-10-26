@@ -1,5 +1,11 @@
 package com.mtgscanner.ui.detail
 
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import com.mtgscanner.ui.components.tintedBackground
 import com.mtgscanner.ui.components.rememberArtTint
 import androidx.compose.ui.unit.Dp
@@ -251,11 +257,44 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             val tint = rememberArtTint(artCropUrl(c.imageUrl))
             val sheetColor = tintedBackground(tint, 0.16f)
             ArtBackdrop(c, artH, scroll)
+            // Pull down at the top of the page to close it, one-handed.
+            val closeAt = with(LocalDensity.current) { 110.dp.toPx() }
+            val backNow by rememberUpdatedState(onBack)
+            var pull by remember { mutableFloatStateOf(0f) }
+            val pullToClose = remember {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        // Scrolling back up first undoes the pull.
+                        if (pull > 0f && available.y < 0f) {
+                            val used = maxOf(available.y, -pull)
+                            pull += used
+                            return Offset(0f, used)
+                        }
+                        return Offset.Zero
+                    }
+
+                    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                        if (source == NestedScrollSource.UserInput && available.y > 0f) {
+                            pull += available.y * 0.5f
+                            return Offset(0f, available.y)
+                        }
+                        return Offset.Zero
+                    }
+
+                    override suspend fun onPreFling(available: Velocity): Velocity {
+                        val was = pull
+                        pull = 0f
+                        if (was > closeAt) backNow()
+                        return if (was > 0f) available else Velocity.Zero
+                    }
+                }
+            }
             Column(
                 Modifier
                     .fillMaxSize()
                     .then(swipe)
-                    .graphicsLayer { translationX = dragX * 0.4f }
+                    .graphicsLayer { translationX = dragX * 0.4f; translationY = pull }
+                    .nestedScroll(pullToClose)
                     .verticalScroll(scroll),
             ) {
                 // Only the card opened grows back into the picture it came from, not one swiped to.

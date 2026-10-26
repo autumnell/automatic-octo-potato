@@ -195,6 +195,7 @@ class CollectionRepository(
      * With [moveTo] = [Box.AUTO_SORT] each card goes to the box whose rules fit it.
      */
     suspend fun deleteBox(id: Long, moveTo: Long?) {
+        if (dao.inBox(id).isNotEmpty()) BackupIO.autoBackup(this, "delete box")
         try { deleteBoxNow(id, moveTo) } finally { boxChange = null }
     }
 
@@ -289,6 +290,7 @@ class CollectionRepository(
      * box's own rules take first and cards set to stay. Returns copies moved.
      */
     suspend fun sortBox(sourceId: Long): Int {
+        BackupIO.autoBackup(this, "sort out")
         var moved = 0
         db.withTransaction {
             // The same choice as scanning (rules, room, bulk floor), counting cards as they move in.
@@ -712,9 +714,12 @@ class CollectionRepository(
         afterChange()
     }
 
-    suspend fun moveMany(rowIds: List<Long>, boxId: Long) = db.withTransaction {
-        val names = placeNames()
-        rowIds.forEach { moveToBox(it, boxId, names = names) }
+    suspend fun moveMany(rowIds: List<Long>, boxId: Long) {
+        if (rowIds.size >= BIG_MOVE) BackupIO.autoBackup(this, "large move")
+        db.withTransaction {
+            val names = placeNames()
+            rowIds.forEach { moveToBox(it, boxId, names = names) }
+        }
     }
 
     suspend fun deleteMany(rowIds: List<Long>) {
@@ -1080,6 +1085,8 @@ class CollectionRepository(
         private const val CHANGE_IDLE_MS = 3_000L
         /** …or this many changes. */
         private const val CHANGE_BATCH = 25
+        /** Moving this many rows at once saves an automatic backup first. */
+        private const val BIG_MOVE = 50
     }
 }
 

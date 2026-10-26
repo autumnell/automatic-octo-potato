@@ -213,6 +213,16 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
+    /** Like [previewRestore], for a backup file the app saved itself. */
+    fun previewRestoreFile(ctx: android.content.Context, file: java.io.File) {
+        val app = ctx.applicationContext
+        run("Reading backup…") {
+            if (!file.isFile) return@run "That backup is gone"
+            _restore.value = RestorePreview(BackupIO.read(file.inputStream(), app))
+            null
+        }
+    }
+
     fun cancelRestore() { _restore.value = null }
 
     fun restore(ctx: android.content.Context, preview: RestorePreview) {

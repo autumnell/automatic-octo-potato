@@ -111,6 +111,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     var exportPdf by remember { mutableStateOf(false) }
     var reportMin by remember { mutableDoubleStateOf(10.0) }
     var confirmUndo by remember { mutableStateOf(false) }
+    /** The automatic backups, while their list is open. */
+    var autos by remember { mutableStateOf<List<BackupIO.AutoBackup>?>(null) }
     remember { DriveBackup.load(ctx.applicationContext) }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -178,6 +180,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
             }
+            HorizontalDivider(color = Palette.Rule)
+            Action(Icons.Outlined.History, "Automatic backups", "Saved before big changes") { autos = BackupIO.autoBackups(ctx) }
             if (canUndoRestore) {
                 HorizontalDivider(color = Palette.Rule)
                 Action(Icons.AutoMirrored.Outlined.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
@@ -192,6 +196,37 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     }
 
     RestorePreviewDialog(vm)
+
+    autos?.let { list ->
+        AlertDialog(
+            onDismissRequest = { autos = null },
+            containerColor = Palette.Surface,
+            title = { Text("Automatic backups") },
+            text = {
+                Column {
+                    Text(
+                        "Saved by the app before deleting a box, restoring, moving 50 or more cards, or Sort out. The newest 3 are kept.",
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    if (list.isEmpty()) Text("None yet", color = Palette.Muted)
+                    list.forEach { a ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { autos = null; vm.previewRestoreFile(ctx, a.file) }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(a.reason.replaceFirstChar { it.uppercase() }.ifBlank { "Backup" }, style = MaterialTheme.typography.titleSmall)
+                                Text(autoTime(a.at), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                            }
+                            Text("Restore", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { autos = null }) { Text("Close") } },
+        )
+    }
 
     if (confirmUndo) {
         AlertDialog(
@@ -244,6 +279,9 @@ private fun ReportMin(min: Double, onMin: (Double) -> Unit) {
         }
     }
 }
+
+private fun autoTime(millis: Long): String =
+    DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.US).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 
 internal fun backupDay(millis: Long, withYear: Boolean = false): String =
     if (millis <= 0) "never"

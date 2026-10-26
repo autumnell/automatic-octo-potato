@@ -40,6 +40,17 @@ data class CollectionStats(
 
 /** Collection breakdowns for the Stats screen, kept free of Android so they can be tested. Proxies count as cards but are worth $0. */
 object StatsMath {
+    /**
+     * One line to paste into a chat: "1,240 cards · $3,180 · 62 sets · top card Ragavan $54".
+     * [value] and [topPrice] are already formatted, or null when prices are hidden.
+     */
+    fun shareText(cards: Int, value: String?, sets: Int, topName: String?, topPrice: String?): String = buildList {
+        add(if (cards == 1) "1 card" else "${"%,d".format(java.util.Locale.US, cards)} cards")
+        value?.let { add(it) }
+        if (sets > 0) add(if (sets == 1) "1 set" else "$sets sets")
+        topName?.let { n -> add(listOfNotNull("top card", n.substringBefore(" // "), topPrice).joinToString(" ")) }
+    }.joinToString(" · ")
+
     private val COLORS = listOf("W" to "White", "U" to "Blue", "B" to "Black", "R" to "Red", "G" to "Green", "C" to "Colorless")
     private val RARITY_ORDER = listOf("common", "uncommon", "rare", "mythic", "special", TOKENS)
 

@@ -129,6 +129,43 @@ internal object BackupIO {
 
     fun safetyFile(context: Context) = File(context.filesDir, SAFETY_FILE)
 
+    /** A backup the app saved by itself before a big change. */
+    class AutoBackup(val file: File, val at: Long, val reason: String)
+
+    private const val AUTO_DIR = "auto-backups"
+    /** How many automatic backups are kept; older ones are deleted. */
+    private const val AUTO_KEEP = 3
+    /** Two big changes this close together share one backup. */
+    private const val AUTO_GAP_MS = 10 * 60_000L
+
+    private fun autoDir(context: Context) = File(context.filesDir, AUTO_DIR)
+
+    /** The automatic backups on the phone, newest first. */
+    fun autoBackups(context: Context): List<AutoBackup> =
+        (autoDir(context).listFiles() ?: emptyArray()).filter { it.isFile && it.name.endsWith(".zip") }.mapNotNull { f ->
+            val name = f.name.removeSuffix(".zip")
+            val at = name.substringBefore('_').toLongOrNull() ?: return@mapNotNull null
+            AutoBackup(f, at, name.substringAfter('_', "").replace('-', ' '))
+        }.sortedByDescending { it.at }
+
+    /**
+     * Saves a quick backup before a big change ([reason], like "delete box"), so it can be brought back even where Undo
+     * can't reach. Keeps the newest few; skipped when one was saved in the last few minutes. Never throws.
+     */
+    suspend fun autoBackup(repo: CollectionRepository, reason: String) = withContext(Dispatchers.IO + NonCancellable) {
+        runCatching {
+            val ctx = repo.appContext
+            val now = System.currentTimeMillis()
+            val existing = autoBackups(ctx)
+            if (existing.firstOrNull()?.let { now - it.at < AUTO_GAP_MS } == true) return@runCatching
+            if (repo.dao.all().isEmpty()) return@runCatching
+            val dir = autoDir(ctx).apply { mkdirs() }
+            val slug = reason.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+            exportToFile(repo, File(dir, "${now}_$slug.zip"))
+            autoBackups(ctx).drop(AUTO_KEEP).forEach { it.file.delete() }
+        }
+    }
+
     /** Everything but price history, which is streamed straight from the table (see [writeArchive]). */
     private suspend fun snapshot(repo: CollectionRepository): Backup {
         prunePriceHistory(repo.db)
@@ -214,6 +251,12 @@ internal object BackupIO {
     suspend fun restore(repo: CollectionRepository, b: Backup, checked: Boolean = true): Int = withContext(Dispatchers.IO + NonCancellable) {
         if (checked) BackupCodec.check(b)
         exportToFile(repo, safetyFile(repo.appContext))
+        // Kept with the automatic backups too, since the next restore writes over the safety copy.
+        runCatching {
+            val dir = autoDir(repo.appContext).apply { mkdirs() }
+            safetyFile(repo.appContext).copyTo(File(dir, "${System.currentTimeMillis()}_restore.zip"), overwrite = true)
+            autoBackups(repo.appContext).drop(AUTO_KEEP).forEach { it.file.delete() }
+        }
         // Photos first, so the restored cards can point at this phone's copies.
         val photoDir = CardPhotos.folder(repo.appContext)
         BackupArchive.stagedPhotos(b).forEach { f -> runCatching { f.copyTo(File(photoDir, f.name), overwrite = true) } }
