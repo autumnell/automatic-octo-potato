@@ -1,5 +1,15 @@
 package com.mtgscanner.ui.collection
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.shape.CircleShape
+import com.mtgscanner.data.db.placeName
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import com.mtgscanner.ui.components.pinchToResize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -146,7 +156,14 @@ import com.mtgscanner.ui.theme.CardShape
 import com.mtgscanner.ui.theme.TabularNums
 
 @Composable
-fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, onTrade: (binderId: Long) -> Unit = {}) {
+fun BrowseScreen(
+    boxId: Long,
+    onBack: () -> Unit,
+    onOpenCard: (Long) -> Unit,
+    onTrade: (binderId: Long) -> Unit = {},
+    /** Another box picked from the title's menu. */
+    onOpenBox: ((Long) -> Unit)? = null,
+) {
     val vm: BrowseViewModel = viewModel(key = "browse-$boxId", factory = AppViewModels.browse(boxId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     val f by vm.filters.collectAsStateWithLifecycle()
@@ -190,6 +207,20 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     }
     androidx.activity.compose.BackHandler(enabled = picking) { vm.clearSelection() }
 
+    // Dots on cards whose price moved a lot, or that came in from elsewhere, since this list was last looked at.
+    LaunchedEffect(Unit) { com.mtgscanner.data.SeenCards.load(ctx) }
+    val fresh = remember(shownCards, com.mtgscanner.data.SeenCards.seenAt) { com.mtgscanner.data.SeenCards.fresh(shownCards) }
+    val shownNow by rememberUpdatedState(shownCards)
+    val allNow by rememberUpdatedState(ui.all)
+    DisposableEffect(boxId) {
+        onDispose {
+            val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
+            val seen = shownNow
+            val all = allNow
+            if (all.isNotEmpty()) repo.appScope.launch { runCatching { com.mtgscanner.data.SeenCards.markSeen(ctx.applicationContext, seen, all) } }
+        }
+    }
+
     // A box's page picks up a soft tint from its cover card's art.
     val coverArt = remember(ui.all, boxId) {
         if (boxId < 0) null
@@ -222,8 +253,19 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
         )
         else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
-            Column(Modifier.weight(1f)) {
-                Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
+            // Tap a box's name to jump to another box.
+            val others = remember(ui.boxes, boxId) { if (boxId < 0 || onOpenBox == null) emptyList() else ui.boxes.filter { it.id != boxId } }
+            var switching by remember { mutableStateOf(false) }
+            Column(Modifier.weight(1f).then(if (others.isNotEmpty()) Modifier.clickable { switching = true } else Modifier)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (others.isNotEmpty()) Icon(Icons.Outlined.ArrowDropDown, "Other boxes", tint = Palette.Icon)
+                }
+                DropdownMenu(expanded = switching, onDismissRequest = { switching = false }) {
+                    others.forEach { b ->
+                        DropdownMenuItem(text = { Text(b.placeName()) }, onClick = { switching = false; onOpenBox?.invoke(b.id) })
+                    }
+                }
                 Text(
                     if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}"
                     else "${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}",
@@ -363,6 +405,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
             ui.pagesView && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.binder && ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
             else -> CardGrid(
                 ui.groups, grid, selected, picking, dense, week,
+                fresh = fresh,
                 slotOf = { c -> slotLabel(c, kinds[c.boxId], c.boxId in perCopy) },
                 onOpen = { c -> if (picking) vm.toggleSelect(c.id) else tap(c) },
                 onLongPress = { c -> vm.toggleSelect(c.id); if (showTip) vm.dismissTip() },
@@ -373,6 +416,8 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
                 byName = f.sort == SortBy.NAME && f.group == GroupBy.NONE,
                 // Pinch out for bigger pictures, in for more cards on screen.
                 modifier = Modifier.pinchToResize(vm::bigger, vm::smaller),
+                onDragSelect = vm::setSelection,
+                scrollKey = "browse-$boxId",
             )
         }
     }
@@ -390,7 +435,7 @@ fun BrowseScreen(boxId: Long, onBack: () -> Unit, onOpenCard: (Long) -> Unit, on
     if (savingSearch) NameDialog("Save this search", "e.g. Red rares under $5", "Save", onDone = { vm.saveSearch(it); savingSearch = false }, onDismiss = { savingSearch = false })
     if (tagging) TagDialog(ui.userTags, onDone = { vm.tagSelected(it); tagging = false }, onDismiss = { tagging = false })
     if (editing) BulkEditDialog(
-        onApply = { cond, lang, foil -> vm.editSelected(cond, lang, foil); editing = false },
+        onApply = { cond, lang, foil, paid, from -> vm.editSelected(cond, lang, foil, paid, from); editing = false },
         onDismiss = { editing = false },
     )
     moving?.let { c ->
@@ -461,7 +506,10 @@ private fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, vm
 /** Condition, language and finish for every picked card; anything left unpicked stays as it is. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BulkEditDialog(onApply: (String?, String?, Boolean?) -> Unit, onDismiss: () -> Unit) {
+private fun BulkEditDialog(onApply: (String?, String?, Boolean?, Double?, String?) -> Unit, onDismiss: () -> Unit) {
+    var paidText by remember { mutableStateOf("") }
+    var from by remember { mutableStateOf("") }
+    val paid = com.mtgscanner.util.PriceInput.parse(paidText)
     var cond by remember { mutableStateOf<String?>(null) }
     var lang by remember { mutableStateOf<String?>(null) }
     var foil by remember { mutableStateOf<Boolean?>(null) }
@@ -489,10 +537,27 @@ private fun BulkEditDialog(onApply: (String?, String?, Boolean?) -> Unit, onDism
                     SelectPill("Foil", foil == true, { foil = if (foil == true) null else true })
                     SelectPill("Non-foil", foil == false, { foil = if (foil == false) null else false })
                 }
+                Spacer(Modifier.height(12.dp))
+                // After buying a lot: what each card cost and who it came from.
+                OutlinedTextField(
+                    paidText, { paidText = it }, singleLine = true,
+                    label = { Text("Paid each") }, placeholder = { Text("Leave as is") },
+                    isError = paidText.isNotBlank() && paid == null,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    from, { from = it }, singleLine = true,
+                    label = { Text("From") }, placeholder = { Text("e.g. Local game store") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onApply(cond, lang, foil) }, enabled = cond != null || lang != null || foil != null) { Text("Apply") }
+            val fromOrNull = from.trim().ifEmpty { null }
+            val ok = (paidText.isBlank() || paid != null) && (cond != null || lang != null || foil != null || paid != null || fromOrNull != null)
+            TextButton(onClick = { onApply(cond, lang, foil, paid, fromOrNull) }, enabled = ok) { Text("Apply") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
@@ -667,8 +732,18 @@ private fun CardGrid(
     tabs: Boolean = false,
     byName: Boolean = false,
     modifier: Modifier = Modifier,
+    /** Hold a card, then drag over more to select them all. */
+    onDragSelect: ((Set<Long>) -> Unit)? = null,
+    /** Where the list was scrolled is kept under this key while the app runs, so coming back lands in the same spot. */
+    scrollKey: String? = null,
+    /** Cards new since the list was last looked at; each gets a small dot. */
+    fresh: Set<Long> = emptySet(),
 ) {
-    val state = rememberLazyGridState()
+    val saved = remember(scrollKey) { scrollKey?.let { ScrollMemory.get(it) } }
+    val state = rememberLazyGridState(saved?.first ?: 0, saved?.second ?: 0)
+    if (scrollKey != null) DisposableEffect(scrollKey, state) {
+        onDispose { ScrollMemory.put(scrollKey, state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset) }
+    }
     val scope = rememberCoroutineScope()
     val headers = remember(groups) { ListSections.headerIndices(groups) }
     /** Copies per section, counted once per list change instead of in every header. */
@@ -683,6 +758,9 @@ private fun CardGrid(
         }
     }
     var railLetter by remember { mutableStateOf<String?>(null) }
+    // Card ids in the order shown, for selecting a run by dragging.
+    val order = remember(groups) { groups.flatMap { g -> g.second.map { it.id } } }
+    val selectedNow by rememberUpdatedState(selected)
     Column(modifier.fillMaxSize()) {
     if (!grid) ListHeader(end = (if (jumpBar) 28.dp else 10.dp) + 6.dp)
     Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -690,7 +768,9 @@ private fun CardGrid(
             state = state,
             columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
             contentPadding = PaddingValues(start = 10.dp, end = if (jumpBar) 28.dp else 10.dp, bottom = 24.dp),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(
+                if (onDragSelect != null) Modifier.dragToSelect(state, order, { selectedNow }, onDragSelect, scope) else Modifier,
+            ),
         ) {
             groups.forEachIndexed { gi, (title, cards) ->
                 if (title.isNotEmpty()) {
@@ -700,6 +780,7 @@ private fun CardGrid(
                     }
                 }
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
+                    Box {
                     if (grid) {
                         CardTile(
                             c.smallImageUrl ?: c.imageUrl, c.name, cardPriceShort(c), quantity = c.quantity, foil = c.foil,
@@ -711,6 +792,8 @@ private fun CardGrid(
                         SwipeRow(onMove = { onSwipeMove(c) }, onSell = { onSwipeSell(c) }) {
                             PriceRow(c, false, slotOf(c), week[c.id], dense, onClick = { onOpen(c) }, onLongClick = { onLongPress(c) })
                         }
+                    }
+                    if (c.id in fresh) FreshDot(Modifier.align(if (grid) Alignment.TopStart else Alignment.CenterStart).padding(if (grid) 6.dp else 0.dp))
                     }
                 }
             }
@@ -738,6 +821,18 @@ private fun CardGrid(
         }
     }
     }
+}
+
+/** The "new since last time" mark: a small accent dot. */
+@Composable
+private fun FreshDot(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(Palette.Accent)
+            .semantics { contentDescription = "New since last time" },
+    )
 }
 
 /** A section title with its card count. */
@@ -1123,3 +1218,66 @@ private fun FilterGroup(title: String, content: @Composable () -> Unit) {
 }
 
 private fun <T> Set<T>.toggle(v: T): Set<T> = if (v in this) this - v else this + v
+
+/** The card id under [pos] in the grid, or null over a header or a gap. */
+private fun keyAt(state: LazyGridState, pos: Offset): Long? =
+    state.layoutInfo.visibleItemsInfo.firstOrNull { i ->
+        pos.x >= i.offset.x && pos.x < i.offset.x + i.size.width && pos.y >= i.offset.y && pos.y < i.offset.y + i.size.height
+    }?.key as? Long
+
+/**
+ * Hold a card (its own long press selects it), then drag without lifting: every card between it and the finger
+ * is selected, like a phone's photo gallery. Near the top or bottom edge the list scrolls along.
+ */
+private fun Modifier.dragToSelect(
+    state: LazyGridState,
+    order: List<Long>,
+    selected: () -> Set<Long>,
+    onSelect: (Set<Long>) -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope,
+): Modifier = pointerInput(order) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val slop = viewConfiguration.touchSlop
+        // Lifted or moved before the long press: an ordinary tap or scroll.
+        val early = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis + 60) {
+            var ended = false
+            while (!ended) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                val ch = e.changes.firstOrNull { it.id == down.id }
+                ended = ch == null || !ch.pressed || (ch.position - down.position).getDistance() > slop
+            }
+            true
+        }
+        if (early != null) return@awaitEachGesture
+        val startKey = keyAt(state, down.position) ?: return@awaitEachGesture
+        val start = order.indexOf(startKey)
+        if (start < 0) return@awaitEachGesture
+        var base: Set<Long>? = null
+        val edge = 56.dp.toPx()
+        while (true) {
+            val e = awaitPointerEvent(PointerEventPass.Initial)
+            val ch = e.changes.firstOrNull { it.id == down.id } ?: break
+            if (!ch.pressed) break
+            ch.consume()
+            val key = keyAt(state, ch.position)
+            val at = key?.let { order.indexOf(it) } ?: -1
+            if (at >= 0 && (key != startKey || base != null)) {
+                // The selection as it was when the drag began (the held card already in it).
+                val b = base ?: selected().also { base = it }
+                onSelect(b + order.subList(minOf(start, at), maxOf(start, at) + 1))
+            }
+            when {
+                ch.position.y < edge -> scope.launch { state.scrollBy(-28f) }
+                ch.position.y > size.height - edge -> scope.launch { state.scrollBy(28f) }
+            }
+        }
+    }
+}
+
+/** Scroll positions of lists left and come back to, while the app runs. */
+internal object ScrollMemory {
+    private val spots = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
+    fun get(key: String): Pair<Int, Int>? = spots[key]
+    fun put(key: String, index: Int, offset: Int) { spots[key] = index to offset }
+}

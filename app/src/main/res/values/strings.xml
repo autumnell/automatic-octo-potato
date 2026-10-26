@@ -6,4 +6,5 @@
     <string name="shortcut_scan">Scan</string>
     <string name="shortcut_check">Price check</string>
     <string name="shortcut_search">Search</string>
+    <string name="tile_scan">Scan cards</string>
 </resources>

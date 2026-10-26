@@ -484,6 +484,8 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     }
     fun toggleSelect(id: Long) = _selected.update { if (id in it) it - id else it + id }
     fun selectAll() { _selected.value = ui.value.shownIds.toSet() }
+    /** Drag-to-select: the selection as it now stands. */
+    fun setSelection(ids: Set<Long>) { _selected.value = ids }
     fun clearSelection() {
         _selected.value = emptySet()
         _selecting.value = false
@@ -545,11 +547,18 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     }
 
     /** Sets condition, language and finish on the picked cards; null leaves one alone. */
-    fun editSelected(condition: String?, lang: String?, foil: Boolean?) {
+    /** Bulk edit: anything left null stays as each card has it. [paid] is per copy. */
+    fun editSelected(condition: String?, lang: String?, foil: Boolean?, paid: Double? = null, from: String? = null) {
         val ids = _selected.value.toList()
         clearSelection()
-        if (condition == null && lang == null && foil == null) return
-        withUndo(ids, "Edited ${count(ids)}") { repo.bulkEdit(ids, condition, lang, foil) }
+        if (condition == null && lang == null && foil == null && paid == null && from == null) return
+        withUndo(ids, "Edited ${count(ids)}") {
+            // Paid and "from" first: a finish or condition change can merge rows.
+            if (paid != null || from != null) ids.forEach { id ->
+                repo.cardOnce(id)?.let { c -> repo.update(c.copy(purchasePrice = paid ?: c.purchasePrice, acquiredFrom = from ?: c.acquiredFrom)) }
+            }
+            if (condition != null || lang != null || foil != null) repo.bulkEdit(ids, condition, lang, foil)
+        }
     }
 
     /** One binder pocket per copy, or one per card. */

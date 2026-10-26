@@ -1,5 +1,9 @@
 package com.mtgscanner.ui.settings
 
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,6 +101,9 @@ private val settingsTabs = listOf("Look", "Prices", "Data")
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () -> Unit = {}) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val showMessage: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
@@ -109,8 +116,40 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
-                Text("Settings", style = MaterialTheme.typography.headlineSmall)
+                Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                IconButton(onClick = { searching = !searching; query = "" }) {
+                    Icon(if (searching) Icons.Outlined.Close else Icons.Outlined.Search, if (searching) "Close search" else "Search settings")
+                }
             }
+            if (searching) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Find a setting") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Muted) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).focusRequester(focus),
+                )
+                LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+            }
+            val hits = remember(query) { SettingsIndex.search(query) }
+            if (searching && query.isNotBlank()) {
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+                    if (hits.isEmpty()) {
+                        Text("No setting called \"${query.trim()}\"", color = Palette.Muted, modifier = Modifier.padding(20.dp))
+                    }
+                    hits.forEach { e ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { tab = e.tab; searching = false; query = "" }.padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(e.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            Text(e.where, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                        }
+                        HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+            } else {
             UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = 4.dp, bottom = 6.dp), horizontalPadding = 16.dp)
             // Each branch is its own call site, so each tab keeps its own scroll position.
             when (tab) {
@@ -120,6 +159,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                     PricesSection()
                 }
                 else -> Page { DataTab(dataVm, onScanLog, onTour, showMessage) }
+            }
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())

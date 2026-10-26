@@ -619,7 +619,13 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 }
             }
         }
-        val accepted = s.autoAdd && s.accepts(id.exact, id.confident)
+        val sure = s.autoAdd && s.accepts(id.exact, id.confident)
+        // The same printing added on its own a few seconds ago, back in view: ask before adding another.
+        // Not in stack mode, where a run of the same card is the point.
+        val again = sure && !_state.value.stack && lastAutoAdd?.let { (cardId, at) ->
+            cardId == card.id && android.os.SystemClock.elapsedRealtime() - at < REPEAT_MS
+        } == true && !alreadyHandled(card, id.exact)
+        val accepted = sure && !again
         val wish = runCatching { repo.wishlistItem(card.oracleId) }.getOrNull()
         val target = _state.value.target
         val owned = if (target != ScanTarget.COLLECTION) runCatching { repo.ownedCopies(card.oracleId) }.getOrNull() else null
@@ -643,11 +649,16 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 owned = owned,
                 keptIn = kept,
                 currentLang = if (same) readLang ?: it.currentLang else readLang,
-                status = if (id.confident || accepted) card.name else "Is this right?",
+                status = when {
+                    again -> "Added ${card.name} a moment ago · add another?"
+                    id.confident || accepted -> card.name
+                    else -> "Is this right?"
+                },
             )
         }
         if (accepted && !alreadyHandled(card, id.exact)) {
             markHandled(card, art, id.exact)
+            lastAutoAdd = card.id to android.os.SystemClock.elapsedRealtime()
             addCard(card, ScanBarPrefs.quantity, auto = true, readLang = readLang)
         }
         // Price check: today's price, not the one saved with the card list.
@@ -660,6 +671,9 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     internal var batchKeys = 0
+
+    /** The last card added on its own, and when, for the "add another?" check. */
+    private var lastAutoAdd: Pair<String, Long>? = null
 
     /** Puts a match on the batch list, once while it stays in view. */
     private fun toBatch(card: ScryfallCard, lang: String?, art: Long?, exact: Boolean, unsure: Boolean = false) {
@@ -1587,6 +1601,9 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     val boxResult: StateFlow<com.mtgscanner.data.BoxCheckResult?> = _boxResult
 
     private companion object {
+        /** A card back in view this soon after it was added on its own is asked about, not added again. */
+        private const val REPEAT_MS = 6_000L
+
         /** Same card again within this long adds to the newest line (quick quantity). */
         const val QUICK_MS = 6_000L
         /** Text read but no match for this long: offer to save it for later. */

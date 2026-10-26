@@ -183,6 +183,11 @@ fun ScanScreen(
     val needsBox = loadedBoxes != null && boxes.isEmpty()
     val view = LocalView.current
     DisposableEffect(Unit) { onDispose { ScanFeedback.release() } }
+    // The phone doesn't dim or lock in the middle of a pile.
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
     // Volume up adds the card showing (or moves on, in a price check), volume down skips it.
     // Only while a card is showing and no sheet is open; otherwise the buttons change the volume.
     val latest by androidx.compose.runtime.rememberUpdatedState(state)

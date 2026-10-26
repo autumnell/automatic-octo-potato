@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.data.db.unitEur
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -139,6 +141,21 @@ fun StatsScreen(
         Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text("Stats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            stats?.takeIf { it.cards > 0 }?.let { st ->
+                IconButton(onClick = {
+                    val top = st.top.firstOrNull()
+                    val text = StatsMath.shareText(
+                        cards = st.cards,
+                        value = if (prices) formatMoneyShort(st.value, st.valueEur) else null,
+                        sets = st.bySet.size,
+                        topName = top?.name,
+                        topPrice = if (prices && top != null) formatMoneyShort(top.unitPrice(), top.unitEur()) else null,
+                    )
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                        .putExtra(android.content.Intent.EXTRA_TEXT, text)
+                    runCatching { ctx.startActivity(android.content.Intent.createChooser(send, "Share stats")) }
+                }) { Icon(Icons.Outlined.Share, "Share stats") }
+            }
         }
         val s = stats
         if (s == null) {
