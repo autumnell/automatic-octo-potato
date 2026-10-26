@@ -60,17 +60,23 @@ jobs:
         run: rm -f "$RUNNER_TEMP/release.keystore"
 
       - name: Upload APK
+        # A full artifact store (GitHub's storage quota) mustn't fail the build or stop the release.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: mtg-scanner-apk
+          retention-days: 7
           path: app/build/outputs/apk/release/app-release.apk
 
       # R8 renames classes in release builds; this file turns a crash report's stack trace back into
       # readable names (retrace). Each build's own copy is also attached to its release below.
       - name: Upload R8 mapping
+        # A full artifact store (GitHub's storage quota) mustn't fail the build or stop the release.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: mtg-scanner-mapping
+          retention-days: 7
           path: app/build/outputs/mapping/release/mapping.txt
 
       # Every build of main replaces the "latest" release, so the newest APK is always one tap away from
@@ -136,10 +142,13 @@ jobs:
           fi
 
       - name: Upload lint report
+        # A full artifact store (GitHub's storage quota) mustn't fail the build or stop the release.
+        continue-on-error: true
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
+          retention-days: 7
           path: |
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
