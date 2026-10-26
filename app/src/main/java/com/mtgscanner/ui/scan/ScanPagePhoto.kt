@@ -204,7 +204,7 @@ private suspend fun ScanViewModel.photoItem(i: Int, r: com.mtgscanner.scan.Photo
 
 /** Swaps a photo card for the printing picked. */
 fun ScanViewModel.photoPrinting(key: Int, card: ScryfallCard) = _state.update {
-    it.copy(photo = it.photo?.let { p -> p.copy(items = p.items.map { x -> if (x.key == key) x.copy(card = card) else x }) })
+    it.copy(photo = it.photo?.let { p -> p.copy(items = p.items.map { x -> if (x.key == key) x.copy(card = card, unsure = false) else x }) })
 }
 
 /** Takes a card off the photo's list (nothing was added yet). */
@@ -232,7 +232,9 @@ fun ScanViewModel.addPhoto() {
             val card = item.card ?: return@forEach
             val lang = (item.lang?.takeIf { card.lang == "en" }) ?: ScanBarPrefs.langOrNull
             val now = _state.value
-            addNow(card, qty, now, now.isFoil(card), lang, fromReview = false, auto = true, fromPage = true)
+            // A batch card keeps the foil setting it was scanned with.
+            val foil = item.foil?.let { f -> f && card.hasFoil || !card.hasNonFoil } ?: now.isFoil(card)
+            addNow(card, qty, now, foil, lang, fromReview = false, auto = true, fromPage = true)
                 ?.let { added += it.key to qty }
         }
         if (st.target != ScanTarget.COLLECTION) return@launch

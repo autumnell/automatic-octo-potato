@@ -121,6 +121,8 @@ data class BrowseUi(
     val all: List<CollectionCard> = emptyList(),
     /** This box is a binder, so it has pages. */
     val binder: Boolean = false,
+    /** A box (binder or not) can be shown as pages: a plain box in the order its cards sit. */
+    val pagesView: Boolean = false,
     /** The binder's cards, ignoring filters, for the page view. */
     val binderCards: List<CollectionCard> = emptyList(),
     /** Binder cards without a slot yet, or sharing a pocket with another card. */
@@ -321,7 +323,13 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             loaded = true,
             all = sc.all,
             binder = binder,
-            binderCards = if (binder) sc.inScope.sortedBy { it.binderSlot } else emptyList(),
+            pagesView = box != null,
+            binderCards = when {
+                binder -> sc.inScope.sortedBy { it.binderSlot }
+                // A plain box as pages: front to back, divider by divider, a pocket per card.
+                box != null -> boxOrder(sc.inScope, layout).mapIndexed { i, c -> c.copy(binderSlot = i + 1) }
+                else -> emptyList()
+            },
             unslotted = if (binder) Binder.numberSlots(sc.inScope, { it.id }, { it.name }, { it.binderSlot }, { Binder.span(it.quantity, perCopy) }).size else 0,
             pocketPerCopy = perCopy,
             layout = layout,
@@ -649,6 +657,12 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
             return cards.groupBy { Sorting.spot(layout, it.name, it.facts()) ?: "" }
                 .toList().sortedWith(compareBy<Pair<String, List<CollectionCard>>, String>(order) { it.first })
                 .map { (spot, list) -> spot to if (byNumber) list.sortedBy { Sorting.numberKey(it.facts()) } else list }
+        }
+
+        /** [cards] in the order they sit in a box: by divider, then by number or name. */
+        fun boxOrder(cards: List<CollectionCard>, layout: BoxLayout): List<CollectionCard> {
+            val sorted = if (layout.byNumber) cards.sortedBy { Sorting.numberKey(it.facts()) } else cards.sortedBy { it.name.lowercase() }
+            return if (layout.hasDividers) bySpot(sorted, layout).flatMap { it.second } else sorted
         }
 
         fun group(cards: List<CollectionCard>, by: GroupBy): List<Pair<String, List<CollectionCard>>> = when (by) {

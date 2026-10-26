@@ -53,6 +53,14 @@ object Notifications {
         return NotificationCompat.Builder(context, id).setSmallIcon(R.drawable.ic_stat_price).setSilent(quiet)
     }
 
+    /** A quiet builder for a download's progress (no sound, no buzz). */
+    fun progressBuilder(context: Context): NotificationCompat.Builder {
+        channel(context, DOWNLOAD_CHANNEL, "Downloads", NotificationManager.IMPORTANCE_LOW)
+        return NotificationCompat.Builder(context, DOWNLOAD_CHANNEL).setSmallIcon(R.drawable.ic_stat_price).setSilent(true).setOngoing(true)
+    }
+
+    private const val DOWNLOAD_CHANNEL = "downloads"
+
     /** Opens the app at [where] ("home", "card/12", "settings"…), reusing the open screen. */
     fun openApp(context: Context, where: String, requestCode: Int): PendingIntent {
         val i = Intent(context, MainActivity::class.java)

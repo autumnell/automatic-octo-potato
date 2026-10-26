@@ -94,6 +94,8 @@ data class ScanUiState(
     val lastBoxColor: Int = 0,
     /** Divider spot, reason note and full flag for the last card's box. */
     val lastSpot: String? = null,
+    /** Where the last card goes among the box's cards: "between Opt and Ponder". */
+    val lastNear: String? = null,
     val lastNote: String? = null,
     val lastFull: Boolean = false,
     /** Group the scan list by box, to file a pile of cards. */

@@ -152,6 +152,10 @@ data class PhotoItem(
     val lang: String? = null,
     /** The card as cut out of the photo. */
     val thumb: android.graphics.Bitmap? = null,
+    /** Batch: whether it was scanned as foil (null: use the scan bar's setting when added). */
+    val foil: Boolean? = null,
+    /** Batch: the match wasn't sure, so it's shown first, marked, to check. */
+    val unsure: Boolean = false,
 )
 
 /** Cards read from a photo, to check before adding. */

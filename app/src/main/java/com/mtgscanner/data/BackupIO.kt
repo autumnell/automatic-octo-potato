@@ -111,7 +111,11 @@ object BackupCodec {
 /** Backup, restore and CSV import for [CollectionRepository]. */
 internal object BackupIO {
     /** SharedPreferences files that hold the user's organisation and options, saved in backups. */
-    val BACKED_UP_PREFS = listOf("deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links", "deck_status")
+    val BACKED_UP_PREFS = listOf(
+        "deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links", "deck_status",
+        // Game stats, theme and fonts, set-completion settings and the scan bar.
+        "game_records", "appearance", "sets", "scanBar",
+    )
 
     /**
      * Files keyed by box or deck id: the shelf and box-check start dates ([BoxPrefs]), when boxes were last checked

@@ -74,5 +74,9 @@ class NextIdeas3Test {
         assertEquals("1 Brainstorm (ICE) 61\n2 Opt (XLN) 65", BoxToDeckMath.list(cards))
         assertEquals("1 Opt\n1 Brainstorm (ICE) 61", BoxToDeckMath.addMissing("1 Opt", cards))
         assertEquals("1 Opt\n1 Brainstorm", BoxToDeckMath.addMissing("1 Opt\n1 Brainstorm", cards))
+        // A list ending with a sideboard: new cards go in the main deck, above it.
+        assertEquals("1 Opt\n1 Brainstorm (ICE) 61\n\nSideboard\n1 Duress", BoxToDeckMath.addMissing("1 Opt\n\nSideboard\n1 Duress", cards))
+        // A commander list: after the main deck's cards, not in the Commander section.
+        assertEquals("Commander\n1 Atraxa\nDeck\n1 Opt\n1 Brainstorm (ICE) 61", BoxToDeckMath.addMissing("Commander\n1 Atraxa\nDeck\n1 Opt", cards))
     }
 }

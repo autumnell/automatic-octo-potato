@@ -15,7 +15,7 @@ import java.io.File
  */
 class IdentifyStore(dir: File) {
     @Serializable
-    private class Entry(val k: String, val at: Long, val confident: Boolean, val exact: Boolean, val card: ScryfallCard)
+    private class Entry(val k: String, val at: Long, val confident: Boolean, val exact: Boolean, val card: ScryfallCard, val picked: Boolean = false)
 
     private val file = File(dir, "identified.jsonl")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
@@ -30,7 +30,7 @@ class IdentifyStore(dir: File) {
         ensureLoaded()
         val e = map[key] ?: return null
         if (System.currentTimeMillis() - e.at > maxAgeMs) return null
-        Identification(e.card, e.confident, e.exact)
+        Identification(e.card, e.confident, e.exact, e.picked)
     }
 
     /** Saves a sure match; unsure ones are skipped. */
@@ -38,7 +38,7 @@ class IdentifyStore(dir: File) {
         if (!id.exact && !id.confident) return
         lock.withLock {
             ensureLoaded()
-            val e = Entry(key, System.currentTimeMillis(), id.confident, id.exact, id.card)
+            val e = Entry(key, System.currentTimeMillis(), id.confident, id.exact, LocalPick.slim(id.card), id.picked)
             map[key] = e
             trim()
             withContext(Dispatchers.IO) {

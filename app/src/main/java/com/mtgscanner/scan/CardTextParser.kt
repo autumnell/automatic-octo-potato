@@ -54,6 +54,8 @@ data class CardTextGuess(
     val printedName: String? = null,
     /** The card check saw nothing in the guide: the card has left (not just unreadable). */
     val guideEmpty: Boolean = false,
+    /** Something steady has been in the guide a while, but no card edges: nothing is read until they show. */
+    val noEdges: Boolean = false,
 ) {
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null && printedName == null
 

@@ -376,6 +376,10 @@ internal fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
                     FullTag()
                 }
             }
+            // Where it goes among the box's cards, so sorting it in needs no searching.
+            if (state.target != ScanTarget.REMOVE) state.lastNear?.let {
+                Text(it.replaceFirstChar { c -> c.uppercase() }, color = Color.White, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            }
             state.lastNote?.let { Text(it, color = Palette.Gold, style = MaterialTheme.typography.labelMedium) }
             // Rule preview: where else it would have fit.
             if (state.lastAlso.isNotEmpty()) {

@@ -17,6 +17,8 @@ import com.mtgscanner.data.addToDeckList
 import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
 import com.mtgscanner.data.identify
+import com.mtgscanner.data.printingsFor
+import com.mtgscanner.data.rememberPick
 import com.mtgscanner.data.cardById
 import com.mtgscanner.data.freshCard
 import com.mtgscanner.data.offlineRead
@@ -170,6 +172,13 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 boxCheck = it.boxCheck ?: saved.boxCheck,
             )
         }
+        // A batch pile not reviewed yet comes back, in batch mode.
+        val pile = saved.batchCards
+        if (pile.isNotEmpty()) {
+            val items = pile.map { b -> PhotoItem(++batchKeys, b.card.name, b.card, b.lang, foil = b.foil, unsure = b.unsure) }
+            if (_state.value.batch == null) setBatch(true)
+            _state.update { it.copy(batch = it.batch.orEmpty() + items, status = "Batch · ${it.batch.orEmpty().size + items.size} to review") }
+        }
         // A box check under way carries on in its mode.
         if (saved.boxCheck != null && _state.value.target == ScanTarget.COLLECTION) changeMode { it.copy(target = ScanTarget.BOX) }
     }
@@ -286,6 +295,14 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     private fun handleGuess(guess: CardTextGuess) {
+        // Something's there but no card edges show: say why nothing is being read.
+        if (guess.noEdges) {
+            val st = _state.value
+            if (st.current == null && !st.lookingUp && st.photo == null) {
+                _state.update { it.copy(status = "Can't see the card's edges · try a plain, darker surface") }
+            }
+            return
+        }
         trackGlare(guess)
         val key = guess.key
         lastFrameArtOnly = key == null && guess.artOnly.isNotEmpty()
@@ -413,10 +430,14 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             if (id != null) {
                 noMatchSince = 0L
                 noMatchGuess = null
+                lastMatch = Triple(guess, earlySkip() != null, id.card.id)
                 onIdentified(id, guess.lang, guess.artHash)
             }
         }
     }
+
+    /** The last read looked up, whether skip rules were on, and the card it matched: a printing picked for it is remembered. */
+    private var lastMatch: Triple<CardTextGuess, Boolean, String>? = null
 
     private fun isOffline(e: Throwable) = e is java.io.IOException && e !is ScryfallException
 
@@ -571,7 +592,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             }
             // Batch: every card goes on the list to review, nothing is added yet.
             if (_state.value.batch != null) {
-                toBatch(card, readLang, art, id.exact)
+                toBatch(card, readLang, art, id.exact, unsure = !s.accepts(id.exact, id.confident))
                 return
             }
             if (!s.accepts(id.exact, id.confident)) {
@@ -638,17 +659,18 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    private var batchKeys = 0
+    internal var batchKeys = 0
 
     /** Puts a match on the batch list, once while it stays in view. */
-    private fun toBatch(card: ScryfallCard, lang: String?, art: Long?, exact: Boolean) {
+    private fun toBatch(card: ScryfallCard, lang: String?, art: Long?, exact: Boolean, unsure: Boolean = false) {
         if (alreadyHandled(card, exact)) {
             _state.update { it.copy(lookingUp = false) }
             return
         }
         markHandled(card, art, exact)
         _state.update {
-            val list = it.batch.orEmpty() + PhotoItem(++batchKeys, card.name, card, lang)
+            // The foil setting as it is now, while this card is in view; an unsure match is marked to check.
+            val list = it.batch.orEmpty() + PhotoItem(++batchKeys, card.name, card, lang, foil = it.isFoil(card), unsure = unsure)
             it.copy(lookingUp = false, current = null, batch = list, batchPulse = it.batchPulse + 1, status = "${card.name} · ${list.size} to review")
         }
     }
@@ -771,7 +793,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                     // Its new box's stack needs filing again, or the card would be hidden under "Done".
                     sort = it.sort?.let { o -> if (o.entries.any { e -> e.key == updated.key }) o.copy(done = o.done - updated.boxId) else o },
                     addedPulse = it.addedPulse + 1, lastBoxName = updated.boxName.ifEmpty { null }, lastBoxColor = box?.color ?: 0,
-                    lastSpot = updated.spot, lastNote = updated.note, lastAlso = emptyList(),
+                    lastSpot = updated.spot, lastNear = null, lastNote = updated.note, lastAlso = emptyList(),
                 )
             }
         }
@@ -851,7 +873,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Every printing of a card, for the printing pickers. */
-    suspend fun printingsOf(card: ScryfallCard): List<ScryfallCard> = runCatching { repo.api.printings(card) }.getOrDefault(listOf(card))
+    suspend fun printingsOf(card: ScryfallCard): List<ScryfallCard> = runCatching { repo.printingsFor(card) }.getOrDefault(listOf(card))
 
     // Skipped cards and unknown scans
 
@@ -1042,6 +1064,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             val box = boxes.value?.firstOrNull { it.id == boxId }
             val boxName = box?.name.orEmpty()
             val spot = runCatching { repo.spotFor(boxId, card.name, facts) }.getOrNull()
+            // Where it goes among the box's cards: "between Opt and Ponder".
+            val near = runCatching { repo.nearFor(boxId, card.name, facts, rowId, qty) }.getOrNull()
             // One look at the boxes for both "full" and the rule preview.
             val needInfos = decision != null || (box != null && box.capacity > 0)
             val infos = if (needInfos) runCatching { repo.boxInfos() }.getOrNull() else null
@@ -1076,6 +1100,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                     lastBoxName = boxName.ifEmpty { null },
                     lastBoxColor = box?.color ?: 0,
                     lastSpot = spot,
+                    lastNear = near,
                     lastNote = entry.note,
                     lastFull = full,
                     lastAlso = also,
@@ -1429,7 +1454,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         val card = _state.value.current ?: return
         _state.update { it.copy(showPrintings = true, printings = null) }
         viewModelScope.launch {
-            val list = runCatching { repo.api.printings(card) }.getOrDefault(listOf(card))
+            val list = runCatching { repo.printingsFor(card) }.getOrDefault(listOf(card))
             _state.update { it.copy(printings = list) }
         }
     }
@@ -1443,6 +1468,12 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             markHandled(card)
             val foil = if (head.foil) card.hasFoil || !card.hasNonFoil else !card.hasNonFoil
             viewModelScope.launch { swapLine(head.key, card, foil) }
+        }
+        // The same read gives this printing from now on.
+        val match = lastMatch
+        if (before != null && before.id != card.id && match != null && match.third == before.id) {
+            viewModelScope.launch { runCatching { repo.rememberPick(match.first, match.second, card) } }
+            lastMatch = match.copy(third = card.id)
         }
         if (before != null && before.id != card.id && AppSettings.scanLogUnlocked) {
             viewModelScope.launch {
@@ -1536,7 +1567,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         _state.update {
             it.copy(
                 removedCount = it.removedCount + 1, addedPulse = it.addedPulse + 1,
-                lastBoxName = box?.name, lastBoxColor = box?.color ?: 0, lastSpot = null, lastNote = null, lastFull = false, lastAlso = emptyList(),
+                lastBoxName = box?.name, lastBoxColor = box?.color ?: 0, lastSpot = null, lastNear = null, lastNote = null, lastFull = false, lastAlso = emptyList(),
                 status = "Removed ${card.name}" + (box?.name?.let { b -> " from $b" } ?: ""),
                 current = if (auto) it.current else null, cardFoil = null, foilHint = false, awaiting = false,
                 owned = it.owned?.let { n -> (n - 1).coerceAtLeast(0) },

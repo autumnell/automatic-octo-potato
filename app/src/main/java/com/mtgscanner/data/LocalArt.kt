@@ -37,3 +37,19 @@ suspend fun CollectionRepository.cardById(id: String): ScryfallCard? {
     if (localCards.ready) withContext(Dispatchers.IO) { localCards.byId(id) }?.let { return it }
     return api.byId(id)
 }
+
+/**
+ * Every printing of [card], newest first: from the card list on the phone when it's there (at once, and offline),
+ * else from Scryfall. Printings with prices a few days old get today's in the background.
+ */
+suspend fun CollectionRepository.printingsFor(card: ScryfallCard): List<ScryfallCard> {
+    val oracle = card.oracleId
+    if (oracle != null && localCards.ready) {
+        val local = withContext(Dispatchers.IO) { localCards.printings(oracle) }
+        if (local.isNotEmpty()) {
+            local.filter { localCards.isStale(it.id) }.take(75).forEach { freshenLater(it.id) }
+            return local.sortedByDescending { it.releasedAt ?: "" }
+        }
+    }
+    return api.printings(card)
+}

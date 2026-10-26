@@ -80,7 +80,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                 else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
                     items(run.items, key = { it.key }) { item ->
                         PhotoRow(
-                            item, item.card?.let { state.isFoil(it) } ?: false,
+                            item, item.card?.let { c -> item.foil?.let { f -> f && c.hasFoil || !c.hasNonFoil } ?: state.isFoil(c) } ?: false,
                             onPrinting = {
                                 item.card?.let { c ->
                                     picking = item
@@ -135,8 +135,9 @@ private fun PhotoRow(item: PhotoItem, foil: Boolean, onPrinting: () -> Unit, onR
         Column(Modifier.weight(1f)) {
             if (c != null) {
                 Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (item.unsure) Text("Not sure · check it", style = MaterialTheme.typography.labelSmall, color = Palette.Accent)
                 Text(
-                    "${c.set.uppercase()} · #${c.collectorNumber}" + (item.lang?.let { " · ${it.uppercase()}" } ?: "") +
+                    "${c.set.uppercase()} · #${c.collectorNumber}" + (if (foil) " · Foil" else "") + (item.lang?.let { " · ${it.uppercase()}" } ?: "") +
                         moneySuffix(c.usdPrice(foil), c.eurPrice(foil)),
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1,
                 )

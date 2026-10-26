@@ -115,7 +115,7 @@ private fun LocalCardsRow() {
     Toggle("Card list on phone", st.label(on), on) { v ->
         on = v
         local.enabled = v
-        repo.appScope.launch { if (v) local.sync() else local.clear() }
+        if (v) com.mtgscanner.work.CardListWorker.start(repo.appContext) else repo.appScope.launch { local.clear() }
     }
 }
 

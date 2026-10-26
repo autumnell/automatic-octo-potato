@@ -49,7 +49,7 @@ internal fun downloadReason(e: Throwable): String = when (e) {
 /** The card list's status line, shared by Settings › Data and the Scan settings. */
 fun LocalCardsStatus.label(on: Boolean): String = when {
     !on -> "Matches cards without waiting on Scryfall, even offline. A large download, best on Wi-Fi."
-    progress != null -> "Downloading… ${(progress * 100).toInt()}% · keep the app open"
+    progress != null -> "Downloading… ${(progress * 100).toInt()}% · carries on if you leave the app"
     cards > 0 -> "${"%,d".format(cards)} cards" + (if (mb > 0) " · $mb MB" else "") + " · new ones added when the app opens"
     failed -> "Download failed" + (reason?.let { ": $it" } ?: "") + ". Try again, or it retries next time on Wi-Fi."
     else -> "Downloads next time the app opens on Wi-Fi. A large download."
@@ -98,6 +98,9 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
 
     /** True once the list is on the phone. */
     val ready: Boolean get() = db != null
+
+    /** The list's file is on the phone (it may not be open yet). */
+    val saved: Boolean get() = dbFile.exists()
 
     private fun open(): SQLiteDatabase? {
         db?.let { return it }
