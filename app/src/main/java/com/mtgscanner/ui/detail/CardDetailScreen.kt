@@ -1,5 +1,13 @@
 package com.mtgscanner.ui.detail
 
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.BiasAlignment
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.geometry.Offset
@@ -442,6 +450,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     // Legality lives in the Rules tab below, with every format.
                     CardTextBlock((live?.textInfo() ?: c.textInfo()).copy(legalities = emptyMap()))
 
+                    // Rules (legality and rulings) and versions come before the price, so the card's own text stays together.
+                    Spacer(Modifier.height(14.dp))
+                    CardInfoTabs(c, live, vm)
+
                     Spacer(Modifier.height(12.dp))
                     if (AppSettings.showPrices) Panel {
                         Row(verticalAlignment = Alignment.Bottom) {
@@ -497,8 +509,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         )
                     }
 
-                    Spacer(Modifier.height(14.dp))
-                    CardInfoTabs(c, live, vm)
 
                     Spacer(Modifier.height(12.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -658,16 +668,30 @@ private fun ArtBackdrop(c: CollectionCard, height: Dp, scroll: ScrollState) {
     }
 }
 
-/** The see-through top of the page over the art: the card itself in the corner, and your photo of it. */
+/**
+ * The see-through top of the page over the art: the card itself in the corner, and your photo of it.
+ * Tap the card to make it fill the top of the page (tap again to shrink it); hold it for the big card over everything.
+ */
 @Composable
 private fun Hero(c: CollectionCard, sharedId: Long, height: Dp, onPhoto: () -> Unit) {
+    var big by rememberSaveable(c.id) { mutableStateOf(false) }
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // Room under the floating buttons, down to the sheet.
+    val bigH = (height - 16.dp - top - 64.dp - 12.dp).coerceAtLeast(132.dp)
+    val cardH by animateDpAsState(if (big) bigH else 132.dp, label = "heroCard")
+    val bias by animateFloatAsState(if (big) 0f else -1f, label = "heroBias")
+    val dim by animateFloatAsState(if (big) 0.55f else 0f, label = "heroDim")
     Box(Modifier.fillMaxWidth().height(height - 16.dp)) {
+        // The art behind dims while the card is big, so the card stands out.
+        if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
         CardImage(
             c.imageUrl,
-            Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 12.dp).height(132.dp)
+            Modifier.align(BiasAlignment(bias, 1f)).padding(start = 16.dp, end = 16.dp, bottom = 12.dp).height(cardH)
                 .sharedCard(sharedId)
-                .foilShimmer(c.foil),
+                .foilShimmer(c.foil)
+                .semantics { onClick(if (big) "Make the card small" else "Make the card big") { big = !big; true } },
             zoom = true,
+            onTap = { big = !big },
         )
         // Your own copy's photo, small in the corner; tap to view.
         if (c.photo.isNotBlank()) {
