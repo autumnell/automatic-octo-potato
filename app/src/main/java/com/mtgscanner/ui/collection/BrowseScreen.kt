@@ -1254,6 +1254,7 @@ private fun Modifier.dragToSelect(
         val start = order.indexOf(startKey)
         if (start < 0) return@awaitEachGesture
         var base: Set<Long>? = null
+        var lastAt = start
         val edge = 56.dp.toPx()
         while (true) {
             val e = awaitPointerEvent(PointerEventPass.Initial)
@@ -1262,10 +1263,12 @@ private fun Modifier.dragToSelect(
             ch.consume()
             val key = keyAt(state, ch.position)
             val at = key?.let { order.indexOf(it) } ?: -1
-            if (at >= 0 && (key != startKey || base != null)) {
+            if (at >= 0 && at != lastAt && (key != startKey || base != null)) {
                 // The selection as it was when the drag began (the held card already in it).
                 val b = base ?: selected().also { base = it }
                 onSelect(b + order.subList(minOf(start, at), maxOf(start, at) + 1))
+                com.mtgscanner.util.Haptics.step()
+                lastAt = at
             }
             when {
                 ch.position.y < edge -> scope.launch { state.scrollBy(-28f) }

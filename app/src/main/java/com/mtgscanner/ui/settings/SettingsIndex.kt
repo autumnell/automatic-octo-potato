@@ -10,6 +10,7 @@ object SettingsIndex {
         Entry("Accent color", "Look", 0, "colour red gold custom from my collection"),
         Entry("Fonts", "Look", 0, "headings text prices typeface"),
         Entry("Big text", "Look", 0, "larger size accessibility"),
+        Entry("Vibrate on actions", "Look", 0, "haptics buzz vibration feedback"),
         Entry("Show prices", "Prices", 1, "hide value money"),
         Entry("Currency", "Prices", 1, "usd eur euro dollars"),
         Entry("Price alerts", "Prices", 1, "notifications moves daily"),
