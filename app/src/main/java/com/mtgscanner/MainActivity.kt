@@ -1,5 +1,14 @@
 package com.mtgscanner
 
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.composed
 import com.mtgscanner.ui.home.cardsToSort
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.flowOn
@@ -202,6 +211,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Haptic ticks work from any screen and view model from the start, not only after a screen that attaches them.
+    com.mtgscanner.util.Haptics.Attach()
     // Reopens on the tab used last; widget, shortcut and link requests below still go where they ask.
     val startTab = remember { com.mtgscanner.ui.home.LastTab.load(ctx, tabs.map { it.route }) }
     LaunchedEffect(route) { if (route != null && tabs.any { it.route == route }) com.mtgscanner.ui.home.LastTab.save(ctx, route) }
@@ -257,7 +268,30 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         // On Scan the bottom is busy (result card, controls, strip), so the snackbar shows at the top instead.
         snackbarHost = { if (route != "scan") com.mtgscanner.ui.components.UndoSnackbarHost(snackbar) },
         bottomBar = {
-            if (tabs.any { it.route == route }) AppTabBar(route, badges) { nav.goToTab(it) }
+            if (tabs.any { it.route == route }) AppTabBar(
+                route, badges,
+                shortcuts = { tab ->
+                    fun wishlist() { com.mtgscanner.ui.home.WishlistLaunch.open(); nav.goToTab("collection") }
+                    when (tab) {
+                        "home" -> listOf(
+                            "Stats" to { nav.navigate("stats") },
+                            "Goals" to { nav.navigate("goals") },
+                            "Settings" to { nav.navigate("settings") { launchSingleTop = true } },
+                        )
+                        "search" -> listOf("Browse all cards" to { nav.navigate("browse/-1") }, "Wishlist" to { wishlist() })
+                        "scan" -> listOf(
+                            "Batch scan" to { com.mtgscanner.util.OpenRequests.batch.value = true; nav.goToTab("scan") },
+                            "Price check" to { com.mtgscanner.util.OpenRequests.priceCheck.value = true; nav.goToTab("scan") },
+                        )
+                        "collection" -> listOf(
+                            "Browse all cards" to { nav.navigate("browse/-1") },
+                            "Wishlist" to { wishlist() },
+                            "Loans" to { nav.navigate("loans") },
+                        )
+                        else -> emptyList()
+                    }
+                },
+            ) { nav.goToTab(it) }
         },
     ) { padding ->
       // Card pictures can grow into the card page (see ui/detail/CardTransition.kt).
@@ -433,7 +467,23 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
  * Scan sits in the middle as a small accent block: it's what the app is for.
  */
 @Composable
-private fun AppTabBar(route: String?, badges: TabBadges, onTab: (String) -> Unit) {
+private fun AppTabBar(
+    route: String?,
+    badges: TabBadges,
+    /** What holding a tab offers, by tab route; empty for none. */
+    shortcuts: (String) -> List<Pair<String, () -> Unit>>,
+    onTab: (String) -> Unit,
+) {
+    /** The tab whose shortcuts are open. */
+    var holding by remember { mutableStateOf<String?>(null) }
+    @Composable
+    fun Shortcuts(tab: String) {
+        DropdownMenu(expanded = holding == tab, onDismissRequest = { holding = null }, containerColor = Palette.Surface) {
+            shortcuts(tab).forEach { (label, go) ->
+                DropdownMenuItem(text = { Text(label) }, onClick = { holding = null; go() })
+            }
+        }
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -448,12 +498,15 @@ private fun AppTabBar(route: String?, badges: TabBadges, onTab: (String) -> Unit
         tabs.forEach { tab ->
             val selected = route == tab.route
             if (tab.route == "scan") {
-                ScanTab(selected, badges.waiting) { onTab(tab.route) }
+                ScanTab(selected, badges.waiting, onHold = { holding = "scan" }, menu = { Shortcuts("scan") }) { onTab(tab.route) }
             } else {
+                val hasShortcuts = shortcuts(tab.route).isNotEmpty()
                 NavigationBarItem(
                     selected = selected,
                     onClick = { onTab(tab.route) },
+                    modifier = Modifier.onHold(hasShortcuts) { holding = tab.route },
                     icon = {
+                        Shortcuts(tab.route)
                         val n = if (tab.route == "collection") badges.toSort else 0
                         BadgedBox(badge = { if (n > 0) Badge(containerColor = Palette.Accent, contentColor = Palette.OnAccent) { Text(if (n > 99) "99+" else "$n") } }) {
                             Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = if (n > 0) "$n to sort" else null)
@@ -475,10 +528,11 @@ private fun AppTabBar(route: String?, badges: TabBadges, onTab: (String) -> Unit
 
 /** The raised Scan button: a solid accent circle that sits a little above the bar. */
 @Composable
-private fun RowScope.ScanTab(selected: Boolean, waiting: Int, onClick: () -> Unit) {
+private fun RowScope.ScanTab(selected: Boolean, waiting: Int, onHold: () -> Unit, menu: @Composable () -> Unit, onClick: () -> Unit) {
     Column(
         Modifier
             .weight(1f)
+            .onHold(true, onHold)
             .semantics { this.selected = selected; role = Role.Tab }
             .clickable(onClickLabel = "Scan", onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -506,6 +560,7 @@ private fun RowScope.ScanTab(selected: Boolean, waiting: Int, onClick: () -> Uni
                 )
             }
         }
+        menu()
         Text(
             "Scan",
             style = MaterialTheme.typography.labelMedium,
@@ -517,3 +572,29 @@ private fun RowScope.ScanTab(selected: Boolean, waiting: Int, onClick: () -> Uni
 
 /** Counts shown on the bottom tabs. */
 private data class TabBadges(val toSort: Int = 0, val waiting: Int = 0)
+
+/**
+ * Holding past the long-press time calls [onHold] and swallows the rest of the press, so the tab isn't also tapped.
+ * A plain tap passes through untouched.
+ */
+private fun Modifier.onHold(enabled: Boolean, onHold: () -> Unit): Modifier = if (!enabled) this else composed {
+    val hold by rememberUpdatedState(onHold)
+    pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            var ended = false
+            withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                waitForUpOrCancellation(PointerEventPass.Initial)
+                ended = true
+            }
+            if (ended) return@awaitEachGesture
+            com.mtgscanner.util.Haptics.hold()
+            hold()
+            while (true) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                e.changes.forEach { it.consume() }
+                if (e.changes.none { it.pressed }) break
+            }
+        }
+    }
+}

@@ -1,5 +1,18 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Corners
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,8 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -121,42 +132,96 @@ internal fun MoversCarousel(movers: List<PriceMover>, onOpenCard: (Long) -> Unit
     }
 }
 
-/** Show, hide and reorder Home sections. */
+/** Show, hide and reorder Home sections: drag a row by its handle, or use the arrows. */
 @Composable
 internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
     val shown = HomePrefs.sections
     var rows by remember { mutableStateOf(shown.map { it to true } + HomeSection.entries.filter { it !in shown }.map { it to false }) }
-    fun move(i: Int, by: Int) {
+    var colorBar by remember { mutableStateOf(HomePrefs.colorBar) }
+    /** The row being dragged, and how far it has moved from its slot. */
+    var dragging by remember { mutableStateOf(-1) }
+    var dragY by remember { mutableFloatStateOf(0f) }
+    var rowPx by remember { mutableFloatStateOf(1f) }
+    fun move(i: Int, by: Int): Boolean {
         val j = i + by
-        if (j !in rows.indices) return
+        if (i !in rows.indices || j !in rows.indices) return false
         val l = rows.toMutableList()
         val t = l[i]; l[i] = l[j]; l[j] = t
         rows = l
+        return true
+    }
+    fun save() {
+        HomePrefs.updateSections(rows.filter { it.second }.map { it.first })
+        HomePrefs.updateColorBar(colorBar)
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
         title = { Text("Home sections") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column(Modifier.verticalScroll(rememberScrollState(), enabled = dragging < 0)) {
                 // Keeps the section changes made so far instead of dropping them.
-                TextButton(onClick = { HomePrefs.updateSections(rows.filter { it.second }.map { it.first }); onTiles() }) { Text("Stat tiles…") }
+                TextButton(onClick = { save(); onTiles() }) { Text("Stat tiles…") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(colorBar, { colorBar = it }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+                    Text("Color bar", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text("Under the value", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(end = 12.dp))
+                }
+                HorizontalDivider(color = Palette.Rule)
                 rows.forEachIndexed { i, (section, on) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    val lifted = i == dragging
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { rowPx = it.height.toFloat().coerceAtLeast(1f) }
+                            .zIndex(if (lifted) 1f else 0f)
+                            .graphicsLayer { translationY = if (lifted) dragY else 0f }
+                            .background(if (lifted) Palette.SurfaceHigh else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(Corners.Small))
+                            .semantics {
+                                customActions = listOf(
+                                    CustomAccessibilityAction("Move up") { move(i, -1) },
+                                    CustomAccessibilityAction("Move down") { move(i, 1) },
+                                )
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Checkbox(
                             checked = on,
                             onCheckedChange = { v -> rows = rows.toMutableList().also { it[i] = section to v } },
                             colors = CheckboxDefaults.colors(checkedColor = Palette.Accent),
                         )
-                        Text(section.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { move(i, -1) }, enabled = i > 0) { Icon(Icons.Outlined.KeyboardArrowUp, "Move up") }
-                        IconButton(onClick = { move(i, 1) }, enabled = i < rows.lastIndex) { Icon(Icons.Outlined.KeyboardArrowDown, "Move down") }
+                        Text(
+                            section.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = if (on) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f),
+                        )
+                        Icon(
+                            Icons.Outlined.DragHandle, "Drag to reorder", tint = Palette.Icon,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .padding(12.dp)
+                                .pointerInput(section) {
+                                    detectVerticalDragGestures(
+                                        onDragStart = { dragging = rows.indexOfFirst { it.first == section }; dragY = 0f; com.mtgscanner.util.Haptics.hold() },
+                                        onDragEnd = { dragging = -1; dragY = 0f },
+                                        onDragCancel = { dragging = -1; dragY = 0f },
+                                    ) { change, dy ->
+                                        change.consume()
+                                        dragY += dy
+                                        // Past half a row: swap with the neighbour and keep the finger's offset.
+                                        while (dragY > rowPx / 2 && move(dragging, 1)) { dragging++; dragY -= rowPx; com.mtgscanner.util.Haptics.step() }
+                                        while (dragY < -rowPx / 2 && move(dragging, -1)) { dragging--; dragY += rowPx; com.mtgscanner.util.Haptics.step() }
+                                    }
+                                },
+                        )
                     }
+                }
+                TextButton(onClick = { rows = HomeOrder.DEFAULT.map { it to true } + HomeSection.entries.filter { it !in HomeOrder.DEFAULT }.map { it to false }; colorBar = true }) {
+                    Text("Reset to default", color = Palette.Muted)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { HomePrefs.updateSections(rows.filter { it.second }.map { it.first }); onDismiss() }) { Text("Save") }
+            TextButton(onClick = { save(); onDismiss() }) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

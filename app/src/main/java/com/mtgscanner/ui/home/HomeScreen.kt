@@ -202,7 +202,7 @@ fun HomeScreen(
         Header(onSettings, onEdit = { editing = true }, onFind = if (ui.loaded && ui.totalCards > 0) ({ finding = true }) else null)
         HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
         // Tap a color to browse those cards: one color exactly, multicolor, or colorless.
-        if (ui.loaded && ui.colorSplit.size > 1) ColorBar(ui.colorSplit) { key ->
+        if (ui.loaded && HomePrefs.colorBar && ui.colorSplit.size > 1) ColorBar(ui.colorSplit) { key ->
             val f = when (key) {
                 "M" -> Filters(colors = setOf(com.mtgscanner.ui.collection.CardColors.LEGACY_MULTI), sort = SortBy.PRICE)
                 else -> Filters(colors = setOf(key), colorMatch = com.mtgscanner.ui.collection.ColorMatch.EXACTLY, sort = SortBy.PRICE)

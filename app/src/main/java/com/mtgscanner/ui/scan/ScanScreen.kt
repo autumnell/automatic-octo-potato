@@ -171,6 +171,10 @@ fun ScanScreen(
     LaunchedEffect(priceCheck) {
         if (priceCheck) { com.mtgscanner.util.OpenRequests.priceCheck.value = false; vm.startCheck() }
     }
+    val batchAsk by com.mtgscanner.util.OpenRequests.batch.collectAsStateWithLifecycle()
+    LaunchedEffect(batchAsk) {
+        if (batchAsk) { com.mtgscanner.util.OpenRequests.batch.value = false; if (vm.state.value.batch == null) vm.setBatch(true) }
+    }
     // Home's "not checked in 3 months" nudge: start a Box check of that box once the boxes are loaded.
     val boxCheckAsk by com.mtgscanner.util.OpenRequests.boxCheck.collectAsStateWithLifecycle()
     LaunchedEffect(boxCheckAsk, loadedBoxes) {

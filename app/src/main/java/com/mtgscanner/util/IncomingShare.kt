@@ -34,6 +34,8 @@ object IncomingShare {
 object OpenRequests {
     /** Start the scanner in price check mode. */
     val priceCheck = MutableStateFlow(false)
+    /** Start the scanner in batch mode (held Scan tab). */
+    val batch = MutableStateFlow(false)
     /** Start a Box check of this box (from a "not checked in 3 months" nudge). */
     val boxCheck = MutableStateFlow<Long?>(null)
 }

@@ -23,6 +23,10 @@ object HomePrefs {
     var tiles by mutableStateOf(TileMetric.DEFAULT)
         private set
 
+    /** The color bar under the value card. */
+    var colorBar by mutableStateOf(true)
+        private set
+
     /** The saved search the "Saved list" tile counts, by name. */
     var tileList by mutableStateOf<String?>(null)
         private set
@@ -39,6 +43,12 @@ object HomePrefs {
             if (list.size >= TileMetric.MIN) tiles = list
         }
         tileList = p.getString("homeTileList", null)
+        colorBar = p.getBoolean("homeColorBar", true)
+    }
+
+    fun updateColorBar(on: Boolean) {
+        colorBar = on
+        prefs?.edit()?.putBoolean("homeColorBar", on)?.apply()
     }
 
     /** Saves the tiles and, for the "Saved list" tile, which search it counts. */

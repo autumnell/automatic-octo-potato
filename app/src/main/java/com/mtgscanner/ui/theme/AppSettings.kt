@@ -30,6 +30,9 @@ object AppSettings {
     /** Larger text everywhere, mainly card names and prices. */
     var bigText by mutableStateOf(false)
         private set
+    /** A light buzz on add, move, delete and selecting. Follows the phone's own touch-feedback setting too. */
+    var haptics by mutableStateOf(true)
+        private set
 
     /** Developer-ish: the hidden scan log is switched on. */
     var scanLogUnlocked by mutableStateOf(false)
@@ -44,6 +47,7 @@ object AppSettings {
         alertDollars = p.getFloat("alertDollars", 1f).toDouble()
         scanLogUnlocked = p.getBoolean("scanLog", false)
         bigText = p.getBoolean("bigText", false)
+        haptics = p.getBoolean("haptics", true)
         currency = com.mtgscanner.util.PriceCurrency.of(p.getString("currency", null))
     }
 
@@ -53,6 +57,7 @@ object AppSettings {
     fun updateAlertDollars(v: Double) { alertDollars = v; prefs?.edit()?.putFloat("alertDollars", v.toFloat())?.apply() }
     fun updateCurrency(v: com.mtgscanner.util.PriceCurrency) { currency = v; prefs?.edit()?.putString("currency", v.name)?.apply() }
     fun updateBigText(v: Boolean) { bigText = v; prefs?.edit()?.putBoolean("bigText", v)?.apply() }
+    fun updateHaptics(v: Boolean) { haptics = v; prefs?.edit()?.putBoolean("haptics", v)?.apply() }
     fun unlockScanLog(v: Boolean) { scanLogUnlocked = v; prefs?.edit()?.putBoolean("scanLog", v)?.apply() }
 
     /** Read outside Compose (workers). */

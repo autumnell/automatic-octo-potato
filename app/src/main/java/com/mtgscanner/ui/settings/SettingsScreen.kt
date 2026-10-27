@@ -244,7 +244,11 @@ private fun LookTab() {
     FontRow("Prices", AppFont.prices, FontSettings.price) { FontSettings.updatePrice(it) }
 
     SectionLabel("Text")
-    Card { ToggleRow("Big text", "Larger names and prices", AppSettings.bigText) { AppSettings.updateBigText(it) } }
+    Card {
+        ToggleRow("Big text", "Larger names and prices", AppSettings.bigText) { AppSettings.updateBigText(it) }
+        HorizontalDivider(color = Palette.Rule)
+        ToggleRow("Vibrate on actions", "A light buzz on add, move, delete and select", AppSettings.haptics) { AppSettings.updateHaptics(it) }
+    }
 
     SectionLabel("Preview")
     Preview()
