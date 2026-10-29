@@ -316,7 +316,7 @@ class CardTextAnalyzer(
                     val quad = a.quad ?: run { noShape(SystemClock.elapsedRealtime()); return@launch }
                     noShapeSince = 0L
                     val draw = CardParts.drawer({ picture() }, cv)
-                    val cjk = CjkNames.scriptFor(scanLang())
+                    val cjk = CjkNames.scriptFor(scanLang())?.takeIf { ForeignReading.ready }
                     // A found card: read just its name bar and footer, straightened and sharp.
                     val strips = runCatching { readStrips(quad, rotation, draw, cjk) }.getOrNull()
                     // Out of focus: reading it would only give a misread. The next frame will do.
@@ -524,7 +524,7 @@ class CardTextAnalyzer(
             }
         }
         // No name in Latin letters either way up: maybe it's printed in Japanese, Chinese or Korean.
-        if (cjk == null) {
+        if (cjk == null && ForeignReading.ready) {
             val script = nextCjk
             for ((turn, latin) in tried) {
                 val q = CardQuad.ordered(quad, turn)
