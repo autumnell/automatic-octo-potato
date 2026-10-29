@@ -128,8 +128,9 @@ dependencies {
     // On-device text recognition (models bundled in the APK, work offline). Latin reads every frame; the
     // Japanese, Chinese and Korean readers only read the name bar when needed.
     implementation("com.google.mlkit:text-recognition:16.0.1")
-    // These three models come from Google Play services (downloaded at install, see the manifest) instead of
-    // inside the APK, which keeps the app several MB smaller.
+    // These three models come from Google Play services instead of inside the APK, downloaded only when
+    // turned on in Settings › Data (scan/ForeignReading.kt). play-services-base has the download service.
+    implementation("com.google.android.gms:play-services-base:18.5.0")
     implementation("com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1")
     implementation("com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.1")
     implementation("com.google.android.gms:play-services-mlkit-text-recognition-korean:16.0.1")

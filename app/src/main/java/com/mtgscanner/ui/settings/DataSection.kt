@@ -177,6 +177,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             HorizontalDivider(color = Palette.Rule)
             CardListRow()
             HorizontalDivider(color = Palette.Rule)
+            ForeignReadingRow()
+            HorizontalDivider(color = Palette.Rule)
             Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
             }
@@ -330,5 +332,23 @@ private fun CardListRow() {
                 repo.appScope.launch { runCatching { repo.artForBiggestSets() } }
             }
         }
+    }
+}
+
+/** Japanese, Chinese and Korean name reading: off until turned on, then a one-time download from Google Play. */
+@Composable
+private fun ForeignReadingRow() {
+    val ctx = LocalContext.current
+    val st by com.mtgscanner.scan.ForeignReading.state.collectAsStateWithLifecycle()
+    var on by remember { mutableStateOf(com.mtgscanner.scan.ForeignReading.isOn(ctx)) }
+    val body = when (val s = st) {
+        com.mtgscanner.scan.ForeignReading.State.Off -> "Off. Turn on to download the readers"
+        is com.mtgscanner.scan.ForeignReading.State.Downloading -> if (s.percent != null) "Downloading… ${s.percent}%" else "Downloading…"
+        com.mtgscanner.scan.ForeignReading.State.Ready -> "Ready for scanning"
+        com.mtgscanner.scan.ForeignReading.State.Failed -> "Download failed. Turn off and on to retry"
+    }
+    ToggleRow("Japanese, Chinese, Korean names", body, on) { v ->
+        on = v
+        if (v) com.mtgscanner.scan.ForeignReading.turnOn(ctx) else com.mtgscanner.scan.ForeignReading.turnOff(ctx)
     }
 }

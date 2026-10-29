@@ -35,11 +35,6 @@
         android:theme="@style/Theme.MTGScanner"
         tools:targetApi="33">
 
-        <!-- Google Play services fetches the Japanese, Chinese and Korean text models when the app is installed. -->
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="ocr_japanese,ocr_chinese,ocr_korean" />
-
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"

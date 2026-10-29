@@ -37,6 +37,7 @@ class MtgApp : Application(), ImageLoaderFactory {
                 if (!backgroundStarted) {
                     backgroundStarted = true
                     repository.startBackgroundWork()
+                    com.mtgscanner.scan.ForeignReading.init(this@MtgApp)
                 }
             }
             override fun onActivityStarted(activity: Activity) {}

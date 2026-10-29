@@ -21,6 +21,7 @@ object SettingsIndex {
         Entry("Quiet at night", "Data", 2, "sound notifications sleep"),
         Entry("Card list on phone", "Data", 2, "offline download every printing"),
         Entry("Match by art", "Data", 2, "offline art sets"),
+        Entry("Japanese, Chinese, Korean names", "Data", 2, "japanese chinese korean foreign language download"),
         Entry("Restore backup", "Data", 2, "replace load"),
         Entry("Automatic backups", "Data", 2, "safety copy before delete sort out restore"),
         Entry("Recent actions", "Data", 2, "undo history"),
