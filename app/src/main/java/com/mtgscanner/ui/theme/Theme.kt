@@ -101,8 +101,6 @@ object Palette {
     val Success: Color get() = if (dark) Color(0xFF4CC38A) else Color(0xFF1E8E5A)
 
     val AccentGradient: Brush get() = Brush.horizontalGradient(listOf(Accent, AccentDeep))
-    /** Background for hero panels: the box color warmed with a little of the accent. */
-    val HeroGradient: Brush get() = Brush.linearGradient(listOf(lerp(BoxCard, Accent, if (dark) 0.22f else 0.18f), BoxCard))
 }
 
 /** WCAG contrast ratio between two colors (1..21). */

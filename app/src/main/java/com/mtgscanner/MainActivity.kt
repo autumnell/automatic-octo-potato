@@ -1,5 +1,6 @@
 package com.mtgscanner
 
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -457,6 +458,10 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     com.mtgscanner.ui.components.CardZoomHost()
     // Imports shared from other apps, and the offer to restore a backup on a new phone.
     com.mtgscanner.ui.settings.DataHost()
+    // A list copied in another app: offer to add it (not over the camera or a game).
+    if (route != "scan" && route?.startsWith("game") != true) {
+        com.mtgscanner.ui.settings.ClipboardOffer(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 92.dp))
+    }
     // Recent actions, from Settings › Data or by holding the snackbar.
     com.mtgscanner.ui.components.RecentActionsHost()
     }

@@ -10,6 +10,8 @@ object CopyText {
         if (text.isBlank()) return
         val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
         runCatching { clip.setPrimaryClip(ClipData.newPlainText(label, text)) }
+            // Copied here, so it isn't offered back as a list to add.
+            .onSuccess { com.mtgscanner.ui.settings.ClipboardWatch.markSeen(context) }
             .onSuccess { com.mtgscanner.ui.components.Undo.offer("Copied") }
     }
 }

@@ -308,42 +308,57 @@ data class MoveDest(val name: String, val boxId: Long? = null, val deckId: Long?
 internal fun BoxPicker(boxes: List<CardBox>, decks: List<Deck>, places: List<CardBox>, current: Long, onPick: (MoveDest) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val here = places.firstOrNull { it.id == current }
-    val inDeck = here?.isDeckSlot == true
     Box {
         DropChip(
             here?.placeName() ?: "Box",
             onClick = { open = true },
             leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = Palette.Icon) },
         )
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (inDeck) {
+        BoxPickMenu(open, { open = false }, boxes, decks, places, current, onPick)
+    }
+}
+
+/** The boxes and decks a card can move to, as a dropdown under whatever holds it. */
+@Composable
+internal fun BoxPickMenu(
+    open: Boolean,
+    onDismiss: () -> Unit,
+    boxes: List<CardBox>,
+    decks: List<Deck>,
+    places: List<CardBox>,
+    current: Long,
+    onPick: (MoveDest) -> Unit,
+) {
+    val here = places.firstOrNull { it.id == current }
+    val inDeck = here?.isDeckSlot == true
+    DropdownMenu(expanded = open, onDismissRequest = onDismiss) {
+        if (inDeck) {
+            DropdownMenuItem(
+                text = { Text("Auto-sort") },
+                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Icon) },
+                onClick = { onDismiss(); onPick(MoveDest("Auto-sort")) },
+            )
+        }
+        boxes.forEach { b ->
+            DropdownMenuItem(
+                text = { Text(b.name, color = if (b.id == current) Palette.AccentText else Palette.Text) },
+                leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Icon) },
+                onClick = { onDismiss(); if (b.id != current) onPick(MoveDest(b.name, boxId = b.id)) },
+            )
+        }
+        if (decks.isNotEmpty()) {
+            HorizontalDivider(color = Palette.Rule)
+            Text(
+                "Decks", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+            )
+            decks.forEach { d ->
+                val mine = inDeck && here?.deckId == d.id
                 DropdownMenuItem(
-                    text = { Text("Auto-sort") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Icon) },
-                    onClick = { open = false; onPick(MoveDest("Auto-sort")) },
+                    text = { Text(d.name, color = if (mine) Palette.AccentText else Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingIcon = { Icon(boxIcon("deck"), null, tint = if (mine) Palette.AccentText else Palette.Icon) },
+                    onClick = { onDismiss(); if (!mine) onPick(MoveDest(d.name, deckId = d.id)) },
                 )
-            }
-            boxes.forEach { b ->
-                DropdownMenuItem(
-                    text = { Text(b.name, color = if (b.id == current) Palette.AccentText else Palette.Text) },
-                    leadingIcon = { Icon(boxIcon(b.kind), null, tint = if (b.id == current) Palette.AccentText else Palette.Icon) },
-                    onClick = { open = false; if (b.id != current) onPick(MoveDest(b.name, boxId = b.id)) },
-                )
-            }
-            if (decks.isNotEmpty()) {
-                HorizontalDivider(color = Palette.Rule)
-                Text(
-                    "Decks", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
-                )
-                decks.forEach { d ->
-                    val mine = inDeck && here?.deckId == d.id
-                    DropdownMenuItem(
-                        text = { Text(d.name, color = if (mine) Palette.AccentText else Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        leadingIcon = { Icon(boxIcon("deck"), null, tint = if (mine) Palette.AccentText else Palette.Icon) },
-                        onClick = { open = false; if (!mine) onPick(MoveDest(d.name, deckId = d.id)) },
-                    )
-                }
             }
         }
     }

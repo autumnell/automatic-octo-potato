@@ -151,9 +151,7 @@ fun StatsScreen(
                         topName = top?.name,
                         topPrice = if (prices && top != null) formatMoneyShort(top.unitPrice(), top.unitEur()) else null,
                     )
-                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(android.content.Intent.EXTRA_TEXT, text)
-                    runCatching { ctx.startActivity(android.content.Intent.createChooser(send, "Share stats")) }
+                    com.mtgscanner.util.shareText(ctx, "Share stats", text)
                 }) { Icon(Icons.Outlined.Share, "Share stats") }
             }
         }
@@ -338,14 +336,21 @@ internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
             ranked.forEach { b -> SelectPill(b.name, b.id == box.id, { selected = b.id }) }
         }
         Spacer(Modifier.height(10.dp))
+        // Drag along the chart to read the box's value on one day.
+        var scrub by remember(values) { mutableStateOf<Int?>(null) }
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(formatUsd(values.lastOrNull()), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
+            val s = scrub?.takeIf { it in values.indices }
+            Text(formatUsd(s?.let { values[it] } ?: values.lastOrNull()), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             Spacer(Modifier.width(10.dp))
-            val first = values.firstOrNull() ?: 0.0
-            ChangeText((values.lastOrNull() ?: 0.0) - first, first, MaterialTheme.typography.labelMedium)
+            if (s != null) {
+                Text(data.days.getOrNull(s)?.let { shortDay(it) }.orEmpty(), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+            } else {
+                val first = values.firstOrNull() ?: 0.0
+                ChangeText((values.lastOrNull() ?: 0.0) - first, first, MaterialTheme.typography.labelMedium)
+            }
         }
         Spacer(Modifier.height(8.dp))
-        LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp))
+        LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp), onScrub = { scrub = it })
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Text(shortDay(data.days.first()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
             Text(shortDay(data.days.last()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)

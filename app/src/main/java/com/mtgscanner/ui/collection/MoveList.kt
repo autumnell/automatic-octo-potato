@@ -1,7 +1,7 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.shareText
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -149,11 +149,6 @@ fun dropMoveLines(lines: List<MoveLine>, done: Set<Int>, drop: List<MoveLine>): 
     return kept.map { lines[it] } to newDone
 }
 
-private fun share(ctx: Context, text: String) {
-    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-        .putExtra(Intent.EXTRA_SUBJECT, "Move list").putExtra(Intent.EXTRA_TEXT, text)
-    ctx.startActivity(Intent.createChooser(send, "Share move list"))
-}
 
 /** A strip saying a move list is waiting, plus the list itself when opened. */
 @Composable
@@ -192,7 +187,7 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Move list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                IconButton(onClick = { share(ctx, MoveLists.text(lines, MoveList.done)) }) { Icon(Icons.Outlined.Share, "Share or print") }
+                IconButton(onClick = { shareText(ctx, "Move list", MoveLists.text(lines, MoveList.done)) }) { Icon(Icons.Outlined.Share, "Share or print") }
                 TextButton(onClick = { MoveList.clear() }) { Text("Clear") }
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {

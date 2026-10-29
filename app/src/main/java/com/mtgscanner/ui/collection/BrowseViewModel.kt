@@ -582,8 +582,6 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
     }
 
-    fun deleteOne(id: Long, name: String) = withUndo(listOf(id), "Removed $name") { repo.deleteMany(listOf(id)) }
-
     companion object {
         /** Everything the search box looks in, lower-case, one field per line so a match can't span two. */
         fun searchText(c: CollectionCard): String =

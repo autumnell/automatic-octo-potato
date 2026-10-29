@@ -1,7 +1,7 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.shareText
 import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,22 +50,17 @@ suspend fun shareLines(context: Context, title: String, lines: List<ShareLine>, 
     if (lines.isEmpty()) { Undo.offer("Nothing to share"); return }
     val app = context.applicationContext
     when (how) {
-        ShareAs.Text -> sendText(app, title, ShareList.text(title, lines, AppSettings.showPrices) { formatUsd(it) })
+        ShareAs.Text -> shareText(app, title, ShareList.text(title, lines, AppSettings.showPrices) { formatUsd(it) })
         ShareAs.Page -> {
             val html = withContext(Dispatchers.Default) {
                 HaveListPage.html(title, ShareList.haveItems(lines), AppSettings.showPrices, LocalDate.now().toString())
             }
             ShareFile.html(app, title, html)
         }
-        is ShareAs.Cart -> sendText(app, "${how.store.label} list", ShareList.cart(lines, how.store))
+        is ShareAs.Cart -> shareText(app, "${how.store.label} list", ShareList.cart(lines, how.store))
     }
 }
 
-private fun sendText(context: Context, title: String, text: String) {
-    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-        .putExtra(Intent.EXTRA_SUBJECT, title).putExtra(Intent.EXTRA_TEXT, text)
-    context.startActivity(Intent.createChooser(send, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-}
 
 /**
  * The one Share choice: text list, web page, or (for cards to buy, [carts]) a store cart.

@@ -1,6 +1,5 @@
 package com.mtgscanner.ui.settings
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -63,10 +62,7 @@ fun ScanLogScreen(onBack: () -> Unit) {
             }
             IconButton(onClick = {
                 val text = log.asText(entries.orEmpty())
-                val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                    .putExtra(Intent.EXTRA_SUBJECT, "Grimoire scan log")
-                    .putExtra(Intent.EXTRA_TEXT, text)
-                ctx.startActivity(Intent.createChooser(send, "Share scan log"))
+                com.mtgscanner.util.shareText(ctx, "Grimoire scan log", text)
             }, enabled = !entries.isNullOrEmpty()) { Icon(Icons.Outlined.Share, "Share") }
             IconButton(onClick = { scope.launch { log.clear() } }, enabled = !entries.isNullOrEmpty()) {
                 Icon(Icons.Outlined.DeleteOutline, "Clear")
