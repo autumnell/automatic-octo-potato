@@ -809,7 +809,7 @@ private fun ActionBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (move != null) Box(Modifier.weight(1f)) {
-                BarButton(Icons.Outlined.Inventory2, "Move") { moving = true }
+                BarButton(Icons.Outlined.Inventory2, "Move", onClick = { moving = true })
                 move(moving) { moving = false }
             }
             BarButton(Icons.Outlined.Add, "+1", Modifier.weight(1f), onAdd)
