@@ -1,5 +1,9 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.ui.components.ruleAbove
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.asPaddingValues
@@ -484,12 +488,20 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     if (AppSettings.showPrices && points.size >= 2) {
                         Spacer(Modifier.height(12.dp))
                         Panel {
+                            // Drag along the chart to read one day's price in place of the title.
+                            var scrub by remember(points) { mutableStateOf<Int?>(null) }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Price history", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                                ChangeText(points.last().second - points.first().second, points.first().second, MaterialTheme.typography.labelMedium)
+                                val s = scrub
+                                if (s != null) {
+                                    Text(shortDay(points[s].first), style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                                    Text(formatUsd(points[s].second), style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.Text)
+                                } else {
+                                    Text("Price history", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                                    ChangeText(points.last().second - points.first().second, points.first().second, MaterialTheme.typography.labelMedium)
+                                }
                             }
                             Spacer(Modifier.height(10.dp))
-                            LineChart(points.map { it.second }, Modifier.fillMaxWidth().height(80.dp))
+                            LineChart(points.map { it.second }, Modifier.fillMaxWidth().height(80.dp), onScrub = { scrub = it })
                             Spacer(Modifier.height(6.dp))
                             Row {
                                 Text(shortDay(points.first().first), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -558,9 +570,25 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                             }
                         }
                     }
-                    Spacer(Modifier.navigationBarsPadding().height(16.dp))
+                    Spacer(Modifier.navigationBarsPadding().height(16.dp + ACTION_BAR))
                 }
             }
+        }
+
+        // Thumb-reach actions along the bottom.
+        if (c != null) {
+            val canMove = boxes.size > 1 || decks.isNotEmpty() || places.any { it.id == c.boxId && it.isDeckSlot }
+            val moveMenu: (@Composable (Boolean, () -> Unit) -> Unit)? = if (!canMove) null else { open, close ->
+                BoxPickMenu(open, close, boxes, decks, places, c.boxId) { d -> if (c.quantity > 1) moveTarget = d else vm.moveToDest(d) }
+            }
+            ActionBar(
+                c,
+                Modifier.align(Alignment.BottomCenter),
+                move = moveMenu,
+                onAdd = { vm.changeQuantity(1); com.mtgscanner.util.Haptics.tick() },
+                onSell = { vm.setForSale(!c.forSale) },
+                onShare = { shareCard(ctx, c) },
+            )
         }
 
         // Floating top buttons over the artwork.
@@ -761,3 +789,55 @@ internal fun identityCost(identity: String): String {
 private fun shortDay(day: String): String = runCatching {
     java.time.LocalDate.parse(day).format(java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US))
 }.getOrDefault(day)
+
+private val ACTION_BAR = 64.dp
+
+/** Move, +1, Sell and Share along the bottom of the card page. [move] draws the box menu, anchored to its button. */
+@Composable
+private fun ActionBar(
+    c: CollectionCard,
+    modifier: Modifier,
+    move: (@Composable (open: Boolean, close: () -> Unit) -> Unit)?,
+    onAdd: () -> Unit,
+    onSell: () -> Unit,
+    onShare: () -> Unit,
+) {
+    var moving by remember { mutableStateOf(false) }
+    Surface(modifier.fillMaxWidth(), color = Palette.Surface) {
+        Row(
+            Modifier.fillMaxWidth().ruleAbove().navigationBarsPadding().height(ACTION_BAR).padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (move != null) Box(Modifier.weight(1f)) {
+                BarButton(Icons.Outlined.Inventory2, "Move") { moving = true }
+                move(moving) { moving = false }
+            }
+            BarButton(Icons.Outlined.Add, "+1", Modifier.weight(1f), onAdd)
+            BarButton(Icons.Outlined.Sell, if (c.forSale) "For sale" else "Sell", Modifier.weight(1f), onSell, on = c.forSale)
+            BarButton(Icons.Outlined.Share, "Share", Modifier.weight(1f), onShare)
+        }
+    }
+}
+
+@Composable
+private fun BarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit, on: Boolean = false) {
+    val tint = if (on) Palette.AccentText else Palette.Text
+    Column(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, null, tint = if (on) Palette.AccentText else Palette.Icon, modifier = Modifier.size(22.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1)
+    }
+}
+
+/** "Ragavan, Nimble Pilferer · MH2 #138 · $54.10" and the Scryfall link, to any app. */
+private fun shareCard(ctx: android.content.Context, c: CollectionCard) {
+    val line = listOfNotNull(
+        c.name,
+        "${c.setCode.uppercase()} #${c.collectorNumber}" + if (c.foil) " foil" else "",
+        if (AppSettings.showPrices) cardPrice(c).takeIf { it.isNotBlank() } else null,
+    ).joinToString(" · ")
+    val text = listOf(line, c.scryfallUri).filter { it.isNotBlank() }.joinToString("\n")
+    com.mtgscanner.util.shareText(ctx, c.name, text)
+}

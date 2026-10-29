@@ -1,9 +1,9 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.util.shareText
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,14 +23,12 @@ fun deckListText(ui: DeckUi): String = DeckExport.moxfield(
 
 private fun copyText(ctx: Context, label: String, text: String) {
     val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
-    runCatching { cm.setPrimaryClip(ClipData.newPlainText(label, text)) }.onSuccess { Undo.offer("Copied") }
+    runCatching { cm.setPrimaryClip(ClipData.newPlainText(label, text)) }.onSuccess {
+        com.mtgscanner.ui.settings.ClipboardWatch.markSeen(ctx)
+        Undo.offer("Copied")
+    }
 }
 
-private fun shareText(ctx: Context, title: String, text: String) {
-    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-        .putExtra(Intent.EXTRA_SUBJECT, title).putExtra(Intent.EXTRA_TEXT, text)
-    runCatching { ctx.startActivity(Intent.createChooser(send, title)) }
-}
 
 /** "Copy list", "Share list" and "Duplicate" for the deck's menu. [close] shuts the menu. */
 @Composable

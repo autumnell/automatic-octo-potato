@@ -45,8 +45,4 @@ object DeckPageCache {
         val s = Saved(stamp, shape?.curve.orEmpty(), shape?.pips.orEmpty().joinToString(" ") { "${it.first}${it.second}" }, leadArt, edhrec)
         runCatching { prefs?.edit()?.putString(deckId.toString(), json.encodeToString(Saved.serializer(), s))?.apply() }
     }
-
-    fun forget(deckId: Long) {
-        runCatching { prefs?.edit()?.remove(deckId.toString())?.apply() }
-    }
 }

@@ -150,9 +150,6 @@ object CardKingdom {
         @SerialName("qty_buying") val qtyBuying: JsonPrimitive? = null,
     )
 
-    @Serializable
-    internal class PriceList(val data: List<Row> = emptyList())
-
     /** (scryfallId, foil, buy price) for every card Card Kingdom is buying. */
     internal fun rows(data: List<Row>): List<Triple<String, Boolean, Double>> = data.mapNotNull(::row)
 

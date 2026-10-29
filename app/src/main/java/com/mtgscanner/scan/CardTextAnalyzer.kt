@@ -678,7 +678,14 @@ class CardTextAnalyzer(
 
     /** A CJK name from the top quarter of the card's text, read by [script]'s reader at [rotation]. */
     private suspend fun readCjkName(bitmap: Bitmap, rotation: Int, frame: Double, script: CjkScript): String? {
-        val (size, all) = readLines(bitmap, rotation, reader(script))
+        // The CJK models come from Google Play services; until one has downloaded, its reader fails: skip it for now.
+        val (size, all) = try {
+            readLines(bitmap, rotation, reader(script))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
         val lines = CardTextParser.insideFrame(all, size.first, size.second, frame)
         if (lines.isEmpty()) return null
         val top = lines.minOf { it.top }

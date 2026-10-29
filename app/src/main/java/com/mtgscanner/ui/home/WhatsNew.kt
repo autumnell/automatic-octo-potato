@@ -41,6 +41,7 @@ object WhatsNew {
         143 to "Search works offline. Say a card name in Where is it?, pinch to resize lists, and card pages put the art first.",
         144 to "Drag to select cards, swipe a card page down to close it, search Settings, and share your stats. The app backs up before big changes.",
         146 to "Hold a tab for shortcuts. Drag to arrange Home in Edit, and swipe back to peek at the last screen.",
+        150 to "Copy a card list anywhere and Grimoire offers to add it. Card pages have Move, +1, Sell and Share at the bottom, and price charts read out by finger.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

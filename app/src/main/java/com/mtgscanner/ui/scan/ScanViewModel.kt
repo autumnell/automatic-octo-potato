@@ -824,8 +824,6 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     /** The language a new row records: the printing's own, else what was read or picked in the scan bar. */
     internal fun rowLang(card: ScryfallCard, lang: String?): String = if (card.lang != "en") card.lang else lang ?: "en"
 
-    fun dismissFoilHint() = _state.update { it.copy(foilHint = false) }
-
     private fun logLookup(guess: CardTextGuess, result: Result<com.mtgscanner.data.Identification?>, ms: Long) {
         // The log is hidden until unlocked in Settings; don't write it for nothing.
         if (!AppSettings.scanLogUnlocked) return
@@ -1439,7 +1437,6 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     fun updateSettings(change: (ScanSettings) -> ScanSettings) = ScanPrefs.update(change)
-    fun setAutoAdd(on: Boolean) = updateSettings { it.copy(autoAdd = on) }
     fun setFoil(on: Boolean) {
         _state.update { it.copy(cardFoil = null) }
         updateSettings { it.copy(foil = on) }

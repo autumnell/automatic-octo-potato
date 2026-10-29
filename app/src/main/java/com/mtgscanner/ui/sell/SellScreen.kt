@@ -1,6 +1,5 @@
 package com.mtgscanner.ui.sell
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -154,9 +153,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> U
             val shown = cards.orEmpty()
             if (tab == 0 && shown.isNotEmpty()) {
                 IconButton(onClick = {
-                    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_SUBJECT, "For sale").putExtra(Intent.EXTRA_TEXT, sellText(shown))
-                    ctx.startActivity(Intent.createChooser(send, "Share sell list"))
+                    com.mtgscanner.util.shareText(ctx, "For sale", sellText(shown))
                 }) { Icon(Icons.Outlined.Share, "Share", tint = Palette.Icon) }
             }
         }

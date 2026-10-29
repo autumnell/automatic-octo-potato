@@ -24,8 +24,9 @@ android {
         versionName = "1.$buildNumber"
         buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
         buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now(ZoneOffset.UTC)}\"")
-        // Phones only: leaving out emulator (x86) native libraries keeps the APK smaller.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // 64-bit phones only (every phone from the last several years): leaving out 32-bit and emulator native
+        // libraries roughly halves the camera and OCR libraries in the APK.
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     signingConfigs {
@@ -106,10 +107,8 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.15.0")
     // Applies the startup profile (src/main/baseline-prof.txt) on install, so main screens open precompiled.
@@ -129,9 +128,11 @@ dependencies {
     // On-device text recognition (models bundled in the APK, work offline). Latin reads every frame; the
     // Japanese, Chinese and Korean readers only read the name bar when needed.
     implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
-    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
-    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    // These three models come from Google Play services (downloaded at install, see the manifest) instead of
+    // inside the APK, which keeps the app several MB smaller.
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.1")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-korean:16.0.1")
 
     // OpenCV: finds the card's corners and straightens it. Falls back to the app's own code if it won't load.
     implementation("org.opencv:opencv:4.10.0")

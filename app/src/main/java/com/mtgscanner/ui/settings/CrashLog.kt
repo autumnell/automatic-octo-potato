@@ -1,7 +1,6 @@
 package com.mtgscanner.ui.settings
 
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -118,10 +117,7 @@ fun CrashReportRow() {
         Text("Crash report", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
         TextButton(onClick = { CopyText.copy(ctx, report, "Crash report") }) { Text("Copy") }
         TextButton(onClick = {
-            val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                .putExtra(Intent.EXTRA_SUBJECT, "Grimoire crash report")
-                .putExtra(Intent.EXTRA_TEXT, report)
-            ctx.startActivity(Intent.createChooser(send, "Share crash report"))
+            com.mtgscanner.util.shareText(ctx, "Grimoire crash report", report)
         }) { Text("Share") }
         TextButton(onClick = {
             CrashLog.clear(ctx)
