@@ -105,6 +105,10 @@ fun SearchScreen(
     val ui by vm.ui.collectAsStateWithLifecycle()
     val ownedSets by vm.ownedBySet.collectAsStateWithLifecycle()
     val boxes by vm.boxes.collectAsStateWithLifecycle()
+    val decks by vm.decks.collectAsStateWithLifecycle()
+    // A box or deck just made from the add sheet, so the sheet selects it.
+    var pick by remember { mutableStateOf<com.mtgscanner.ui.components.AddPick?>(null) }
+    LaunchedEffect(ui.selected?.id) { pick = null }
     val owned by vm.owned.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var newBox by remember { mutableStateOf(false) }
@@ -134,6 +138,10 @@ fun SearchScreen(
                 onWishlist = vm::wishlist,
                 owned = mine?.label,
                 onOwned = mine?.rowId?.let { id -> onOpenCard?.let { open -> { vm.select(null); open(id) } } },
+                decks = decks,
+                onAddToDeck = vm::addToDeck,
+                onCreateDeck = { name -> vm.createDeck(name) { pick = com.mtgscanner.ui.components.AddPick(deckId = it) } },
+                pick = pick,
             )
         }
     }
@@ -141,7 +149,7 @@ fun SearchScreen(
     if (newBox) {
         BoxEditorSheet(
             title = "New box",
-            onSave = { vm.createBox(it); newBox = false },
+            onSave = { d -> vm.createBox(d) { pick = com.mtgscanner.ui.components.AddPick(boxId = it) }; newBox = false },
             onDismiss = { newBox = false },
         )
     }
