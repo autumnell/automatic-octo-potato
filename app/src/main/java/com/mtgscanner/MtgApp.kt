@@ -26,6 +26,7 @@ class MtgApp : Application(), ImageLoaderFactory {
         com.mtgscanner.data.SortPrefs.init(this)
         // Card Kingdom's buy list is big: it's fetched only when Trade or Sell opens (CardKingdom.init there).
         com.mtgscanner.scan.ScanPrefs.init(this)
+        com.mtgscanner.data.BoxPrefs.load(this)
         val db = Room.databaseBuilder(this, AppDatabase::class.java, "collection.db")
             .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .build()

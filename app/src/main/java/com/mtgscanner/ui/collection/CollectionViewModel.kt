@@ -105,6 +105,8 @@ import com.mtgscanner.data.BoxCovers
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.BoxStats
 import com.mtgscanner.data.BoxLayout
+import com.mtgscanner.data.BoxPlace
+import com.mtgscanner.data.BoxPrefs
 import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.Divider
 import com.mtgscanner.data.RuleCheck
@@ -214,11 +216,13 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun createBox(d: BoxDraft) = viewModelScope.launch {
         val id = repo.createBox(d.name, d.kind, d.rules, d.color)
         if (d.capacity > 0 || d.divider.isNotEmpty()) repo.setBoxLayout(id, d.capacity, d.divider)
+        BoxPrefs.setPlace(repo.appContext, id, BoxPlace(d.location, d.rows))
     }
 
     /** Saves a box. Cards that now belong elsewhere show in the "to sort" strip. */
     fun updateBox(id: Long, d: BoxDraft) = viewModelScope.launch {
         repo.updateBox(id, d.name, d.kind, d.rules, d.color, capacity = d.capacity, divider = d.divider)
+        BoxPrefs.setPlace(repo.appContext, id, BoxPlace(d.location, d.rows))
     }
 
     /** "To be sorted": cards the rules send to another box, and cards in catch-all boxes that fit a real one. */
@@ -483,7 +487,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     /** Sets a box's dividers (one or two levels) and the order inside. */
     fun setLayout(b: BoxSummary, key: String) = viewModelScope.launch {
         repo.setBoxLayout(b.id, b.capacity, key)
-        Undo.offer("Dividers saved") { repo.setBoxLayout(b.id, b.capacity, b.divider) }
+        Undo.offer("Card order saved") { repo.setBoxLayout(b.id, b.capacity, b.divider) }
     }
 
     /** Printable box and divider labels as a PDF. */

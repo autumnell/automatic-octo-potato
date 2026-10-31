@@ -443,7 +443,7 @@ private fun BoxesTab(
     editing?.let { b ->
         BoxEditorSheet(
             title = "Edit box",
-            initial = BoxDraft(b.name, b.kind, b.color, BoxRules.fromJson(b.rules), b.capacity, b.divider),
+            initial = com.mtgscanner.data.BoxPrefs.place(b.id).let { p -> BoxDraft(b.name, b.kind, b.color, BoxRules.fromJson(b.rules), b.capacity, b.divider, p.location, p.rows) },
             editingId = b.id,
             onSave = { vm.updateBox(b.id, it); editing = null },
             onDismiss = { editing = null },
@@ -536,7 +536,7 @@ private fun BoxCard(
                 DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
                 if (b.kind == "trade") DropdownMenuItem(text = { Text("Trade") }, onClick = { menu = false; onTrade() })
-                DropdownMenuItem(text = { Text("Dividers") }, onClick = { menu = false; onLayout() })
+                DropdownMenuItem(text = { Text("Card order") }, onClick = { menu = false; onLayout() })
                 if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onShare() })
@@ -623,6 +623,9 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
         val muted = if (onArt) Palette.OnDarkMuted else Palette.Muted
         Column(Modifier.padding(start = 22.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
             BoxTitle(b, stripe, onArt = onArt)
+            com.mtgscanner.data.BoxPrefs.places[b.id]?.location?.takeIf { it.isNotBlank() }?.let { where ->
+                Text(where, style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             if (layout.shows(CollectionPart.RULES)) {
                 Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }

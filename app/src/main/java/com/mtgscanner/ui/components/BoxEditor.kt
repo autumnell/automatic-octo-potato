@@ -64,7 +64,6 @@ import com.mtgscanner.data.BOX_PRESETS
 import com.mtgscanner.data.BOX_TEMPLATES
 import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.BoxRules
-import com.mtgscanner.data.Divider
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.boxRules
 import com.mtgscanner.data.db.facts
@@ -80,8 +79,12 @@ data class BoxDraft(
     val rules: BoxRules = BoxRules(),
     /** Most cards it holds; 0 = no limit. */
     val capacity: Int = 0,
-    /** A [Divider] key; empty = no dividers. */
+    /** A [com.mtgscanner.data.BoxLayout] key: dividers and card order; empty = none. */
     val divider: String = "",
+    /** Where the box is kept, like "Closet, top shelf". */
+    val location: String = "",
+    /** Rows of cards in the box; 1 for a single row. */
+    val rows: Int = 1,
 )
 
 /** A box's label color; 0 means the accent color. */
@@ -102,7 +105,7 @@ fun BoxEditorSheet(
     editingId: Long? = null,
     onSave: (BoxDraft) -> Unit,
     onDismiss: () -> Unit,
-    /** Shows the dividers and capacity fields; the caller must save [BoxDraft.capacity] and [BoxDraft.divider]. */
+    /** Shows the card order, place and capacity fields; the caller must save them (see [BoxDraft]). */
     layout: Boolean = false,
     /** When set, step 1 also offers whole systems of boxes made in one tap. */
     onTemplate: ((BoxTemplate) -> Unit)? = null,
@@ -172,9 +175,9 @@ fun BoxEditorSheet(
 
             if (step == 3 && layout) {
                 LayoutCards(
-                    divider = Divider.of(draft.divider),
-                    // Keeps a second level and number order set from the box menu's Dividers.
-                    onDivider = { draft = draft.copy(divider = if (it == Divider.NONE) "" else com.mtgscanner.data.BoxLayout.of(draft.divider).copy(first = it).key) },
+                    sortKey = draft.divider, onSortKey = { draft = draft.copy(divider = it) },
+                    location = draft.location, onLocation = { draft = draft.copy(location = it) },
+                    rows = draft.rows, onRows = { draft = draft.copy(rows = it) },
                     capText = capText,
                     onCap = { v -> capText = v.filter { it.isDigit() }.take(5) },
                 )

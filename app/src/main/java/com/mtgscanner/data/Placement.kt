@@ -109,7 +109,7 @@ object Placement {
     fun contents(layout: BoxLayout, boxCards: List<CollectionCard>): List<Pair<String, CardFacts>> =
         boxCards.map { it.name to if (needsFacts(layout)) it.facts() else NO_FACTS }
 
-    private fun needsFacts(layout: BoxLayout) = layout.hasDividers || layout.byNumber
+    private fun needsFacts(layout: BoxLayout) = layout.needsFacts
 
     /**
      * Where a card in [box] sits: its binder slot, or its divider and neighbors by name.
@@ -128,8 +128,27 @@ object Placement {
         val layout = BoxLayout.of(box?.divider.orEmpty())
         val key = Sorting.nameKey(card.name)
         val others = (boxContents ?: contents(layout, boxCards)).filter { Sorting.nameKey(it.first) != key }
-        val pos = Sorting.position(layout, card.name, if (needsFacts(layout)) card.facts() else NO_FACTS, others)
-        return Sorting.where(boxName, pos)
+        val facts = if (needsFacts(layout)) card.facts() else NO_FACTS
+        val pos = Sorting.position(layout, card.name, facts, others)
+        val place = box?.let { BoxPrefs.place(it.id) } ?: BoxPlace()
+        val row = rowOf(card, facts, layout, boxCards, place.rows, box?.capacity ?: 0)
+        return Sorting.where(boxName.withLocation(place), pos, row)
+    }
+
+    /** "Rares (Closet, top shelf)", or just the name when the box has no location. */
+    fun String.withLocation(place: BoxPlace): String = if (place.location.isBlank()) this else "$this (${place.location})"
+
+    /**
+     * The row of a box with [rows] rows a card sits in, counting the copies in front of it, front row first.
+     * Null for a one-row box.
+     */
+    fun rowOf(card: CollectionCard, facts: CardFacts, layout: BoxLayout, boxCards: List<CollectionCard>, rows: Int, capacity: Int): Int? {
+        if (rows <= 1) return null
+        val order = Sorting.boxOrder(layout)
+        val mine = card.name to facts
+        val others = boxCards.filter { it.id != card.id }
+        val before = others.sumOf { if (order.compare(it.name to it.facts(), mine) < 0) it.quantity else 0 }
+        return Sorting.row(before, others.sumOf { it.quantity } + card.quantity, rows, capacity)
     }
 
     /** Every entry whose name contains [query], best matches first, with its box and spot. */

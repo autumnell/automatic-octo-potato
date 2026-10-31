@@ -392,7 +392,15 @@ class CollectionRepository(
         }
         if (rows.isEmpty()) return null
         val layout = BoxLayout.of(b.divider)
-        return withContext(Dispatchers.Default) { Sorting.position(layout, name, facts, Placement.contents(layout, rows)).text() }
+        return withContext(Dispatchers.Default) {
+            val near = Sorting.position(layout, name, facts, Placement.contents(layout, rows)).text()
+            val rowCount = BoxPrefs.place(boxId).rows
+            if (rowCount <= 1) return@withContext near
+            val order = Sorting.boxOrder(layout)
+            val before = rows.sumOf { if (order.compare(it.name to it.facts(), name to facts) < 0) it.quantity else 0 }
+            val row = Sorting.row(before, rows.sumOf { it.quantity } + added.coerceAtLeast(1), rowCount, b.capacity)
+            if (row == null) near else "Row $row · $near"
+        }
     }
 
     /**
@@ -1148,7 +1156,7 @@ fun ScryfallCard.pricePoint() = PricePoint(
 )
 
 /** The facts box rules look at, for a card about to be added. */
-fun ScryfallCard.facts(foil: Boolean) = CardFacts(
+fun ScryfallCard.facts(foil: Boolean): CardFacts = run { SetDates.note(set, releasedAt); CardFacts(
     colors = effectiveColors.joinToString(""),
     rarity = rarity,
     typeLine = effectiveTypeLine,
@@ -1164,4 +1172,4 @@ fun ScryfallCard.facts(foil: Boolean) = CardFacts(
     reserved = reserved,
     formats = legalities.filterValues { it == "legal" || it == "restricted" }.keys,
     number = collectorNumber,
-)
+) }

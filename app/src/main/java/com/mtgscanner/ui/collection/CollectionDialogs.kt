@@ -98,7 +98,6 @@ import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.BoxStats
 import com.mtgscanner.data.BoxLayout
 import com.mtgscanner.data.BoxTemplate
-import com.mtgscanner.data.Divider
 import com.mtgscanner.data.RuleCheck
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.Found
@@ -124,7 +123,6 @@ import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.SectionHeader
 import com.mtgscanner.ui.components.panelRow
 import com.mtgscanner.ui.decks.DecksTab
-import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.StatTile
 import com.mtgscanner.ui.components.boxIcon
 import com.mtgscanner.ui.components.formatUsd
@@ -264,45 +262,20 @@ internal fun WantedDialog(item: WishlistItem, onSave: (Int) -> Unit, onDismiss: 
     )
 }
 
-/** Dividers in a box, up to two levels (Color, then Letter), and whether cards go by name or number behind them. */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+/** The order of cards in a box: a ready-made order, or up to three levels of dividers and the order behind them. */
 @Composable
 internal fun LayoutDialog(box: BoxSummary, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    val start = remember(box.divider) { BoxLayout.of(box.divider) }
-    var first by remember { mutableStateOf(start.first) }
-    var second by remember { mutableStateOf(start.second) }
-    var byNumber by remember { mutableStateOf(start.byNumber) }
+    var key by remember(box.divider) { mutableStateOf(BoxLayout.of(box.divider).key) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
-        title = { Text("Dividers in ${box.name}") },
+        title = { Text("Card order in ${box.name}") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("First", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
-                Spacer(Modifier.height(6.dp))
-                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Divider.entries.forEach { d ->
-                        SelectPill(d.label, first == d, { first = d; if (second == d || d == Divider.NONE) second = Divider.NONE })
-                    }
-                }
-                if (first != Divider.NONE) {
-                    Spacer(Modifier.height(12.dp))
-                    Text("Then", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
-                    Spacer(Modifier.height(6.dp))
-                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Divider.entries.filter { it != first }.forEach { d -> SelectPill(d.label, second == d, { second = d }) }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text("Order", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SelectPill("Name", !byNumber, { byNumber = false })
-                    SelectPill("Set number", byNumber, { byNumber = true })
-                }
+                com.mtgscanner.ui.components.SortPicker(key) { key = it }
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(BoxLayout(first, second, byNumber).key) }) { Text("Save") } },
+        confirmButton = { TextButton(onClick = { onSave(key) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

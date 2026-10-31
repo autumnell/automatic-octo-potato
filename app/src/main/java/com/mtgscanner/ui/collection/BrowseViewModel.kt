@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.BoxLayout
+import com.mtgscanner.data.CardOrder
 import com.mtgscanner.data.NameKey
 import com.mtgscanner.data.bulkEdit
 import com.mtgscanner.data.setPinned
@@ -322,7 +323,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         BrowseUi(
             title = listTitle ?: if (boxId < 0) "All cards" else box?.placeName() ?: "Box",
             groups = when {
-                f.group == GroupBy.NONE && layout.hasDividers -> bySpot(shown, layout, byNumber = layout.byNumber && f.sort == SortBy.NAME)
+                f.group == GroupBy.NONE && layout.needsFacts -> bySpot(shown, layout, inOrder = layout.order != CardOrder.NAME && f.sort == SortBy.NAME)
                 // Long plain lists get headers by letter or set.
                 f.group == GroupBy.NONE -> ListSections.sections(shown, f.sort) ?: group(shown, f.group)
                 else -> group(shown, f.group)
@@ -367,7 +368,7 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         // A box with dividers lists A–Z inside each divider, like the real box, until you pick another order.
         if (!launched && boxId >= 0 && !hadSticky) viewModelScope.launch {
             val box = runCatching { repo.box(boxId) }.getOrNull()
-            if (box != null && BoxLayout.of(box.divider).hasDividers) _filters.update { if (it.sort == SortBy.RECENT) it.copy(sort = SortBy.NAME) else it }
+            if (box != null && BoxLayout.of(box.divider).needsFacts) _filters.update { if (it.sort == SortBy.RECENT) it.copy(sort = SortBy.NAME) else it }
         }
         // A search word is remembered once you stop typing for a moment.
         viewModelScope.launch {
@@ -673,21 +674,20 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
         }
 
         /**
-         * Groups cards by the divider(s) they sit behind, front of the box first. With [byNumber], cards in each
-         * group go in collector number order, as in a box kept that way.
+         * Groups cards by the divider(s) they sit behind, front of the box first. With [inOrder], cards in each
+         * group go in the box's card order (collector number or price), as in a box kept that way.
          */
-        fun bySpot(cards: List<CollectionCard>, layout: BoxLayout, byNumber: Boolean = false): List<Pair<String, List<CollectionCard>>> {
+        fun bySpot(cards: List<CollectionCard>, layout: BoxLayout, inOrder: Boolean = false): List<Pair<String, List<CollectionCard>>> {
             val order = Sorting.spotOrder(layout)
+            val cardOrder = Sorting.cardOrder(layout.order)
             return cards.groupBy { Sorting.spot(layout, it.name, it.facts()) ?: "" }
                 .toList().sortedWith(compareBy<Pair<String, List<CollectionCard>>, String>(order) { it.first })
-                .map { (spot, list) -> spot to if (byNumber) list.sortedBy { Sorting.numberKey(it.facts()) } else list }
+                .map { (spot, list) -> spot to if (inOrder) list.sortedWith(compareBy(cardOrder) { it.name to it.facts() }) else list }
         }
 
-        /** [cards] in the order they sit in a box: by divider, then by number or name. */
-        fun boxOrder(cards: List<CollectionCard>, layout: BoxLayout): List<CollectionCard> {
-            val sorted = if (layout.byNumber) cards.sortedBy { Sorting.numberKey(it.facts()) } else cards.sortedBy { it.name.lowercase() }
-            return if (layout.hasDividers) bySpot(sorted, layout).flatMap { it.second } else sorted
-        }
+        /** [cards] in the order they sit in a box: by divider, then by the box's card order. */
+        fun boxOrder(cards: List<CollectionCard>, layout: BoxLayout): List<CollectionCard> =
+            cards.sortedWith(compareBy(Sorting.boxOrder(layout)) { it.name to it.facts() })
 
         fun group(cards: List<CollectionCard>, by: GroupBy): List<Pair<String, List<CollectionCard>>> = when (by) {
             GroupBy.NONE -> if (cards.isEmpty()) emptyList() else listOf("" to cards)

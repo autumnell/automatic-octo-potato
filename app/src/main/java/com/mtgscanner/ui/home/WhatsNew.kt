@@ -42,7 +42,8 @@ object WhatsNew {
         144 to "Drag to select cards, swipe a card page down to close it, search Settings, and share your stats. The app backs up before big changes.",
         146 to "Hold a tab for shortcuts. Drag to arrange Home in Edit, and swipe back to peek at the last screen.",
         150 to "Copy a card list anywhere and Grimoire offers to add it. Card pages have Move, +1, Sell and Share at the bottom, and price charts read out by finger.",
-        155 to "Reading Japanese, Chinese and Korean names is now an optional download in Settings › Data.",
+        153 to "Reading Japanese, Chinese and Korean names is now an optional download in Settings › Data.",
+        155 to "Pick how a box is sorted when you make it: Color → Type → A–Z, Set → Number and more, up to three levels. Boxes can have a location and rows, and you can set your own color order.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

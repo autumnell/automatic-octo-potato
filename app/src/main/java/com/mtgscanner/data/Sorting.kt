@@ -4,10 +4,16 @@ package com.mtgscanner.data
 enum class Divider(val key: String, val label: String) {
     NONE("", "None"),
     COLOR("color", "Color"),
+    PAIRS("pairs", "Color pairs"),
+    IDENTITY("identity", "Color identity"),
+    TYPE("type", "Card type"),
+    MANA("cmc", "Mana value"),
     LETTER("letter", "First letter"),
     SET("set", "Set"),
-    TYPE("type", "Card type"),
-    RARITY("rarity", "Rarity");
+    RELEASE("release", "Set, oldest first"),
+    RARITY("rarity", "Rarity"),
+    PRICE("price", "Price band"),
+    FOIL("foil", "Foils apart");
 
     companion object {
         /** The first level of a [BoxLayout] key ("color>letter" gives COLOR). */
@@ -19,28 +25,114 @@ enum class Divider(val key: String, val label: String) {
     }
 }
 
-/**
- * How a box is laid out inside: up to two levels of dividers (Color, then Letter) and the order of cards
- * behind the last one (name, or collector number). Saved in [com.mtgscanner.data.db.Box.divider] as
- * "color", "color>letter", "set>#" ("#" = number order).
- */
-data class BoxLayout(val first: Divider = Divider.NONE, val second: Divider = Divider.NONE, val byNumber: Boolean = false) {
-    val levels: List<Divider> get() = listOf(first, second).filter { it != Divider.NONE }.distinct()
-    val hasDividers: Boolean get() = levels.isNotEmpty()
+/** The order of cards behind the last divider. [key] is how it's saved at the end of a [BoxLayout] key. */
+enum class CardOrder(val key: String, val label: String) {
+    NAME("", "Name"),
+    NUMBER("#", "Set number"),
+    PRICE("$", "Price, high first"),
+}
 
-    val key: String get() = (levels.map { it.key } + (if (byNumber) listOf("#") else emptyList())).joinToString(">")
+/**
+ * How a box is laid out inside: up to three levels of dividers (Color, then Type, then Mana value) and the order
+ * of cards behind the last one. Saved in [com.mtgscanner.data.db.Box.divider] as "color", "color>type",
+ * "set>#" ("#" = number order, "$" = price order).
+ */
+data class BoxLayout(val levels: List<Divider> = emptyList(), val order: CardOrder = CardOrder.NAME) {
+    constructor(first: Divider, second: Divider = Divider.NONE, byNumber: Boolean = false) :
+        this(clean(listOf(first, second)), if (byNumber) CardOrder.NUMBER else CardOrder.NAME)
+
+    val first: Divider get() = levels.getOrElse(0) { Divider.NONE }
+    val second: Divider get() = levels.getOrElse(1) { Divider.NONE }
+    val hasDividers: Boolean get() = levels.isNotEmpty()
+    val byNumber: Boolean get() = order == CardOrder.NUMBER
+    /** Placing a card needs its facts: there are dividers, or cards aren't in plain name order. */
+    val needsFacts: Boolean get() = hasDividers || order != CardOrder.NAME
+
+    val key: String get() = (levels.map { it.key } + listOfNotNull(order.key.ifEmpty { null })).joinToString(">")
 
     /** "Color → First letter", "Set · by number", or "None". */
     fun label(): String {
-        val parts = levels.joinToString(" → ") { it.label }.ifEmpty { "None" }
-        return if (byNumber) "$parts · by number" else parts
+        val parts = levels.joinToString(" → ") { it.label }.ifEmpty { if (order == CardOrder.NAME) "None" else "No dividers" }
+        return when (order) {
+            CardOrder.NAME -> parts
+            CardOrder.NUMBER -> "$parts · by number"
+            CardOrder.PRICE -> "$parts · by price"
+        }
     }
 
     companion object {
+        const val MAX_LEVELS = 3
+
+        fun clean(levels: List<Divider>): List<Divider> = levels.filter { it != Divider.NONE }.distinct().take(MAX_LEVELS)
+
         fun of(key: String): BoxLayout {
             val parts = key.split('>').map { it.trim() }.filter { it.isNotEmpty() }
-            val divs = parts.filter { it != "#" }.mapNotNull { k -> Divider.entries.firstOrNull { it.key == k && it != Divider.NONE } }
-            return BoxLayout(divs.getOrElse(0) { Divider.NONE }, divs.getOrElse(1) { Divider.NONE }, "#" in parts)
+            val divs = parts.mapNotNull { k -> Divider.entries.firstOrNull { it.key == k && it != Divider.NONE } }
+            val order = CardOrder.entries.firstOrNull { it.key.isNotEmpty() && it.key in parts } ?: CardOrder.NAME
+            return BoxLayout(clean(divs), order)
+        }
+    }
+}
+
+/** Ready-made box orders, offered when making a box. [key] is a [BoxLayout] key. */
+data class SortPreset(val label: String, val key: String) {
+    companion object {
+        val ALL = listOf(
+            SortPreset("Color → Type → A–Z", "color>type"),
+            SortPreset("Set → Number", "set>#"),
+            SortPreset("Set by release → Number", "release>#"),
+            SortPreset("A–Z", "letter"),
+            SortPreset("Color → Mana value → A–Z", "color>cmc"),
+            SortPreset("Rarity → Set → Number", "rarity>set>#"),
+            SortPreset("Color identity → A–Z", "identity"),
+            SortPreset("Price, high to low", "$"),
+        )
+
+        /** The preset with exactly this key, or null for a custom order. */
+        fun of(key: String): SortPreset? = BoxLayout.of(key).key.let { k -> ALL.firstOrNull { it.key == k } }
+    }
+}
+
+/**
+ * Release dates of sets, by lower-case code, noted whenever card facts are built. Lets "Set, oldest first"
+ * order divider labels, which are only set codes. Unknown sets go last.
+ */
+object SetDates {
+    private val dates = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    fun note(code: String, date: String?) {
+        if (code.isNotEmpty() && !date.isNullOrEmpty()) dates.putIfAbsent(code.lowercase(), date)
+    }
+
+    fun of(code: String): String? = dates[code.lowercase()]
+}
+
+/** Names for groups of colors: guilds, shards and wedges. */
+object ColorGroups {
+    val PAIRS = listOf(
+        "WU" to "Azorius", "UB" to "Dimir", "BR" to "Rakdos", "RG" to "Gruul", "GW" to "Selesnya",
+        "WB" to "Orzhov", "UR" to "Izzet", "BG" to "Golgari", "RW" to "Boros", "GU" to "Simic",
+    )
+    val TRIOS = listOf(
+        "WUB" to "Esper", "UBR" to "Grixis", "BRG" to "Jund", "RGW" to "Naya", "GWU" to "Bant",
+        "WBG" to "Abzan", "URW" to "Jeskai", "BGU" to "Sultai", "RWB" to "Mardu", "GUR" to "Temur",
+    )
+    const val FOUR = "Four colors"
+    const val FIVE = "Five colors"
+
+    /** Every multicolor label, in the order they sit in a box. */
+    val MULTI: List<String> = PAIRS.map { it.second } + TRIOS.map { it.second } + FOUR + FIVE
+
+    /** "White", "Azorius", "Esper", "Four colors"… for these colors; null for none. */
+    fun name(colors: String): String? {
+        val set = colors.uppercase().filter { it in "WUBRG" }.toSet()
+        return when (set.size) {
+            0 -> null
+            1 -> BoxRules.COLOR_NAMES[set.first().toString()]
+            2 -> PAIRS.firstOrNull { it.first.toSet() == set }?.second
+            3 -> TRIOS.firstOrNull { it.first.toSet() == set }?.second
+            4 -> FOUR
+            else -> FIVE
         }
     }
 }
@@ -153,28 +245,63 @@ object Sorting {
     fun isMainBox(box: BoxInfo, policy: SortPolicy): Boolean =
         box.kind != "trade" && box.kind != "deck" && box.id != policy.extrasBoxId && box.id != policy.bulkBoxId
 
+    /** The usual color order, front to back. "Multicolor" stands for every multicolor group in Color pairs. */
+    val DEFAULT_COLOR_ORDER = listOf("White", "Blue", "Black", "Red", "Green", "Multicolor", "Colorless", "Lands")
+
+    /** Front-to-back color order for color dividers; set from Settings (see SortPrefs.colorOrder). */
+    @Volatile var colorOrder: List<String> = DEFAULT_COLOR_ORDER
+
+    /** [order] with any missing color label added in its usual place, and anything else dropped. */
+    fun fullColorOrder(order: List<String>): List<String> {
+        val kept = order.filter { it in DEFAULT_COLOR_ORDER }.distinct()
+        return kept + DEFAULT_COLOR_ORDER.filter { it !in kept }
+    }
+
+    val PRICE_BANDS = listOf("$20+", "$5–20", "$1–5", "Under $1", "No price")
+    val MANA_SPOTS = (0..6).map { it.toString() } + listOf("7+", "Lands")
+    val FOIL_SPOTS = listOf("Non-foil", "Foil")
+
+    private fun isLand(card: CardFacts) = card.typeLine.contains("Land", ignoreCase = true)
+
     /** Where in a box a card goes, by the box's [divider]. Null when the box has no dividers. */
     fun spot(divider: Divider, name: String, card: CardFacts): String? = when (divider) {
         Divider.NONE -> null
         Divider.COLOR -> when {
-            card.colors.isEmpty() -> if (card.typeLine.contains("Land", ignoreCase = true)) "Lands" else "Colorless"
+            card.colors.isEmpty() -> if (isLand(card)) "Lands" else "Colorless"
             card.colors.length > 1 -> "Multicolor"
             else -> BoxRules.COLOR_NAMES[card.colors] ?: card.colors
         }
+        Divider.PAIRS -> ColorGroups.name(card.colors) ?: if (isLand(card)) "Lands" else "Colorless"
+        Divider.IDENTITY -> ColorGroups.name(card.colorIdentity) ?: "Colorless"
         Divider.LETTER -> NameKey.letter(name).toString()
-        Divider.SET -> card.setCode.uppercase()
+        Divider.SET, Divider.RELEASE -> card.setCode.uppercase()
         Divider.TYPE -> BoxRules.TYPES.firstOrNull { card.typeLine.contains(it, ignoreCase = true) } ?: "Other"
         Divider.RARITY -> card.rarity.replaceFirstChar(Char::uppercase)
+        Divider.MANA -> when {
+            isLand(card) && card.cmc == 0.0 -> "Lands"
+            card.cmc >= 7 -> "7+"
+            else -> card.cmc.toInt().toString()
+        }
+        Divider.PRICE -> when (val p = card.price) {
+            null -> "No price"
+            else -> when {
+                p >= 20 -> "$20+"
+                p >= 5 -> "$5–20"
+                p >= 1 -> "$1–5"
+                else -> "Under $1"
+            }
+        }
+        Divider.FOIL -> if (card.foil) "Foil" else "Non-foil"
     }
 
-    /** Where in a box a card goes with two levels: "Blue → C". Null when the box has no dividers. */
+    /** Where in a box a card goes with every level: "Blue → Creature → 2". Null when the box has no dividers. */
     fun spot(layout: BoxLayout, name: String, card: CardFacts): String? =
         layout.levels.mapNotNull { spot(it, name, card) }.joinToString(SPOT_SEP).ifEmpty { null }
 
     /** Between the levels of a two-level divider label. */
     const val SPOT_SEP = " → "
 
-    /** Front-to-back order of two-level labels from [spot]: by the first level, then the second. */
+    /** Front-to-back order of labels from [spot]: by the first level, then the next. */
     fun spotOrder(layout: BoxLayout): Comparator<String> {
         val levels = layout.levels
         if (levels.size <= 1) return spotOrder(levels.firstOrNull() ?: Divider.NONE)
@@ -189,11 +316,23 @@ object Sorting {
         }
     }
 
+    private fun byList(list: List<String>): Comparator<String> =
+        compareBy<String> { list.indexOf(it).let { i -> if (i < 0) 999 else i } }.thenBy { it }
+
+    /** Color pairs and identity: the color order, with every multicolor group where "Multicolor" sits. */
+    private fun groupOrder(): List<String> =
+        fullColorOrder(colorOrder).flatMap { if (it == "Multicolor") ColorGroups.MULTI else listOf(it) }
+
     /** Sort order for divider labels, so a box can be listed front to back. */
     fun spotOrder(divider: Divider): Comparator<String> = when (divider) {
-        Divider.COLOR -> compareBy { listOf("White", "Blue", "Black", "Red", "Green", "Multicolor", "Colorless", "Lands").indexOf(it).let { i -> if (i < 0) 99 else i } }
-        Divider.RARITY -> compareBy { listOf("Mythic", "Rare", "Uncommon", "Common").indexOf(it).let { i -> if (i < 0) 99 else i } }
-        Divider.TYPE -> compareBy { (BoxRules.TYPES + "Other").indexOf(it).let { i -> if (i < 0) 99 else i } }
+        Divider.COLOR -> byList(fullColorOrder(colorOrder))
+        Divider.PAIRS, Divider.IDENTITY -> byList(groupOrder())
+        Divider.RARITY -> byList(listOf("Mythic", "Rare", "Uncommon", "Common"))
+        Divider.TYPE -> byList(BoxRules.TYPES + "Other")
+        Divider.MANA -> byList(MANA_SPOTS)
+        Divider.PRICE -> byList(PRICE_BANDS)
+        Divider.FOIL -> byList(FOIL_SPOTS)
+        Divider.RELEASE -> compareBy<String> { SetDates.of(it) ?: "9999" }.thenBy { it }
         // "#" (digits and symbols) goes in front, like a real box.
         else -> naturalOrder()
     }
@@ -231,46 +370,82 @@ object Sorting {
         return card.setCode.lowercase() + "|" + digits.padStart(6, '0') + "|" + card.number.drop(digits.length).lowercase()
     }
 
+    /** The order of cards behind one divider: by name, collector number, or price (dearest first, no price last). */
+    fun cardOrder(order: CardOrder): Comparator<Pair<String, CardFacts>> = when (order) {
+        CardOrder.NAME -> compareBy { nameKey(it.first) }
+        CardOrder.NUMBER -> compareBy<Pair<String, CardFacts>> { numberKey(it.second) }.thenBy { nameKey(it.first) }
+        CardOrder.PRICE -> compareByDescending<Pair<String, CardFacts>> { it.second.price ?: -1.0 }.thenBy { nameKey(it.first) }
+    }
+
+    /** Every card of a box front to back: by divider, then [BoxLayout.order]. */
+    fun boxOrder(layout: BoxLayout): Comparator<Pair<String, CardFacts>> {
+        val spots = spotOrder(layout)
+        val cards = cardOrder(layout.order)
+        return Comparator { a, b ->
+            val sa = spot(layout, a.first, a.second).orEmpty()
+            val sb = spot(layout, b.first, b.second).orEmpty()
+            spots.compare(sa, sb).takeIf { it != 0 } ?: cards.compare(a, b)
+        }
+    }
+
     fun position(divider: Divider, name: String, card: CardFacts, contents: List<Pair<String, CardFacts>>): Position =
         position(BoxLayout(divider), name, card, contents)
 
-    /** Where a card goes among the cards behind the same divider(s), in name or (with [BoxLayout.byNumber]) number order. */
+    /** Where a card goes among the cards behind the same divider(s), in the box's [BoxLayout.order]. */
     fun position(layout: BoxLayout, name: String, card: CardFacts, contents: List<Pair<String, CardFacts>>): Position {
         val spot = spot(layout, name, card)
         val key = nameKey(name)
         val same = contents.filter { spot(layout, it.first, it.second) == spot }
         if (same.any { nameKey(it.first) == key }) return Position(spot, null, null, withSame = true)
-        if (layout.byNumber) {
-            val mine = numberKey(card)
-            val sorted = same.map { it.first to numberKey(it.second) }.sortedBy { it.second }
-            return Position(spot, sorted.lastOrNull { it.second <= mine }?.first, sorted.firstOrNull { it.second > mine }?.first)
-        }
-        val sorted = same.map { it.first }.distinct().sortedBy(::nameKey)
-        val after = sorted.lastOrNull { nameKey(it) < key }
-        val before = sorted.firstOrNull { nameKey(it) > key }
+        val order = cardOrder(layout.order)
+        val mine = name to card
+        val sorted = same.sortedWith(order)
+        val after = sorted.lastOrNull { order.compare(it, mine) <= 0 }?.first
+        val before = sorted.firstOrNull { order.compare(it, mine) > 0 }?.first
         return Position(spot, after, before)
+    }
+
+    /** How many of [contents] sit in front of this card in the box, front to back. */
+    fun indexIn(layout: BoxLayout, name: String, card: CardFacts, contents: List<Pair<String, CardFacts>>): Int {
+        val order = boxOrder(layout)
+        val mine = name to card
+        return contents.count { order.compare(it, mine) < 0 }
+    }
+
+    /**
+     * The row (1-based) of a box with [rows] rows that holds the card at [index] of [total], filled front row
+     * first. With a [capacity], each row holds an equal share of it; without, the cards are shared out evenly.
+     * Null for a one-row box.
+     */
+    fun row(index: Int, total: Int, rows: Int, capacity: Int = 0): Int? {
+        if (rows <= 1) return null
+        val perRow = if (capacity > 0) (capacity + rows - 1) / rows else ((total.coerceAtLeast(1) + rows - 1) / rows)
+        return (index / perRow.coerceAtLeast(1) + 1).coerceIn(1, rows)
     }
 
     /**
      * Divider labels to print for a box: every spot its cards sit behind, front to back. A box with one
-     * level and a fixed list (color, rarity, type, letter) gets the whole list, so new cards have a place.
+     * level and a fixed list (color, rarity, type, letter…) gets the whole list, so new cards have a place.
      */
     fun tabs(layout: BoxLayout, cards: List<Pair<String, CardFacts>>): List<String> {
         if (!layout.hasDividers) return emptyList()
         val used = cards.mapNotNull { spot(layout, it.first, it.second) }.toSet()
         val fixed: List<String> = if (layout.levels.size == 1) when (layout.first) {
-            Divider.COLOR -> listOf("White", "Blue", "Black", "Red", "Green", "Multicolor", "Colorless", "Lands")
+            Divider.COLOR -> fullColorOrder(colorOrder)
             Divider.RARITY -> listOf("Mythic", "Rare", "Uncommon", "Common")
             Divider.TYPE -> BoxRules.TYPES + "Other"
             Divider.LETTER -> listOf("#") + ('A'..'Z').map { it.toString() }
+            Divider.MANA -> MANA_SPOTS
+            Divider.PRICE -> PRICE_BANDS
+            Divider.FOIL -> FOIL_SPOTS
             else -> emptyList()
         } else emptyList()
         return (fixed + used).distinct().sortedWith(spotOrder(layout))
     }
 
     /** "Rares → Blue → between Counterspell and Cryptic Command". */
-    fun where(boxName: String, pos: Position): String =
-        listOfNotNull(boxName, pos.spot, pos.text()).joinToString(" → ")
+    fun where(boxName: String, pos: Position, row: Int? = null): String =
+        listOfNotNull(boxName, row?.let { "Row $it" }, pos.spot, pos.text()).joinToString(SPOT_SEP)
 
     /**
      * A card that should live somewhere else: its box has rules it no longer fits, it sits in a box that takes

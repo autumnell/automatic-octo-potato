@@ -91,7 +91,7 @@ object BoxLabels {
             val layout = BoxLayout.of(b.divider)
             val inside = listOfNotNull(
                 BoxRules.fromJson(b.rules).describe(),
-                layout.label().takeIf { layout.hasDividers || layout.byNumber },
+                layout.label().takeIf { layout.needsFacts },
             ).joinToString(" · ")
             c.drawText(fit(inside, textW, small), MARGIN + 12f, y + 66f, small)
             y += BOX_H + 8f
