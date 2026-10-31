@@ -79,6 +79,7 @@ object Notifications {
             .setAutoCancel(true)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(BACKUP_ID, n) }
+        runCatching { com.mtgscanner.data.NotificationLog.add(context, "Weekly backup failed", text, "settings") }
     }
 
     fun clearBackupFailed(context: Context) {

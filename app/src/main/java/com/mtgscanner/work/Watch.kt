@@ -186,24 +186,28 @@ class WatchWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         val nm = NotificationManagerCompat.from(ctx)
         if (bans.isNotEmpty()) {
             val lines = bans.map { (deck, cards) -> "$deck: ${cards.joinToString(", ")}" }
+            val title = if (bans.sumOf { it.second.size } == 1) "Card banned in your deck" else "Cards banned in your decks"
             val n = Notifications.builder(ctx, CHANNEL, "Bans and reprints")
-                .setContentTitle(if (bans.sumOf { it.second.size } == 1) "Card banned in your deck" else "Cards banned in your decks")
+                .setContentTitle(title)
                 .setContentText(lines.first())
                 .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n")))
                 .setContentIntent(Notifications.openApp(ctx, "collection", 21))
                 .setAutoCancel(true)
                 .build()
             runCatching { nm.notify(BAN_ID, n) }
+            runCatching { com.mtgscanner.data.NotificationLog.add(ctx, title, lines.joinToString("\n"), "collection") }
         }
         if (reprints.isNotEmpty()) {
+            val title = if (reprints.size == 1) "Wishlist card reprinted" else "${reprints.size} wishlist cards reprinted"
             val n = Notifications.builder(ctx, CHANNEL, "Bans and reprints")
-                .setContentTitle(if (reprints.size == 1) "Wishlist card reprinted" else "${reprints.size} wishlist cards reprinted")
+                .setContentTitle(title)
                 .setContentText(reprints.joinToString(", "))
                 .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(reprints.joinToString("\n")))
                 .setContentIntent(Notifications.openApp(ctx, "collection", 22))
                 .setAutoCancel(true)
                 .build()
             runCatching { nm.notify(REPRINT_ID, n) }
+            runCatching { com.mtgscanner.data.NotificationLog.add(ctx, title, reprints.joinToString("\n"), "collection") }
         }
     }
 

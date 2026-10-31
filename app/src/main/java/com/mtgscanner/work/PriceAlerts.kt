@@ -147,6 +147,7 @@ object PriceAlerts {
             .setAutoCancel(true)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(1002, n) }
+        runCatching { com.mtgscanner.data.NotificationLog.add(context, title, hits.joinToString("\n") { line(it) }, if (ids.size == 1) "card/${ids[0]}" else "home") }
     }
 
     fun notify(context: Context, moves: List<PriceMove>) {
@@ -169,5 +170,6 @@ object PriceAlerts {
             .setAutoCancel(true)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(1001, n) }
+        runCatching { com.mtgscanner.data.NotificationLog.add(context, title, moves.joinToString("\n") { line(it) }, "home") }
     }
 }
