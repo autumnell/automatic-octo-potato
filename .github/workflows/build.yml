@@ -153,3 +153,56 @@ jobs:
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
           if-no-files-found: ignore
+
+  # How well cards are known by their picture (ScanAccuracyTest), with the real models and gallery of every printing
+  # and Scryfall pictures of 60 random cards. The models and gallery are kept in the cache between runs.
+  scan-accuracy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache models and gallery
+        uses: actions/cache@v4
+        with:
+          path: |
+            scan-models/*.onnx
+            scan-models/*.bin
+            scan-models/*.json
+          key: scan-models-v1
+
+      # A download that fails leaves the test to skip itself rather than failing the build.
+      - name: Download models, gallery and sample cards
+        continue-on-error: true
+        run: |
+          pip install -q pillow numpy
+          mkdir -p scan-models
+          HF=https://huggingface.co
+          get() { [ -s "scan-models/$2" ] || curl -fsSL --retry 4 -o "scan-models/$2" "$1"; }
+          get "$HF/dhvazquez/mtg_card_identification_embeddings/resolve/main/20260521-044732/onnx/mtg_embed_fp16.onnx" card.onnx
+          get "$HF/dhvazquez/mtg_card_pose_estimation/resolve/main/exports/mtg_4kp_s_r4b_fp16.onnx" corners.onnx
+          get "$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_f16.bin" gallery_f16.bin
+          get "$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_ids.json" gallery_ids.json
+          get "$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/meta.json" meta.json
+          python3 .github/scripts/scan_samples.py scan-models 40 app/src/test/resources/scan-photos
+
+      - name: Run the accuracy test
+        env:
+          SCAN_MODELS: ${{ github.workspace }}/scan-models
+        run: ./gradlew --no-daemon testDebugUnitTest --tests 'com.mtgscanner.scan.ScanAccuracyTest'
+
+      - name: Report
+        if: always()
+        run: |
+          cat app/build/scan-accuracy.md 2>/dev/null || echo "No report (test skipped)"
+          cat app/build/scan-accuracy.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report (test skipped)" >> "$GITHUB_STEP_SUMMARY"

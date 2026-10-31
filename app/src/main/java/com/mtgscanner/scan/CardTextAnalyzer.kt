@@ -176,6 +176,14 @@ class CardTextAnalyzer(
     /** The last art embeddings worked out, by the art hash they came with: a card held still isn't embedded again. */
     private val embedCache = ArrayDeque<Pair<Long, ArtVector>>()
 
+    /**
+     * The card in view followed from frame to frame. Each track keeps the card fingerprints worked out for it (with
+     * the hash of the picture they came from), so a card held still or moved around isn't fingerprinted again.
+     */
+    private val tracks = CardTracks<List<Pair<Long, FloatArray>>>(minOverlap = 0.6f, maxMissed = 6)
+    /** When the corner model last looked for a card the outline finder missed. */
+    private var lastPose = 0L
+
     override fun analyze(image: ImageProxy) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastLight >= 200) {
@@ -312,9 +320,15 @@ class CardTextAnalyzer(
                         val bounds = CvCards.boundsOf(found)
                         a = ReadArea(FrameGeometry.grow(bounds, 0.15, frameW, frameH), isCard = true, outline = bounds, quad = found)
                     }
+                    // No outline found: the corner model may still see the card (borderless, a mat of its colour, glare).
+                    if (a.quad == null) poseQuad(picture(), guide)?.let { q ->
+                        val bounds = CvCards.boundsOf(q)
+                        a = ReadArea(FrameGeometry.grow(bounds, 0.15, frameW, frameH), isCard = true, outline = bounds, quad = q)
+                    }
                     // Nothing card-shaped (63:88, upright or sideways) in the guide: no text is read from it.
-                    val quad = a.quad ?: run { noShape(SystemClock.elapsedRealtime()); return@launch }
+                    val quad = a.quad ?: run { noShape(SystemClock.elapsedRealtime()); tracks.update(emptyList()); return@launch }
                     noShapeSince = 0L
+                    val track = tracks.update(listOf(quad))[0]
                     val draw = CardParts.drawer({ picture() }, cv)
                     val cjk = CjkNames.scriptFor(scanLang())?.takeIf { ForeignReading.ready }
                     // A found card: read just its name bar and footer, straightened and sharp.
@@ -341,7 +355,7 @@ class CardTextAnalyzer(
                     }
                     if (strips != null) guess = guess.copy(glare = strips.glare)
                     // The straightened card's art, and its set symbol, tell printings (or a textless card) apart.
-                    guess = runCatching { withArt(quad, rotation, strips?.turn, guess, draw) }.getOrDefault(guess)
+                    guess = runCatching { withArt(quad, rotation, strips?.turn, guess, draw, track) }.getOrDefault(guess)
                     onGuess(guess)
                 }
             } catch (_: Throwable) {
@@ -491,9 +505,10 @@ class CardTextAnalyzer(
                     if (blurry) { blurRun++; if (blurRun >= 2) { blurRun = 0; focusedAt = 0L } } else blurRun = 0
                     if (blurry) return StripRead(CardTextGuess(emptyList(), null, null, 0), null, glare, blurry = true)
                 }
-                // Low-contrast strips (foils, dark frames, dim light) are read with their contrast stretched.
-                nameRead = runCatching { CardParts.stretched(name) }.getOrNull()
-                footerRead = footer?.let { f -> runCatching { CardParts.stretched(f) }.getOrNull() }
+                // Uneven light (glare on part of a strip, or dim) is evened out; low-contrast strips (foils, dark
+                // frames) are read with their contrast stretched.
+                nameRead = runCatching { CardParts.evened(name, glare) ?: CardParts.stretched(name) }.getOrNull()
+                footerRead = footer?.let { f -> runCatching { CardParts.evened(f, glare) ?: CardParts.stretched(f) }.getOrNull() }
                 // Both strips in one read when the same reader reads both; a CJK name bar has its own reader.
                 val (nameLines, footerLines) = if (footer != null && cjk == null) {
                     CardParts.stackedLines(nameRead ?: name, footerRead ?: footer, cardH, recognizer)
@@ -576,24 +591,78 @@ class CardTextAnalyzer(
      * up the outline allows, for the art indexes; with a name but no footer number, its art and set symbol, to
      * pick the printing. [stripTurn] is the way up the strips were read at.
      */
-    private fun withArt(quad: FloatArray, rotation: Int, stripTurn: Int?, g: CardTextGuess, draw: Draw): CardTextGuess {
+    private fun withArt(quad: FloatArray, rotation: Int, stripTurn: Int?, g: CardTextGuess, draw: Draw, track: Int? = null): CardTextGuess {
         // A full footer names the printing. A number with no set code (2003-2019 cards) still needs the art.
         if (g.collectorNumber != null && g.setCode != null) return g
         if (g.nameCandidates.isEmpty() && g.printedName == null) {
-            if (!wantsArt()) return g
-            val arts = CardQuad.uprightTurns(quad, rotation + preferredTurn).mapNotNull { artOf(quad, it, draw) }
-            if (arts.isEmpty()) return g
-            return g.copy(artOnly = arts.map { it.first }, artOnlyEmbeddings = arts.mapNotNull { it.second })
+            val prints = CardPrints.ready
+            if (!wantsArt() && !prints) return g
+            val turns = CardQuad.uprightTurns(quad, rotation + preferredTurn)
+            val arts = if (wantsArt()) turns.mapNotNull { artOf(quad, it, draw) } else emptyList()
+            val fingerprints = if (prints) turns.mapNotNull { printOf(quad, it, draw, track) } else emptyList()
+            if (arts.isEmpty() && fingerprints.isEmpty()) return g
+            return g.copy(
+                artOnly = arts.map { it.hash }, artOnlyP = arts.map { it.phash ?: 0L },
+                artOnlyEmbeddings = arts.mapNotNull { it.embedding }, artOnlyPrints = fingerprints,
+            )
         }
         // Which way up the card is: as the strips were read, or as the whole-card read settled, if the outline agrees.
         val turn = stripTurn ?: norm(rotation + preferredTurn).takeIf { CardQuad.uprightTurns(quad, it).first() == it } ?: return g
         val art = artOf(quad, turn, draw)
         val symbol = symbolOf(quad, turn, draw)
-        return g.copy(artHash = art?.first ?: g.artHash, artEmbedding = art?.second, symbol = symbol)
+        return g.copy(
+            artHash = art?.hash ?: g.artHash, artPHash = art?.phash, artEmbedding = art?.embedding, symbol = symbol,
+            cardPrint = printOf(quad, turn, draw, track, offer = true),
+        )
     }
 
-    /** The art window of the straightened card: its hash, and its embedding when the art model is ready. */
-    private fun artOf(quad: FloatArray, turn: Int, draw: Draw): Pair<Long, ArtVector?>? = CardParts.art(quad, turn, draw, ::embedCached)
+    /** The art window of the straightened card: its hashes, and its embedding when the art model is ready. */
+    private fun artOf(quad: FloatArray, turn: Int, draw: Draw): ArtRead? = CardParts.art(quad, turn, draw, ::embedCached)
+
+    /**
+     * The card's fingerprint by the card picture model, upright by [turn]; reused while the same card stays on
+     * the same [track]. With [offer], the straightened card is kept as a possible test photo ([TestPhotos]).
+     */
+    private fun printOf(quad: FloatArray, turn: Int, draw: Draw, track: Int?, offer: Boolean = false): FloatArray? {
+        if (!CardPrints.ready) return null
+        val card = CardParts.whole(quad, turn, draw) ?: return null
+        try {
+            val key = ArtHashing.hash(card, 0, 0, card.width, card.height) ?: 0L
+            val known = track?.let { tracks.valueOf(it) }.orEmpty()
+            known.firstOrNull { ImageHash.distance(it.first, key) <= SAME_CARD_BITS }?.let { return it.second }
+            val print = CardPrints.fingerprint(card) ?: return null
+            track?.let { tracks.set(it, (listOf(key to print) + known).take(2)) }
+            if (offer) TestPhotos.offer(card)
+            return print
+        } finally {
+            card.recycle()
+        }
+    }
+
+    /**
+     * The card's corners by the corner model, in the [guide] part of [frame], when the outline finder found none;
+     * at most every [POSE_MS], as it takes a while.
+     */
+    private fun poseQuad(frame: Bitmap, guide: OcrBox): FloatArray? {
+        if (!CardPrints.ready) return null
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPose < POSE_MS) return null
+        lastPose = now
+        val l = guide.left.coerceIn(0, frame.width - 1)
+        val t = guide.top.coerceIn(0, frame.height - 1)
+        val w = guide.width.coerceAtMost(frame.width - l)
+        val h = guide.height.coerceAtMost(frame.height - t)
+        if (w < 64 || h < 64) return null
+        val crop = if (l == 0 && t == 0 && w == frame.width && h == frame.height) frame else Bitmap.createBitmap(frame, l, t, w, h)
+        try {
+            val q = CardPrints.corners(crop) ?: return null
+            // A card filling too little of the guide is too small to read.
+            if (CardOutline.area(q) < w * h * 0.12f) return null
+            return FloatArray(8) { if (it % 2 == 0) q[it] + l else q[it] + t }
+        } finally {
+            if (crop !== frame) crop.recycle()
+        }
+    }
 
     /** The set symbol's shape, from the right end of the type line. */
     private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? = CardParts.symbol(quad, turn, draw)
@@ -750,6 +819,10 @@ class CardTextAnalyzer(
         const val MAX_READ = 1024
         /** Art hashes this close are the same art held still: its embedding is reused. */
         const val SAME_ART_BITS = 4
+        /** Bits a whole card's hash may change by and still be the same card held in place. */
+        const val SAME_CARD_BITS = 6
+        /** How often the corner model may look when the outline finder sees no card. */
+        const val POSE_MS = 700L
     }
 }
 

@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.settings
 
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableIntStateOf
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -179,6 +181,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             HorizontalDivider(color = Palette.Rule)
             ForeignReadingRow()
             HorizontalDivider(color = Palette.Rule)
+            CardPrintsRow()
+            HorizontalDivider(color = Palette.Rule)
             Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
                 restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
             }
@@ -351,4 +355,60 @@ private fun ForeignReadingRow() {
         on = v
         if (v) com.mtgscanner.scan.ForeignReading.turnOn(ctx) else com.mtgscanner.scan.ForeignReading.turnOff(ctx)
     }
+}
+
+/**
+ * Knowing cards by their picture: off until turned on, then a one-time download. Once it's ready, scans can be
+ * kept as test photos, checked on the phone, or saved for the build server's accuracy test.
+ */
+@Composable
+private fun CardPrintsRow() {
+    val ctx = LocalContext.current
+    val app = ctx.applicationContext
+    val scope = rememberCoroutineScope()
+    val st by com.mtgscanner.scan.CardPrints.state.collectAsStateWithLifecycle()
+    var on by remember { mutableStateOf(com.mtgscanner.scan.CardPrints.isOn(ctx)) }
+    val body = when (val s = st) {
+        com.mtgscanner.scan.CardPrints.State.Off -> "Finds cards with no readable text, and the exact printing. About ${com.mtgscanner.scan.CardPrints.DOWNLOAD_MB} MB"
+        is com.mtgscanner.scan.CardPrints.State.Downloading -> "Downloading… ${s.percent}%"
+        com.mtgscanner.scan.CardPrints.State.Preparing -> "Getting it ready…"
+        com.mtgscanner.scan.CardPrints.State.Ready -> "Ready: ${"%,d".format(com.mtgscanner.scan.CardPrints.gallery?.size ?: 0)} printings"
+        is com.mtgscanner.scan.CardPrints.State.Failed -> "${s.reason}. Turn off and on to retry"
+    }
+    ToggleRow("Know cards by picture", body, on) { v ->
+        on = v
+        if (v) com.mtgscanner.scan.CardPrints.turnOn(ctx) else com.mtgscanner.scan.CardPrints.turnOff(ctx)
+    }
+    if (!on || st != com.mtgscanner.scan.CardPrints.State.Ready) return
+    HorizontalDivider(color = Palette.Rule)
+    var keep by remember { mutableStateOf(com.mtgscanner.scan.TestPhotos.isOn(ctx)) }
+    var kept by remember { mutableIntStateOf(com.mtgscanner.scan.TestPhotos.count(ctx)) }
+    ToggleRow("Keep test photos", if (keep) "$kept kept from your scans" else "Saves each scanned card's picture, to measure accuracy", keep) { v ->
+        keep = v
+        com.mtgscanner.scan.TestPhotos.setOn(ctx, v)
+    }
+    if (!keep && kept == 0) return
+    var result by remember { mutableStateOf<String?>(null) }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { app.contentResolver.openOutputStream(uri)?.use { com.mtgscanner.scan.TestPhotos.zipTo(app, it) } }
+        }
+    }
+    Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
+        TextButton(onClick = {
+            kept = com.mtgscanner.scan.TestPhotos.count(ctx)
+            result = "Checking…"
+            scope.launch {
+                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.mtgscanner.scan.TestPhotos.check(app) }
+                result = when {
+                    r == null || r.total == 0 -> "No photos to check yet"
+                    else -> "By picture alone: ${r.right} of ${r.total} right (${r.right * 100 / r.total}%)" +
+                        (if (r.wrong > 0) ", ${r.wrong} wrong" else "") + (if (r.unsure > 0) ", ${r.unsure} unsure" else "")
+                }
+            }
+        }) { Text("Check accuracy") }
+        TextButton(onClick = { saveLauncher.launch("grimoire-test-photos.zip") }) { Text("Save as zip") }
+        TextButton(onClick = { com.mtgscanner.scan.TestPhotos.clear(ctx); kept = 0; result = null }) { Text("Clear") }
+    }
+    result?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) }
 }

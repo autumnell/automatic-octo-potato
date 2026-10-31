@@ -97,7 +97,10 @@ class ArtIndexStore(
      * waits on the disk. With [setLock], only that set counts when its index is here. [embeddings] count only
      * when they came from the chosen art model ([model] is the id of the one that made them).
      */
-    fun match(targets: LongArray, setLock: String?, embeddings: List<ByteArray> = emptyList(), model: String? = null): ArtHit? {
+    fun match(
+        targets: LongArray, setLock: String?, embeddings: List<ByteArray> = emptyList(), model: String? = null,
+        pTargets: LongArray = LongArray(0),
+    ): ArtHit? {
         val idx = index
         if (idx == null) {
             if (hasAny && loading.compareAndSet(false, true)) scope.launch { load() }
@@ -107,7 +110,7 @@ class ArtIndexStore(
         val only = setLock?.lowercase()?.takeIf { idx.hasSet(it) }
         val chosen = embedder?.model ?: ArtModel.STANDARD
         val usable = if (model != null && model == chosen.id) embeddings else emptyList()
-        return idx.match(targets, only, targetEmbeddings = usable, model = chosen)
+        return idx.match(targets, only, targetEmbeddings = usable, model = chosen, pTargets = pTargets)
     }
 
     /**
@@ -236,12 +239,12 @@ class ArtIndexStore(
     private fun entriesFor(card: ScryfallCard, model: ArtModel?): List<ArtEntry> {
         val urls = card.cardFaces.orEmpty().mapNotNull { it.imageUris?.small }.ifEmpty { listOfNotNull(card.smallImageUrl) }
         return urls.mapNotNull { url ->
-            hashUrl(url, model)?.let { (hash, emb) -> ArtEntry(hash, card.id, card.name, card.set.lowercase(), card.collectorNumber, emb) }
+            hashUrl(url, model)?.let { (hash, emb, phash) -> ArtEntry(hash, card.id, card.name, card.set.lowercase(), card.collectorNumber, emb, phash) }
         }
     }
 
-    /** The picture's art hash, and its embedding by [model] when that's still the chosen one. */
-    private fun hashUrl(url: String, model: ArtModel?): Pair<Long, ByteArray?>? = runCatching {
+    /** The picture's art hash, its embedding by [model] when that's still the chosen one, and its second hash (0 for none). */
+    private fun hashUrl(url: String, model: ArtModel?): Triple<Long, ByteArray?, Long>? = runCatching {
         client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
             if (!resp.isSuccessful) return@use null
             val bytes = resp.body?.bytes() ?: return@use null
@@ -249,7 +252,7 @@ class ArtIndexStore(
             try {
                 val hash = ArtHashing.hashCardImage(bmp) ?: return@use null
                 val emb = if (model == null) null else embedder?.let { ArtHashing.embedCardImage(bmp, it, model)?.values }
-                hash to emb
+                Triple(hash, emb, ArtHashing.phashCardImage(bmp) ?: 0L)
             } finally {
                 bmp.recycle()
             }

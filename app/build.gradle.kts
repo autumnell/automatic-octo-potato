@@ -103,6 +103,8 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+val onnxruntime = "1.30.0"
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
@@ -159,8 +161,19 @@ dependencies {
     // Art model (image embedder) for telling artwork apart. The model file is downloaded on first use.
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
 
+    // Knowing a card by its picture, and finding its corners (scan/CardPrints.kt). The models and the gallery of
+    // every printing are downloaded only when turned on in Settings › Data.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:$onnxruntime")
+
     // QR codes on box labels, and reading them back to open a box.
     implementation("com.google.zxing:core:3.5.3")
 
     testImplementation("junit:junit:4.13.2")
+    // The desktop build of the same runtime, for the scan accuracy test on the build server.
+    testImplementation("com.microsoft.onnxruntime:onnxruntime:$onnxruntime")
+}
+
+// Unit tests run on the build server's Linux, where the Android build of ONNX Runtime can't load: use the desktop one.
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    exclude(group = "com.microsoft.onnxruntime", module = "onnxruntime-android")
 }

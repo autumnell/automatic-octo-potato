@@ -349,6 +349,10 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
     /** Every card in a set, tokens and extras included. */
     fun inSet(set: String): List<ScryfallCard> = query("SELECT data, priced FROM cards WHERE setc = ?", set.lowercase())
 
+    /** Printings released on or after [day] (yyyy-mm-dd), newest first, at most [limit]. */
+    fun releasedSince(day: String, limit: Int = 5000): List<ScryfallCard> =
+        query("SELECT data, priced FROM cards WHERE released >= ? ORDER BY released DESC LIMIT $limit", day)
+
     /** Every printing of a card, by oracle id. */
     fun printings(oracleId: String): List<ScryfallCard> = query("SELECT data, priced FROM cards WHERE oracle = ?", oracleId)
 

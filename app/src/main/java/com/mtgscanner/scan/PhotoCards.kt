@@ -94,19 +94,41 @@ object PhotoCards {
     /**
      * Every card in [photo], top row first. [embed] is the art model (null until it's ready); [wantsArt] is true
      * when art indexes are downloaded, so a card with no readable text is worth hashing.
+     *
+     * With [tracks] (pictures of the same cards in the same place, one after another), a card lying where it lay
+     * in the last picture and looking the same isn't read again: what it was read as is reused.
      */
-    suspend fun read(photo: Bitmap, embed: (Bitmap) -> ArtVector?, wantsArt: Boolean): List<PhotoRead> {
+    suspend fun read(
+        photo: Bitmap, embed: (Bitmap) -> ArtVector?, wantsArt: Boolean,
+        tracks: CardTracks<Pair<Long, CardTextGuess>>? = null,
+    ): List<PhotoRead> {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val mat = Mat()
         var frame: CvCards.Frame? = null
         try {
             if (CvCards.ready) frame = CardParts.cvSafe { CvCards.Frame(photo, mat) }
             val found = frame?.let { f -> CardParts.cvSafe { f.findAll() } }.orEmpty()
-            // No outline found (or no OpenCV): a picture of just one card is that card.
-            val quads = found.ifEmpty { listOfNotNull(wholeIfCard(photo)) }
+            // No outline found (or no OpenCV): the corner model may see one; else a picture of just one card is that card.
+            val quads = found.ifEmpty { listOfNotNull(runCatching { CardPrints.corners(photo) }.getOrNull()) }
+                .ifEmpty { listOfNotNull(wholeIfCard(photo)) }
             val draw = CardParts.drawer(photo, frame)
+            val ids = tracks?.update(quads)
             val out = ArrayList<PhotoRead>()
-            for (q in quads) out += runCatching { readCard(q, draw, recognizer, embed, wantsArt) }.getOrElse { PhotoRead(empty(), null) }
+            for ((i, q) in quads.withIndex()) {
+                val track = ids?.get(i)
+                // The same card, still in its place: no need to read it again.
+                val thumb = runCatching { draw(CardQuad.ordered(q, CardQuad.uprightTurns(q, 0).first()), WHOLE, THUMB_W, THUMB_H) }.getOrNull()
+                val look = thumb?.let { ArtHashing.hash(it, 0, 0, it.width, it.height) }
+                val before = track?.let { tracks?.valueOf(it) }
+                if (before != null && look != null && ImageHash.distance(before.first, look) <= SAME_LOOK_BITS) {
+                    out += PhotoRead(before.second, thumb)
+                    continue
+                }
+                thumb?.recycle()
+                val read = runCatching { readCard(q, draw, recognizer, embed, wantsArt) }.getOrElse { PhotoRead(empty(), null) }
+                if (track != null && look != null && (read.guess.key != null || read.guess.pictureOnly)) tracks?.set(track, look to read.guess)
+                out += read
+            }
             return out
         } finally {
             frame?.let { runCatching { it.release() } }
@@ -176,11 +198,20 @@ object PhotoCards {
             if (g.key == null) {
                 if (wantsArt) {
                     val arts = turns.mapNotNull { artOf(quad, it, draw, embed) }
-                    if (arts.isNotEmpty()) g = g.copy(artOnly = arts.map { it.first }, artOnlyEmbeddings = arts.mapNotNull { it.second })
+                    if (arts.isNotEmpty()) {
+                        g = g.copy(
+                            artOnly = arts.map { it.hash }, artOnlyP = arts.map { it.phash ?: 0L },
+                            artOnlyEmbeddings = arts.mapNotNull { it.embedding },
+                        )
+                    }
                 }
+                if (CardPrints.ready) g = g.copy(artOnlyPrints = turns.mapNotNull { printOf(quad, it, draw) })
             } else if (upright != null) {
                 val art = artOf(quad, upright, draw, embed)
-                g = g.copy(artHash = art?.first ?: g.artHash, artEmbedding = art?.second, symbol = symbolOf(quad, upright, draw))
+                g = g.copy(
+                    artHash = art?.hash ?: g.artHash, artPHash = art?.phash, artEmbedding = art?.embedding,
+                    symbol = symbolOf(quad, upright, draw), cardPrint = printOf(quad, upright, draw),
+                )
             }
         }
         val thumb = runCatching { draw(CardQuad.ordered(quad, upright ?: turns.first()), WHOLE, THUMB_W, THUMB_H) }.getOrNull()
@@ -205,9 +236,15 @@ object PhotoCards {
         return (b.width to b.height) to lines
     }
 
-    /** The art window's hash, and its embedding when the art model is ready. */
-    private fun artOf(quad: FloatArray, turn: Int, draw: Draw, embed: (Bitmap) -> ArtVector?): Pair<Long, ArtVector?>? =
+    /** The art window's hashes, and its embedding when the art model is ready. */
+    private fun artOf(quad: FloatArray, turn: Int, draw: Draw, embed: (Bitmap) -> ArtVector?): ArtRead? =
         CardParts.art(quad, turn, draw) { _, art -> runCatching { embed(art) }.getOrNull() }
+
+    /** The card's fingerprint by the card picture model ([CardPrints]), upright by [turn]. */
+    private fun printOf(quad: FloatArray, turn: Int, draw: Draw): FloatArray? {
+        val card = CardParts.whole(quad, turn, draw) ?: return null
+        return try { CardPrints.fingerprint(card) } finally { card.recycle() }
+    }
 
     /** The set symbol's shape, from the right end of the type line. */
     private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? = CardParts.symbol(quad, turn, draw)
@@ -217,4 +254,6 @@ object PhotoCards {
     private const val WHOLE_H = 1100f
     private const val THUMB_W = 126
     private const val THUMB_H = 176
+    /** Bits a card's picture may change by between two photos and still be the same card. */
+    private const val SAME_LOOK_BITS = 8
 }

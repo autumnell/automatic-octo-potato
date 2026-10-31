@@ -45,6 +45,7 @@ object WhatsNew {
         153 to "Reading Japanese, Chinese and Korean names is now an optional download in Settings › Data.",
         155 to "Pick how a box is sorted when you make it: Color → Type → A–Z, Set → Number and more, up to three levels. Boxes can have a location and rows, and you can set your own color order.",
         157 to "Adding a card from Search can now make a new box or deck on the spot, or put the card straight into a deck.",
+        159 to "New: Know cards by picture, an optional download in Settings › Data. It finds cards whose text can't be read (foils, glare, old frames, other languages) and picks the exact printing.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
