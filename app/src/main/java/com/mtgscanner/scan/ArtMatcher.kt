@@ -32,6 +32,29 @@ object ArtHashing {
         return ImageHash.dHash(IntArray(72) { ImageHash.luma(px[it]) })
     }
 
+    /** The [ImageHash.pHash] of part of a bitmap. */
+    fun phash(bitmap: Bitmap, left: Int, top: Int, right: Int, bottom: Int): Long? {
+        val l = left.coerceIn(0, bitmap.width - 1)
+        val t = top.coerceIn(0, bitmap.height - 1)
+        val w = (right.coerceAtMost(bitmap.width) - l)
+        val h = (bottom.coerceAtMost(bitmap.height) - t)
+        if (w < 32 || h < 32) return null
+        val crop = Bitmap.createBitmap(bitmap, l, t, w, h)
+        val small = Bitmap.createScaledBitmap(crop, 32, 32, true)
+        val px = IntArray(1024)
+        small.getPixels(px, 0, 32, 0, 0, 32, 32)
+        if (small !== crop) small.recycle()
+        if (crop !== bitmap) crop.recycle()
+        return ImageHash.pHash(IntArray(1024) { ImageHash.luma(px[it]) })
+    }
+
+    /** [phash] of the same art window as [hashCardImage]. */
+    fun phashCardImage(bitmap: Bitmap): Long? = phash(
+        bitmap,
+        (bitmap.width * 0.08).toInt(), (bitmap.height * 0.11).toInt(),
+        (bitmap.width * 0.92).toInt(), (bitmap.height * 0.55).toInt(),
+    )
+
     /** The art window on a Scryfall card image, as fractions of its width and height. */
     fun hashCardImage(bitmap: Bitmap): Long? = hash(
         bitmap,
@@ -69,8 +92,8 @@ class ArtMatcher(
     /** A printing's art from the downloaded art indexes (hash, embedding), by Scryfall id; null when not there. */
     private val known: ((String) -> Pair<Long, ArtVector?>?)? = null,
 ) {
-    /** A printing's art: its hash, and its embedding when the model was ready. */
-    private class Seen(val hash: Long, val embedding: ArtVector?)
+    /** A printing's art: its hashes (second one 0 when not worked out), and its embedding when the model was ready. */
+    private class Seen(val hash: Long, val embedding: ArtVector?, val phash: Long = 0L)
 
     private val cache = object : LinkedHashMap<String, Seen>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Seen>?) = size > 600
@@ -80,9 +103,9 @@ class ArtMatcher(
     /**
      * The printing whose art clearly matches the camera's: by the art model when [embedding] is given and it's
      * sure, else by the [hash]. Printings sharing a picture don't compete; the first of them in [printings] wins.
-     * An [embedding] from a model other than the chosen one is left out.
+     * An [embedding] from a model other than the chosen one is left out. With [phash], both art hashes must agree.
      */
-    suspend fun bestPrinting(printings: List<ScryfallCard>, hash: Long?, embedding: ArtVector?): ScryfallCard? = coroutineScope {
+    suspend fun bestPrinting(printings: List<ScryfallCard>, hash: Long?, embedding: ArtVector?, phash: Long? = null): ScryfallCard? = coroutineScope {
         val model = embedder?.model
         val target = embedding?.takeIf { model != null && it.model == model.id && embedder?.ready == true }
         if (hash == null && target == null) return@coroutineScope null
@@ -102,8 +125,8 @@ class ArtMatcher(
         }
         if (hash == null) return@coroutineScope null
         // Reprints often reuse the same art; any of them is a fine answer, so only compare distinct art.
-        val distinct = seen.map { it.first to it.second.hash }.distinctBy { it.second }
-        ImageHash.pickBest(hash, distinct)
+        val distinct = seen.map { Triple(it.first, it.second.hash, it.second.phash) }.distinctBy { it.second }
+        ImageHash.pickBestBoth(hash, phash, distinct)
     }
 
     /** [card]'s art; with [want], also its embedding by that model (a cached one from another model is redone). */
@@ -128,7 +151,10 @@ class ArtMatcher(
                         val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@use null
                         try {
                             val hash = ArtHashing.hashCardImage(bmp) ?: return@use null
-                            Seen(hash, if (want != null) embedder?.let { ArtHashing.embedCardImage(bmp, it, want) } else null)
+                            Seen(
+                                hash, if (want != null) embedder?.let { ArtHashing.embedCardImage(bmp, it, want) } else null,
+                                ArtHashing.phashCardImage(bmp) ?: 0L,
+                            )
                         } finally {
                             bmp.recycle()
                         }

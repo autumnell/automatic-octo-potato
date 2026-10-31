@@ -15,6 +15,15 @@ const val ART_AUTO_SETS = 6
 
 /** Queues art indexes for the sets you own most cards from, once a week, on Wi-Fi, when the card list is here. */
 suspend fun CollectionRepository.artForBiggestSets() {
+    // Knowing cards by their picture covers every printing: only new printings need adding, no art indexes.
+    if (com.mtgscanner.scan.CardPrints.ready) {
+        if (localCards.ready) {
+            com.mtgscanner.scan.CardPrints.addNewPrintings(
+                appContext, { day -> withContext(Dispatchers.IO) { localCards.releasedSince(day) } }, localCards.onWifi(),
+            )
+        }
+        return
+    }
     if (!localCards.artAuto || !localCards.ready || !localCards.onWifi()) return
     val today = LocalDate.now()
     val last = runCatching { LocalDate.parse(localCards.artCheckedDay) }.getOrNull()
@@ -52,4 +61,23 @@ suspend fun CollectionRepository.printingsFor(card: ScryfallCard): List<Scryfall
         }
     }
     return api.printings(card)
+}
+
+/**
+ * The card a picture with no readable text shows: by the card picture model across every printing when it's on
+ * ([com.mtgscanner.scan.CardPrints]), else by the downloaded art indexes. [onlySet] is the set lock. Scans
+ * thousands of entries: call off the main thread.
+ */
+fun CollectionRepository.matchPicture(guess: com.mtgscanner.scan.CardTextGuess, onlySet: String?): com.mtgscanner.scan.ArtHit? {
+    if (guess.artOnlyPrints.isNotEmpty()) {
+        com.mtgscanner.scan.CardPrints.match(guess.artOnlyPrints.first(), guess.artOnlyPrints.drop(1), onlySet)?.let { h ->
+            return com.mtgscanner.scan.ArtHit(h.id, h.name, h.set, h.number, 0, 0, h.score, standOut = h.standOut)
+        }
+    }
+    if (guess.artOnly.isEmpty()) return null
+    // All the frame's embeddings come from one model; the store uses them only if it's still the chosen one.
+    val embeddings = guess.artOnlyEmbeddings
+    val model = embeddings.firstOrNull()?.model
+    val p = guess.artOnlyP.filter { it != 0L }.toLongArray()
+    return artIndex.match(guess.artOnly.toLongArray(), onlySet, embeddings.filter { it.model == model }.map { it.values }, model, p)
 }

@@ -10,10 +10,13 @@ import java.io.OutputStream
 data class ArtEntry(
     val hash: Long, val id: String, val name: String, val set: String, val number: String,
     val embedding: ByteArray? = null,
+    /** The art's second hash ([ImageHash.pHash]); 0 when the index was built before there was one. */
+    val phash: Long = 0L,
 ) {
     // Arrays compare by contents here, so entries read back from a file equal the ones written.
     override fun equals(other: Any?): Boolean = other is ArtEntry && hash == other.hash && id == other.id &&
-        name == other.name && set == other.set && number == other.number && embedding.contentEquals(other.embedding)
+        name == other.name && set == other.set && number == other.number && embedding.contentEquals(other.embedding) &&
+        phash == other.phash
 
     override fun hashCode(): Int = id.hashCode() * 31 + hash.hashCode()
 }
@@ -25,6 +28,8 @@ data class ArtEntry(
 data class ArtHit(
     val id: String, val name: String, val set: String, val number: String, val distance: Int, val runnerUp: Int,
     val similarity: Float = 0f,
+    /** For a card picture model match: how far it stood out ([StandOut]); 0 for art index matches. */
+    val standOut: Float = 0f,
 )
 
 /**
@@ -39,6 +44,7 @@ class ArtIndex(entries: List<ArtEntry>) {
     private val sets = Array(entries.size) { entries[it].set }
     private val numbers = Array(entries.size) { entries[it].number }
     private val embeddings = Array(entries.size) { entries[it].embedding }
+    private val phashes = LongArray(entries.size) { entries[it].phash }
 
     /** Set codes held, lowercase, so [hasSet] doesn't scan every entry. */
     private val setCodes: Set<String> = sets.mapTo(HashSet()) { it.lowercase() }
@@ -62,10 +68,16 @@ class ArtIndex(entries: List<ArtEntry>) {
      * With [targetEmbeddings] (the same pictures through the art model), the [SHORTLIST] closest by hash are
      * ranked by the model instead, which tells art apart better; when the model isn't sure, the hash decides.
      * The entries' embeddings must come from the same [model] as [targetEmbeddings] (the store drops any that don't).
+     *
+     * With [pTargets] (the same pictures' second hashes), the pick's second hash must agree too. And with enough
+     * cards to judge by, the pick must stand out from the crowd ([StandOut]): in dim light every distance grows,
+     * so a close-looking pick that doesn't stand clear is turned down, and a further one that stands far clear
+     * and agrees on both hashes is taken.
      */
     fun match(
         targets: LongArray, onlySet: String? = null, maxDistance: Int = MAX_DISTANCE, minLead: Int = MIN_LEAD,
         targetEmbeddings: List<ByteArray> = emptyList(), model: ArtModel = ArtModel.STANDARD,
+        pTargets: LongArray = LongArray(0),
     ): ArtHit? {
         val usable = targets.filter { useful(it) }
         if (usable.isEmpty() || hashes.isEmpty()) return null
@@ -86,7 +98,16 @@ class ArtIndex(entries: List<ArtEntry>) {
         if (best < 0) return null
         // The closest by hash has no embedding (its set isn't built with this model yet): the hash decides.
         if (targetEmbeddings.isNotEmpty() && embeddings[best] != null) rerank(dist, targetEmbeddings, model)?.let { return it }
-        if (bestD > maxDistance) return null
+        val pd = if (pTargets.isNotEmpty() && phashes[best] != 0L) pTargets.minOf { java.lang.Long.bitCount(phashes[best] xor it) } else null
+        if (pd != null && pd > P_MAX) return null
+        val counted = dist.count { it != Int.MAX_VALUE }
+        val z = if (counted >= MIN_FOR_STAND_OUT) StandOut.zBelow(bestD, dist) else null
+        val ok = when {
+            bestD <= maxDistance -> z == null || z >= MIN_Z
+            bestD <= maxDistance + STRETCH -> z != null && z >= STRONG_Z && pd != null
+            else -> false
+        }
+        if (!ok) return null
         val name = names[best]
         var runnerUp = Int.MAX_VALUE
         for (i in hashes.indices) if (dist[i] < runnerUp && names[i] != name) runnerUp = dist[i]
@@ -111,6 +132,15 @@ class ArtIndex(entries: List<ArtEntry>) {
         const val MAX_DISTANCE = 10
         /** How much closer than the next card the best one must be. */
         const val MIN_LEAD = 4
+        /** Second-hash bits of 64 a camera picture may differ by (different pictures differ by about 32). */
+        const val P_MAX = 16
+        /** Cards needed before judging how far a pick stands out. */
+        const val MIN_FOR_STAND_OUT = 30
+        /** Standard deviations a pick within [MAX_DISTANCE] must stand clear by. */
+        const val MIN_Z = 3f
+        /** A pick up to this many bits past [MAX_DISTANCE] is taken when it stands [STRONG_Z] clear and both hashes agree. */
+        const val STRETCH = 4
+        const val STRONG_Z = 5f
         /** Cards the hash shortlists for the art model to rank. */
         const val SHORTLIST = 50
 
@@ -166,25 +196,28 @@ class ArtIndexFile(val set: String, val model: String?, val entries: List<ArtEnt
 /**
  * The art index file: a header, then each card's hash, id, name and number. One file per set.
  * Version 2 adds a flag to the header and each card's art model embedding (length, then bytes; 0 for none).
- * Version 3 adds the id of the art model that made the embeddings, after the flag. Older files are still read
+ * Version 3 adds the id of the art model that made the embeddings, after the flag. Version 4 adds each card's
+ * second art hash after its first. Older files are still read
  * (version 2 embeddings are the standard model's); they're rebuilt once the chosen art model is here.
  */
 object ArtIndexCodec {
     private const val MAGIC_V1 = 0x47414931 // "GAI1"
     private const val MAGIC_V2 = 0x47414932 // "GAI2"
     private const val MAGIC_V3 = 0x47414933 // "GAI3"
+    private const val MAGIC_V4 = 0x47414934 // "GAI4"
 
     /** Writes [entries]; [model] is the id of the art model their embeddings came from. */
     fun write(set: String, entries: List<ArtEntry>, out: OutputStream, model: String? = null) {
         val d = DataOutputStream(out.buffered())
         val embedded = entries.isNotEmpty() && entries.all { it.embedding != null }
-        d.writeInt(MAGIC_V3)
+        d.writeInt(MAGIC_V4)
         d.writeUTF(set.lowercase())
         d.writeInt(entries.size)
         d.writeBoolean(embedded)
         d.writeUTF(if (embedded) model.orEmpty() else "")
         for (e in entries) {
             d.writeLong(e.hash)
+            d.writeLong(e.phash)
             d.writeUTF(e.id)
             d.writeUTF(e.name)
             d.writeUTF(e.number)
@@ -203,6 +236,7 @@ object ArtIndexCodec {
         MAGIC_V1 -> 1
         MAGIC_V2 -> 2
         MAGIC_V3 -> 3
+        MAGIC_V4 -> 4
         else -> throw IOException("Not an art index")
     }
 
@@ -226,6 +260,7 @@ object ArtIndexCodec {
         val list = ArrayList<ArtEntry>(n)
         repeat(n) {
             val hash = d.readLong()
+            val phash = if (version >= 4) d.readLong() else 0L
             val id = d.readUTF()
             val name = d.readUTF()
             val number = d.readUTF()
@@ -234,7 +269,7 @@ object ArtIndexCodec {
                 if (len > 8192) throw IOException("Bad art index")
                 if (len == 0) null else ByteArray(len).also { d.readFully(it) }
             } else null
-            list += ArtEntry(hash, id, name, set, number, emb)
+            list += ArtEntry(hash, id, name, set, number, emb, phash)
         }
         return ArtIndexFile(set, modelOf(version, embedded, stored), list)
     }

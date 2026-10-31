@@ -57,3 +57,7 @@
 -dontwarn org.openjsse.**
 -dontwarn javax.annotation.**
 -dontwarn com.google.errorprone.annotations.**
+
+# ONNX Runtime (knowing cards by picture): its native code finds Java classes and fields by name.
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**

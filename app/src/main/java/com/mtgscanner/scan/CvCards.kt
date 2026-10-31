@@ -250,6 +250,32 @@ object CvCards {
     /** Outlines tried at most in a photo. */
     private const val MAX_ALL_QUADS = 600
 
+    /**
+     * [b] with its light evened out by CLAHE (contrast-limited adaptive histogram equalisation) on the lightness of
+     * the LAB colour space, so colours stay as they were: each 8x8th of the picture is brightened by its own light.
+     */
+    fun clahe(b: Bitmap): Bitmap {
+        val rgba = Mat()
+        val rgb = Mat()
+        val lab = Mat()
+        val parts = ArrayList<Mat>()
+        try {
+            Utils.bitmapToMat(b, rgba)
+            Imgproc.cvtColor(rgba, rgb, Imgproc.COLOR_RGBA2RGB)
+            Imgproc.cvtColor(rgb, lab, Imgproc.COLOR_RGB2Lab)
+            Core.split(lab, parts)
+            val clahe = Imgproc.createCLAHE(2.0, Size(8.0, 8.0))
+            clahe.apply(parts[0], parts[0])
+            Core.merge(parts, lab)
+            Imgproc.cvtColor(lab, rgb, Imgproc.COLOR_Lab2RGB)
+            Imgproc.cvtColor(rgb, rgba, Imgproc.COLOR_RGB2RGBA)
+            return Bitmap.createBitmap(b.width, b.height, Bitmap.Config.ARGB_8888).also { Utils.matToBitmap(rgba, it) }
+        } finally {
+            rgba.release(); rgb.release(); lab.release()
+            parts.forEach { it.release() }
+        }
+    }
+
     /** The bounding box of [quad], rounded outwards. */
     fun boundsOf(quad: FloatArray): OcrBox {
         var l = Float.MAX_VALUE; var t = Float.MAX_VALUE; var r = -Float.MAX_VALUE; var b = -Float.MAX_VALUE

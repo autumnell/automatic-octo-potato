@@ -56,7 +56,18 @@ data class CardTextGuess(
     val guideEmpty: Boolean = false,
     /** Something steady has been in the guide a while, but no card edges: nothing is read until they show. */
     val noEdges: Boolean = false,
+    /** A second hash of the artwork ([ImageHash.pHash]); both must agree for an art match. */
+    val artPHash: Long? = null,
+    /** Second hashes of the same pictures as [artOnly], in the same order. */
+    val artOnlyP: List<Long> = emptyList(),
+    /** The whole straightened card's fingerprint by the card picture model ([CardPrints]), when it's on. */
+    val cardPrint: FloatArray? = null,
+    /** Fingerprints of the card at the same ways up as [artOnly], when the card picture model is on. */
+    val artOnlyPrints: List<FloatArray> = emptyList(),
 ) {
+    /** A card is there with no text read, but its picture can be looked up. */
+    val pictureOnly: Boolean get() = key == null && (artOnly.isNotEmpty() || artOnlyPrints.isNotEmpty())
+
     val isEmpty: Boolean get() = nameCandidates.isEmpty() && collectorNumber == null && printedName == null
 
     /** A key that stays the same while the same card is in view. */

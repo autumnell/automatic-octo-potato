@@ -2,6 +2,7 @@ package com.mtgscanner.ui.scan
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mtgscanner.data.matchPicture
 import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.CardFacts
 import com.mtgscanner.data.CollectionRepository
@@ -305,8 +306,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         }
         trackGlare(guess)
         val key = guess.key
-        lastFrameArtOnly = key == null && guess.artOnly.isNotEmpty()
-        if (key == null && guess.artOnly.isNotEmpty()) {
+        lastFrameArtOnly = guess.pictureOnly
+        if (guess.pictureOnly) {
             // A card is there, just no readable text: not an empty frame.
             leave.seen()
             handleArt(guess)
@@ -487,15 +488,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     private fun handleArt(guess: CardTextGuess) {
         if (artJob?.isActive == true) return
         val gen = trackGen
-        // All the frame's embeddings come from one model; the store uses them only if it's still the chosen one.
-        val embeddings = guess.artOnlyEmbeddings
-        val model = embeddings.firstOrNull()?.model
-        val targets = guess.artOnly.toLongArray()
         val lock = SortPrefs.setLock
-        val vectors = embeddings.filter { it.model == model }.map { it.values }
-        // Scans every downloaded entry: off the main thread.
+        // Scans every printing or downloaded entry: off the main thread.
         artJob = viewModelScope.launch {
-            val hit = withContext(Dispatchers.Default) { repo.artIndex.match(targets, lock, vectors, model) }
+            val hit = withContext(Dispatchers.Default) { repo.matchPicture(guess, lock) }
             // Paused, reset, or text came into view meanwhile: this answer is stale.
             if (gen != trackGen || !lastFrameArtOnly || isPaused) return@launch
             onArtHit(hit, guess)
@@ -514,11 +510,11 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         lastName = null
         lastFooter = null
         _state.update { it.copy(reading = hit.name) }
-        lookupArt(hit, guess.artOnly.first())
+        lookupArt(hit, guess.artOnly.firstOrNull())
     }
 
     /** Fetches the printing the art matched. It's the exact printing, so it counts as sure. */
-    private fun lookupArt(hit: com.mtgscanner.scan.ArtHit, art: Long) {
+    private fun lookupArt(hit: com.mtgscanner.scan.ArtHit, art: Long?) {
         _state.update { it.copy(lookingUp = true, status = "Looking it up…", error = null, offline = null) }
         val gen = trackGen
         viewModelScope.launch {
@@ -535,7 +531,9 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                     repo.scanLog.add(
                         com.mtgscanner.scan.ScanLogEntry(
                             art = true, outcome = outcome, matchName = hit.name, matchSet = hit.set, matchNumber = hit.number,
-                            ms = System.currentTimeMillis() - started, note = "art ${hit.distance} bits, next ${hit.runnerUp}",
+                            ms = System.currentTimeMillis() - started,
+                            note = if (hit.standOut > 0f) "picture %.2f, %.1f sd".format(hit.similarity, hit.standOut)
+                            else "art ${hit.distance} bits, next ${hit.runnerUp}",
                         ),
                     )
                 }
@@ -568,6 +566,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         val readLang = lang?.takeIf { card.lang == "en" }
         // A real card was found: drop any "save for later" offer.
         _state.update { it.copy(unknownRead = null) }
+        // Keeping test photos: the straightened card just read, named by what it was found to be.
+        com.mtgscanner.scan.TestPhotos.saveFor(repo.appContext, card.id)
         // Added by hand a moment ago and still under the camera: don't offer it again until it leaves.
         if (!s.autoAdd && _state.value.current == null && alreadyHandled(card, id.exact)) {
             _state.update { it.copy(lookingUp = false) }
@@ -1400,6 +1400,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
 
     internal var pageJob: kotlinx.coroutines.Job? = null
     internal var photoJob: Job? = null
+    /** The cards of the last "Cards in view" capture, by where they lay, so the next capture doesn't read them again. */
+    internal val spreadTracks = com.mtgscanner.scan.CardTracks<Pair<Long, com.mtgscanner.scan.CardTextGuess>>(minOverlap = 0.7f, maxMissed = 1)
 
     /** Clears the list on screen. Cards stay in the collection. */
     fun clearList() = _state.update { it.copy(session = emptyList(), showList = false, summary = summaryOf(it.session)) }

@@ -44,6 +44,7 @@ object WhatsNew {
         150 to "Copy a card list anywhere and Grimoire offers to add it. Card pages have Move, +1, Sell and Share at the bottom, and price charts read out by finger.",
         153 to "Reading Japanese, Chinese and Korean names is now an optional download in Settings › Data.",
         155 to "Pick how a box is sorted when you make it: Color → Type → A–Z, Set → Number and more, up to three levels. Boxes can have a location and rows, and you can set your own color order.",
+        159 to "New: Know cards by picture, an optional download in Settings › Data. It finds cards whose text can't be read (foils, glare, old frames, other languages) and picks the exact printing.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

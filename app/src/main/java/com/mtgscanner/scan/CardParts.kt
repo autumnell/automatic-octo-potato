@@ -9,6 +9,9 @@ import kotlinx.coroutines.tasks.await
  * Reading the parts of a straightened card: name bar, footer, art window and set symbol. Shared by the live camera
  * ([CardTextAnalyzer]) and photos from the gallery ([PhotoCards]), so a fix to one reaches both.
  */
+/** The art window's two hashes ([ImageHash.dHash], [ImageHash.pHash]), and its embedding by the art model. */
+data class ArtRead(val hash: Long, val phash: Long?, val embedding: ArtVector?)
+
 internal object CardParts {
     /** The name strip is drawn at least this tall per card height, so small cards still read. */
     const val NAME_TARGET_H = 700f
@@ -133,15 +136,37 @@ internal object CardParts {
      * The art window of the straightened card: its hash, and its embedding when [embed] gives one
      * (called with the hash and the art picture, which is recycled afterwards).
      */
-    fun art(quad: FloatArray, turn: Int, draw: Draw, embed: (Long, Bitmap) -> ArtVector?): Pair<Long, ArtVector?>? {
+    fun art(quad: FloatArray, turn: Int, draw: Draw, embed: (Long, Bitmap) -> ArtVector?): ArtRead? {
         val art = draw(CardQuad.ordered(quad, turn), CardWarp.ART, ART_W, ART_H) ?: return null
         return try {
             val hash = ArtHashing.hash(art, 0, 0, art.width, art.height) ?: return null
-            hash to embed(hash, art)
+            ArtRead(hash, ArtHashing.phash(art, 0, 0, art.width, art.height), embed(hash, art))
         } finally {
             art.recycle()
         }
     }
+
+    /** The whole card straightened at the card picture model's size, upright by [turn]; for [CardPrints]. */
+    fun whole(quad: FloatArray, turn: Int, draw: Draw): Bitmap? =
+        draw(CardQuad.ordered(quad, turn), WHOLE, CardPrintPrep.CARD_W, CardPrintPrep.CARD_H)
+
+    /** The whole card, as a part of itself. */
+    private val WHOLE = floatArrayOf(0f, 0f, 1f, 1f)
+
+    /**
+     * A strip with uneven light (glare on part of it, or dim) evened out with CLAHE, which brightens and sharpens
+     * each patch by its own light instead of the whole strip at once; null when it's fine as it is or OpenCV is off.
+     */
+    fun evened(strip: Bitmap, glare: Boolean): Bitmap? {
+        if (!CvCards.ready) return null
+        val luma = CardWarp.luma(strip)
+        val mean = luma.average()
+        if (!glare && mean >= DIM_MEAN) return null
+        return cvSafe { CvCards.clahe(strip) }
+    }
+
+    /** A strip darker than this on average (0 to 255) is evened out. */
+    private const val DIM_MEAN = 90.0
 
     /** The set symbol's shape, from the right end of the type line. */
     fun symbol(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? {

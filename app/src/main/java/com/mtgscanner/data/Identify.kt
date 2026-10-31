@@ -191,7 +191,7 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
     val symbol = guess.symbol
     val hash = guess.artHash
     val embedding = guess.artEmbedding
-    if (year == null && symbol == null && hash == null && embedding == null) return null
+    if (year == null && symbol == null && hash == null && embedding == null && guess.cardPrint == null) return null
     // With the set code read (or the set lock standing in for it), only that set's printings are candidates.
     val set = guess.setCode
     // From the loaded set when there is one; else from Scryfall, only around the year read when one was, so a
@@ -203,6 +203,8 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
     }.getOrNull() ?: return null
     var pool = set?.let { s -> all.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { all } } ?: all
     if (pool.size < 2) return null
+    // The card picture model tells printings apart better than the year or symbol read: it goes first.
+    com.mtgscanner.scan.CardPrints.pick(guess.cardPrint, pool)?.let { return base.copy(card = it, exact = true) }
     pool = PrintingPick.newestFirst(pool) { it.releasedAt }
     var narrowed = false
     if (year != null) {
@@ -220,7 +222,7 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
         }
     }
     if (pool.size > 1 && (hash != null || embedding != null)) {
-        runCatching { art.bestPrinting(pool, hash, embedding) }.getOrNull()?.let { return base.copy(card = it, exact = true) }
+        runCatching { art.bestPrinting(pool, hash, embedding, guess.artPHash) }.getOrNull()?.let { return base.copy(card = it, exact = true) }
     }
     if (!narrowed) return null
     val pick = pool.first()
@@ -233,6 +235,7 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
  */
 private suspend fun CollectionRepository.narrowSameNumber(same: List<ScryfallCard>, guess: CardTextGuess): Pair<ScryfallCard, Boolean> {
     if (same.size == 1) return same[0] to true
+    com.mtgscanner.scan.CardPrints.pick(guess.cardPrint, same)?.let { return it to true }
     var pool = PrintingPick.newestFirst(same) { it.releasedAt }
     guess.year?.let { y -> PrintingPick.byYear(pool, y) { it.releasedAt }.takeIf { it.isNotEmpty() }?.let { pool = it } }
     val symbol = guess.symbol
@@ -243,7 +246,7 @@ private suspend fun CollectionRepository.narrowSameNumber(same: List<ScryfallCar
         }
     }
     if (pool.size > 1 && (guess.artHash != null || guess.artEmbedding != null)) {
-        runCatching { art.bestPrinting(pool, guess.artHash, guess.artEmbedding) }.getOrNull()?.let { return it to true }
+        runCatching { art.bestPrinting(pool, guess.artHash, guess.artEmbedding, guess.artPHash) }.getOrNull()?.let { return it to true }
     }
     return pool.first() to (pool.size == 1)
 }

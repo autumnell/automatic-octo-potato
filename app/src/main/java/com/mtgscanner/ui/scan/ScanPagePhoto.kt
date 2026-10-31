@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.data.matchPicture
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.BoxRules
@@ -156,11 +157,15 @@ fun ScanViewModel.captureSpread() = _state.update { it.copy(wantSpread = true, p
 /** Called by the analyzer with the frame, turned upright; this takes it over. */
 fun ScanViewModel.onSpread(frame: android.graphics.Bitmap) {
     _state.update { it.copy(wantSpread = false, status = "Binder page in the frame, or pick a photo") }
-    readCards("Cards in view") { frame }
+    // Cards left where they lay in the last capture aren't read again.
+    readCards("Cards in view", spreadTracks) { frame }
 }
 
 /** Reads every card in the picture [load] gives (recycled after), then looks each one up, for the review sheet. */
-private fun ScanViewModel.readCards(title: String, load: () -> android.graphics.Bitmap?) {
+private fun ScanViewModel.readCards(
+    title: String, tracks: com.mtgscanner.scan.CardTracks<Pair<Long, com.mtgscanner.scan.CardTextGuess>>? = null,
+    load: () -> android.graphics.Bitmap?,
+) {
     photoJob?.cancel()
     _state.update { it.copy(photo = PhotoRun(title = title)) }
     photoJob = viewModelScope.launch {
@@ -169,7 +174,7 @@ private fun ScanViewModel.readCards(title: String, load: () -> android.graphics.
                 val bmp = load()
                 if (bmp == null) null
                 else try {
-                    com.mtgscanner.scan.PhotoCards.read(bmp, { b -> repo.artEmbedder.embed(b) }, repo.artIndex.hasAny)
+                    com.mtgscanner.scan.PhotoCards.read(bmp, { b -> repo.artEmbedder.embed(b) }, repo.artIndex.hasAny, tracks)
                 } finally {
                     bmp.recycle()
                 }
@@ -189,12 +194,8 @@ private suspend fun ScanViewModel.photoItem(i: Int, r: com.mtgscanner.scan.Photo
     val g = r.guess
     val card = when {
         g.key != null -> runCatching { repo.identify(g)?.card }.getOrNull()
-        g.artOnly.isNotEmpty() -> {
-            val embeddings = g.artOnlyEmbeddings
-            val model = embeddings.firstOrNull()?.model
-            val hit = runCatching {
-                repo.artIndex.match(g.artOnly.toLongArray(), SortPrefs.setLock, embeddings.filter { it.model == model }.map { it.values }, model)
-            }.getOrNull()
+        g.pictureOnly -> {
+            val hit = runCatching { repo.matchPicture(g, SortPrefs.setLock) }.getOrNull()
             hit?.let { h -> runCatching { repo.cardById(h.id) }.getOrNull() }
         }
         else -> null

@@ -47,6 +47,8 @@ class FramePool(private val keep: Int = 6) {
     private val hashes = ArrayDeque<Long>()
     private var symbol: SymbolPrint? = null
     private var embedding: ArtVector? = null
+    private var phash: Long? = null
+    private val prints = ArrayDeque<FloatArray>()
 
     val frames: Int get() = count
     private var count = 0
@@ -57,6 +59,8 @@ class FramePool(private val keep: Int = 6) {
         g.artHash?.let { push(hashes, it) }
         g.symbol?.let { symbol = it }
         g.artEmbedding?.let { embedding = it }
+        g.artPHash?.let { phash = it }
+        g.cardPrint?.let { push(prints, it) }
     }
 
     private fun <T> push(q: ArrayDeque<T>, v: T) {
@@ -73,13 +77,25 @@ class FramePool(private val keep: Int = 6) {
         artHash = medoid(hashes.toList()) ?: g.artHash,
         symbol = g.symbol ?: symbol,
         artEmbedding = g.artEmbedding ?: embedding,
+        artPHash = g.artPHash ?: phash,
+        // Fingerprints of several frames averaged: one frame's blur or glare counts for less.
+        cardPrint = average(prints.toList()) ?: g.cardPrint,
     )
 
     fun clear() {
-        years.clear(); hashes.clear(); symbol = null; embedding = null; count = 0
+        years.clear(); hashes.clear(); symbol = null; embedding = null; phash = null; prints.clear(); count = 0
     }
 
     companion object {
+        /** The average of [prints], scaled back to length 1; null for none. */
+        fun average(prints: List<FloatArray>): FloatArray? {
+            if (prints.isEmpty()) return null
+            if (prints.size == 1) return prints[0]
+            val sum = FloatArray(prints[0].size)
+            for (p in prints) if (p.size == sum.size) for (i in sum.indices) sum[i] += p[i]
+            return CardGallery.unit(sum)
+        }
+
         /** The value seen most often; the latest wins a tie. */
         fun <T> mostCommon(values: List<T>): T? {
             if (values.isEmpty()) return null
