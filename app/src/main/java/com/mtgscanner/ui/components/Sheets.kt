@@ -41,6 +41,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -134,12 +135,35 @@ fun AddCardSheet(
     owned: String? = null,
     /** Opens your copy when the "You own" line is tapped; null leaves the line plain. */
     onOwned: (() -> Unit)? = null,
+    /** Decks to put the card straight into; shown when [onAddToDeck] is set. */
+    decks: List<com.mtgscanner.data.db.Deck> = emptyList(),
+    onAddToDeck: ((foil: Boolean, qty: Int, deckId: Long) -> Unit)? = null,
+    /** Makes a deck with this name; the caller then passes it back as [pick]. */
+    onCreateDeck: ((String) -> Unit)? = null,
+    /** A box or deck just made from this sheet, to select. */
+    pick: AddPick? = null,
 ) {
     var foil by remember(card.id) { mutableStateOf(!card.hasNonFoil) }
     var qty by remember(card.id) { mutableIntStateOf(1) }
     // The last box used may have been deleted since; fall back to Auto-sort rather than a box that's gone.
     var boxId by remember { mutableLongStateOf(defaultBoxId) }
-    if (boxId != CardBox.AUTO_SORT && boxes.isNotEmpty() && boxes.none { it.id == boxId }) boxId = CardBox.AUTO_SORT
+    /** A deck picked instead of a box; 0 when a box is picked. */
+    var deckId by remember { mutableLongStateOf(0L) }
+    var namingDeck by remember { mutableStateOf(false) }
+    LaunchedEffect(pick) {
+        when {
+            pick == null -> Unit
+            pick.deckId != 0L -> deckId = pick.deckId
+            else -> { boxId = pick.boxId; deckId = 0L }
+        }
+    }
+    // A box just made may not be in [boxes] yet; it isn't "gone".
+    if (boxId != CardBox.AUTO_SORT && boxId != pick?.boxId && boxes.isNotEmpty() && boxes.none { it.id == boxId }) boxId = CardBox.AUTO_SORT
+    if (deckId != 0L && deckId != pick?.deckId && decks.none { it.id == deckId }) deckId = 0L
+    val showDecks = onAddToDeck != null
+    if (namingDeck && onCreateDeck != null) {
+        NewDeckDialog(onCreate = { onCreateDeck(it); namingDeck = false }, onDismiss = { namingDeck = false })
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
@@ -202,37 +226,64 @@ fun AddCardSheet(
                 Text("Quantity", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 QuantityStepper(qty, onChange = { qty = it.coerceIn(1, 99) })
             }
-            if (boxes.isEmpty()) {
+            if (boxes.isEmpty() && (!showDecks || decks.isEmpty())) {
                 Spacer(Modifier.height(12.dp))
                 Text("Cards go into boxes. Create one to add this card.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onCreateBox, shape = RoundedCornerShape(Corners.Medium)) {
-                    Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Create a box")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onCreateBox, shape = RoundedCornerShape(Corners.Medium)) {
+                        Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Create a box")
+                    }
+                    if (showDecks && onCreateDeck != null) OutlinedButton(onClick = { namingDeck = true }, shape = RoundedCornerShape(Corners.Medium)) {
+                        Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("New deck")
+                    }
                 }
             } else {
                 Spacer(Modifier.height(8.dp))
                 Text("Add to", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectPill("Auto-sort", boxId == CardBox.AUTO_SORT, onClick = { boxId = CardBox.AUTO_SORT }, leading = {
-                        Icon(Icons.AutoMirrored.Outlined.Sort, null, modifier = Modifier.size(14.dp), tint = if (boxId == CardBox.AUTO_SORT) Palette.AccentText else Palette.Icon)
-                    })
-                    boxes.forEach { b ->
-                        SelectPill(b.name, b.id == boxId, onClick = { boxId = b.id }, leading = {
-                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (b.id == boxId) Palette.AccentText else Palette.Icon)
+                    if (boxes.isNotEmpty()) {
+                        val auto = deckId == 0L && boxId == CardBox.AUTO_SORT
+                        SelectPill("Auto-sort", auto, onClick = { boxId = CardBox.AUTO_SORT; deckId = 0L }, leading = {
+                            Icon(Icons.AutoMirrored.Outlined.Sort, null, modifier = Modifier.size(14.dp), tint = if (auto) Palette.AccentText else Palette.Icon)
                         })
+                    }
+                    boxes.forEach { b ->
+                        val on = deckId == 0L && b.id == boxId
+                        SelectPill(b.name, on, onClick = { boxId = b.id; deckId = 0L }, leading = {
+                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (on) Palette.AccentText else Palette.Icon)
+                        })
+                    }
+                    NewPill("New box", onCreateBox)
+                }
+                if (showDecks) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Or into a deck", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        decks.forEach { d ->
+                            val on = d.id == deckId
+                            SelectPill(d.name, on, onClick = { deckId = if (on) 0L else d.id }, leading = {
+                                Icon(boxIcon("deck"), null, modifier = Modifier.size(14.dp), tint = if (on) Palette.AccentText else Palette.Icon)
+                            })
+                        }
+                        if (onCreateDeck != null) NewPill("New deck") { namingDeck = true }
                     }
                 }
             }
             Spacer(Modifier.height(20.dp))
+            val toDeck = deckId != 0L && onAddToDeck != null
             GradientButton(
-                text = "Add to collection",
+                text = if (toDeck) "Add to ${decks.firstOrNull { it.id == deckId }?.name ?: "deck"}" else "Add to collection",
                 icon = Icons.Outlined.Add,
-                onClick = { onAdd(foil, qty, boxId) },
+                onClick = { if (toDeck) onAddToDeck?.invoke(foil, qty, deckId) else onAdd(foil, qty, boxId) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = boxes.isNotEmpty(),
+                enabled = toDeck || boxes.isNotEmpty(),
             )
             if (onWishlist != null) {
                 Spacer(Modifier.height(8.dp))
@@ -245,6 +296,36 @@ fun AddCardSheet(
             Spacer(Modifier.height(16.dp))
         }
     }
+}
+
+/** A box or deck just made from [AddCardSheet], for it to select. */
+data class AddPick(val boxId: Long = 0L, val deckId: Long = 0L)
+
+/** A dashed "+ New box" pill at the end of a row of choices. */
+@Composable
+private fun NewPill(label: String, onClick: () -> Unit) {
+    SelectPill(label, false, onClick = onClick, leading = {
+        Icon(Icons.Outlined.Add, null, modifier = Modifier.size(14.dp), tint = Palette.Icon)
+    })
+}
+
+/** Asks for a new deck's name. */
+@Composable
+private fun NewDeckDialog(onCreate: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("New deck") },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                value = name, onValueChange = { name = it.take(60) },
+                placeholder = { Text("Deck name") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onCreate(name) }, enabled = name.isNotBlank()) { Text("Create") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

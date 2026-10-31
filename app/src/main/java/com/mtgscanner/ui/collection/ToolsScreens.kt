@@ -492,6 +492,9 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         }
     }
 
+    val decks by search.decks.collectAsStateWithLifecycle()
+    var pick by remember { mutableStateOf<com.mtgscanner.ui.components.AddPick?>(null) }
+    LaunchedEffect(sui.selected?.id) { pick = null }
     sui.selected?.let { card ->
         if (!sui.showPrintings) AddCardSheet(
             card = card,
@@ -503,10 +506,18 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
             onCreateBox = { newBox = true },
             onWishlist = search::wishlist,
             owned = ownedAny.of(card)?.label,
+            decks = decks,
+            onAddToDeck = search::addToDeck,
+            onCreateDeck = { name -> search.createDeck(name) { pick = com.mtgscanner.ui.components.AddPick(deckId = it) } },
+            pick = pick,
         )
     }
     if (sui.showPrintings) PrintingsSheet(sui.printings, sui.selected?.id, search::pickPrinting, search::closePrintings)
-    if (newBox) BoxEditorSheet(title = "New box", onSave = { search.createBox(it); newBox = false }, onDismiss = { newBox = false })
+    if (newBox) BoxEditorSheet(
+        title = "New box",
+        onSave = { d -> search.createBox(d) { pick = com.mtgscanner.ui.components.AddPick(boxId = it) }; newBox = false },
+        onDismiss = { newBox = false },
+    )
 
     if (confirmWish) AlertDialog(
         onDismissRequest = { confirmWish = false },
