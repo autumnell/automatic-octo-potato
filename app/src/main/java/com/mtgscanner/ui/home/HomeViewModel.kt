@@ -136,9 +136,9 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
 
     /** Cards to move and unknown scans, for "To be sorted". */
-    val toSort: StateFlow<ToSortUi> = combine(repo.observeAll(), repo.observeBoxes(), repo.observePending()) { cards, boxes, pending ->
+    val toSort: StateFlow<ToSortUi> = combine(repo.observeAll(), repo.observeBoxes(), repo.observePending(), com.mtgscanner.data.BoxPrefs.toSortFlow()) { cards, boxes, pending, marked ->
         ToSortUi(
-            items = runCatching { repo.cardsToSort(cards, boxes) }.getOrDefault(emptyList()),
+            items = runCatching { repo.cardsToSort(cards, boxes, marked) }.getOrDefault(emptyList()),
             unknown = pending.filter { it.unknown },
             boxNames = boxes.associate { it.id to it.name },
         )

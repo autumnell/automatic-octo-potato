@@ -225,9 +225,9 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         BoxPrefs.setPlace(repo.appContext, id, BoxPlace(d.location, d.rows))
     }
 
-    /** "To be sorted": cards the rules send to another box, and cards in catch-all boxes that fit a real one. */
-    val toSort: StateFlow<List<SortItem>> = combine(repo.observeAll(), repo.observeBoxes()) { cards, boxes ->
-        runCatching { repo.cardsToSort(cards, boxes) }.getOrDefault(emptyList())
+    /** "To be sorted": cards in boxes marked To be sorted, with the box each goes to. */
+    val toSort: StateFlow<List<SortItem>> = combine(repo.observeAll(), repo.observeBoxes(), BoxPrefs.toSortFlow()) { cards, boxes, marked ->
+        runCatching { repo.cardsToSort(cards, boxes, marked) }.getOrDefault(emptyList())
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Boxes as stored, for the shelf spot of cards found by the search. */

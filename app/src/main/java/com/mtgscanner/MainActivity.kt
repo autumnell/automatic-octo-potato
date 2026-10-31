@@ -254,9 +254,9 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     // Small counts on the tabs: cards waiting to be sorted, and scans saved until there's a connection.
     val badges by remember {
         val repo = (ctx.applicationContext as MtgApp).repository
-        kotlinx.coroutines.flow.combine(repo.observeAll(), repo.observeBoxes(), repo.observePending()) { cards, boxes, pending ->
+        kotlinx.coroutines.flow.combine(repo.observeAll(), repo.observeBoxes(), repo.observePending(), com.mtgscanner.data.BoxPrefs.toSortFlow()) { cards, boxes, pending, marked ->
             TabBadges(
-                toSort = runCatching { repo.cardsToSort(cards, boxes).size }.getOrDefault(0) + pending.count { it.unknown },
+                toSort = runCatching { repo.cardsToSort(cards, boxes, marked).size }.getOrDefault(0) + pending.count { it.unknown },
                 waiting = pending.count { !it.unknown },
             )
         }.flowOn(kotlinx.coroutines.Dispatchers.Default)
