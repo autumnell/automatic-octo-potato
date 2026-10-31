@@ -539,6 +539,15 @@ private fun BoxCard(
                 DropdownMenuItem(text = { Text("Card order") }, onClick = { menu = false; onLayout() })
                 if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
+                if (b.kind != "deck") {
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    val marked = b.id in com.mtgscanner.data.BoxPrefs.toSort
+                    DropdownMenuItem(
+                        text = { Text("To be sorted") },
+                        trailingIcon = { if (marked) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
+                        onClick = { menu = false; com.mtgscanner.data.BoxPrefs.setToSort(ctx, b.id, !marked) },
+                    )
+                }
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onShare() })
                 if (b.cards > 0) DropdownMenuItem(text = { Text("Move to a deck") }, onClick = { menu = false; onToDeck() })
                 if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { menu = false; onNfc() })
@@ -626,6 +635,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
             com.mtgscanner.data.BoxPrefs.places[b.id]?.location?.takeIf { it.isNotBlank() }?.let { where ->
                 Text(where, style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            if (b.id in com.mtgscanner.data.BoxPrefs.toSort) Text("To be sorted", style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1)
             if (layout.shows(CollectionPart.RULES)) {
                 Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }

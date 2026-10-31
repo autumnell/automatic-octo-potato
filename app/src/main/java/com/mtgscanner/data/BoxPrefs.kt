@@ -33,6 +33,9 @@ object BoxPrefs {
     /** Box id → where the box physically is and how many rows it has. */
     var places by mutableStateOf<Map<Long, BoxPlace>>(emptyMap())
         private set
+    /** Boxes marked "To be sorted": only cards in these show as waiting to be sorted. */
+    var toSort by mutableStateOf<Set<Long>>(emptySet())
+        private set
     /** Day (yyyy-MM-dd) of the last look at Scryfall's sets. */
     var setsCheckedDay: String = ""
         private set
@@ -49,6 +52,17 @@ object BoxPrefs {
         pendingSet = p.getString("pendingSet", null)?.split('|')?.takeIf { it.size == 4 }?.let { SetRelease(it[0], it[1], it[2], it[3]) }
         setsCheckedDay = p.getString("setsChecked", "").orEmpty()
         places = BoxPlace.decode(p.getString("places", null))
+        toSort = p.getString("toSort", null).orEmpty().split(',').mapNotNull { it.toLongOrNull() }.toSet()
+    }
+
+    /** [toSort] as a flow, so lists of cards to sort update when a box is marked. */
+    fun toSortFlow(): kotlinx.coroutines.flow.Flow<Set<Long>> = androidx.compose.runtime.snapshotFlow { toSort }
+
+    /** Marks [boxId] as a box of cards waiting to be sorted, or not. */
+    fun setToSort(context: Context, boxId: Long, on: Boolean) {
+        load(context)
+        toSort = if (on) toSort + boxId else toSort - boxId
+        prefs?.edit()?.putString("toSort", toSort.joinToString(","))?.apply()
     }
 
     /** Reads everything again, after a restore replaced the saved prefs. */

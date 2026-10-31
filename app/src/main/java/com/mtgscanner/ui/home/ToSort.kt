@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.Divider
 import com.mtgscanner.data.ScryfallCard
+import com.mtgscanner.data.BoxPrefs
 import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.data.SortReason
 import com.mtgscanner.data.Sorting
@@ -67,21 +68,23 @@ data class ToSortUi(
 }
 
 /**
- * Cards waiting to be sorted: ones the box rules say belong elsewhere ([CollectionRepository.misplaced]),
- * plus cards sitting in a catch-all box (not a trade binder or deck) that the sorting rules would
- * send to a real box. Uses the same choice as Auto-sort ([Sorting.decide], as pickDecision does);
- * the card's own copies aren't counted toward the keep-a-playset limit.
+ * Cards waiting to be sorted: only cards in boxes marked "To be sorted" ([toSortBoxes], see [BoxPrefs.toSort]), each
+ * with the box Auto-sort would send it to ([Sorting.decide], as pickDecision does). Other to-sort boxes aren't
+ * places to go. Cards with nowhere to go stay out of the list. The card's own copies aren't counted toward the
+ * keep-a-playset limit.
  */
-internal suspend fun CollectionRepository.cardsToSort(cards: List<CollectionCard>, boxes: List<Box>): List<SortItem> {
-    if (boxes.size < 2 || cards.isEmpty()) return emptyList()
+internal suspend fun CollectionRepository.cardsToSort(
+    cards: List<CollectionCard>,
+    boxes: List<Box>,
+    toSortBoxes: Set<Long> = BoxPrefs.toSort,
+): List<SortItem> {
+    val inbox = toSortBoxes.filterTo(HashSet()) { id -> boxes.any { it.id == id } }
+    if (inbox.isEmpty() || boxes.size < 2 || cards.isEmpty()) return emptyList()
     val byId = boxes.associateBy { it.id }
-    val moves = LinkedHashMap<Long, Long>()
-    misplaced().forEach { moves[it.item.id] = it.to }
-    val infos = boxInfos()
     val policy = SortPrefs.policy
-    val catchAll = boxes.filter {
-        it.kind != "trade" && it.kind != "deck" && it.boxRules().isCatchAll && it.id != policy.extrasBoxId && it.id != policy.bulkBoxId
-    }.map { it.id }.toSet()
+    val infos = boxInfos()
+    val places = infos.filter { it.id !in inbox }
+    if (places.isEmpty()) return emptyList()
     val notMain = infos.filterNot { Sorting.isMainBox(it, policy) }.map { it.id }.toSet()
     val inMain = HashMap<String, Int>()
     for (c in cards) {
@@ -89,19 +92,15 @@ internal suspend fun CollectionRepository.cardsToSort(cards: List<CollectionCard
         // Copies kept in a deck aren't in any box (see DeckSlots.kt), so they don't count.
         if (c.boxId !in notMain && c.boxId in byId) inMain[o] = (inMain[o] ?: 0) + c.quantity
     }
+    val items = ArrayList<SortItem>()
     for (c in cards) {
-        if (c.boxId !in catchAll || c.id in moves) continue
+        if (c.boxId !in inbox) continue
         val main = c.oracleId?.let { inMain[it] } ?: 0
         val others = if (c.boxId in notMain) main else main - c.quantity
-        val d = Sorting.decide(infos, c.facts(), policy, others.coerceAtLeast(0)) ?: continue
-        if (d.boxId == c.boxId || d.reason == SortReason.FALLBACK) continue
-        moves[c.id] = d.boxId
+        val d = Sorting.decide(places, c.facts(), policy, others.coerceAtLeast(0)) ?: continue
+        items += SortItem(c, d.boxId, byId[d.boxId]?.let { Sorting.spot(Divider.of(it.divider), c.name, c.facts()) })
     }
-    val cardById = cards.associateBy { it.id }
-    return moves.mapNotNull { (id, to) ->
-        val c = cardById[id] ?: return@mapNotNull null
-        SortItem(c, to, byId[to]?.let { Sorting.spot(Divider.of(it.divider), c.name, c.facts()) })
-    }.sortedBy { it.card.name }
+    return items.sortedBy { it.card.name }
 }
 
 /** Home section: counts, the first few cards with where they go, a Sort button, and unknown scans. */
