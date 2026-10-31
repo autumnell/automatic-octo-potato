@@ -64,7 +64,6 @@ import com.mtgscanner.data.BOX_PRESETS
 import com.mtgscanner.data.BOX_TEMPLATES
 import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.BoxRules
-import com.mtgscanner.data.Divider
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.boxRules
 import com.mtgscanner.data.db.facts
@@ -381,18 +380,36 @@ internal fun numTexts(r: BoxRules): Map<String, String> = mapOf(
     "minToughness" to r.minToughness, "maxToughness" to r.maxToughness,
 ).mapValues { it.value?.toString().orEmpty() }
 
-/** How the box is laid out inside: dividers and how many cards fit. */
+/** How the box is laid out inside: the card order, where it's kept, its rows and how many cards fit. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun LayoutCards(divider: Divider, onDivider: (Divider) -> Unit, capText: String, onCap: (String) -> Unit) {
-    var open by remember { mutableStateOf<String?>(null) }
+internal fun LayoutCards(
+    sortKey: String, onSortKey: (String) -> Unit,
+    location: String, onLocation: (String) -> Unit,
+    rows: Int, onRows: (Int) -> Unit,
+    capText: String, onCap: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf<String?>("order") }
+    fun toggle(k: String) { open = if (open == k) null else k }
     Label("Inside the box")
-    RuleCard("Dividers", divider.takeIf { it != Divider.NONE }?.label, open == "div", { open = if (open == "div") null else "div" }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Divider.entries.forEach { d -> SelectPill(d.label, d == divider, { onDivider(d) }) }
+    RuleCard("Card order", sortSummary(sortKey), open == "order", { toggle("order") }) {
+        SortPicker(sortKey, onSortKey)
+    }
+    val placeSummary = listOfNotNull(location.trim().ifEmpty { null }, rows.takeIf { it > 1 }?.let { "$it rows" }).joinToString(" · ").ifEmpty { null }
+    RuleCard("Where it's kept", placeSummary, open == "place", { toggle("place") }) {
+        OutlinedTextField(
+            value = location, onValueChange = { onLocation(it.take(60)) },
+            placeholder = { Text("Closet, top shelf") },
+            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
+        )
+        Spacer(Modifier.height(10.dp))
+        Text("Rows of cards", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
+        Spacer(Modifier.height(6.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(1, 2, 3, 4, 5, 6, 8).forEach { n -> SelectPill(n.toString(), rows == n, { onRows(n) }) }
         }
     }
-    RuleCard("Capacity", capText.toIntOrNull()?.takeIf { it > 0 }?.let { "$it cards" }, open == "cap", { open = if (open == "cap") null else "cap" }) {
+    RuleCard("Capacity", capText.toIntOrNull()?.takeIf { it > 0 }?.let { "$it cards" }, open == "cap", { toggle("cap") }) {
         OutlinedTextField(
             value = capText, onValueChange = onCap,
             placeholder = { Text("No limit") },

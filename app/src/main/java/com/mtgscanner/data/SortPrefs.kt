@@ -30,6 +30,10 @@ object SortPrefs {
     var priceBuffer by mutableStateOf(0)
         private set
 
+    /** Front-to-back order of color dividers ("White", "Blue"… "Lands"); see [Sorting.colorOrder]. */
+    var colorOrder by mutableStateOf(Sorting.DEFAULT_COLOR_ORDER)
+        private set
+
     val policy: SortPolicy
         get() = SortPolicy(playsetLimit, extrasBoxId.takeIf { playsetLimit > 0 }, bulkFloor, bulkBoxId.takeIf { bulkFloor != null })
 
@@ -47,6 +51,14 @@ object SortPrefs {
         bulkBoxId = p.getLong("bulkBox", -1L).takeIf { it >= 0 }
         setLock = p.getString("setLock", null)?.takeIf { it.isNotBlank() }
         priceBuffer = p.getInt("priceBuffer", 0).coerceIn(0, 50)
+        colorOrder = Sorting.fullColorOrder(p.getString("colorOrder", null)?.split(',').orEmpty())
+        Sorting.colorOrder = colorOrder
+    }
+
+    fun updateColorOrder(order: List<String>) {
+        colorOrder = Sorting.fullColorOrder(order)
+        Sorting.colorOrder = colorOrder
+        prefs?.edit()?.putString("colorOrder", colorOrder.joinToString(","))?.apply()
     }
 
     fun updatePriceBuffer(percent: Int) {

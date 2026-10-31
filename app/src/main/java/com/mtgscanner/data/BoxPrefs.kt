@@ -30,6 +30,9 @@ object BoxPrefs {
     /** The set being offered now, found by the daily check (saved as "code|name|type|date"). */
     var pendingSet by mutableStateOf<SetRelease?>(null)
         private set
+    /** Box id → where the box physically is and how many rows it has. */
+    var places by mutableStateOf<Map<Long, BoxPlace>>(emptyMap())
+        private set
     /** Day (yyyy-MM-dd) of the last look at Scryfall's sets. */
     var setsCheckedDay: String = ""
         private set
@@ -45,6 +48,7 @@ object BoxPrefs {
         offeredSets = p.getString("offeredSets", null).orEmpty().split(',').filter { it.isNotBlank() }.toSet()
         pendingSet = p.getString("pendingSet", null)?.split('|')?.takeIf { it.size == 4 }?.let { SetRelease(it[0], it[1], it[2], it[3]) }
         setsCheckedDay = p.getString("setsChecked", "").orEmpty()
+        places = BoxPlace.decode(p.getString("places", null))
     }
 
     /** Reads everything again, after a restore replaced the saved prefs. */
@@ -109,5 +113,35 @@ object BoxPrefs {
             e?.remove("pendingSet")
         }
         e?.apply()
+    }
+
+    /** Saves where [boxId] is kept and its rows; an empty place is forgotten. */
+    fun setPlace(context: Context, boxId: Long, place: BoxPlace) {
+        load(context)
+        places = if (place.isEmpty) places - boxId else places + (boxId to place.clean())
+        prefs?.edit()?.putString("places", BoxPlace.encode(places))?.apply()
+    }
+
+    fun place(boxId: Long): BoxPlace = places[boxId] ?: BoxPlace()
+}
+
+/** Where a box physically is ("Closet, top shelf") and how many rows of cards it holds. */
+data class BoxPlace(val location: String = "", val rows: Int = 1) {
+    val isEmpty: Boolean get() = location.isBlank() && rows <= 1
+
+    fun clean() = BoxPlace(location.trim().replace('\n', ' ').replace('\t', ' ').take(60), rows.coerceIn(1, MAX_ROWS))
+
+    companion object {
+        const val MAX_ROWS = 8
+
+        /** One box per line: "id<TAB>rows<TAB>location". */
+        fun encode(map: Map<Long, BoxPlace>): String =
+            map.entries.joinToString("\n") { (id, p) -> "$id\t${p.rows}\t${p.location}" }
+
+        fun decode(s: String?): Map<Long, BoxPlace> = s.orEmpty().lineSequence().mapNotNull { line ->
+            val parts = line.split('\t', limit = 3)
+            val id = parts.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+            id to BoxPlace(parts.getOrNull(2).orEmpty(), parts.getOrNull(1)?.toIntOrNull() ?: 1).clean()
+        }.filterNot { it.second.isEmpty }.toMap()
     }
 }

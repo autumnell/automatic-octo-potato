@@ -182,6 +182,10 @@ fun AutoSortOrderSheet(
 
             Spacer(Modifier.height(14.dp))
             HorizontalDivider(color = Palette.Rule)
+            ColorOrderSection()
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = Palette.Rule)
             Text("Box check reminder", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
             Spacer(Modifier.height(8.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -241,3 +245,34 @@ private fun BoxChoice(label: String, boxes: List<BoxSummary>, current: Long?, on
         }
     }
 }
+
+/** Front-to-back order of color dividers in every box, moved with up and down arrows. */
+@Composable
+private fun ColorOrderSection() {
+    val order = SortPrefs.colorOrder
+    Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Color order", style = MaterialTheme.typography.titleMedium)
+            Text("Front to back, for color dividers.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        }
+        if (order != com.mtgscanner.data.Sorting.DEFAULT_COLOR_ORDER) {
+            androidx.compose.material3.TextButton(onClick = { SortPrefs.updateColorOrder(com.mtgscanner.data.Sorting.DEFAULT_COLOR_ORDER) }) { Text("Reset") }
+        }
+    }
+    Spacer(Modifier.height(4.dp))
+    order.forEachIndexed { i, name ->
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${i + 1}.", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.width(28.dp))
+            Text(if (name == "Multicolor") "Multicolor (and color pairs)" else name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            IconButton(onClick = { SortPrefs.updateColorOrder(order.swap(i, i - 1)) }, enabled = i > 0) {
+                Icon(Icons.Outlined.KeyboardArrowUp, "Move $name up", tint = if (i > 0) Palette.Icon else Palette.Muted.copy(alpha = 0.4f))
+            }
+            IconButton(onClick = { SortPrefs.updateColorOrder(order.swap(i, i + 1)) }, enabled = i < order.lastIndex) {
+                Icon(Icons.Outlined.KeyboardArrowDown, "Move $name down", tint = if (i < order.lastIndex) Palette.Icon else Palette.Muted.copy(alpha = 0.4f))
+            }
+        }
+    }
+}
+
+private fun List<String>.swap(a: Int, b: Int): List<String> =
+    if (b !in indices) this else toMutableList().also { val t = it[a]; it[a] = it[b]; it[b] = t }

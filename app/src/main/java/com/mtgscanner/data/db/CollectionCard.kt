@@ -169,14 +169,14 @@ fun CollectionCard.changeSinceAdded(): Double? {
     return now - then
 }
 
-fun CollectionCard.facts() = com.mtgscanner.data.CardFacts(
+fun CollectionCard.facts(): com.mtgscanner.data.CardFacts = run { com.mtgscanner.data.SetDates.note(setCode, releasedAt); com.mtgscanner.data.CardFacts(
     colors = colors, rarity = rarity, typeLine = typeLine,
     treatments = treatments.split(',').filter { it.isNotBlank() }.toSet(),
     foil = foil, price = unitPrice(), setCode = setCode, name = name,
     colorIdentity = colorIdentity, cmc = cmc, power = power, toughness = toughness, reserved = reserved,
     formats = tagList().filter { it.startsWith("legal:") }.map { it.removePrefix("legal:") }.toSet(),
     number = collectorNumber,
-)
+) }
 
 fun CollectionCard.userTagList(): List<String> = userTags.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
