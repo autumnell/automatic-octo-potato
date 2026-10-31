@@ -10,6 +10,11 @@ import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.placeName
 import com.mtgscanner.data.observePlaces
+import com.mtgscanner.data.addToDeckList
+import com.mtgscanner.data.copiesOf
+import com.mtgscanner.data.deckById
+import com.mtgscanner.data.deckSlotId
+import com.mtgscanner.data.db.Deck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -95,6 +100,9 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         _ui.update { it.copy(recent = history.recent(), viewed = history.viewed()) }
     }
     val boxes: StateFlow<List<Box>> = repo.observeBoxes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Decks, so a card can go straight into one. */
+    val decks: StateFlow<List<Deck>> = repo.observeDecks().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Cards already in the collection, for "You own 3" and the owned badge on results. */
     val owned: StateFlow<Map<String, Owned>> = combine(repo.observeAll(), repo.observePlaces()) { cards, places ->
@@ -325,8 +333,40 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         }
     }
 
-    fun createBox(d: com.mtgscanner.ui.components.BoxDraft) {
-        viewModelScope.launch { repo.createBox(d.name, d.kind, d.rules, d.color) }
+    /** Makes a box; [onCreated] gets its id, so the add sheet can pick it. */
+    fun createBox(d: com.mtgscanner.ui.components.BoxDraft, onCreated: (Long) -> Unit = {}) {
+        viewModelScope.launch { onCreated(repo.createBox(d.name, d.kind, d.rules, d.color)) }
+    }
+
+    /** Makes an empty deck; [onCreated] gets its id. */
+    fun createDeck(name: String, onCreated: (Long) -> Unit = {}) {
+        val clean = name.trim().ifEmpty { return }
+        viewModelScope.launch { runCatching { repo.saveDeck(0, clean, "") }.getOrNull()?.let(onCreated) }
+    }
+
+    /**
+     * Adds copies to the collection, kept in a deck. The deck's list grows only when the deck now holds more
+     * copies than it lists, so adding cards a list already names doesn't count them twice.
+     */
+    fun addToDeck(foil: Boolean, qty: Int, deckId: Long) {
+        val card = _ui.value.selected ?: return
+        _ui.update { it.copy(selected = null) }
+        viewModelScope.launch {
+            val deck = repo.deckById(deckId) ?: run { _ui.update { it.copy(message = "That deck is gone.") }; return@launch }
+            val slot = repo.deckSlotId(deckId)
+            val inDeck = repo.copiesOf(card.oracleId, card.name).filter { it.boxId == slot }.sumOf { it.quantity }
+            val extra = (inDeck + qty - com.mtgscanner.scan.DeckText.count(deck.text, card.name)).coerceAtLeast(0)
+            val rowId = repo.add(card, foil, qty, slot)
+            if (extra > 0) repo.addToDeckList(deckId, card.name, extra)
+            val wish = repo.wishlistItem(card.oracleId)
+            repo.fulfilWish(card.oracleId, qty)
+            val msg = "Added ${qty}× ${card.name}${if (foil) " (foil)" else ""} to ${deck.name}" + (if (wish != null) " · off wishlist" else "")
+            com.mtgscanner.ui.components.Undo.offer(msg) {
+                repo.remove(rowId, qty)
+                if (extra > 0) repo.addToDeckList(deckId, card.name, -extra)
+                if (wish != null) repo.restoreWish(wish)
+            }
+        }
     }
 
     fun messageShown() = _ui.update { it.copy(message = null) }
