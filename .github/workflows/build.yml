@@ -203,4 +203,6 @@ jobs:
 
       - name: Report
         if: always()
-        run: cat app/build/scan-accuracy.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report (test skipped)" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          cat app/build/scan-accuracy.md 2>/dev/null || echo "No report (test skipped)"
+          cat app/build/scan-accuracy.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report (test skipped)" >> "$GITHUB_STEP_SUMMARY"
