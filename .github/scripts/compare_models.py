@@ -51,10 +51,16 @@ card_sess = ort.InferenceSession(os.path.join(models, "card.onnx"), providers=["
 pose_sess = ort.InferenceSession(os.path.join(models, "corners.onnx"), providers=["CPUExecutionProvider"])
 
 
+def feed(sess, a):
+    """Input in the type the model wants (the fp16 models want float16)."""
+    i = sess.get_inputs()[0]
+    return {i.name: a.astype(np.float16 if "float16" in i.type else np.float32)}
+
+
 def ours_embed(img):
     a = np.asarray(img.resize((320, 448), Image.BILINEAR), dtype=np.float32) / 255.0
     a = ((a - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
-    return unit(card_sess.run(None, {card_sess.get_inputs()[0].name: a})[0])
+    return unit(card_sess.run(None, feed(card_sess, a))[0].astype(np.float32))
 
 
 def order(q):
@@ -70,8 +76,8 @@ def order(q):
 def ours_corners(img):
     w, h = img.size
     a = (np.asarray(img.resize((640, 640), Image.BILINEAR), dtype=np.float32) / 255.0).transpose(2, 0, 1)[None]
-    outs = pose_sess.run(None, {pose_sess.get_inputs()[0].name: a.astype(np.float32)})
-    named = {o.name: v for o, v in zip(pose_sess.get_outputs(), outs)}
+    outs = pose_sess.run(None, feed(pose_sess, a))
+    named = {o.name: np.asarray(v, dtype=np.float32) for o, v in zip(pose_sess.get_outputs(), outs)}
     scores = np.asarray(named["scores"]).reshape(-1)
     kps = np.asarray(named["keypoints"]).reshape(-1)
     if scores.size == 0:
