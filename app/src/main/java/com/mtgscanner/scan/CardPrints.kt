@@ -63,7 +63,7 @@ object CardPrints {
     /** Which model finds a card's corners. */
     enum class Finder(val label: String) { GRIMOIRE("Grimoire"), YOLO("YOLO") }
 
-    private val _finder = MutableStateFlow(Finder.GRIMOIRE)
+    private val _finder = MutableStateFlow(Finder.YOLO)
     val finder: StateFlow<Finder> = _finder
     /** The YOLO finder's set-up: null when not needed or done, 0 while copying, or -1 when it isn't in this build. */
     private val _finderDownload = MutableStateFlow<Int?>(null)
@@ -113,7 +113,7 @@ object CardPrints {
         dir = File(ctx.applicationContext.filesDir, "prints")
         appContext = ctx.applicationContext
         val p = prefs(ctx)
-        _finder.value = runCatching { Finder.valueOf(p.getString(KEY_FINDER, null) ?: "") }.getOrDefault(Finder.GRIMOIRE)
+        _finder.value = runCatching { Finder.valueOf(p.getString(KEY_FINDER, null) ?: "") }.getOrDefault(Finder.YOLO)
         if (p.contains(KEY_STAND_OUT)) thresholds = MatchThresholds(p.getFloat(KEY_STAND_OUT, CardGallery.MIN_STAND_OUT), p.getFloat(KEY_LEAD, CardGallery.MIN_LEAD))
         if (isOn(ctx)) start(ctx.applicationContext)
     }

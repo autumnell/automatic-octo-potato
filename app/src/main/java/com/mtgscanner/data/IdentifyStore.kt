@@ -30,6 +30,8 @@ class IdentifyStore(dir: File) {
         ensureLoaded()
         val e = map[key] ?: return null
         if (System.currentTimeMillis() - e.at > maxAgeMs) return null
+        // Saved before Art Series cards were kept out of name reads: look it up again.
+        if (!e.picked && LocalPick.isArtCard(e.card)) return null
         Identification(e.card, e.confident, e.exact, e.picked)
     }
 

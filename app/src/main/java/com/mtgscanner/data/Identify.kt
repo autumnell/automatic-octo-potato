@@ -201,7 +201,9 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
         val near = year?.takeIf { set == null }?.let { y -> printingsCached(base.card, "year>=${y - 1} year<=${y + 1}") }
         near?.takeIf { it.isNotEmpty() } ?: printingsCached(base.card)
     }.getOrNull() ?: return null
-    var pool = set?.let { s -> all.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { all } } ?: all
+    // A name was read, so the card has a title: never an Art Series card.
+    val real = if (LocalPick.isArtCard(base.card)) all else LocalPick.realCards(all)
+    var pool = set?.let { s -> real.filter { it.set.equals(s, ignoreCase = true) }.ifEmpty { real } } ?: real
     if (pool.size < 2) return null
     // The card picture model tells printings apart better than the year or symbol read: it goes first.
     com.mtgscanner.scan.CardPrints.pick(guess.cardPrint, pool)?.let { return base.copy(card = it, exact = true) }
@@ -236,9 +238,10 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
  * Returns the pick and whether it's sure (one printing left, or the art matched).
  */
 private suspend fun CollectionRepository.narrowSameNumber(same: List<ScryfallCard>, guess: CardTextGuess): Pair<ScryfallCard, Boolean> {
-    if (same.size == 1) return same[0] to true
-    com.mtgscanner.scan.CardPrints.pick(guess.cardPrint, same)?.let { return it to true }
-    var pool = PrintingPick.newestFirst(same) { it.releasedAt }
+    val real = LocalPick.realCards(same)
+    if (real.size == 1) return real[0] to true
+    com.mtgscanner.scan.CardPrints.pick(guess.cardPrint, real)?.let { return it to true }
+    var pool = PrintingPick.newestFirst(real) { it.releasedAt }
     guess.year?.let { y -> PrintingPick.byYear(pool, y) { it.releasedAt }.takeIf { it.isNotEmpty() }?.let { pool = it } }
     val symbol = guess.symbol
     val sets = pool.map { it.set.lowercase() }.distinct()

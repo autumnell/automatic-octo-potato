@@ -170,7 +170,12 @@ class MainActivity : ComponentActivity() {
                 else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
             }
-            MtgTheme { AppRoot(openRequest) { openRequest = null } }
+            MtgTheme {
+                // The first open downloads what the scanner uses before showing the app.
+                var setupDone by remember { mutableStateOf(com.mtgscanner.data.FirstSetup.done(this@MainActivity)) }
+                if (setupDone) AppRoot(openRequest) { openRequest = null }
+                else com.mtgscanner.ui.home.FirstSetupScreen { setupDone = true }
+            }
         }
     }
 }

@@ -64,10 +64,20 @@ object LocalPick {
      */
     fun newest(cards: List<ScryfallCard>): ScryfallCard? =
         cards.sortedWith(
-            compareBy<ScryfallCard> { if (it.lang == "en") 0 else 1 }
+            compareBy<ScryfallCard> { if (isArtCard(it)) 1 else 0 }
+                .thenBy { if (it.lang == "en") 0 else 1 }
                 .thenBy { if (it.promo) 1 else 0 }
                 .thenByDescending { it.releasedAt ?: "" },
         ).firstOrNull()
+
+    /**
+     * Art Series cards: the artwork with a signature spot, no title, rules or footer. Their front name is the
+     * card's, so a name read on a card must never land on one.
+     */
+    fun isArtCard(c: ScryfallCard): Boolean = c.layout == "art_series"
+
+    /** [cards] without Art Series cards, unless that's all there is. */
+    fun realCards(cards: List<ScryfallCard>): List<ScryfallCard> = cards.filterNot(::isArtCard).ifEmpty { cards }
 
     /** The fields a scan needs, without the ones only the card page shows (it reads those fresh from Scryfall). */
     fun slim(c: ScryfallCard): ScryfallCard = c.copy(legalities = emptyMap(), relatedUris = emptyMap(), purchaseUris = emptyMap())
@@ -303,7 +313,7 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         if (k.isEmpty()) return null
         val all = if (set != null) query("SELECT data, priced FROM cards WHERE (nk = ? OR fk = ?) AND setc = ?", k, k, set.lowercase())
         else query("SELECT data, priced FROM cards WHERE nk = ? OR fk = ?", k, k)
-        return LocalPick.newest(all)
+        return LocalPick.newest(LocalPick.realCards(all))
     }
 
     /** Whether the list has any card from [set]: a set it doesn't know is newer than the list, so Scryfall is asked. */
