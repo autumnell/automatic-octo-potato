@@ -233,7 +233,7 @@ class CardTextParserTest {
     @Test fun titleCheck() {
         listOf("Lightning Bolt", "Jace, the Mind Sculptor", "Will-o'-the-Wisp", "Sword of Fire and Ice", "Storm, Windrider", "Ach! Hans, Run!")
             .forEach { assertTrue(it, CardTextParser.looksLikeTitle(it)) }
-        listOf("“Wind and lightning, hear my call!”", "Creatures with flying can't attack you or", "block creatures you control.", "Draw a card.")
+        listOf("“Wind and lightning, hear my call!”", "Creatures with flying can't attack you or", "block creatures you control.", "Draw a card.", "-Ms. Bumbleflower", "~Ms. Bumbleflower", "— Ms. Bumbleflower")
             .forEach { assertTrue(it, !CardTextParser.looksLikeTitle(it)) }
     }
 

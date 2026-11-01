@@ -144,7 +144,8 @@ object TestPhotos {
         if (hit.id == id) return true
         val row = g.rowOf(id)
         val name = if (row >= 0) g.nameAt(row) else runCatching { nameOf(id) }.getOrNull()
-        return name != null && hit.name == name
+        // Some printings are named "A // A" (reversible cards) while the gallery says "A".
+        return name != null && com.mtgscanner.util.CardNames.key(hit.name) == com.mtgscanner.util.CardNames.key(name)
     }
 
     /** Fits the picture match's thresholds to the kept photos ([ThresholdTuner]) and uses them. Null with too few. */

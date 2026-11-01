@@ -63,7 +63,7 @@ class ScanAccuracyTest {
             val name = if (row >= 0) gallery.nameAt(row) else scanNames[id]
             when {
                 hit == null -> t[2]++
-                hit.id == id || hit.name == name -> t[0]++
+                hit.id == id || (name != null && sameCard(hit.name, name)) -> t[0]++
                 else -> t[1]++
             }
         }
@@ -90,60 +90,49 @@ class ScanAccuracyTest {
     }
 
     /**
-     * Each real scan in detail, plainly and with a few fixes tried: where the right card ranked, its score, and
-     * what the match gave instead. For finding why real scans miss.
+     * Each real scan in detail: what the match gave, the best and right cards' scores, where the right card ranked,
+     * and how far the best stood out and led. A right card far down names the file: it was likely saved under the
+     * wrong card.
      */
     private fun yourScans(samples: List<File>, g: CardGallery, scanNames: Map<String, String>, print: (Picture) -> FloatArray): String {
         val scans = samples.filter { it.nameWithoutExtension.contains("__Your scans") }
         if (scans.isEmpty()) return ""
-        val fixes = linkedMapOf<String, (Picture) -> Picture>(
-            "as is" to { it },
-            "turned" to { turned(it) },
-            "inset 3%" to { inset(it, 0.03f) },
-            "inset 6%" to { inset(it, 0.06f) },
-            "outset 3%" to { inset(it, -0.03f) },
-            "levels" to { levels(it) },
-            "levels+inset 3%" to { levels(inset(it, 0.03f)) },
-        )
-        val right = IntArray(fixes.size)
-        val wrong = IntArray(fixes.size)
-        val rows = StringBuilder("\n#### Your scans, one by one (as is)\n\n| Card | Got | Score | Right score | Rank | Stand out | Lead | Best fix |\n|---|---|---|---|---|---|---|---|\n")
+        val out = StringBuilder("\n#### Your scans, one by one\n\n| Card | Got | Score | Right score | Rank | Stand out | Lead |\n|---|---|---|---|---|---|---|\n")
         for (f in scans) {
             val id = f.name.substringBefore("__")
             val row = g.rowOf(id)
             val name = if (row >= 0) g.nameAt(row) else scanNames[id] ?: "(unknown)"
-            val pic = read(f)
-            var bestFix = ""
-            var bestFixScore = -2f
-            var line = ""
-            fixes.entries.forEachIndexed { i, (label, fix) ->
-                val q = print(fix(pic))
-                val hit = g.match(q)
-                val ok = hit != null && (hit.id == id || hit.name == name)
-                if (ok) right[i]++ else if (hit != null) wrong[i]++
-                val own = bestOfName(g, q, name)
-                if (own > bestFixScore) { bestFixScore = own; bestFix = label }
-                if (i == 0) {
-                    val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
-                    val rank = rankOf(g, q, name)
-                    // A right card far down means the photo was likely saved under the wrong card: name the file.
-                    val file = if (rank > 50) " (${f.nameWithoutExtension.substringAfterLast("__")}, best ${loose?.id})" else ""
-                    val got = (if (ok) "right" else hit?.name ?: "none (best ${loose?.name})") + file
-                    line = "| $name | $got | ${"%.2f".format(loose?.score ?: 0f)} | ${"%.2f".format(own)} | $rank | " +
-                        "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} | "
-                }
-            }
-            rows.append(line).append("$bestFix |\n")
+            val q = print(read(f))
+            val hit = g.match(q)
+            val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
+            val rank = rankOf(g, q, name)
+            val file = if (rank > 50) " (${f.nameWithoutExtension.substringAfterLast("__")}, best ${loose?.id})" else ""
+            val got = when {
+                hit == null -> "none (best ${loose?.name})"
+                hit.id == id || sameCard(hit.name, name) -> "right"
+                else -> hit.name
+            } + file
+            out.append("| $name | $got | ${"%.2f".format(loose?.score ?: 0f)} | ${"%.2f".format(bestOfName(g, q, name))} | $rank | " +
+                "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} |\n")
         }
-        val sum = StringBuilder("\n#### Your scans with fixes\n\n| Fix | Right | Wrong |\n|---|---|---|\n")
-        fixes.keys.forEachIndexed { i, label -> sum.append("| $label | ${right[i]} of ${scans.size} | ${wrong[i]} |\n") }
-        return sum.toString() + rows
+        return out.toString()
     }
+
+    private var keys: Array<String>? = null
+
+    /** Each gallery row's name key, worked out once. */
+    private fun keysOf(g: CardGallery): Array<String> =
+        keys ?: Array(g.size) { com.mtgscanner.util.CardNames.key(g.nameAt(it)) }.also { keys = it }
+
+    /** "A // A" (a reversible printing) and "A" are the same card. */
+    private fun sameCard(a: String, b: String) = com.mtgscanner.util.CardNames.key(a) == com.mtgscanner.util.CardNames.key(b)
 
     /** The best score of any printing named [name]. */
     private fun bestOfName(g: CardGallery, q: FloatArray, name: String): Float {
         var best = -2f
-        for (r in 0 until g.size) if (g.nameAt(r) == name) best = maxOf(best, g.score(q, r))
+        val k = com.mtgscanner.util.CardNames.key(name)
+        val keys = keysOf(g)
+        for (r in 0 until g.size) if (keys[r] == k) best = maxOf(best, g.score(q, r))
         return best
     }
 
@@ -151,46 +140,13 @@ class ScanAccuracyTest {
     private fun rankOf(g: CardGallery, q: FloatArray, name: String): Int {
         val own = bestOfName(g, q, name)
         val better = HashSet<String>()
-        for (r in 0 until g.size) if (g.nameAt(r) != name && g.score(q, r) > own) better += g.nameAt(r)
+        val k = com.mtgscanner.util.CardNames.key(name)
+        val keys = keysOf(g)
+        for (r in 0 until g.size) if (keys[r] != k && g.score(q, r) > own) better += keys[r]
         return better.size + 1
     }
 
     private fun turned(p: Picture) = Picture(p.w, p.h, IntArray(p.px.size) { p.px[p.px.size - 1 - it] })
-
-    /** The middle of [p] without [f] of each side (or with that much more, edge pixels repeated, when negative). */
-    private fun inset(p: Picture, f: Float): Picture {
-        val dx = p.w * f
-        val dy = p.h * f
-        return Picture(p.w, p.h, IntArray(p.w * p.h) { i ->
-            val x = dx + ((i % p.w) + 0.5f) * (p.w - 2 * dx) / p.w - 0.5f
-            val y = dy + ((i / p.w) + 0.5f) * (p.h - 2 * dy) / p.h - 0.5f
-            sample(p, x, y)
-        })
-    }
-
-    /** Each colour stretched so its darkest 1% is black and brightest 1% white (white balance and contrast). */
-    private fun levels(p: Picture): Picture {
-        val lo = IntArray(3)
-        val hi = IntArray(3)
-        for ((k, shift) in intArrayOf(16, 8, 0).withIndex()) {
-            val hist = IntArray(256)
-            for (c in p.px) hist[(c shr shift) and 0xFF]++
-            val cut = p.px.size / 100
-            var acc = 0
-            lo[k] = (0..255).first { acc += hist[it]; acc > cut }
-            acc = 0
-            hi[k] = (255 downTo 0).first { acc += hist[it]; acc > cut }
-        }
-        return Picture(p.w, p.h, IntArray(p.px.size) { i ->
-            var out = 0xFF shl 24
-            for ((k, shift) in intArrayOf(16, 8, 0).withIndex()) {
-                val v = (p.px[i] shr shift) and 0xFF
-                val span = (hi[k] - lo[k]).coerceAtLeast(1)
-                out = out or (((v - lo[k]) * 255 / span).coerceIn(0, 255) shl shift)
-            }
-            out
-        })
-    }
 
     private fun read(f: File): Picture = DataInputStream(f.inputStream().buffered()).use { s ->
         val w = s.readInt()
