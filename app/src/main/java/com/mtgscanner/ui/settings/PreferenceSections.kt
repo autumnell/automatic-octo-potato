@@ -146,7 +146,7 @@ internal fun Card(content: @Composable () -> Unit) {
 }
 
 @Composable
-internal fun ToggleRow(title: String, body: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(title: String, body: String, checked: Boolean, lines: Int = 1, onChange: (Boolean) -> Unit) {
     // One target for TalkBack: the whole row is the switch.
     Row(
         Modifier.fillMaxWidth()
@@ -156,7 +156,7 @@ internal fun ToggleRow(title: String, body: String, checked: Boolean, onChange: 
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = lines, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(12.dp))
         Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))

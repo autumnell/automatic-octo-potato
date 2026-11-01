@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -142,63 +143,87 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     // Ask for notifications first (Android 13+), or a failed weekly backup could never say so.
     val startWeekly = rememberAskNotifyThen { weeklyLauncher.launch("grimoire-backup.zip") }
 
-    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
-        Column {
+    val printsState by com.mtgscanner.scan.CardPrints.state.collectAsStateWithLifecycle()
+
+    // Work in progress and scans waiting to be added come first: they need attention.
+    if (busy != null || pending.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Group {
             busy?.let {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
                     Spacer(Modifier.width(10.dp))
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }
-                HorizontalDivider(color = Palette.Rule)
             }
-            Action(Icons.Outlined.FileUpload, "Import CSV", "ManaBox, Moxfield, Archidekt, Deckbox…") {
-                csvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
-            }
-            HorizontalDivider(color = Palette.Rule)
-            Action(Icons.Outlined.FileDownload, "Export", "CSV or insurance PDF") { choosingExport = true }
-            HorizontalDivider(color = Palette.Rule)
-            Action(Icons.Outlined.Save, "Back up", "Save everything to a file") {
-                backupLauncher.launch("grimoire-backup-${LocalDate.now()}.zip")
-            }
-            HorizontalDivider(color = Palette.Rule)
-            val weekly = DriveBackup.uri != null
-            ToggleRow("Weekly backup", if (weekly) "Last backup: ${backupDay(DriveBackup.lastBackup)}" else "To Drive or a folder", weekly) { on ->
-                if (on) startWeekly() else DriveBackup.disable(ctx.applicationContext)
-            }
-            if (weekly) {
-                Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
-                    TextButton(onClick = { vm.backupNow(ctx) }) { Text("Back up now") }
-                }
-            }
-            HorizontalDivider(color = Palette.Rule)
-            ToggleRow("Quiet at night", "No sound 10 pm to 8 am", quietNights) { on ->
-                quietNights = on
-                Notifications.setQuietNights(ctx.applicationContext, on)
-            }
-            HorizontalDivider(color = Palette.Rule)
-            CardListRow()
-            HorizontalDivider(color = Palette.Rule)
-            ForeignReadingRow()
-            HorizontalDivider(color = Palette.Rule)
-            CardPrintsRow()
-            HorizontalDivider(color = Palette.Rule)
-            Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
-                restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
-            }
-            HorizontalDivider(color = Palette.Rule)
-            Action(Icons.Outlined.History, "Automatic backups", "Saved before big changes") { autos = BackupIO.autoBackups(ctx) }
-            if (canUndoRestore) {
-                HorizontalDivider(color = Palette.Rule)
-                Action(Icons.AutoMirrored.Outlined.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
-            }
-            HorizontalDivider(color = Palette.Rule)
-            Action(Icons.Outlined.History, "Recent actions", "Undo any of the last 10") { com.mtgscanner.ui.components.Undo.showRecent.value = true }
             if (pending.isNotEmpty()) {
-                HorizontalDivider(color = Palette.Rule)
+                if (busy != null) HorizontalDivider(color = Palette.Rule)
                 Action(Icons.Outlined.CloudSync, "Add ${pending.sumOf { it.quantity }} offline scans", "Scanned while offline") { vm.resolvePending() }
             }
         }
+    }
+
+    SectionLabel("Backups")
+    Group {
+        Action(Icons.Outlined.Save, "Back up", "Save everything to a file") {
+            backupLauncher.launch("grimoire-backup-${LocalDate.now()}.zip")
+        }
+        HorizontalDivider(color = Palette.Rule)
+        val weekly = DriveBackup.uri != null
+        ToggleRow("Weekly backup", if (weekly) "Last backup: ${backupDay(DriveBackup.lastBackup)}" else "To Drive or a folder", weekly) { on ->
+            if (on) startWeekly() else DriveBackup.disable(ctx.applicationContext)
+        }
+        if (weekly) RowButton("Back up now") { vm.backupNow(ctx) }
+        HorizontalDivider(color = Palette.Rule)
+        Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
+            restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
+        }
+        HorizontalDivider(color = Palette.Rule)
+        Action(Icons.Outlined.History, "Automatic backups", "Saved before big changes") { autos = BackupIO.autoBackups(ctx) }
+        if (canUndoRestore) {
+            HorizontalDivider(color = Palette.Rule)
+            Action(Icons.AutoMirrored.Outlined.Undo, "Undo last restore", "Back to before you restored") { confirmUndo = true }
+        }
+    }
+
+    SectionLabel("Import and export")
+    Group {
+        Action(Icons.Outlined.FileUpload, "Import CSV", "ManaBox, Moxfield, Archidekt, Deckbox…") {
+            csvLauncher.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "application/octet-stream"))
+        }
+        HorizontalDivider(color = Palette.Rule)
+        Action(Icons.Outlined.FileDownload, "Export", "CSV or insurance PDF") { choosingExport = true }
+    }
+
+    SectionLabel("Scanning offline")
+    Group {
+        CardListRow()
+        HorizontalDivider(color = Palette.Rule)
+        ForeignReadingRow()
+    }
+
+    SectionLabel("Know cards by picture")
+    Group {
+        CardPrintsRow()
+        if (printsState == com.mtgscanner.scan.CardPrints.State.Ready) {
+            HorizontalDivider(color = Palette.Rule)
+            CardFinderRow()
+        }
+    }
+
+    if (printsState == com.mtgscanner.scan.CardPrints.State.Ready) {
+        SectionLabel("Test photos")
+        Group { TestPhotosRows() }
+    }
+
+    SectionLabel("Other")
+    Group {
+        ToggleRow("Quiet at night", "No sound 10 pm to 8 am", quietNights) { on ->
+            quietNights = on
+            Notifications.setQuietNights(ctx.applicationContext, on)
+        }
+        HorizontalDivider(color = Palette.Rule)
+        Action(Icons.Outlined.History, "Recent actions", "Undo any of the last 10") { com.mtgscanner.ui.components.Undo.showRecent.value = true }
     }
 
     RestorePreviewDialog(vm)
@@ -293,6 +318,18 @@ internal fun backupDay(millis: Long, withYear: Boolean = false): String =
     if (millis <= 0) "never"
     else DateTimeFormatter.ofPattern(if (withYear) "MMM d, yyyy" else "MMM d", Locale.US).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 
+/** One panel of rows, with the screen's side margin. */
+@Composable
+private fun Group(content: @Composable () -> Unit) {
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) { Column { content() } }
+}
+
+/** A text button under the row above, lined up with its title. */
+@Composable
+private fun RowButton(label: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 4.dp)) { TextButton(onClick = onClick) { Text(label) } }
+}
+
 @Composable
 private fun Action(icon: ImageVector, title: String, body: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -313,22 +350,18 @@ private fun CardListRow() {
     val st by local.status.collectAsStateWithLifecycle()
     var on by remember { mutableStateOf(local.enabled) }
     val body = st.label(on) + if (on && st.cards > 0 && st.updated.isNotEmpty()) "\nChecked ${st.updated}" else ""
-    ToggleRow("Card list on phone", body, on) { v ->
+    ToggleRow("Card list on phone", body, on, lines = 3) { v ->
         on = v
         local.enabled = v
         if (v) com.mtgscanner.work.CardListWorker.start(repo.appContext) else repo.appScope.launch { local.clear() }
     }
     if (on && st.progress == null) {
-        Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
-            TextButton(onClick = { com.mtgscanner.work.CardListWorker.start(repo.appContext, force = true) }) {
-                Text(if (st.cards > 0) "Check for new cards" else "Download now")
-            }
-        }
+        RowButton(if (st.cards > 0) "Check for new cards" else "Download now") { com.mtgscanner.work.CardListWorker.start(repo.appContext, force = true) }
     }
     if (on) {
         HorizontalDivider(color = Palette.Rule)
         var art by remember { mutableStateOf(local.artAuto) }
-        ToggleRow("Match by art", "Your $ART_AUTO_SETS biggest sets, so cards with hard-to-read names are found offline. On Wi-Fi.", art) { v ->
+        ToggleRow("Match by art", "Your $ART_AUTO_SETS biggest sets, so cards with hard-to-read names are found offline. On Wi-Fi.", art, lines = 2) { v ->
             art = v
             local.artAuto = v
             if (v) {
@@ -357,43 +390,36 @@ private fun ForeignReadingRow() {
     }
 }
 
-/**
- * Knowing cards by their picture: off until turned on, then a one-time download. Once it's ready, scans can be
- * kept as test photos, checked on the phone, or saved for the build server's accuracy test.
- */
-/** Which model finds a card's corners: ours, or open-card-collector's YOLO (downloaded when picked). */
+/** Which model finds a card's corners: ours, or open-card-collector's YOLO (inside the app, set up when picked). */
 @Composable
 private fun CardFinderRow() {
     val ctx = LocalContext.current
     val finder by com.mtgscanner.scan.CardPrints.finder.collectAsStateWithLifecycle()
     val download by com.mtgscanner.scan.CardPrints.finderDownload.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Text("Card finder", style = MaterialTheme.typography.bodyLarge)
+        Text("Card finder", style = MaterialTheme.typography.titleSmall)
         Text(
             when (val d = download) {
                 null -> if (finder == com.mtgscanner.scan.CardPrints.Finder.YOLO) "YOLO (open-card-collector): more exact corners on photos" else "Finds a card's corners when its outline isn't clear"
-                -1 -> "Couldn't get YOLO, using Grimoire's. Pick it again to retry"
-                else -> "Downloading YOLO… $d%"
+                -1 -> "YOLO isn't in this build, so Grimoire's is in use"
+                else -> "Setting up YOLO…"
             },
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
         )
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
             com.mtgscanner.scan.CardPrints.Finder.entries.forEach { f ->
                 com.mtgscanner.ui.components.SelectPill(
-                    f.label + if (f == com.mtgscanner.scan.CardPrints.Finder.YOLO) " · ${com.mtgscanner.scan.CardPrints.YOLO_MB} MB" else "",
-                    finder == f, { com.mtgscanner.scan.CardPrints.setFinder(ctx, f) },
+                    f.label, finder == f, { com.mtgscanner.scan.CardPrints.setFinder(ctx, f) },
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Knowing cards by their picture: off until turned on, then a one-time download. */
 @Composable
 private fun CardPrintsRow() {
     val ctx = LocalContext.current
-    val app = ctx.applicationContext
-    val scope = rememberCoroutineScope()
     val st by com.mtgscanner.scan.CardPrints.state.collectAsStateWithLifecycle()
     var on by remember { mutableStateOf(com.mtgscanner.scan.CardPrints.isOn(ctx)) }
     val body = when (val s = st) {
@@ -403,17 +429,22 @@ private fun CardPrintsRow() {
         com.mtgscanner.scan.CardPrints.State.Ready -> "Ready: ${"%,d".format(com.mtgscanner.scan.CardPrints.gallery?.size ?: 0)} printings"
         is com.mtgscanner.scan.CardPrints.State.Failed -> "${s.reason}. Turn off and on to retry"
     }
-    ToggleRow("Know cards by picture", body, on) { v ->
+    ToggleRow("Card pictures", body, on, lines = 2) { v ->
         on = v
         if (v) com.mtgscanner.scan.CardPrints.turnOn(ctx) else com.mtgscanner.scan.CardPrints.turnOff(ctx)
     }
-    if (!on || st != com.mtgscanner.scan.CardPrints.State.Ready) return
-    HorizontalDivider(color = Palette.Rule)
-    CardFinderRow()
-    HorizontalDivider(color = Palette.Rule)
+}
+
+/** Keeping scans as test photos, checking accuracy on them, and tuning to them. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TestPhotosRows() {
+    val ctx = LocalContext.current
+    val app = ctx.applicationContext
+    val scope = rememberCoroutineScope()
     var keep by remember { mutableStateOf(com.mtgscanner.scan.TestPhotos.isOn(ctx)) }
     var kept by remember { mutableIntStateOf(com.mtgscanner.scan.TestPhotos.count(ctx)) }
-    ToggleRow("Keep test photos", if (keep) "$kept kept from your scans" else "Saves each scanned card's picture, to measure accuracy", keep) { v ->
+    ToggleRow("Keep test photos", if (keep) "$kept kept from your scans" else "Saves each scanned card's picture, to measure accuracy", keep, lines = 2) { v ->
         keep = v
         com.mtgscanner.scan.TestPhotos.setOn(ctx, v)
     }
@@ -424,7 +455,8 @@ private fun CardPrintsRow() {
             runCatching { app.contentResolver.openOutputStream(uri)?.use { com.mtgscanner.scan.TestPhotos.zipTo(app, it) } }
         }
     }
-    FlowRow(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
+    HorizontalDivider(color = Palette.Rule)
+    FlowRow(Modifier.fillMaxWidth().padding(start = 4.dp, top = 4.dp, bottom = 4.dp)) {
         TextButton(onClick = {
             kept = com.mtgscanner.scan.TestPhotos.count(ctx)
             result = "Checking…"

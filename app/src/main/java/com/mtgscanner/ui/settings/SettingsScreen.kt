@@ -267,7 +267,6 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
     val ctx = LocalContext.current
     var versionTaps by remember { mutableIntStateOf(0) }
 
-    SectionLabel("Your data")
     DataSection(vm)
 
     if (AppSettings.scanLogUnlocked) {
@@ -322,7 +321,7 @@ private fun colorName(letter: Char?): String = when (letter) {
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+internal fun SectionLabel(text: String) {
     Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp))
 }
 

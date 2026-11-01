@@ -28,8 +28,9 @@ import java.util.concurrent.TimeUnit
  * Hugging Face, and the gallery is packed into a smaller file. Printings newer than the gallery are added from
  * Scryfall's pictures on Wi-Fi, once a week.
  *
- * The corner model can be swapped for open-card-collector's YOLO card finder ([Finder.YOLO], about 11 MB more),
- * downloaded from this app's "models" release. It's more exact on photos; it is AGPL-licensed.
+ * The corner model can be swapped for open-card-collector's YOLO card finder ([Finder.YOLO]),
+ * which comes inside the app (the build takes it from the repository's "models" release). It's more exact on
+ * photos; it is AGPL-licensed.
  *
  * Models: dhvazquez/mtg_card_identification_embeddings and dhvazquez/mtg_card_pose_estimation (MIT).
  * Gallery: maxhille/mtg-gallery-creator (CC-BY 4.0), built from Scryfall's card images.
@@ -64,7 +65,7 @@ object CardPrints {
 
     private val _finder = MutableStateFlow(Finder.GRIMOIRE)
     val finder: StateFlow<Finder> = _finder
-    /** The YOLO finder's download: null when not needed or done, else percent, or -1 when it failed. */
+    /** The YOLO finder's set-up: null when not needed or done, 0 while copying, or -1 when it isn't in this build. */
     private val _finderDownload = MutableStateFlow<Int?>(null)
     val finderDownload: StateFlow<Int?> = _finderDownload
 
@@ -95,15 +96,12 @@ object CardPrints {
     private val GALLERY = Download("$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_f16.bin", "gallery_f16.bin", 54_091_264)
     private val IDS = Download("$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_ids.json", "gallery_ids.json", 4_225_880)
     private val META = Download("$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/meta.json", "meta.json", 7_253_252)
-    private val YOLO_MODEL = Download(
-        "https://github.com/autumnell/automatic-octo-potato/releases/download/models/card-finder-yolo11n-obb.onnx",
-        "finder-yolo.onnx", YOLO_BYTES,
-    )
+    /** The YOLO finder inside the app, and its copy in the models folder (ONNX Runtime opens files). */
+    private const val YOLO_ASSET = "card-finder-yolo11n-obb.onnx"
+    private const val YOLO_FILE = "finder-yolo.onnx"
     private val ALL = listOf(CARD_MODEL, POSE_MODEL, IDS, META, GALLERY)
     /** Rounded, for the settings row. */
     const val DOWNLOAD_MB = 77
-    private const val YOLO_BYTES = 10_835_578L
-    const val YOLO_MB = 11
 
     private const val PACKED = "gallery.bin"
     private const val EXTRA = "gallery-new.bin"
@@ -113,6 +111,7 @@ object CardPrints {
     /** At app start: when turned on, loads what's downloaded (and fetches anything missing). */
     fun init(ctx: Context) {
         dir = File(ctx.applicationContext.filesDir, "prints")
+        appContext = ctx.applicationContext
         val p = prefs(ctx)
         _finder.value = runCatching { Finder.valueOf(p.getString(KEY_FINDER, null) ?: "") }.getOrDefault(Finder.GRIMOIRE)
         if (p.contains(KEY_STAND_OUT)) thresholds = MatchThresholds(p.getFloat(KEY_STAND_OUT, CardGallery.MIN_STAND_OUT), p.getFloat(KEY_LEAD, CardGallery.MIN_LEAD))
@@ -124,21 +123,30 @@ object CardPrints {
         start(ctx.applicationContext)
     }
 
-    /** Picks the corner model; YOLO is downloaded the first time it's picked. */
+    /** Whether this build carries the YOLO finder. */
+    fun hasYolo(ctx: Context): Boolean = runCatching { ctx.assets.open(YOLO_ASSET).close(); true }.getOrDefault(false)
+
+    private lateinit var appContext: Context
+
+    /** Picks the corner model; YOLO is set up the first time it's picked. */
     fun setFinder(ctx: Context, f: Finder) {
         prefs(ctx).edit().putString(KEY_FINDER, f.name).apply()
         _finder.value = f
+        appContext = ctx.applicationContext
         if (f == Finder.YOLO) scope.launch { lock.withLock { loadYolo() } }
     }
 
-    /** Downloads (when missing) and opens the YOLO finder; the corner model stays in use when it can't. */
+    /** Copies (when missing) and opens the YOLO finder; the corner model stays in use when it can't. */
     private fun loadYolo() {
-        if (_finder.value != Finder.YOLO || yoloNet != null || !::dir.isInitialized) return
+        if (_finder.value != Finder.YOLO || yoloNet != null || !::dir.isInitialized || !::appContext.isInitialized) return
         try {
-            val file = File(dir, YOLO_MODEL.file)
+            val file = File(dir, YOLO_FILE)
             if (!file.exists()) {
                 _finderDownload.value = 0
-                fetch(YOLO_MODEL) { done -> _finderDownload.value = (done * 100 / YOLO_MODEL.bytes).toInt().coerceIn(0, 100) }
+                dir.mkdirs()
+                val part = File(dir, "$YOLO_FILE.part")
+                appContext.assets.open(YOLO_ASSET).use { input -> part.outputStream().use { input.copyTo(it) } }
+                if (!part.renameTo(file)) throw IOException("Couldn't save the finder")
             }
             yoloNet = OnnxNet(file)
             _finderDownload.value = null

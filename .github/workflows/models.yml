@@ -1,5 +1,5 @@
-# Builds the optional YOLO card finder's ONNX file and keeps it on the "models" release, where the app downloads
-# it (Settings › Data › Card finder). Run it again by hand to rebuild the file.
+# Builds the optional YOLO card finder's ONNX file and keeps it on the "models" release; the app build puts it
+# in the APK (the repository is private, so the phone can't download it). Run it again by hand to rebuild the file.
 name: Models
 
 on:

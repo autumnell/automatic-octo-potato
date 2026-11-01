@@ -46,6 +46,16 @@ jobs:
             echo "No release key secret: signing with the committed key."
           fi
 
+      # The optional YOLO card finder goes in the APK (Settings › Data › Card finder): the repository is private,
+      # so the phone can't download it from the "models" release. A build without it still works.
+      - name: YOLO card finder
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p app/src/main/assets
+          gh release download models -p card-finder-yolo11n-obb.onnx -D app/src/main/assets --clobber \
+            || echo "No YOLO file on the models release: the build leaves it out."
+
       # A release build (R8, no debugging): much faster on the phone. Same app id as the old debug
       # builds, and the same committed key unless the private key above is set.
       - name: Build APK
