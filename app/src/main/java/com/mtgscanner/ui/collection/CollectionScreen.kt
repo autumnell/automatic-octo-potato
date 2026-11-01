@@ -37,6 +37,8 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.LocalShipping
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Sell
@@ -64,6 +66,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -780,10 +783,17 @@ private fun WishlistTab(vm: CollectionViewModel) {
     remember { com.mtgscanner.work.WatchStore.load(watchCtx) }
     val watch by com.mtgscanner.work.WatchStore.state.collectAsStateWithLifecycle()
     val gotIt by vm.gotIt.collectAsStateWithLifecycle()
+    val received by vm.received.collectAsStateWithLifecycle()
+    // Stages: cards marked ordered, and the pill that shows only those.
+    remember { com.mtgscanner.data.WishStages.load(watchCtx) }
+    val ordered = com.mtgscanner.data.WishStages.ordered
+    LaunchedEffect(wishlist) { if (wishlist.isNotEmpty()) com.mtgscanner.data.WishStages.keepOnly(wishlist.mapTo(HashSet()) { it.oracleId }) }
+    var onlyOrdered by rememberSaveable { mutableStateOf(false) }
+    val staged = if (onlyOrdered && wishlist.any { it.oracleId in ordered }) shown.filter { it.oracleId in ordered } else shown
     // "Deck" sort: one group per deck that wants cards (each card under its first deck A to Z), then the rest.
-    val groups: List<Pair<String?, List<WishlistItem>>> = remember(shown, sort, wishDecks) {
-        if (sort != WishlistSort.DECK) listOf(null to shown)
-        else shown.groupBy { wishDecks[CardNames.key(it.name)]?.firstOrNull() ?: "Loose" }.toList()
+    val groups: List<Pair<String?, List<WishlistItem>>> = remember(staged, sort, wishDecks) {
+        if (sort != WishlistSort.DECK) listOf(null to staged)
+        else staged.groupBy { wishDecks[CardNames.key(it.name)]?.firstOrNull() ?: "Loose" }.toList()
             .sortedWith(compareBy<Pair<String, List<WishlistItem>>> { it.first == "Loose" }.thenBy { it.first.lowercase() })
     }
     val onList = remember(wishlist) { wishlist.mapTo(HashSet()) { it.name.lowercase() } }
@@ -807,6 +817,8 @@ private fun WishlistTab(vm: CollectionViewModel) {
                 }
                 SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search or add a card")
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val nOrdered = wishlist.count { it.oracleId in ordered }
+                    if (nOrdered > 0) SelectPill("Ordered · $nOrdered", onlyOrdered, { onlyOrdered = !onlyOrdered })
                     WishlistSort.entries.filter { AppSettings.showPrices || it != WishlistSort.PRICE }.forEach { s ->
                         SelectPill(s.label, sort == s, { sortName = s.name })
                     }
@@ -855,13 +867,24 @@ private fun WishlistTab(vm: CollectionViewModel) {
                         }
                         val decks = wishDecks[CardNames.key(w.name)].orEmpty()
                         val more = if (group != null) decks.drop(1) else decks
+                        val isOrdered = w.oracleId in ordered
                         Text(
-                            "Want ${w.wanted}" + if (more.isNotEmpty()) " · ${if (group != null) "also " else ""}${more.joinToString(", ")}" else "",
+                            (if (isOrdered) "Ordered · " else "") +
+                                "Want ${w.wanted}" + if (more.isNotEmpty()) " · ${if (group != null) "also " else ""}${more.joinToString(", ")}" else "",
                             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                     if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
-                    IconButton(onClick = { vm.startGotIt(w) }) { Icon(Icons.Outlined.Check, "Got it", tint = Palette.Icon) }
+                    // To buy → Ordered → Received: the truck marks it ordered (tap again to undo), the check receives it.
+                    val isOrdered = w.oracleId in ordered
+                    IconButton(onClick = { vm.setOrdered(w, !isOrdered) }) {
+                        Icon(
+                            if (isOrdered) Icons.Filled.LocalShipping else Icons.Outlined.LocalShipping,
+                            if (isOrdered) "Ordered, tap for to buy" else "Mark ordered",
+                            tint = if (isOrdered) Palette.Accent else Palette.Icon,
+                        )
+                    }
+                    IconButton(onClick = { vm.startGotIt(w) }) { Icon(Icons.Outlined.Check, if (isOrdered) "Received" else "Got it", tint = Palette.Icon) }
                     IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Outlined.DeleteOutline, "Remove", tint = Palette.Icon) }
                 }
             }
@@ -873,9 +896,44 @@ private fun WishlistTab(vm: CollectionViewModel) {
     gotIt?.let { (w, printings) ->
         PrintingsSheet(printings, w.scryfallId, vm::gotItPrinting, vm::cancelGotIt)
     }
+    received?.let { (_, card) -> ReceivedDialog(card, onAdd = vm::receive, onDismiss = vm::cancelReceived) }
     editing?.let { w ->
         WantedDialog(w, onSave = { n -> vm.setWanted(w, n); editing = null }, onDismiss = { editing = null })
     }
+}
+
+/** Received a wishlist card: its finish (when it comes both ways) and what was paid, then it's added. */
+@Composable
+private fun ReceivedDialog(card: com.mtgscanner.data.ScryfallCard, onAdd: (Boolean, Double?) -> Unit, onDismiss: () -> Unit) {
+    var foil by remember { mutableStateOf(!card.hasNonFoil) }
+    var paid by remember { mutableStateOf("") }
+    val price = com.mtgscanner.util.PriceInput.parse(paid)
+    val bad = paid.isNotBlank() && price == null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text(card.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        text = {
+            Column {
+                Text("${card.set.uppercase()} · #${card.collectorNumber}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                if (card.hasFoil && card.hasNonFoil) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SelectPill("Normal", !foil, { foil = false })
+                        SelectPill("Foil", foil, { foil = true })
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = paid, onValueChange = { paid = it }, singleLine = true,
+                    label = { Text("Paid (optional)") }, isError = bad,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onAdd(foil, price) }, enabled = !bad) { Text("Add to collection") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /** A short muted heading over a group of tools. */

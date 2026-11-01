@@ -140,6 +140,10 @@ data class ScanUiState(
     val currentLang: String? = null,
     /** The frames suggest the card on screen is foil. Only a hint: tap to accept. */
     val foilHint: Boolean = false,
+    /** How evenly the card on screen's border is printed (centering check on). */
+    val centering: com.mtgscanner.scan.Centering? = null,
+    /** The card on screen doesn't look like its printing's own picture: maybe a proxy or a misprint. */
+    val lookOff: Boolean = false,
     /** Glare over the card's name or footer in recent frames. */
     val glare: Boolean = false,
     /** Text read that matched no card for a while, offered to save for later. */

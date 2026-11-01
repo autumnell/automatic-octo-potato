@@ -91,7 +91,8 @@ object TestPhotos {
             val id = f.name.substringBefore('_')
             val bmp = BitmapFactory.decodeFile(f.path) ?: continue
             val print = try { CardPrints.fingerprint(bmp) } finally { bmp.recycle() } ?: continue
-            val hit = g.match(print)
+            val t = CardPrints.thresholds
+            val hit = g.match(print, minStandOut = t.standOut, minLead = t.lead)
             val row = g.rowOf(id)
             when {
                 hit == null -> unsure++
@@ -101,6 +102,32 @@ object TestPhotos {
             }
         }
         return Result(right, wrong, unsure)
+    }
+
+    /**
+     * Each kept photo looked up with no thresholds: how its best card stood out and led, and whether it was right.
+     * Null without the gallery. Slow: call off the main thread.
+     */
+    fun samples(ctx: Context): List<TuneSample>? {
+        val g = CardPrints.gallery ?: return null
+        val out = ArrayList<TuneSample>()
+        for (f in dir(ctx).listFiles().orEmpty()) {
+            val id = f.name.substringBefore('_')
+            val bmp = BitmapFactory.decodeFile(f.path) ?: continue
+            val print = try { CardPrints.fingerprint(bmp) } finally { bmp.recycle() } ?: continue
+            val hit = g.match(print, minScore = CardGallery.MIN_SCORE, minStandOut = 0f, minLead = -1f) ?: continue
+            val row = g.rowOf(id)
+            val right = hit.id == id || (row >= 0 && hit.name == g.nameAt(row))
+            out += TuneSample(hit.standOut, hit.score - hit.runnerUp, right)
+        }
+        return out
+    }
+
+    /** Fits the picture match's thresholds to the kept photos ([ThresholdTuner]) and uses them. Null with too few. */
+    fun tune(ctx: Context): TuneResult? {
+        val r = ThresholdTuner.tune(samples(ctx) ?: return null) ?: return null
+        CardPrints.setThresholds(ctx, r.thresholds)
+        return r
     }
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

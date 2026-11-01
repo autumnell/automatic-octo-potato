@@ -64,20 +64,20 @@ object CardPhotos {
         }.getOrNull()
     }
 
-    /** The picture at [uri] decoded at most [MAX_SIDE] pixels on its longest side, rotated as its EXIF data says. */
-    private fun downscaled(ctx: Context, uri: Uri): Bitmap? {
+    /** The picture at [uri] decoded at most [maxSide] pixels on its longest side, rotated as its EXIF data says. */
+    fun downscaled(ctx: Context, uri: Uri, maxSide: Int = MAX_SIDE): Bitmap? {
         val resolver = ctx.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
         val longest = maxOf(bounds.outWidth, bounds.outHeight)
         if (longest <= 0) return null
         var sample = 1
-        while (longest / (sample * 2) >= MAX_SIDE) sample *= 2
+        while (longest / (sample * 2) >= maxSide) sample *= 2
         val decoded = resolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
         } ?: return null
         val degrees = resolver.openInputStream(uri)?.use { exifRotation(it) } ?: 0
-        val scale = minOf(1f, MAX_SIDE.toFloat() / maxOf(decoded.width, decoded.height))
+        val scale = minOf(1f, maxSide.toFloat() / maxOf(decoded.width, decoded.height))
         if (degrees == 0 && scale >= 1f) return decoded
         val m = Matrix().apply { postScale(scale, scale); postRotate(degrees.toFloat()) }
         val result = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, m, true)

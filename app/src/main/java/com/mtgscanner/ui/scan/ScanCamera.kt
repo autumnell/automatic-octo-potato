@@ -160,6 +160,7 @@ internal fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             wantsSpread = { vm.state.value.let { it.pageMode && it.wantSpread } },
             onSpread = vm::onSpread,
             setLock = { com.mtgscanner.data.SortPrefs.setLock },
+            wantsCentering = { vm.state.value.settings.centering },
             onFocus = focus@{ x, y, w, h ->
                 val (cam, use) = bound.get() ?: return@focus
                 // Points in the analysis frame's own pixels; the factory maps them to the sensor.

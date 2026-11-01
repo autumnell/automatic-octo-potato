@@ -326,6 +326,41 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     }
     fun newCameraTarget(): android.net.Uri? = CardPhotos.cameraTarget(repo.appContext)
 
+    /** Copies counted from a photo of the stack's edge, waiting to be confirmed; null when none. */
+    val stackCount = kotlinx.coroutines.flow.MutableStateFlow<com.mtgscanner.scan.StackCountResult?>(null)
+    /** Counting a stack photo, or it found no cards. */
+    val stackCounting = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val stackFailed = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    /** Counts the cards in a photo of a stack's edge ([com.mtgscanner.scan.StackCount]). [temp]: the camera's file, deleted after. */
+    fun countStack(uri: android.net.Uri, temp: Boolean) = viewModelScope.launch {
+        val ctx = repo.appContext
+        stackCounting.value = true
+        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            runCatching {
+                val bmp = CardPhotos.downscaled(ctx, uri, 2400) ?: return@runCatching null
+                try {
+                    val px = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    com.mtgscanner.scan.StackCount.count(IntArray(px.size) { com.mtgscanner.scan.ImageHash.luma(px[it]) }, bmp.width, bmp.height)
+                } finally {
+                    bmp.recycle()
+                }
+            }.getOrNull()
+        }
+        if (temp) CardPhotos.discard(ctx, uri)
+        stackCounting.value = false
+        if (result == null) stackFailed.value = true else stackCount.value = result
+    }
+
+    /** Sets the copies to the stack count. */
+    fun useStackCount() {
+        val n = stackCount.value?.count ?: return
+        stackCount.value = null
+        val cur = card.value?.quantity ?: return
+        changeQuantity(n - cur)
+    }
+
     /** What happened to this printing: added, moved, edited, removed (newest first). */
     val events: StateFlow<List<CardEvent>> = card
         .map { it?.scryfallId }

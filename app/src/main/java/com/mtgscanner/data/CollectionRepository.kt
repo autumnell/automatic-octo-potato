@@ -538,9 +538,11 @@ class CollectionRepository(
     suspend fun add(
         card: ScryfallCard, foil: Boolean, qty: Int = 1, boxId: Long,
         lang: String = card.lang, condition: String = "NM",
+        /** Price paid for each copy, when known. Added to copies already owned, it's averaged with theirs. */
+        paid: Double? = null,
     ): Long {
         val now = System.currentTimeMillis()
-        val entity = card.toEntity(foil, qty, now).copy(boxId = boxId, lang = lang, condition = condition)
+        val entity = card.toEntity(foil, qty, now).copy(boxId = boxId, lang = lang, condition = condition, purchasePrice = paid)
         // One add at a time, so two copies added together (like a binder page) merge instead of clashing.
         val id = addLock.withLock {
             val existing = twinOf(entity)

@@ -46,6 +46,12 @@ data class ScanSettings(
     val sharperFrames: Boolean = false,
     /** Starting zoom (1, 1.5 or 2): lets you hold the phone farther back, with less blur and glare. */
     val zoom: Float = 1f,
+    /** Measure each card's border and show how well it's centered (for deciding what to send for grading). */
+    val centering: Boolean = false,
+    /** Say when a card doesn't look like the printing it was matched to: maybe a proxy or a misprint. */
+    val proxyCheck: Boolean = true,
+    /** Listen for "foil", "undo", "set aside" and numbers while scanning. */
+    val voice: Boolean = false,
 ) {
     /** Whether a match is sure enough to add without asking. */
     fun accepts(exact: Boolean, confident: Boolean): Boolean = when (level) {

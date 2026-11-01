@@ -220,7 +220,11 @@ fun CommanderPickerSheet(
  * [onEdhrec] opens the commander's EDHREC page; null hides the button.
  */
 @Composable
-fun DeckHeader(format: String, commanders: DeckCommanders, art: List<String>, issues: CommanderRules.Issues, onEdhrec: (() -> Unit)? = null) {
+fun DeckHeader(
+    format: String, commanders: DeckCommanders, art: List<String>, issues: CommanderRules.Issues, onEdhrec: (() -> Unit)? = null,
+    /** The deck's salt (Commander decks), from EDHREC's scores. */
+    salt: com.mtgscanner.data.DeckSalt? = null,
+) {
     val f = DeckFormats.of(format)
     if (f.id.isEmpty() && commanders.isEmpty) return
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -238,6 +242,9 @@ fun DeckHeader(format: String, commanders: DeckCommanders, art: List<String>, is
                 style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             DeckIssuesLine(issues)
+            if (f.commander && salt != null) {
+                Text(salt.label, style = MaterialTheme.typography.bodySmall.merge(com.mtgscanner.ui.theme.TabularNums), color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
         if (onEdhrec != null && f.commander) {
             TextButton(onClick = onEdhrec) {

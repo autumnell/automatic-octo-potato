@@ -163,6 +163,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
     var addingAll by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var sampling by remember { mutableStateOf(false) }
+    var odds by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     val dirty = ui.editing && ui.text.trim() != vm.savedText.trim()
@@ -200,6 +201,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
                             DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
                             if (ui.check != null) DropdownMenuItem(text = { Text("Sample hand") }, onClick = { menu = false; sampling = true })
+                            DropdownMenuItem(text = { Text("Draw odds") }, onClick = { menu = false; odds = true })
                             DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
                             DeckToolsMenuItems(vm.tools, ui, inDeck, close = { menu = false }, onPrint = { printProxies() })
                         }
@@ -218,9 +220,13 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
             else {
                 val ctx = LocalContext.current
                 val edhrec = ui.edhrec
+                LaunchedEffect(Unit) { runCatching { com.mtgscanner.data.SaltScores.load(ctx) } }
+                val saltScores = com.mtgscanner.data.SaltScores.scores
+                val salt = remember(ui.text, saltScores) { com.mtgscanner.data.SaltMath.deck(com.mtgscanner.util.DecklistParser.parse(ui.text), saltScores) }
                 DeckHeader(
                     ui.format, ui.commanders, ui.leadArt, ui.issues,
                     onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
+                    salt = salt,
                 )
                 UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
                 when (view) {
@@ -255,6 +261,12 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
             onAdd = { onlyMissing -> vm.addToCollection(onlyMissing) { addingAll = false } },
             onDismiss = { addingAll = false },
         )
+    }
+    if (odds) {
+        val oddsCards = remember(ui.text, ui.cardTexts) {
+            DrawOddsMath.library(com.mtgscanner.util.DecklistParser.parse(ui.text)) { n -> ui.cardTexts[DeckNames.key(n)] }
+        }
+        DrawOddsSheet(oddsCards, onDismiss = { odds = false })
     }
     if (sampling) ui.check?.let { check ->
         SampleHandSheet(

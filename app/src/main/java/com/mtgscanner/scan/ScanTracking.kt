@@ -42,6 +42,49 @@ fun sameCardInView(
  * The copyright year, set symbol and art of one card pooled over the frames it was in view, so one blurry frame
  * doesn't pick the printing. Cleared when another card comes into view.
  */
+/**
+ * Card picture fingerprints of a card with no readable text over its last frames. Each of the newest frame's
+ * fingerprints (one per way up) is averaged with the most alike fingerprint of each earlier frame, so a frame's
+ * glare or blur counts for less. Only alike ones pool: a fingerprint of the card turned the other way, or of
+ * another card, doesn't.
+ */
+class PrintPool(private val keep: Int = 4) {
+    private val frames = ArrayDeque<List<FloatArray>>()
+
+    fun add(prints: List<FloatArray>) {
+        if (prints.isEmpty()) return
+        frames.addLast(prints)
+        while (frames.size > keep) frames.removeFirst()
+    }
+
+    /** One pooled fingerprint for each of the newest frame's that is alike on two frames or more. */
+    fun pooled(): List<FloatArray> {
+        val newest = frames.lastOrNull() ?: return emptyList()
+        return newest.mapNotNull { p ->
+            val group = mutableListOf(p)
+            for (f in frames) {
+                if (f === newest) continue
+                f.maxByOrNull { cosine(p, it) }?.takeIf { cosine(p, it) >= SAME }?.let { group += it }
+            }
+            if (group.size >= 2) FramePool.average(group) else null
+        }
+    }
+
+    fun clear() = frames.clear()
+
+    companion object {
+        /** Fingerprints this alike (cosine) are the same card the same way up. */
+        const val SAME = 0.75f
+
+        fun cosine(a: FloatArray, b: FloatArray): Float {
+            if (a.size != b.size) return -1f
+            var s = 0f
+            for (i in a.indices) s += a[i] * b[i]
+            return s
+        }
+    }
+}
+
 class FramePool(private val keep: Int = 6) {
     private val years = ArrayDeque<Int>()
     private val hashes = ArrayDeque<Long>()

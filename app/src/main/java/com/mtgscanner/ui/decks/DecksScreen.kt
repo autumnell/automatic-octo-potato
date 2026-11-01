@@ -165,6 +165,8 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     var newMenu by remember { mutableStateOf(false) }
     var linking by remember { mutableStateOf(false) }
     var almost by remember { mutableStateOf(false) }
+    var shortages by remember { mutableStateOf(false) }
+    var precons by remember { mutableStateOf(false) }
 
     val folder = shelf.folders.firstOrNull { it.id == folderId }
     BackHandler(enabled = folder != null) { folderId = null }
@@ -221,6 +223,8 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                             DropdownMenuItem(text = { Text("Paste a list") }, onClick = { newMenu = false; onOpenDeck(0L) })
                             DropdownMenuItem(text = { Text("From a link") }, onClick = { newMenu = false; linking = true })
                             DropdownMenuItem(text = { Text("Decks you can almost build") }, onClick = { newMenu = false; almost = true })
+                            DropdownMenuItem(text = { Text("Precon decks") }, onClick = { newMenu = false; precons = true })
+                            if (all.size >= 2) DropdownMenuItem(text = { Text("Shortages across decks") }, onClick = { newMenu = false; shortages = true })
                         }
                     }
                 }
@@ -284,6 +288,8 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     }
 
     if (almost) AlmostDecksSheet(vm, onDismiss = { almost = false })
+    if (shortages) DeckShortagesSheet(vm, onDismiss = { shortages = false })
+    if (precons) PreconsSheet(vm, onDismiss = { precons = false })
     if (linking) DeckLinkDialog(onDismiss = { linking = false }) { url -> linking = false; vm.importLink(url) }
     if (naming) {
         FolderNameDialog("New folder", "", onSave = { vm.createFolder(it); naming = false }, onDismiss = { naming = false })

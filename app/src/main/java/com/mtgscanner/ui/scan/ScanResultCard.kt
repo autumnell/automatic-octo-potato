@@ -221,6 +221,14 @@ internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewMode
                     if (!state.confident) {
                         Text("Not sure about this one. Check the printing.", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
                     }
+                    // Spot proxies: the card's footer, symbol and colours are far from its printing's own picture.
+                    if (state.lookOff) {
+                        Text("Looks different from the real printing. Proxy or misprint?", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
+                    }
+                    // Centering check: left/right · top/bottom. Borderless and full-art cards have no border to measure.
+                    state.centering?.takeIf { card.borderColor != "borderless" && !card.fullArt }?.let { c ->
+                        Text("Centering ${c.label}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Text)
+                    }
                     state.wish?.let { w ->
                         Spacer(Modifier.height(4.dp))
                         Row(

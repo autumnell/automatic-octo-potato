@@ -158,6 +158,8 @@ internal fun MorePicker(
     /** Change condition, finish or language for some copies; null with only one copy. */
     onSplit: (() -> Unit)? = null,
     onLend: (() -> Unit)? = null,
+    /** Count copies from a photo of the stack's edge. */
+    onCountStack: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -171,8 +173,22 @@ internal fun MorePicker(
                 text = { Text("Lend…") },
                 onClick = { open = false; onLend() },
             )
+            if (onCountStack != null) DropdownMenuItem(
+                text = { Text("Count a stack…") },
+                onClick = { open = false; onCountStack() },
+            )
             DropdownMenuItem(
-                text = { Text(if (c.purchasePrice == null) "Paid…" else "Paid: ${formatUsd(c.purchasePrice)}", color = Palette.Text) },
+                // With several copies, what was paid is their average (copies added later blend in).
+                text = {
+                    Text(
+                        when {
+                            c.purchasePrice == null -> "Paid…"
+                            c.quantity > 1 -> "Paid: ${formatUsd(c.purchasePrice)} each, on average"
+                            else -> "Paid: ${formatUsd(c.purchasePrice)}"
+                        },
+                        color = Palette.Text,
+                    )
+                },
                 onClick = { open = false; onPaid() },
             )
             DropdownMenuItem(

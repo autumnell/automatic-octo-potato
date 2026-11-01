@@ -80,8 +80,8 @@ class ArtIndexTest {
         assertEquals("a", v.offer("a"))
         assertEquals("a", v.offer("a"))
         assertNull(v.offer("b"))
+        // A frame with no match doesn't start the count over: b has 2 of the last 4, a only 1.
         assertNull(v.offer(null))
-        assertNull(v.offer("b"))
         assertEquals("b", v.offer("b"))
         v.reset()
         assertNull(v.offer("b"))

@@ -62,6 +62,8 @@ data class CardTextGuess(
     val footerFoil: Boolean? = null,
     /** Footer, set symbol and colours of the straightened card, to pick between printings that share art. */
     val frameLook: FrameLook? = null,
+    /** How evenly the border is printed, when the centering check is on and the border could be measured. */
+    val centering: Centering? = null,
     /** Second hashes of the same pictures as [artOnly], in the same order. */
     val artOnlyP: List<Long> = emptyList(),
     /** The whole straightened card's fingerprint by the card picture model ([CardPrints]), when it's on. */

@@ -361,6 +361,7 @@ private fun ForeignReadingRow() {
  * Knowing cards by their picture: off until turned on, then a one-time download. Once it's ready, scans can be
  * kept as test photos, checked on the phone, or saved for the build server's accuracy test.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CardPrintsRow() {
     val ctx = LocalContext.current
@@ -394,7 +395,7 @@ private fun CardPrintsRow() {
             runCatching { app.contentResolver.openOutputStream(uri)?.use { com.mtgscanner.scan.TestPhotos.zipTo(app, it) } }
         }
     }
-    Row(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
+    FlowRow(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 4.dp)) {
         TextButton(onClick = {
             kept = com.mtgscanner.scan.TestPhotos.count(ctx)
             result = "Checking…"
@@ -407,6 +408,17 @@ private fun CardPrintsRow() {
                 }
             }
         }) { Text("Check accuracy") }
+        TextButton(onClick = {
+            result = "Tuning…"
+            scope.launch {
+                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.mtgscanner.scan.TestPhotos.tune(app) }
+                result = when {
+                    r == null -> "Tuning needs ${com.mtgscanner.scan.ThresholdTuner.MIN_SAMPLES} kept photos or more"
+                    r.thresholds.isDefault -> "The usual settings already suit your scans: ${r.rightAfter} of ${r.total} right, ${r.wrongAfter} wrong"
+                    else -> "Tuned to your scans: ${r.rightAfter} of ${r.total} right, ${r.wrongAfter} wrong (was ${r.rightBefore} right, ${r.wrongBefore} wrong)"
+                }
+            }
+        }) { Text("Tune") }
         TextButton(onClick = { saveLauncher.launch("grimoire-test-photos.zip") }) { Text("Save as zip") }
         TextButton(onClick = { com.mtgscanner.scan.TestPhotos.clear(ctx); kept = 0; result = null }) { Text("Clear") }
     }

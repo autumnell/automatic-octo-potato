@@ -49,6 +49,7 @@ object WhatsNew {
         163 to "Only boxes you mark To be sorted (box ⋮ menu) count toward cards to sort.",
         165 to "A bell next to the logo on Home lists every notification the app has sent. Clear them one by one or all at once.",
         167 to "Scanning reads the foil star, keeps a photo of cards set aside, reads videos and picks printings by footer and colour. Decks › New › Decks you can almost build.",
+        169 to "Glare-free reads, centering, voice commands and proxy hints in Scan settings. Wishlist: Ordered → Received. Decks › New: precons and shortages. Draw odds and salt on decks.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
