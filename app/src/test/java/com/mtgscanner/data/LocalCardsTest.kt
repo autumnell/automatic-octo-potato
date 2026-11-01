@@ -12,6 +12,15 @@ class LocalCardsTest {
         assertEquals("new", pick?.id)
     }
 
+    @Test fun aNameReadNeverStandsForAnArtCard() {
+        val art = card("art", day = "2026-06-01").copy(layout = "art_series", set = "amh3")
+        val real = card("real", day = "2024-01-01")
+        assertEquals("real", LocalPick.newest(listOf(art, real))?.id)
+        assertEquals(listOf("real"), LocalPick.realCards(listOf(art, real)).map { it.id })
+        // Only art cards: keep them (a picture match can still need them).
+        assertEquals(listOf("art"), LocalPick.realCards(listOf(art)).map { it.id })
+    }
+
     @Test fun packedCardsComeBack() {
         val s = "{\"id\":\"abc\",\"name\":\"Ætherize\"}".repeat(20)
         assertEquals(s, LocalCards.unpack(LocalCards.pack(s)))

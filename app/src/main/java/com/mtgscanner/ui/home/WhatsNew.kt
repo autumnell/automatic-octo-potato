@@ -52,6 +52,7 @@ object WhatsNew {
         169 to "Glare-free reads, centering, voice commands and proxy hints in Scan settings. Wishlist: Ordered → Received. Decks › New: precons and shortages. Draw odds and salt on decks.",
         172 to "Settings › Data › Card finder: pick Grimoire's corner model or YOLO.",
         174 to "Settings › Data is sorted into sections. The YOLO card finder now comes inside the app.",
+        178 to "Everything the scanner uses downloads on first open, with the best models. A name read never lands on an art card.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

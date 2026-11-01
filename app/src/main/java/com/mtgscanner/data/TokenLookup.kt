@@ -9,7 +9,7 @@ import com.mtgscanner.scan.CardTextGuess
  */
 internal suspend fun CollectionRepository.findExtra(name: String, guess: CardTextGuess): Identification? {
     val all = api.searchAll(exactNameQuery(name) + " include:extras", unique = "prints", maxPages = 3, order = "released")
-        .filter { CardExtras.isExtra(it) }
+        .filter { CardExtras.isExtra(it) && !LocalPick.isArtCard(it) }
     if (all.isEmpty()) return null
     val pick = TokenPick.pick(all, guess.setCode, guess.collectorNumber, { it.set }, { it.collectorNumber }) ?: return null
     return Identification(pick.first, confident = true, exact = pick.second)

@@ -87,9 +87,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-import com.mtgscanner.data.label
-import com.mtgscanner.data.ART_AUTO_SETS
-import com.mtgscanner.data.artForBiggestSets
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -193,22 +190,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         }
         HorizontalDivider(color = Palette.Rule)
         Action(Icons.Outlined.FileDownload, "Export", "CSV or insurance PDF") { choosingExport = true }
-    }
-
-    SectionLabel("Scanning offline")
-    Group {
-        CardListRow()
-        HorizontalDivider(color = Palette.Rule)
-        ForeignReadingRow()
-    }
-
-    SectionLabel("Know cards by picture")
-    Group {
-        CardPrintsRow()
-        if (printsState == com.mtgscanner.scan.CardPrints.State.Ready) {
-            HorizontalDivider(color = Palette.Rule)
-            CardFinderRow()
-        }
     }
 
     if (printsState == com.mtgscanner.scan.CardPrints.State.Ready) {
@@ -339,99 +320,6 @@ private fun Action(icon: ImageVector, title: String, body: String, onClick: () -
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-    }
-}
-
-/** Every card kept on the phone for the scanner: on or off, how far along, and a button to fetch it now. */
-@Composable
-private fun CardListRow() {
-    val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
-    val local = repo.localCards
-    val st by local.status.collectAsStateWithLifecycle()
-    var on by remember { mutableStateOf(local.enabled) }
-    val body = st.label(on) + if (on && st.cards > 0 && st.updated.isNotEmpty()) "\nChecked ${st.updated}" else ""
-    ToggleRow("Card list on phone", body, on, lines = 3) { v ->
-        on = v
-        local.enabled = v
-        if (v) com.mtgscanner.work.CardListWorker.start(repo.appContext) else repo.appScope.launch { local.clear() }
-    }
-    if (on && st.progress == null) {
-        RowButton(if (st.cards > 0) "Check for new cards" else "Download now") { com.mtgscanner.work.CardListWorker.start(repo.appContext, force = true) }
-    }
-    if (on) {
-        HorizontalDivider(color = Palette.Rule)
-        var art by remember { mutableStateOf(local.artAuto) }
-        ToggleRow("Match by art", "Your $ART_AUTO_SETS biggest sets, so cards with hard-to-read names are found offline. On Wi-Fi.", art, lines = 2) { v ->
-            art = v
-            local.artAuto = v
-            if (v) {
-                local.artCheckedDay = ""
-                repo.appScope.launch { runCatching { repo.artForBiggestSets() } }
-            }
-        }
-    }
-}
-
-/** Japanese, Chinese and Korean name reading: off until turned on, then a one-time download from Google Play. */
-@Composable
-private fun ForeignReadingRow() {
-    val ctx = LocalContext.current
-    val st by com.mtgscanner.scan.ForeignReading.state.collectAsStateWithLifecycle()
-    var on by remember { mutableStateOf(com.mtgscanner.scan.ForeignReading.isOn(ctx)) }
-    val body = when (val s = st) {
-        com.mtgscanner.scan.ForeignReading.State.Off -> "Off. Turn on to download the readers"
-        is com.mtgscanner.scan.ForeignReading.State.Downloading -> if (s.percent != null) "Downloading… ${s.percent}%" else "Downloading…"
-        com.mtgscanner.scan.ForeignReading.State.Ready -> "Ready for scanning"
-        com.mtgscanner.scan.ForeignReading.State.Failed -> "Download failed. Turn off and on to retry"
-    }
-    ToggleRow("Japanese, Chinese, Korean names", body, on) { v ->
-        on = v
-        if (v) com.mtgscanner.scan.ForeignReading.turnOn(ctx) else com.mtgscanner.scan.ForeignReading.turnOff(ctx)
-    }
-}
-
-/** Which model finds a card's corners: ours, or open-card-collector's YOLO (inside the app, set up when picked). */
-@Composable
-private fun CardFinderRow() {
-    val ctx = LocalContext.current
-    val finder by com.mtgscanner.scan.CardPrints.finder.collectAsStateWithLifecycle()
-    val download by com.mtgscanner.scan.CardPrints.finderDownload.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Text("Card finder", style = MaterialTheme.typography.titleSmall)
-        Text(
-            when (val d = download) {
-                null -> if (finder == com.mtgscanner.scan.CardPrints.Finder.YOLO) "YOLO (open-card-collector): more exact corners on photos" else "Finds a card's corners when its outline isn't clear"
-                -1 -> "YOLO isn't in this build, so Grimoire's is in use"
-                else -> "Setting up YOLO…"
-            },
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-        )
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-            com.mtgscanner.scan.CardPrints.Finder.entries.forEach { f ->
-                com.mtgscanner.ui.components.SelectPill(
-                    f.label, finder == f, { com.mtgscanner.scan.CardPrints.setFinder(ctx, f) },
-                )
-            }
-        }
-    }
-}
-
-/** Knowing cards by their picture: off until turned on, then a one-time download. */
-@Composable
-private fun CardPrintsRow() {
-    val ctx = LocalContext.current
-    val st by com.mtgscanner.scan.CardPrints.state.collectAsStateWithLifecycle()
-    var on by remember { mutableStateOf(com.mtgscanner.scan.CardPrints.isOn(ctx)) }
-    val body = when (val s = st) {
-        com.mtgscanner.scan.CardPrints.State.Off -> "Finds cards with no readable text, and the exact printing. About ${com.mtgscanner.scan.CardPrints.DOWNLOAD_MB} MB"
-        is com.mtgscanner.scan.CardPrints.State.Downloading -> "Downloading… ${s.percent}%"
-        com.mtgscanner.scan.CardPrints.State.Preparing -> "Getting it ready…"
-        com.mtgscanner.scan.CardPrints.State.Ready -> "Ready: ${"%,d".format(com.mtgscanner.scan.CardPrints.gallery?.size ?: 0)} printings"
-        is com.mtgscanner.scan.CardPrints.State.Failed -> "${s.reason}. Turn off and on to retry"
-    }
-    ToggleRow("Card pictures", body, on, lines = 2) { v ->
-        on = v
-        if (v) com.mtgscanner.scan.CardPrints.turnOn(ctx) else com.mtgscanner.scan.CardPrints.turnOff(ctx)
     }
 }
 

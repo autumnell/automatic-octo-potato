@@ -104,21 +104,6 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
                 SelectPill(label, s.zoom == z, { update { it.copy(zoom = z) } })
             }
         }
-        LocalCardsRow()
-    }
-}
-
-/** Every card kept on the phone, so scans don't wait on Scryfall: on or off, and how far along it is. */
-@Composable
-private fun LocalCardsRow() {
-    val repo = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
-    val local = repo.localCards
-    val st by local.status.collectAsStateWithLifecycle()
-    var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(local.enabled) }
-    Toggle("Card list on phone", st.label(on), on) { v ->
-        on = v
-        local.enabled = v
-        if (v) com.mtgscanner.work.CardListWorker.start(repo.appContext) else repo.appScope.launch { local.clear() }
     }
 }
 
