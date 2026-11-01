@@ -6,3 +6,4 @@ local.properties
 .DS_Store
 captures/
 .kotlin/
+app/src/main/assets/card-finder-yolo11n-obb.onnx
