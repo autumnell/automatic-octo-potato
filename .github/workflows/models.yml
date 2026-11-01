@@ -23,7 +23,7 @@ jobs:
       - name: Install
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
-          pip install ultralytics onnx onnxslim onnxruntime onnxconverter-common huggingface_hub pillow numpy
+          pip install ultralytics onnx onnxslim onnxruntime huggingface_hub pillow numpy
       - name: Export and check
         run: python .github/scripts/export_yolo.py card-finder-yolo11n-obb.onnx
       - name: Publish to the models release

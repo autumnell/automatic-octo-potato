@@ -4,7 +4,7 @@ same corners as Ultralytics does.
 
 Usage: export_yolo.py <out.onnx>
 """
-import io, math, os, shutil, sys, urllib.request
+import io, math, shutil, sys, urllib.request
 import numpy as np
 from PIL import Image
 from huggingface_hub import hf_hub_download
@@ -16,13 +16,12 @@ pt = hf_hub_download("matteot11/collector-mtg-detector-yolo11n-obb", "best.pt")
 model = YOLO(pt)
 print("classes:", model.names)
 path = model.export(format="onnx", imgsz=640, opset=12, simplify=True, dynamic=False, nms=False)
-# Half precision halves the file the app carries; kept only when it finds the same corners.
-import onnx
-from onnxconverter_common import float16
-half = out + ".fp16"
-# Resize stays in full precision: the converter breaks its types otherwise.
-onnx.save(float16.convert_float_to_float16(onnx.load(path), keep_io_types=True, op_block_list=["Resize"]), half)
-sess = None
+shutil.copy(path, out)
+sess = ort.InferenceSession(out, providers=["CPUExecutionProvider"])
+for i in sess.get_inputs():
+    print("input", i.name, i.shape, i.type)
+for o in sess.get_outputs():
+    print("output", o.name, o.shape, o.type)
 
 S = 640
 
@@ -71,42 +70,21 @@ def match(a, b):
     return best
 
 
-def check(file):
-    """The worst corner difference against Ultralytics, as a share of the picture's height."""
-    global sess
-    sess = ort.InferenceSession(file, providers=["CPUExecutionProvider"])
-    for i in sess.get_inputs():
-        print("input", i.name, i.shape, i.type)
-    for o in sess.get_outputs():
-        print("output", o.name, o.shape, o.type)
-    worst = 0.0
-    for angle, size in ((0, (1200, 900)), (17, (900, 1200)), (-35, (1280, 960)), (60, (1000, 1000))):
-        bg = Image.new("RGB", size, (60, 90, 70))
-        c = card.resize((int(size[1] * 0.35), int(size[1] * 0.35 * 680 / 488))).rotate(angle, expand=True)
-        bg.paste(c, ((size[0] - c.width) // 2, (size[1] - c.height) // 2), c)
-        mine, theirs = app_corners(bg), ul_corners(bg)
-        if theirs is None:
-            print(angle, "ultralytics found nothing; app score", round(mine[0], 3))
-            continue
-        d = match(mine[1], theirs[1]) / size[1]
-        worst = max(worst, d)
-        print(f"angle {angle}: app score {mine[0]:.3f}, ultralytics {theirs[0]:.3f}, corners differ by {d * 100:.2f}% of the height")
-    return worst
-
-
 req = urllib.request.Request("https://api.scryfall.com/cards/named?exact=Lightning%20Bolt&format=image&version=normal",
                              headers={"User-Agent": "GrimoireExport/1.0", "Accept": "*/*"})
 card = Image.open(io.BytesIO(urllib.request.urlopen(req, timeout=30).read())).convert("RGBA")
-for name, file in (("half precision", half), ("full precision", path)):
-    try:
-        w = check(file)
-    except Exception as e:
-        print(name, "doesn't load:", e)
+worst = 0.0
+for angle, size in ((0, (1200, 900)), (17, (900, 1200)), (-35, (1280, 960)), (60, (1000, 1000))):
+    bg = Image.new("RGB", size, (60, 90, 70))
+    c = card.resize((int(size[1] * 0.35), int(size[1] * 0.35 * 680 / 488))).rotate(angle, expand=True)
+    bg.paste(c, ((size[0] - c.width) // 2, (size[1] - c.height) // 2), c)
+    mine, theirs = app_corners(bg), ul_corners(bg)
+    if theirs is None:
+        print(angle, "ultralytics found nothing; app score", round(mine[0], 3))
         continue
-    print(name, os.path.getsize(file), "bytes, worst", round(w * 100, 2), "%")
-    if w <= 0.03:
-        shutil.copy(file, out)
-        print("OK:", name)
-        break
-else:
-    sys.exit("The app's decoding doesn't match Ultralytics")
+    d = match(mine[1], theirs[1]) / size[1]
+    worst = max(worst, d)
+    print(f"angle {angle}: app score {mine[0]:.3f}, ultralytics {theirs[0]:.3f}, corners differ by {d * 100:.2f}% of the height")
+if worst > 0.03:
+    sys.exit(f"The app's decoding doesn't match Ultralytics ({worst * 100:.1f}%)")
+print("OK")
