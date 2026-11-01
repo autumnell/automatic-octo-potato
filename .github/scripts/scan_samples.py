@@ -4,7 +4,7 @@ For each of N random printings in the gallery: Scryfall's picture, clean, blurre
 model's size (320 x 448), and as a photo of the card lying turned on a table (600 x 800). Real scans from
 app/src/test/resources/scan-photos are added as they are. Each file: width, height (big-endian ints), then RGB bytes.
 """
-import io, json, random, struct, sys, time, glob, os, urllib.request
+import io, json, math, random, struct, sys, time, glob, os, urllib.request
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
@@ -28,18 +28,27 @@ def glare(img):
     return Image.fromarray(np.clip(a + g[..., None], 0, 255).astype(np.uint8))
 
 def on_table(img, rnd):
+    """The card lying turned on a table, and where its corners landed (top-left first, clockwise)."""
     w, h = 600, 800
     bg = tuple(rnd.randint(lo, lo + 50) for lo in (30, 60, 50))
     canvas = Image.new("RGB", (w, h), bg)
     scale = h * rnd.uniform(0.55, 0.75) / img.height
     card = img.resize((int(img.width * scale), int(img.height * scale)), Image.BILINEAR).convert("RGBA")
-    card = card.rotate(rnd.uniform(-15, 15), resample=Image.BILINEAR, expand=True)
+    cw, ch = card.size
+    angle = rnd.uniform(-15, 15)
+    card = card.rotate(angle, resample=Image.BILINEAR, expand=True)
     x = (w - card.width) // 2 + rnd.randint(-50, 50)
     y = (h - card.height) // 2 + rnd.randint(-50, 50)
     canvas.paste(card, (x, y), card)
-    return canvas
+    t = math.radians(angle)
+    corners = []
+    for px, py in ((0, 0), (cw, 0), (cw, ch), (0, ch)):
+        dx, dy = px - cw / 2, py - ch / 2
+        corners += [x + card.width / 2 + dx * math.cos(t) + dy * math.sin(t), y + card.height / 2 - dx * math.sin(t) + dy * math.cos(t)]
+    return canvas, corners
 
 rnd = random.Random()
+truth = {}
 ids = json.load(open(os.path.join(models, "gallery_ids.json")))
 got = 0
 for cid in rnd.sample(ids, n * 2):
@@ -58,8 +67,12 @@ for cid in rnd.sample(ids, n * 2):
     save(small(img.filter(ImageFilter.GaussianBlur(1.5))), f"{cid}__Blurred")
     save(small(ImageEnhance.Brightness(img).enhance(0.5)), f"{cid}__Dark")
     save(small(glare(img)), f"{cid}__Glare")
-    save(on_table(img, rnd), f"{cid}__Photo")
+    photo, corners = on_table(img, rnd)
+    save(photo, f"{cid}__Photo")
+    truth[cid] = corners
     got += 1
 for p in glob.glob(os.path.join(photos, "*.jp*g")) + glob.glob(os.path.join(photos, "*.png")):
     save(Image.open(p), os.path.basename(p).split("_")[0] + "__Your scans")
+with open(os.path.join(out, "corners.json"), "w") as f:
+    json.dump(truth, f)
 print("samples:", got)

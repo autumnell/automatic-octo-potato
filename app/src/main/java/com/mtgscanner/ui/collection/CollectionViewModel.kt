@@ -5,6 +5,7 @@ import com.mtgscanner.data.suggestNames
 import com.mtgscanner.util.CardNames
 import com.mtgscanner.data.cheapestPrinting
 import com.mtgscanner.data.DeckCheck
+import com.mtgscanner.data.WishStages
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.undoWishes
 import com.mtgscanner.data.wishSnapshot
@@ -441,20 +442,39 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun cancelGotIt() { _gotIt.value = null }
 
+    /** The wishlist card received and the printing picked, waiting for its finish and price paid. */
+    private val _received = MutableStateFlow<Pair<WishlistItem, ScryfallCard>?>(null)
+    val received: StateFlow<Pair<WishlistItem, ScryfallCard>?> = _received
+
     fun gotItPrinting(card: ScryfallCard) {
         val item = _gotIt.value?.first ?: return
         _gotIt.value = null
+        _received.value = item to card
+    }
+
+    fun cancelReceived() { _received.value = null }
+
+    /** Marks a wishlist card ordered, or back to to-buy. */
+    fun setOrdered(item: WishlistItem, on: Boolean) = WishStages.setOrdered(item.oracleId, on)
+
+    /** "Received": one copy of the picked printing goes into the collection with what was paid, and off the wishlist. */
+    fun receive(foilPicked: Boolean, paid: Double?) {
+        val (item, card) = _received.value ?: return
+        _received.value = null
         viewModelScope.launch {
             // A printing that only comes in foil is added as foil.
-            val foil = !card.hasNonFoil
+            val foil = foilPicked && card.hasFoil || !card.hasNonFoil
             // No box's rules fit: the Anything box, made if needed, so the card never lands in a deleted box.
             val target = repo.pickBox(card, foil) ?: repo.anythingBox()
-            val rowId = repo.add(card, foil, 1, target)
+            val rowId = repo.add(card, foil, 1, target, paid = paid)
+            val wasOrdered = item.oracleId in WishStages.ordered
             val wish = repo.wishlistItem(item.oracleId)
             repo.fulfilWish(item.oracleId, 1)
+            if (repo.wishlistItem(item.oracleId) == null) WishStages.setOrdered(item.oracleId, false)
             Undo.offer("Added ${card.name} · off wishlist") {
                 repo.remove(rowId, 1)
                 if (wish != null) repo.restoreWish(wish)
+                if (wasOrdered) WishStages.setOrdered(item.oracleId, true)
             }
         }
     }

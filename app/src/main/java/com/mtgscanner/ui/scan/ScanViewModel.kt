@@ -201,6 +201,27 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     private val leave = LeaveTracker()
     /** Year, symbol and art of the card in view, over its frames. */
     private val pool = FramePool()
+    /** Border widths and looks of the card in view over its frames, for the centering and proxy checks. */
+    private val centerings = ArrayDeque<com.mtgscanner.scan.Centering>()
+    private val looks = ArrayDeque<com.mtgscanner.scan.FrameLook>()
+
+    private fun clearPool() {
+        pool.clear()
+        centerings.clear()
+        looks.clear()
+    }
+
+    /** Keeps this frame's border widths and look; shows the centering once two frames have measured it. */
+    private fun noteFrame(g: CardTextGuess) {
+        g.centering?.let { centerings.addLast(it); while (centerings.size > 5) centerings.removeFirst() }
+        g.frameLook?.let { looks.addLast(it); while (looks.size > 3) looks.removeFirst() }
+        val st = _state.value
+        if (st.settings.centering && st.current != null && centerings.size >= 2) {
+            val c = com.mtgscanner.scan.Centering.median(centerings.toList())
+            if (c != st.centering) _state.update { it.copy(centering = c) }
+        }
+    }
+
     /** Keys already looked up for the card in view. */
     private val lookedUp = HashSet<String>()
     /** Keys whose lookup was started early, on their first frame (see [handleGuess]). */
@@ -314,13 +335,14 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             return
         }
         artVote.reset()
+        printPool.clear()
         if (key == null) {
             // The card has left the frame: allow the same card to be added again. Tilting to beat glare blanks the
             // text for a moment, so a frame with a card but nothing read barely counts; an empty guide does.
             if (leave.nothing(guess.guideEmpty)) {
                 leave.reset()
                 forgetHandled()
-                pool.clear()
+                clearPool()
                 prefetched.clear()
                 cardSeenAt = 0L
                 lastKey = null
@@ -352,9 +374,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             lastName = name
             lastFooter = footer
             lookedUp.clear()
-            pool.clear()
+            clearPool()
         }
         pool.add(guess)
+        noteFrame(guess)
         lastKey = key
         _state.update { it.copy(reading = readLabel(guess)) }
         // Text keeps coming but nothing matched for a few seconds: offer to keep it for later.
@@ -369,7 +392,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             if (artChangeFrames >= 2 || d > ART_CHANGED_CLEARLY) {
                 forgetHandled()
                 lookedUp.clear()
-                pool.clear()
+                clearPool()
                 pool.add(guess)
             }
         }
@@ -433,6 +456,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 noMatchGuess = null
                 lastMatch = Triple(guess, earlySkip() != null, id.card.id)
                 onIdentified(id, guess.lang, guess.artHash, guess.footerFoil)
+                if (id.exact) checkLook(id.card)
             }
         }
     }
@@ -473,6 +497,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     // Art match: cards with no readable text, found by their artwork in downloaded art indexes
 
     private val artVote = com.mtgscanner.scan.ArtVote(needed = 2)
+    /** Picture fingerprints of the card in view over its frames, matched together as well as one by one. */
+    private val printPool = com.mtgscanner.scan.PrintPool()
 
     /** The analyzer hashes cards with no readable text only when there's an index to match them against. */
     fun wantsArt(): Boolean = repo.artIndex.hasAny
@@ -486,12 +512,16 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     private var lastFrameArtOnly = false
 
     private fun handleArt(guess: CardTextGuess) {
+        printPool.add(guess.artOnlyPrints)
         if (artJob?.isActive == true) return
         val gen = trackGen
         val lock = SortPrefs.setLock
         // Scans every printing or downloaded entry: off the main thread.
+        // Several frames' fingerprints pooled go first; the frame's own still count.
+        val pooled = printPool.pooled()
+        val g = if (pooled.isEmpty()) guess else guess.copy(artOnlyPrints = pooled + guess.artOnlyPrints)
         artJob = viewModelScope.launch {
-            val hit = withContext(Dispatchers.Default) { repo.matchPicture(guess, lock) }
+            val hit = withContext(Dispatchers.Default) { repo.matchPicture(g, lock) }
             // Paused, reset, or text came into view meanwhile: this answer is stale.
             if (gen != trackGen || !lastFrameArtOnly || isPaused) return@launch
             onArtHit(hit, guess)
@@ -646,6 +676,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 // The footer's star or dot says foil or not, when the card comes both ways.
                 cardFoil = (if (same) it.cardFoil else null) ?: footerFoil?.takeIf { card.hasFoil && card.hasNonFoil },
                 foilHint = same && it.foilHint && footerFoil == null,
+                centering = if (same) it.centering else null,
+                lookOff = same && it.lookOff,
                 priceFresh = same && it.priceFresh,
                 confident = id.confident || accepted,
                 awaiting = s.autoAdd && !accepted,
@@ -675,6 +707,20 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     internal var batchKeys = 0
+
+    /**
+     * Spot proxies: compares the look of the card in view (its last frames) with [card]'s own picture, and says so
+     * when they're far apart. Only a hint, and only for exact matches, where the printing is known.
+     */
+    private fun checkLook(card: ScryfallCard) {
+        val st = _state.value
+        if (!st.settings.proxyCheck || looks.isEmpty() || st.current?.id != card.id) return
+        val seen = looks.toList()
+        viewModelScope.launch {
+            val d = runCatching { repo.art.lookDistance(card, seen) }.getOrNull() ?: return@launch
+            if (d > PROXY_DISTANCE) _state.update { if (it.current?.id == card.id) it.copy(lookOff = true) else it }
+        }
+    }
 
     /** The last card added on its own, and when, for the "add another?" check. */
     private var lastAutoAdd: Pair<String, Long>? = null
@@ -1256,6 +1302,53 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         _state.update { it.copy(status = "Removed ${cur.card.name}") }
     }
 
+    /** Does what was said ([com.mtgscanner.scan.VoiceCommands]); false when it didn't apply to anything. */
+    fun onVoice(c: com.mtgscanner.scan.VoiceCommand): Boolean {
+        val st = _state.value
+        val card = st.current
+        return when (c) {
+            is com.mtgscanner.scan.VoiceCommand.Copies -> { ScanBarPrefs.updateQuantity(c.n); _state.update { it.copy(status = "×${c.n}") }; true }
+            is com.mtgscanner.scan.VoiceCommand.Foil -> voiceFoil(c.on)
+            com.mtgscanner.scan.VoiceCommand.Undo -> if (st.session.isEmpty()) false else { removeLast(1); true }
+            com.mtgscanner.scan.VoiceCommand.Skip -> if (card == null) false else { skip(); true }
+            com.mtgscanner.scan.VoiceCommand.SetAside -> setAsideCurrent()
+            com.mtgscanner.scan.VoiceCommand.Add -> {
+                // Already added on its own: "add" adds one more, like the volume key.
+                if (card == null || st.target == ScanTarget.CHECK) false
+                else { if (st.autoAdd && st.session.firstOrNull()?.card?.id == card.id) sameAgain() else add(ScanBarPrefs.quantity); true }
+            }
+        }
+    }
+
+    /** "foil" / "not foil": for the card on screen (and the copy just added), else the scan bar's foil setting. */
+    private fun voiceFoil(on: Boolean): Boolean {
+        val st = _state.value
+        val card = st.current ?: run { setFoil(on); return true }
+        if (on && !card.hasFoil || !on && !card.hasNonFoil) return false
+        if (st.isFoil(card) == on) return true
+        if (on) { acceptFoilHint(); return true }
+        _state.update { it.copy(cardFoil = false, foilHint = false) }
+        val head = st.session.firstOrNull()
+        if (st.autoAdd && head != null && head.card.id == card.id && head.foil) viewModelScope.launch { swapLine(head.key, card, foil = false) }
+        return true
+    }
+
+    /** Sets the card on screen aside to check later, as an unsure match would be. */
+    private fun setAsideCurrent(): Boolean {
+        val st = _state.value
+        val card = st.current ?: return false
+        if (st.review.any { it.card.id == card.id }) return false
+        markHandled(card)
+        val photo = runCatching { com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "review-${card.id}-${System.currentTimeMillis()}") }.getOrNull()
+        _state.update {
+            it.copy(
+                current = null, awaiting = false, review = it.review + ReviewItem(card, st.currentLang, photo),
+                asidePulse = it.asidePulse + 1, status = "Set aside ${card.name} to check later",
+            )
+        }
+        return true
+    }
+
     /** Undo last N: takes back the last [n] cards scanned, newest first. */
     fun removeLast(n: Int) {
         viewModelScope.launch {
@@ -1622,6 +1715,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         const val ART_CHANGED = 22
         /** Art this different is another card on one frame. */
         const val ART_CHANGED_CLEARLY = 34
+        /** A card this unlike its printing's own picture ([com.mtgscanner.scan.FrameLook.distance]) gets the proxy hint. */
+        const val PROXY_DISTANCE = 0.8f
         /** Frames agreeing on a name (no footer) before its printing is picked from their pooled year, symbol and art. */
         const val POOL_FRAMES = 3
     }

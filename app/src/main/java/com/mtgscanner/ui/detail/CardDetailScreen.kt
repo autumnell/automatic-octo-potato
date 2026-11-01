@@ -221,6 +221,17 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
     val startPicker: () -> Unit = {
         runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     }
+    // Count a stack: a photo of the stack's edge, from the camera or the gallery.
+    var stackUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var askingStack by remember { mutableStateOf(false) }
+    val stackPhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val u = stackUri
+        stackUri = null
+        if (u != null) { if (ok) vm.countStack(u, temp = true) else vm.discardTemp(u) }
+    }
+    val stackPick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.countStack(uri, temp = false)
+    }
 
     // Swipe left/right for the next/previous card in the same box (name order).
     val nbNow by rememberUpdatedState(nb)
@@ -414,6 +425,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                                     onRemovePhoto = { vm.removePhoto() },
                                     onSplit = if (c.quantity > 1) ({ splitting = true }) else null,
                                     onLend = { lending = true },
+                                    onCountStack = { askingStack = true },
                                 )
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
@@ -482,6 +494,14 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                             }
                         }
                         PriceAlertRow(c)
+                    }
+                    // EDHREC's salt score (how much a card annoys the table), for its saltiest cards.
+                    LaunchedEffect(Unit) { runCatching { com.mtgscanner.data.SaltScores.load(ctx) } }
+                    com.mtgscanner.data.SaltScores.of(c.name)?.let { salt ->
+                        Text(
+                            "Salt %.1f on EDHREC".format(salt), style = MaterialTheme.typography.labelMedium.merge(TabularNums),
+                            color = Palette.Muted, modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                        )
                     }
 
                     val points = history.mapNotNull { p -> (if (c.foil) p.usdFoil ?: p.usd else p.usd)?.let { p.day to it } }
@@ -654,6 +674,62 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
         )
     }
 
+    // Count a stack: where the photo comes from, then the count to confirm.
+    if (askingStack) {
+        AlertDialog(
+            onDismissRequest = { askingStack = false },
+            containerColor = Palette.Surface,
+            title = { Text("Count a stack") },
+            text = { Text("Photograph the side of a stack of this card, close enough that the stack fills the picture.", color = Palette.Muted) },
+            confirmButton = {
+                if (CardPhotos.canUseCamera) TextButton(onClick = {
+                    askingStack = false
+                    val u = vm.newCameraTarget()
+                    if (u != null) {
+                        stackUri = u
+                        if (runCatching { stackPhoto.launch(u) }.isFailure) { stackUri = null; vm.discardTemp(u) }
+                    }
+                }) { Text("Take photo") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    askingStack = false
+                    runCatching { stackPick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                }) { Text("Pick photo") }
+            },
+        )
+    }
+    val stackCounting by vm.stackCounting.collectAsStateWithLifecycle()
+    val stackCount by vm.stackCount.collectAsStateWithLifecycle()
+    val stackFailed by vm.stackFailed.collectAsStateWithLifecycle()
+    if (stackCounting) {
+        AlertDialog(onDismissRequest = {}, containerColor = Palette.Surface, title = { Text("Counting…") }, confirmButton = {})
+    }
+    stackCount?.let { r ->
+        AlertDialog(
+            onDismissRequest = { vm.stackCount.value = null },
+            containerColor = Palette.Surface,
+            title = { Text("About ${r.count} cards") },
+            text = {
+                Text(
+                    if (r.sure) "Set this card to ${r.count} copies?"
+                    else "The edges weren't clear, so this may be off. Set this card to ${r.count} copies?",
+                    color = Palette.Muted,
+                )
+            },
+            confirmButton = { TextButton(onClick = vm::useStackCount) { Text("Set to ${r.count}") } },
+            dismissButton = { TextButton(onClick = { vm.stackCount.value = null }) { Text("Cancel") } },
+        )
+    }
+    if (stackFailed) {
+        AlertDialog(
+            onDismissRequest = { vm.stackFailed.value = false },
+            containerColor = Palette.Surface,
+            title = { Text("Couldn't count the edges") },
+            text = { Text("Try closer, with the stack filling the picture and light from the side.", color = Palette.Muted) },
+            confirmButton = { TextButton(onClick = { vm.stackFailed.value = false }) { Text("OK") } },
+        )
+    }
     if (splitting && c != null && c.quantity > 1) {
         SplitDialog(c, onSplit = { vm.split(it); splitting = false }, onDismiss = { splitting = false })
     }

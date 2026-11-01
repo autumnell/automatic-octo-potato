@@ -214,6 +214,14 @@ fun ScanScreen(
         }
         onDispose { VolumeKeys.handler = null }
     }
+    // Voice commands: "foil", "undo", "set aside", "four"… while the camera is reading.
+    if (hasPermission && state.settings.voice) {
+        ScanVoiceListener(
+            active = !state.paused && !state.anySheetOpen && !state.pageMode,
+            onCommand = { c -> if (vm.onVoice(c) && state.settings.vibrate) Haptics.setAside(view) },
+            onUnavailable = { vm.updateSettings { it.copy(voice = false) } },
+        )
+    }
     // Face down on the table: pause, and pick back up where it left off when lifted.
     var faceDown by remember { mutableStateOf(false) }
     if (hasPermission) FaceDownPause(state.paused, onPause = vm::togglePause, onResume = vm::togglePause, onFaceDown = { faceDown = it })

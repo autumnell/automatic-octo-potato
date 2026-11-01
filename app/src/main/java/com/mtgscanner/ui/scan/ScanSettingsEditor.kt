@@ -93,6 +93,9 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
 
         Heading("Camera")
         Toggle("Sharper frames", "Reads small print better. Uses a bit more battery.", s.sharperFrames) { on -> update { it.copy(sharperFrames = on) } }
+        Toggle("Centering check", "Shows how evenly each card's border is printed, like 55/45.", s.centering) { on -> update { it.copy(centering = on) } }
+        Toggle("Spot proxies", "Says when a card doesn't look like its real printing.", s.proxyCheck) { on -> update { it.copy(proxyCheck = on) } }
+        Toggle("Voice commands", "Say foil, not foil, undo, set aside, skip, or a number of copies.", s.voice) { on -> update { it.copy(voice = on) } }
         Text("Zoom", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
         Text("Hold the phone farther back for less blur and glare.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         Row(Modifier.padding(top = 6.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

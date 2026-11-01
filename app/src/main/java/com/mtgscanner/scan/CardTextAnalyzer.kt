@@ -66,6 +66,8 @@ class CardTextAnalyzer(
     private val onSpread: (Bitmap) -> Unit = {},
     /** The set lock (a set code), if on: a collector number alone then names the card, so the name isn't needed. */
     private val setLock: () -> String? = { null },
+    /** The centering check is on: each read card's border widths are measured ([CenteringCheck]). */
+    private val wantsCentering: () -> Boolean = { false },
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -332,7 +334,7 @@ class CardTextAnalyzer(
                     val draw = CardParts.drawer({ picture() }, cv)
                     val cjk = CjkNames.scriptFor(scanLang())?.takeIf { ForeignReading.ready }
                     // A found card: read just its name bar and footer, straightened and sharp.
-                    val strips = runCatching { readStrips(quad, rotation, draw, cjk) }.getOrNull()
+                    val strips = runCatching { readStrips(quad, rotation, draw, cjk, track) }.getOrNull()
                     // Out of focus: reading it would only give a misread. The next frame will do.
                     if (strips?.blurry == true) return@launch
                     val stripGuess = strips?.guess?.let(::locked)
@@ -356,6 +358,9 @@ class CardTextAnalyzer(
                     if (strips != null) guess = guess.copy(glare = strips.glare)
                     // The straightened card's art, and its set symbol, tell printings (or a textless card) apart.
                     guess = runCatching { withArt(quad, rotation, strips?.turn, guess, draw, track) }.getOrDefault(guess)
+                    if (strips?.turn != null && wantsCentering()) {
+                        runCatching { centeringOf(quad, strips.turn, draw) }.getOrNull()?.let { guess = guess.copy(centering = it) }
+                    }
                     onGuess(guess)
                 }
             } catch (_: Throwable) {
@@ -481,7 +486,7 @@ class CardTextAnalyzer(
      * which reads Latin letters too. Otherwise, when the Latin reader finds no name and no complete footer, one
      * CJK reader reads the name bar (see [nextCjk]).
      */
-    private suspend fun readStrips(quad: FloatArray, rotation: Int, draw: Draw, cjk: CjkScript?): StripRead {
+    private suspend fun readStrips(quad: FloatArray, rotation: Int, draw: Draw, cjk: CjkScript?, track: Int? = null): StripRead {
         val cardH = CardWarp.cardHeight(quad)
         if (cardH < 120f) return StripRead(CardTextGuess(emptyList(), null, null, 0), null, false)
         var glare = false
@@ -495,6 +500,8 @@ class CardTextAnalyzer(
             val footer = CardParts.footer(q, cardH, draw)
             var nameRead: Bitmap? = null
             var footerRead: Bitmap? = null
+            var fusedName: Bitmap? = null
+            var fusedFooter: Bitmap? = null
             try {
                 if (i == 0) {
                     glare = glareIn(name, CardWarp.NAME, CardWarp.NAME_GLARE) ||
@@ -504,11 +511,20 @@ class CardTextAnalyzer(
                     val blurry = s != null && sharp.blurry(s)
                     if (blurry) { blurRun++; if (blurRun >= 2) { blurRun = 0; focusedAt = 0L } } else blurRun = 0
                     if (blurry) return StripRead(CardTextGuess(emptyList(), null, null, 0), null, glare, blurry = true)
+                    // The strips of this card's last frames, kept to combine when glare covers part of them.
+                    if (track != null) {
+                        val key = (track.toLong() shl 2) or (norm(turn) / 90).toLong()
+                        fusedName = runCatching { fusedStrip(nameStack, key, name, glare) }.getOrNull()
+                        fusedFooter = footer?.let { f -> runCatching { fusedStrip(footerStack, key, f, glare) }.getOrNull() }
+                    }
                 }
-                // Uneven light (glare on part of a strip, or dim) is evened out; low-contrast strips (foils, dark
-                // frames) are read with their contrast stretched.
-                nameRead = runCatching { CardParts.evened(name, glare) ?: CardParts.stretched(name) }.getOrNull()
-                footerRead = footer?.let { f -> runCatching { CardParts.evened(f, glare) ?: CardParts.stretched(f) }.getOrNull() }
+                // Glare that moved between frames is gone from the combined strips. Otherwise uneven light (glare on
+                // part of a strip, or dim) is evened out; low-contrast strips (foils, dark frames) are read with
+                // their contrast stretched.
+                nameRead = fusedName?.let { f -> runCatching { CardParts.stretched(f) }.getOrNull() ?: f }
+                    ?: runCatching { CardParts.evened(name, glare) ?: CardParts.stretched(name) }.getOrNull()
+                footerRead = fusedFooter?.let { f -> runCatching { CardParts.stretched(f) }.getOrNull() ?: f }
+                    ?: footer?.let { f -> runCatching { CardParts.evened(f, glare) ?: CardParts.stretched(f) }.getOrNull() }
                 // Both strips in one read when the same reader reads both; a CJK name bar has its own reader.
                 val (nameLines, footerLines) = if (footer != null && cjk == null) {
                     CardParts.stackedLines(nameRead ?: name, footerRead ?: footer, cardH, recognizer)
@@ -536,6 +552,8 @@ class CardTextAnalyzer(
                 footer?.recycle()
                 nameRead?.recycle()
                 footerRead?.recycle()
+                fusedName?.recycle()
+                fusedFooter?.recycle()
             }
         }
         // No name in Latin letters either way up: maybe it's printed in Japanese, Chinese or Korean.
@@ -560,6 +578,29 @@ class CardTextAnalyzer(
             if (tried.isNotEmpty()) nextCjk = CjkNames.next(script)
         }
         return StripRead(CardTextGuess(emptyList(), null, null, 0, year = year), null, glare)
+    }
+
+    /** The name bar and footer of the card in view over its last frames, combined when glare shows ([GlareStack]). */
+    private val nameStack = GlareStack()
+    private val footerStack = GlareStack()
+
+    /**
+     * Adds [strip] to [stack] (drawn at the size of the strips already there) under [key] (card and way up). With
+     * [glare] and two frames or more, returns the combined strip as a picture to read; otherwise null.
+     */
+    private fun fusedStrip(stack: GlareStack, key: Long, strip: Bitmap, glare: Boolean): Bitmap? {
+        val sized = if (stack.size > 0 && (strip.width != stack.width || strip.height != stack.height)) {
+            Bitmap.createScaledBitmap(strip, stack.width, stack.height, true)
+        } else strip
+        try {
+            stack.add(key, CardWarp.luma(sized), sized.width, sized.height)
+        } finally {
+            if (sized !== strip) sized.recycle()
+        }
+        if (!glare) return null
+        val f = stack.fused() ?: return null
+        val px = IntArray(f.size) { val v = f[it]; (0xFF shl 24) or (v shl 16) or (v shl 8) or v }
+        return Bitmap.createBitmap(px, stack.width, stack.height, Bitmap.Config.ARGB_8888)
     }
 
     /** [g] with the CJK name [printed] read by [script], and the language that tells. */
@@ -592,8 +633,11 @@ class CardTextAnalyzer(
      * pick the printing. [stripTurn] is the way up the strips were read at.
      */
     private fun withArt(quad: FloatArray, rotation: Int, stripTurn: Int?, g: CardTextGuess, draw: Draw, track: Int? = null): CardTextGuess {
-        // A full footer names the printing. A number with no set code (2003-2019 cards) still needs the art.
-        if (g.collectorNumber != null && g.setCode != null) return g
+        // A full footer names the printing. A number with no set code (2003-2019 cards) still needs the art. Its
+        // look is still taken, to notice a card that doesn't look like the printing it names (a proxy, a misprint).
+        if (g.collectorNumber != null && g.setCode != null) {
+            return stripTurn?.let { t -> runCatching { lookOf(quad, t, draw) }.getOrNull() }?.let { g.copy(frameLook = it) } ?: g
+        }
         if (g.nameCandidates.isEmpty() && g.printedName == null) {
             val prints = CardPrints.ready
             val turns = CardQuad.uprightTurns(quad, rotation + preferredTurn)
@@ -616,6 +660,17 @@ class CardTextAnalyzer(
             cardPrint = printOf(quad, turn, draw, track, offer = true),
             frameLook = lookOf(quad, turn, draw) ?: g.frameLook,
         )
+    }
+
+    /** The card's border widths ([CenteringCheck]), drawn upright by [turn] with some of the table around it. */
+    private fun centeringOf(quad: FloatArray, turn: Int, draw: Draw): Centering? {
+        val m = CenteringCheck.MARGIN
+        val card = draw(CardQuad.ordered(quad, turn), floatArrayOf(-m, -m, 1 + m, 1 + m), CenteringCheck.W, CenteringCheck.H) ?: return null
+        return try {
+            CenteringCheck.measure(CardWarp.luma(card), card.width, card.height)
+        } finally {
+            card.recycle()
+        }
     }
 
     /** The straightened card's [FrameLook], upright by [turn]. */

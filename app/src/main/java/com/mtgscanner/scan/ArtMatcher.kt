@@ -145,6 +145,13 @@ class ArtMatcher(
         FrameLook.pick(look, seen) { it.id }
     }
 
+    /** How unlike [card]'s own picture the scan's [looks] are: the middle of their distances. Null without its picture. */
+    suspend fun lookDistance(card: ScryfallCard, looks: List<FrameLook>): Float? {
+        if (looks.isEmpty()) return null
+        val own = lookFor(card) ?: return null
+        return looks.map { it.distance(own) }.sorted()[looks.size / 2]
+    }
+
     private suspend fun lookFor(card: ScryfallCard): FrameLook? {
         synchronized(looks) { looks[card.id]?.let { return it } }
         val url = card.imageUrl ?: return null

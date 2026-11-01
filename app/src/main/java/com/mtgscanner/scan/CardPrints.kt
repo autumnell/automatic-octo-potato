@@ -58,6 +58,20 @@ object CardPrints {
     private const val PREFS = "scan"
     private const val KEY_ON = "cardPrints"
     private const val KEY_TOPPED = "cardPrintsTopUp"
+    private const val KEY_STAND_OUT = "printsStandOut"
+    private const val KEY_LEAD = "printsLead"
+
+    /** How sure a picture match must be: the defaults, or fitted to your own scans ([TestPhotos.tune]). */
+    @Volatile var thresholds = MatchThresholds()
+        private set
+
+    /** Keeps [t] (the defaults clear what was fitted). */
+    fun setThresholds(ctx: Context, t: MatchThresholds) {
+        thresholds = t
+        val e = prefs(ctx).edit()
+        if (t.isDefault) e.remove(KEY_STAND_OUT).remove(KEY_LEAD) else e.putFloat(KEY_STAND_OUT, t.standOut).putFloat(KEY_LEAD, t.lead)
+        e.apply()
+    }
 
     private class Download(val url: String, val file: String, val bytes: Long)
 
@@ -79,6 +93,8 @@ object CardPrints {
     /** At app start: when turned on, loads what's downloaded (and fetches anything missing). */
     fun init(ctx: Context) {
         dir = File(ctx.applicationContext.filesDir, "prints")
+        val p = prefs(ctx)
+        if (p.contains(KEY_STAND_OUT)) thresholds = MatchThresholds(p.getFloat(KEY_STAND_OUT, CardGallery.MIN_STAND_OUT), p.getFloat(KEY_LEAD, CardGallery.MIN_LEAD))
         if (isOn(ctx)) start(ctx.applicationContext)
     }
 
@@ -228,7 +244,8 @@ object CardPrints {
     /** The card matched by [print] (and [also], the same card read the other way up), or null when none clearly is. */
     fun match(print: FloatArray?, also: List<FloatArray> = emptyList(), onlySet: String? = null): GalleryHit? {
         val g = gallery ?: return null
-        return (listOfNotNull(print) + also).mapNotNull { g.match(it, onlySet) }.maxByOrNull { it.standOut }
+        val t = thresholds
+        return (listOfNotNull(print) + also).mapNotNull { g.match(it, onlySet, minStandOut = t.standOut, minLead = t.lead) }.maxByOrNull { it.standOut }
     }
 
     /** Of [printings], the one [print] shows, when clear. */

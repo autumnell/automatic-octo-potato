@@ -318,6 +318,59 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
         Undo.offer(if (n == 1) "1 card on the wishlist" else "$n cards on the wishlist")
     }
 
+    /** Copies owned by card name ([com.mtgscanner.util.CardNames.key]), for the shortages across decks. */
+    val ownedByName: StateFlow<Map<String, Int>> = repo.observeOwnedByName()
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Puts the copies short across decks on the wishlist (at least that many wanted of each). */
+    fun wishShort(rows: List<DeckShortage>) = viewModelScope.launch {
+        val cards = runCatching {
+            com.mtgscanner.data.PrintingLookup.resolve(rows.map { com.mtgscanner.data.PrintingLookup.Wanted(it.name) }) { ids ->
+                repo.api.identify(ids.map(com.mtgscanner.data.PrintingLookup::json))
+            }
+        }.getOrNull()
+        if (cards == null) { Undo.offer("Couldn't reach Scryfall"); return@launch }
+        var n = 0
+        cards.zip(rows).forEach { (c, r) -> if (c != null) { repo.wantAtLeast(c, r.short); n++ } }
+        Undo.offer(if (n == 1) "1 card on the wishlist" else "$n cards on the wishlist")
+    }
+
+    /** Decks › New › Precon decks: MTGJSON's list (null while loading, empty when it couldn't be read). */
+    val precons = kotlinx.coroutines.flow.MutableStateFlow<List<com.mtgscanner.data.PreconEntry>?>(null)
+    /** The precon opened, its cards (null while loading), and whether loading failed. */
+    val precon = kotlinx.coroutines.flow.MutableStateFlow<Triple<com.mtgscanner.data.PreconEntry, com.mtgscanner.data.PreconDeck?, Boolean>?>(null)
+
+    fun loadPrecons(fresh: Boolean = false) {
+        if (!fresh && !precons.value.isNullOrEmpty()) return
+        precons.value = null
+        viewModelScope.launch { precons.value = com.mtgscanner.data.Precons.list(repo.appContext, fresh).orEmpty() }
+    }
+
+    fun openPrecon(entry: com.mtgscanner.data.PreconEntry?) {
+        if (entry == null) { precon.value = null; return }
+        precon.value = Triple(entry, null, false)
+        viewModelScope.launch {
+            val deck = com.mtgscanner.data.Precons.deck(repo.appContext, entry)
+            if (precon.value?.first == entry) precon.value = Triple(entry, deck, deck == null)
+        }
+    }
+
+    /** Saves a precon as a deck, each card's printing named, with Undo. */
+    fun savePrecon(deck: com.mtgscanner.data.PreconDeck) = viewModelScope.launch {
+        val text = deck.asText()
+        val lines = com.mtgscanner.util.DecklistParser.parse(text)
+        val format = if (deck.entry.isCommander) "commander" else null
+        val leads = if (deck.entry.isCommander) com.mtgscanner.data.DeckCommanders.fromLines(lines).encode() else null
+        val id = repo.saveDeck(0L, deck.entry.name, text, format, leads)
+        Undo.offer("Saved deck: ${deck.entry.name}") { repo.deleteDeck(id) }
+    }
+
+    /** Puts what a precon is missing on the wishlist. */
+    fun wishPrecon(deck: com.mtgscanner.data.PreconDeck) {
+        val missing = deck.missing(ownedByName.value)
+        wishShort(missing.map { (n, c) -> DeckShortage(n, listOf(deck.entry.name to c), 0) })
+    }
+
     /** Decks › New › From a link. */
     fun importLink(url: String) = viewModelScope.launch {
         Undo.offer("Getting deck…")

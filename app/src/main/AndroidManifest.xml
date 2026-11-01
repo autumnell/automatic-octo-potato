@@ -12,6 +12,8 @@
     <!-- Tap a box's NFC tag to open it, and write those tags. Phones without NFC still install. -->
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-permission android:name="android.permission.NFC" />
+    <!-- Voice commands while scanning ("foil", "undo"), only when turned on in the scan settings. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Android 11+: the phone's text-to-speech and voice input, for the spoken "Where is it?". -->
     <queries>
@@ -20,6 +22,9 @@
         </intent>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 

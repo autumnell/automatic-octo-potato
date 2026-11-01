@@ -167,21 +167,24 @@ class ArtIndex(entries: List<ArtEntry>) {
 }
 
 /** Agreement over frames: the same card must match on [needed] frames in a row before it counts. */
-class ArtVote(private val needed: Int = 2) {
-    private var last: String? = null
-    private var count = 0
+class ArtVote(private val needed: Int = 2, private val window: Int = 4) {
+    private val recent = ArrayDeque<String?>()
 
-    /** Adds one frame's match (null for none). Returns the card once enough frames agree, else null. */
+    /**
+     * Adds one frame's match (null for none). Returns the card once it has [needed] of the last [window] frames
+     * and more than any other card, else null. A frame with no match is a lost vote, not a reset: one glared frame
+     * between two good ones doesn't start the count over.
+     */
     fun offer(id: String?): String? {
-        if (id == null) { reset(); return null }
-        if (id == last) count++ else { last = id; count = 1 }
-        return if (count >= needed) id else null
+        recent.addLast(id)
+        while (recent.size > window) recent.removeFirst()
+        if (id == null) return null
+        val votes = recent.filterNotNull().groupingBy { it }.eachCount()
+        val mine = votes[id] ?: 0
+        return if (mine >= needed && votes.none { (k, v) -> k != id && v >= mine }) id else null
     }
 
-    fun reset() {
-        last = null
-        count = 0
-    }
+    fun reset() = recent.clear()
 }
 
 /**
