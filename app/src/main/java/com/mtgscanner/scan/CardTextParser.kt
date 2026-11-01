@@ -422,7 +422,8 @@ object CardTextParser {
     fun looksLikeTitle(raw: String): Boolean {
         val t = raw.trim()
         if (t.isEmpty()) return false
-        if (t.first() in "\"“”‘'„«—–") return false
+        // Quotes and flavor text's "— Someone" (OCR often reads the dash as - or ~), e.g. an upside-down card's bottom.
+        if (t.first() in "\"“”‘'„«—–-~") return false
         if (t.endsWith('.') || t.endsWith('”') || t.endsWith('"')) return false
         val words = t.split(Regex("""[\s\-]+""")).map { it.trim(',', ':', '!', '?', '(', ')', '"', '“', '”') }.filter { w -> w.any { it.isLetter() } }
         val lower = words.count { w -> w.first().isLowerCase() && w.lowercase() !in NAME_SMALL_WORDS }

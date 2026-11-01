@@ -53,6 +53,7 @@ object WhatsNew {
         172 to "Settings › Data › Card finder: pick Grimoire's corner model or YOLO.",
         174 to "Settings › Data is sorted into sections. The YOLO card finder now comes inside the app.",
         178 to "Everything the scanner uses downloads on first open, with the best models. A name read never lands on an art card.",
+        180 to "Cards are known by their picture more often: the match was too strict for real phone scans.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

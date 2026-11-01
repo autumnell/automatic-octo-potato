@@ -338,6 +338,9 @@ private fun TestPhotosRows() {
     }
     if (!keep && kept == 0) return
     var result by remember { mutableStateOf<String?>(null) }
+    // Names of printings the picture gallery lacks, from the card list on the phone.
+    val localCards = (app as com.mtgscanner.MtgApp).repository.localCards
+    val nameOf: (String) -> String? = { id -> localCards.byId(id)?.name }
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) scope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching { app.contentResolver.openOutputStream(uri)?.use { com.mtgscanner.scan.TestPhotos.zipTo(app, it) } }
@@ -349,7 +352,7 @@ private fun TestPhotosRows() {
             kept = com.mtgscanner.scan.TestPhotos.count(ctx)
             result = "Checking…"
             scope.launch {
-                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.mtgscanner.scan.TestPhotos.check(app) }
+                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.mtgscanner.scan.TestPhotos.check(app, nameOf) }
                 result = when {
                     r == null || r.total == 0 -> "No photos to check yet"
                     else -> "By picture alone: ${r.right} of ${r.total} right (${r.right * 100 / r.total}%)" +
@@ -360,7 +363,7 @@ private fun TestPhotosRows() {
         TextButton(onClick = {
             result = "Tuning…"
             scope.launch {
-                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.mtgscanner.scan.TestPhotos.tune(app) }
+                val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.mtgscanner.scan.TestPhotos.tune(app, nameOf) }
                 result = when {
                     r == null -> "Tuning needs ${com.mtgscanner.scan.ThresholdTuner.MIN_SAMPLES} kept photos or more"
                     r.thresholds.isDefault -> "The usual settings already suit your scans: ${r.rightAfter} of ${r.total} right, ${r.wrongAfter} wrong"

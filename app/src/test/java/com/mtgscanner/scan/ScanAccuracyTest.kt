@@ -27,6 +27,9 @@ class ScanAccuracyTest {
         assumeTrue("SCAN_MODELS not set", dir != null && File(dir, "card.onnx").exists() && File(dir, "gallery_f16.bin").exists())
         val d = dir!!
         val packed = ByteArrayOutputStream()
+        val scanNames = File(d, "samples/scan-names.json").takeIf { it.exists() }?.readText()
+            ?.let { Regex(""""([0-9a-f-]{36})"\s*:\s*"((?:[^"\\]|\\.)*)"""").findAll(it).associate { m -> m.groupValues[1] to m.groupValues[2] } }
+            .orEmpty()
         File(d, "gallery_ids.json").reader().use { ids ->
             File(d, "meta.json").reader().use { meta ->
                 File(d, "gallery_f16.bin").inputStream().use { CardGallery.Published.convert(ids, meta, it, packed) }
@@ -47,21 +50,24 @@ class ScanAccuracyTest {
         val samples = File(d, "samples").listFiles().orEmpty().filter { it.extension == "rgb" }.sortedBy { it.name }
         for (f in samples) {
             val id = f.name.substringBefore("__")
-            val kind = f.nameWithoutExtension.substringAfter("__")
+            val kind = f.nameWithoutExtension.substringAfter("__").substringBefore("__")
             val t = tally.getOrPut(kind) { IntArray(3) }
             val pic = read(f)
             val start = System.nanoTime()
             val straight = if (kind == "Photo") corners?.let { findAndStraighten(pic, it) } else pic
-            val hit = straight?.let { gallery.match(print(it)) }
+            // Real scans are tried both ways up, as the scanner does.
+            val tries = straight?.let { if (kind == "Your scans") listOf(it, turned(it)) else listOf(it) }.orEmpty()
+            val hit = tries.mapNotNull { gallery.match(print(it)) }.maxByOrNull { it.standOut }
             ms[kind] = (ms[kind] ?: 0L) + (System.nanoTime() - start) / 1_000_000
             val row = gallery.rowOf(id)
+            val name = if (row >= 0) gallery.nameAt(row) else scanNames[id]
             when {
                 hit == null -> t[2]++
-                hit.id == id || (row >= 0 && hit.name == gallery.nameAt(row)) -> t[0]++
+                hit.id == id || hit.name == name -> t[0]++
                 else -> t[1]++
             }
         }
-        val detail = yourScans(samples, gallery, ::print)
+        val detail = yourScans(samples, gallery, scanNames, ::print)
         card.close()
         corners?.close()
 
@@ -87,8 +93,8 @@ class ScanAccuracyTest {
      * Each real scan in detail, plainly and with a few fixes tried: where the right card ranked, its score, and
      * what the match gave instead. For finding why real scans miss.
      */
-    private fun yourScans(samples: List<File>, g: CardGallery, print: (Picture) -> FloatArray): String {
-        val scans = samples.filter { it.nameWithoutExtension.endsWith("__Your scans") }
+    private fun yourScans(samples: List<File>, g: CardGallery, scanNames: Map<String, String>, print: (Picture) -> FloatArray): String {
+        val scans = samples.filter { it.nameWithoutExtension.contains("__Your scans") }
         if (scans.isEmpty()) return ""
         val fixes = linkedMapOf<String, (Picture) -> Picture>(
             "as is" to { it },
@@ -105,7 +111,7 @@ class ScanAccuracyTest {
         for (f in scans) {
             val id = f.name.substringBefore("__")
             val row = g.rowOf(id)
-            val name = if (row >= 0) g.nameAt(row) else "(not in gallery)"
+            val name = if (row >= 0) g.nameAt(row) else scanNames[id] ?: "(unknown)"
             val pic = read(f)
             var bestFix = ""
             var bestFixScore = -2f
@@ -113,14 +119,16 @@ class ScanAccuracyTest {
             fixes.entries.forEachIndexed { i, (label, fix) ->
                 val q = print(fix(pic))
                 val hit = g.match(q)
-                val ok = hit != null && (hit.id == id || (row >= 0 && hit.name == name))
+                val ok = hit != null && (hit.id == id || hit.name == name)
                 if (ok) right[i]++ else if (hit != null) wrong[i]++
-                val own = if (row >= 0) bestOfName(g, q, name) else -2f
+                val own = bestOfName(g, q, name)
                 if (own > bestFixScore) { bestFixScore = own; bestFix = label }
                 if (i == 0) {
                     val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
-                    val rank = if (row >= 0) rankOf(g, q, name) else -1
-                    val got = if (ok) "right" else hit?.name ?: "none (best ${loose?.name})"
+                    val rank = rankOf(g, q, name)
+                    // A right card far down means the photo was likely saved under the wrong card: name the file.
+                    val file = if (rank > 50) " (${f.nameWithoutExtension.substringAfterLast("__")}, best ${loose?.id})" else ""
+                    val got = (if (ok) "right" else hit?.name ?: "none (best ${loose?.name})") + file
                     line = "| $name | $got | ${"%.2f".format(loose?.score ?: 0f)} | ${"%.2f".format(own)} | $rank | " +
                         "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} | "
                 }

@@ -81,23 +81,24 @@ object TestPhotos {
         val total: Int get() = right + wrong + unsure
     }
 
-    /** Looks up every kept photo by its picture alone (as when no text can be read). Slow: call off the main thread. */
-    fun check(ctx: Context): Result? {
+    /**
+     * Looks up every kept photo by its picture alone (as when no text can be read), both ways up as the scanner
+     * does. [nameOf] gives a card's name from its Scryfall id, for printings the gallery doesn't have. Slow: call
+     * off the main thread.
+     */
+    fun check(ctx: Context, nameOf: (String) -> String? = { null }): Result? {
         val g = CardPrints.gallery ?: return null
         var right = 0
         var wrong = 0
         var unsure = 0
         for (f in dir(ctx).listFiles().orEmpty()) {
             val id = f.name.substringBefore('_')
-            val bmp = BitmapFactory.decodeFile(f.path) ?: continue
-            val print = try { CardPrints.fingerprint(bmp) } finally { bmp.recycle() } ?: continue
+            val prints = printsOf(f) ?: continue
             val t = CardPrints.thresholds
-            val hit = g.match(print, minStandOut = t.standOut, minLead = t.lead)
-            val row = g.rowOf(id)
+            val hit = prints.mapNotNull { g.match(it, minStandOut = t.standOut, minLead = t.lead) }.maxByOrNull { it.standOut }
             when {
                 hit == null -> unsure++
-                // Another printing of the same card still finds the card; the text or art then picks the printing.
-                hit.id == id || (row >= 0 && hit.name == g.nameAt(row)) -> right++
+                isRight(g, hit, id, nameOf) -> right++
                 else -> wrong++
             }
         }
@@ -108,24 +109,47 @@ object TestPhotos {
      * Each kept photo looked up with no thresholds: how its best card stood out and led, and whether it was right.
      * Null without the gallery. Slow: call off the main thread.
      */
-    fun samples(ctx: Context): List<TuneSample>? {
+    fun samples(ctx: Context, nameOf: (String) -> String? = { null }): List<TuneSample>? {
         val g = CardPrints.gallery ?: return null
         val out = ArrayList<TuneSample>()
         for (f in dir(ctx).listFiles().orEmpty()) {
             val id = f.name.substringBefore('_')
-            val bmp = BitmapFactory.decodeFile(f.path) ?: continue
-            val print = try { CardPrints.fingerprint(bmp) } finally { bmp.recycle() } ?: continue
-            val hit = g.match(print, minScore = CardGallery.MIN_SCORE, minStandOut = 0f, minLead = -1f) ?: continue
-            val row = g.rowOf(id)
-            val right = hit.id == id || (row >= 0 && hit.name == g.nameAt(row))
-            out += TuneSample(hit.standOut, hit.score - hit.runnerUp, right)
+            val prints = printsOf(f) ?: continue
+            val hit = prints.mapNotNull { g.match(it, minScore = CardGallery.MIN_SCORE, minStandOut = 0f, minLead = -1f) }
+                .maxByOrNull { it.standOut } ?: continue
+            out += TuneSample(hit.standOut, hit.score - hit.runnerUp, isRight(g, hit, id, nameOf))
         }
         return out
     }
 
+    /** The photo's fingerprint as it is and turned around, as the scanner tries both. */
+    private fun printsOf(f: File): List<FloatArray>? {
+        val bmp = BitmapFactory.decodeFile(f.path) ?: return null
+        return try {
+            val turned = runCatching {
+                Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, android.graphics.Matrix().apply { postRotate(180f) }, false)
+            }.getOrNull()
+            try {
+                listOfNotNull(CardPrints.fingerprint(bmp), turned?.let { CardPrints.fingerprint(it) }).ifEmpty { null }
+            } finally {
+                turned?.recycle()
+            }
+        } finally {
+            bmp.recycle()
+        }
+    }
+
+    /** Another printing of the same card still finds the card; the text or art then picks the printing. */
+    private fun isRight(g: CardGallery, hit: GalleryHit, id: String, nameOf: (String) -> String?): Boolean {
+        if (hit.id == id) return true
+        val row = g.rowOf(id)
+        val name = if (row >= 0) g.nameAt(row) else runCatching { nameOf(id) }.getOrNull()
+        return name != null && hit.name == name
+    }
+
     /** Fits the picture match's thresholds to the kept photos ([ThresholdTuner]) and uses them. Null with too few. */
-    fun tune(ctx: Context): TuneResult? {
-        val r = ThresholdTuner.tune(samples(ctx) ?: return null) ?: return null
+    fun tune(ctx: Context, nameOf: (String) -> String? = { null }): TuneResult? {
+        val r = ThresholdTuner.tune(samples(ctx, nameOf) ?: return null) ?: return null
         CardPrints.setThresholds(ctx, r.thresholds)
         return r
     }

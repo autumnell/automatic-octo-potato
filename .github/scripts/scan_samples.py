@@ -71,8 +71,23 @@ for cid in rnd.sample(ids, n * 2):
     save(photo, f"{cid}__Photo")
     truth[cid] = corners
     got += 1
-for p in glob.glob(os.path.join(photos, "*.jp*g")) + glob.glob(os.path.join(photos, "*.png")):
-    save(Image.open(p), os.path.basename(p).split("_")[0] + "__Your scans")
+# Real scans keep their own names after the id (one card can be scanned more than once). Their card names come
+# from Scryfall, as the gallery may lack the printing the scan was saved as.
+names = {}
+for p in sorted(glob.glob(os.path.join(photos, "*.jp*g")) + glob.glob(os.path.join(photos, "*.png"))):
+    base = os.path.splitext(os.path.basename(p))[0]
+    cid, _, rest = base.partition("_")
+    save(Image.open(p), f"{cid}__Your scans__{rest}")
+    if cid not in names:
+        try:
+            req = urllib.request.Request(f"https://api.scryfall.com/cards/{cid}",
+                                         headers={"User-Agent": "GrimoireScanTest/1.0", "Accept": "application/json"})
+            names[cid] = json.load(urllib.request.urlopen(req, timeout=30))["name"]
+            time.sleep(0.12)
+        except Exception as e:
+            print("no name for", cid, e)
+with open(os.path.join(out, "scan-names.json"), "w") as f:
+    json.dump(names, f)
 with open(os.path.join(out, "corners.json"), "w") as f:
     json.dump(truth, f)
 print("samples:", got)
