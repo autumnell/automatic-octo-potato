@@ -27,6 +27,9 @@ class ScanAccuracyTest {
         assumeTrue("SCAN_MODELS not set", dir != null && File(dir, "card.onnx").exists() && File(dir, "gallery_f16.bin").exists())
         val d = dir!!
         val packed = ByteArrayOutputStream()
+        val scanNames = File(d, "samples/scan-names.json").takeIf { it.exists() }?.readText()
+            ?.let { Regex(""""([0-9a-f-]{36})"\s*:\s*"((?:[^"\\]|\\.)*)"""").findAll(it).associate { m -> m.groupValues[1] to m.groupValues[2] } }
+            .orEmpty()
         File(d, "gallery_ids.json").reader().use { ids ->
             File(d, "meta.json").reader().use { meta ->
                 File(d, "gallery_f16.bin").inputStream().use { CardGallery.Published.convert(ids, meta, it, packed) }
@@ -47,20 +50,24 @@ class ScanAccuracyTest {
         val samples = File(d, "samples").listFiles().orEmpty().filter { it.extension == "rgb" }.sortedBy { it.name }
         for (f in samples) {
             val id = f.name.substringBefore("__")
-            val kind = f.nameWithoutExtension.substringAfter("__")
+            val kind = f.nameWithoutExtension.substringAfter("__").substringBefore("__")
             val t = tally.getOrPut(kind) { IntArray(3) }
             val pic = read(f)
             val start = System.nanoTime()
             val straight = if (kind == "Photo") corners?.let { findAndStraighten(pic, it) } else pic
-            val hit = straight?.let { gallery.match(print(it)) }
+            // Real scans are tried both ways up, as the scanner does.
+            val tries = straight?.let { if (kind == "Your scans") listOf(it, turned(it)) else listOf(it) }.orEmpty()
+            val hit = tries.mapNotNull { gallery.match(print(it)) }.maxByOrNull { it.standOut }
             ms[kind] = (ms[kind] ?: 0L) + (System.nanoTime() - start) / 1_000_000
             val row = gallery.rowOf(id)
+            val name = if (row >= 0) gallery.nameAt(row) else scanNames[id]
             when {
                 hit == null -> t[2]++
-                hit.id == id || (row >= 0 && hit.name == gallery.nameAt(row)) -> t[0]++
+                hit.id == id || (name != null && sameCard(hit.name, name)) -> t[0]++
                 else -> t[1]++
             }
         }
+        val detail = yourScans(samples, gallery, scanNames, ::print)
         card.close()
         corners?.close()
 
@@ -71,7 +78,7 @@ class ScanAccuracyTest {
         }
         println(report)
         File("build").mkdirs()
-        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\n$report")
+        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\n$report\n$detail")
 
         // Clean pictures should all be right; a wrong answer is worse than none, so few wrong anywhere.
         tally["Clean"]?.let { t -> assertTrue("clean: ${t.toList()}", t[0] * 100 >= t.sum() * 95) }
@@ -81,6 +88,65 @@ class ScanAccuracyTest {
         }
         tally["Your scans"]?.let { t -> if (t.sum() >= 10) assertTrue("your scans: ${t.toList()}", t[0] * 100 >= t.sum() * 80) }
     }
+
+    /**
+     * Each real scan in detail: what the match gave, the best and right cards' scores, where the right card ranked,
+     * and how far the best stood out and led. A right card far down names the file: it was likely saved under the
+     * wrong card.
+     */
+    private fun yourScans(samples: List<File>, g: CardGallery, scanNames: Map<String, String>, print: (Picture) -> FloatArray): String {
+        val scans = samples.filter { it.nameWithoutExtension.contains("__Your scans") }
+        if (scans.isEmpty()) return ""
+        val out = StringBuilder("\n#### Your scans, one by one\n\n| Card | Got | Score | Right score | Rank | Stand out | Lead |\n|---|---|---|---|---|---|---|\n")
+        for (f in scans) {
+            val id = f.name.substringBefore("__")
+            val row = g.rowOf(id)
+            val name = if (row >= 0) g.nameAt(row) else scanNames[id] ?: "(unknown)"
+            val q = print(read(f))
+            val hit = g.match(q)
+            val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
+            val rank = rankOf(g, q, name)
+            val file = if (rank > 50) " (${f.nameWithoutExtension.substringAfterLast("__")}, best ${loose?.id})" else ""
+            val got = when {
+                hit == null -> "none (best ${loose?.name})"
+                hit.id == id || sameCard(hit.name, name) -> "right"
+                else -> hit.name
+            } + file
+            out.append("| $name | $got | ${"%.2f".format(loose?.score ?: 0f)} | ${"%.2f".format(bestOfName(g, q, name))} | $rank | " +
+                "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} |\n")
+        }
+        return out.toString()
+    }
+
+    private var keys: Array<String>? = null
+
+    /** Each gallery row's name key, worked out once. */
+    private fun keysOf(g: CardGallery): Array<String> =
+        keys ?: Array(g.size) { com.mtgscanner.util.CardNames.key(g.nameAt(it)) }.also { keys = it }
+
+    /** "A // A" (a reversible printing) and "A" are the same card. */
+    private fun sameCard(a: String, b: String) = com.mtgscanner.util.CardNames.key(a) == com.mtgscanner.util.CardNames.key(b)
+
+    /** The best score of any printing named [name]. */
+    private fun bestOfName(g: CardGallery, q: FloatArray, name: String): Float {
+        var best = -2f
+        val k = com.mtgscanner.util.CardNames.key(name)
+        val keys = keysOf(g)
+        for (r in 0 until g.size) if (keys[r] == k) best = maxOf(best, g.score(q, r))
+        return best
+    }
+
+    /** 1 when a printing named [name] is the closest card. */
+    private fun rankOf(g: CardGallery, q: FloatArray, name: String): Int {
+        val own = bestOfName(g, q, name)
+        val better = HashSet<String>()
+        val k = com.mtgscanner.util.CardNames.key(name)
+        val keys = keysOf(g)
+        for (r in 0 until g.size) if (keys[r] != k && g.score(q, r) > own) better += keys[r]
+        return better.size + 1
+    }
+
+    private fun turned(p: Picture) = Picture(p.w, p.h, IntArray(p.px.size) { p.px[p.px.size - 1 - it] })
 
     private fun read(f: File): Picture = DataInputStream(f.inputStream().buffered()).use { s ->
         val w = s.readInt()

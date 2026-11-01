@@ -132,11 +132,17 @@ class CardGallery(
 
     companion object {
         const val DIM = 256
-        /** From tests with Scryfall pictures made blurry, dark, cropped and glared: the right card scores 0.36–0.99. */
-        const val MIN_SCORE = 0.45f
-        /** The right card stood 5.6–13 standard deviations above the rest; anything else rarely tops 5. */
-        const val MIN_STAND_OUT = 6.5f
-        const val MIN_LEAD = 0.06f
+        /**
+         * From tests with Scryfall pictures made blurry, dark, cropped and glared, the right card scores 0.36–0.99;
+         * on real phone scans 0.40–0.78. Wrong best cards scored up to 0.43, so the score alone can't decide.
+         */
+        const val MIN_SCORE = 0.38f
+        /**
+         * On real phone scans the right card stood 5.7–10 standard deviations above the rest and led the next card
+         * by 0.07 or more; wrong best cards stood 5.1–5.6 and led by 0.06 at most.
+         */
+        const val MIN_STAND_OUT = 5.9f
+        const val MIN_LEAD = 0.07f
         const val SAME_PICTURE = 0.95f
         const val PICK_LEAD = 0.03f
         const val PICK_MIN = 0.3f
