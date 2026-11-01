@@ -61,6 +61,7 @@ class ScanAccuracyTest {
                 else -> t[1]++
             }
         }
+        val detail = yourScans(samples, gallery, ::print)
         card.close()
         corners?.close()
 
@@ -71,7 +72,7 @@ class ScanAccuracyTest {
         }
         println(report)
         File("build").mkdirs()
-        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\n$report")
+        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\n$report\n$detail")
 
         // Clean pictures should all be right; a wrong answer is worse than none, so few wrong anywhere.
         tally["Clean"]?.let { t -> assertTrue("clean: ${t.toList()}", t[0] * 100 >= t.sum() * 95) }
@@ -80,6 +81,107 @@ class ScanAccuracyTest {
             assertTrue("wrong answers: ${all.toList()}", all[1] * 100 <= all.sum() * 3)
         }
         tally["Your scans"]?.let { t -> if (t.sum() >= 10) assertTrue("your scans: ${t.toList()}", t[0] * 100 >= t.sum() * 80) }
+    }
+
+    /**
+     * Each real scan in detail, plainly and with a few fixes tried: where the right card ranked, its score, and
+     * what the match gave instead. For finding why real scans miss.
+     */
+    private fun yourScans(samples: List<File>, g: CardGallery, print: (Picture) -> FloatArray): String {
+        val scans = samples.filter { it.nameWithoutExtension.endsWith("__Your scans") }
+        if (scans.isEmpty()) return ""
+        val fixes = linkedMapOf<String, (Picture) -> Picture>(
+            "as is" to { it },
+            "turned" to { turned(it) },
+            "inset 3%" to { inset(it, 0.03f) },
+            "inset 6%" to { inset(it, 0.06f) },
+            "outset 3%" to { inset(it, -0.03f) },
+            "levels" to { levels(it) },
+            "levels+inset 3%" to { levels(inset(it, 0.03f)) },
+        )
+        val right = IntArray(fixes.size)
+        val wrong = IntArray(fixes.size)
+        val rows = StringBuilder("\n#### Your scans, one by one (as is)\n\n| Card | Got | Score | Right score | Rank | Stand out | Lead | Best fix |\n|---|---|---|---|---|---|---|---|\n")
+        for (f in scans) {
+            val id = f.name.substringBefore("__")
+            val row = g.rowOf(id)
+            val name = if (row >= 0) g.nameAt(row) else "(not in gallery)"
+            val pic = read(f)
+            var bestFix = ""
+            var bestFixScore = -2f
+            var line = ""
+            fixes.entries.forEachIndexed { i, (label, fix) ->
+                val q = print(fix(pic))
+                val hit = g.match(q)
+                val ok = hit != null && (hit.id == id || (row >= 0 && hit.name == name))
+                if (ok) right[i]++ else if (hit != null) wrong[i]++
+                val own = if (row >= 0) bestOfName(g, q, name) else -2f
+                if (own > bestFixScore) { bestFixScore = own; bestFix = label }
+                if (i == 0) {
+                    val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
+                    val rank = if (row >= 0) rankOf(g, q, name) else -1
+                    val got = if (ok) "right" else hit?.name ?: "none (best ${loose?.name})"
+                    line = "| $name | $got | ${"%.2f".format(loose?.score ?: 0f)} | ${"%.2f".format(own)} | $rank | " +
+                        "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} | "
+                }
+            }
+            rows.append(line).append("$bestFix |\n")
+        }
+        val sum = StringBuilder("\n#### Your scans with fixes\n\n| Fix | Right | Wrong |\n|---|---|---|\n")
+        fixes.keys.forEachIndexed { i, label -> sum.append("| $label | ${right[i]} of ${scans.size} | ${wrong[i]} |\n") }
+        return sum.toString() + rows
+    }
+
+    /** The best score of any printing named [name]. */
+    private fun bestOfName(g: CardGallery, q: FloatArray, name: String): Float {
+        var best = -2f
+        for (r in 0 until g.size) if (g.nameAt(r) == name) best = maxOf(best, g.score(q, r))
+        return best
+    }
+
+    /** 1 when a printing named [name] is the closest card. */
+    private fun rankOf(g: CardGallery, q: FloatArray, name: String): Int {
+        val own = bestOfName(g, q, name)
+        val better = HashSet<String>()
+        for (r in 0 until g.size) if (g.nameAt(r) != name && g.score(q, r) > own) better += g.nameAt(r)
+        return better.size + 1
+    }
+
+    private fun turned(p: Picture) = Picture(p.w, p.h, IntArray(p.px.size) { p.px[p.px.size - 1 - it] })
+
+    /** The middle of [p] without [f] of each side (or with that much more, edge pixels repeated, when negative). */
+    private fun inset(p: Picture, f: Float): Picture {
+        val dx = p.w * f
+        val dy = p.h * f
+        return Picture(p.w, p.h, IntArray(p.w * p.h) { i ->
+            val x = dx + ((i % p.w) + 0.5f) * (p.w - 2 * dx) / p.w - 0.5f
+            val y = dy + ((i / p.w) + 0.5f) * (p.h - 2 * dy) / p.h - 0.5f
+            sample(p, x, y)
+        })
+    }
+
+    /** Each colour stretched so its darkest 1% is black and brightest 1% white (white balance and contrast). */
+    private fun levels(p: Picture): Picture {
+        val lo = IntArray(3)
+        val hi = IntArray(3)
+        for ((k, shift) in intArrayOf(16, 8, 0).withIndex()) {
+            val hist = IntArray(256)
+            for (c in p.px) hist[(c shr shift) and 0xFF]++
+            val cut = p.px.size / 100
+            var acc = 0
+            lo[k] = (0..255).first { acc += hist[it]; acc > cut }
+            acc = 0
+            hi[k] = (255 downTo 0).first { acc += hist[it]; acc > cut }
+        }
+        return Picture(p.w, p.h, IntArray(p.px.size) { i ->
+            var out = 0xFF shl 24
+            for ((k, shift) in intArrayOf(16, 8, 0).withIndex()) {
+                val v = (p.px[i] shr shift) and 0xFF
+                val span = (hi[k] - lo[k]).coerceAtLeast(1)
+                out = out or (((v - lo[k]) * 255 / span).coerceIn(0, 255) shl shift)
+            }
+            out
+        })
     }
 
     private fun read(f: File): Picture = DataInputStream(f.inputStream().buffered()).use { s ->
