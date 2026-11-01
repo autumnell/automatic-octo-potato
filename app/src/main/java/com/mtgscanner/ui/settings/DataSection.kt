@@ -361,6 +361,33 @@ private fun ForeignReadingRow() {
  * Knowing cards by their picture: off until turned on, then a one-time download. Once it's ready, scans can be
  * kept as test photos, checked on the phone, or saved for the build server's accuracy test.
  */
+/** Which model finds a card's corners: ours, or open-card-collector's YOLO (downloaded when picked). */
+@Composable
+private fun CardFinderRow() {
+    val ctx = LocalContext.current
+    val finder by com.mtgscanner.scan.CardPrints.finder.collectAsStateWithLifecycle()
+    val download by com.mtgscanner.scan.CardPrints.finderDownload.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text("Card finder", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            when (val d = download) {
+                null -> if (finder == com.mtgscanner.scan.CardPrints.Finder.YOLO) "YOLO (open-card-collector): more exact corners on photos" else "Finds a card's corners when its outline isn't clear"
+                -1 -> "Couldn't get YOLO, using Grimoire's. Pick it again to retry"
+                else -> "Downloading YOLO… $d%"
+            },
+            style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+        )
+        Row(Modifier.padding(top = 8.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            com.mtgscanner.scan.CardPrints.Finder.entries.forEach { f ->
+                com.mtgscanner.ui.components.SelectPill(
+                    f.label + if (f == com.mtgscanner.scan.CardPrints.Finder.YOLO) " · ${com.mtgscanner.scan.CardPrints.YOLO_MB} MB" else "",
+                    finder == f, { com.mtgscanner.scan.CardPrints.setFinder(ctx, f) },
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CardPrintsRow() {
@@ -381,6 +408,8 @@ private fun CardPrintsRow() {
         if (v) com.mtgscanner.scan.CardPrints.turnOn(ctx) else com.mtgscanner.scan.CardPrints.turnOff(ctx)
     }
     if (!on || st != com.mtgscanner.scan.CardPrints.State.Ready) return
+    HorizontalDivider(color = Palette.Rule)
+    CardFinderRow()
     HorizontalDivider(color = Palette.Rule)
     var keep by remember { mutableStateOf(com.mtgscanner.scan.TestPhotos.isOn(ctx)) }
     var kept by remember { mutableIntStateOf(com.mtgscanner.scan.TestPhotos.count(ctx)) }
