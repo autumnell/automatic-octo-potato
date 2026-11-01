@@ -20,7 +20,8 @@ path = model.export(format="onnx", imgsz=640, opset=12, simplify=True, dynamic=F
 import onnx
 from onnxconverter_common import float16
 half = out + ".fp16"
-onnx.save(float16.convert_float_to_float16(onnx.load(path), keep_io_types=True), half)
+# Resize stays in full precision: the converter breaks its types otherwise.
+onnx.save(float16.convert_float_to_float16(onnx.load(path), keep_io_types=True, op_block_list=["Resize"]), half)
 sess = None
 
 S = 640
@@ -97,7 +98,11 @@ req = urllib.request.Request("https://api.scryfall.com/cards/named?exact=Lightni
                              headers={"User-Agent": "GrimoireExport/1.0", "Accept": "*/*"})
 card = Image.open(io.BytesIO(urllib.request.urlopen(req, timeout=30).read())).convert("RGBA")
 for name, file in (("half precision", half), ("full precision", path)):
-    w = check(file)
+    try:
+        w = check(file)
+    except Exception as e:
+        print(name, "doesn't load:", e)
+        continue
     print(name, os.path.getsize(file), "bytes, worst", round(w * 100, 2), "%")
     if w <= 0.03:
         shutil.copy(file, out)
