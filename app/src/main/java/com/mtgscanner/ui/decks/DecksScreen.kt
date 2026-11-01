@@ -164,6 +164,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     var covering by remember { mutableStateOf<DeckRow?>(null) }
     var newMenu by remember { mutableStateOf(false) }
     var linking by remember { mutableStateOf(false) }
+    var almost by remember { mutableStateOf(false) }
 
     val folder = shelf.folders.firstOrNull { it.id == folderId }
     BackHandler(enabled = folder != null) { folderId = null }
@@ -219,6 +220,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                         DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
                             DropdownMenuItem(text = { Text("Paste a list") }, onClick = { newMenu = false; onOpenDeck(0L) })
                             DropdownMenuItem(text = { Text("From a link") }, onClick = { newMenu = false; linking = true })
+                            DropdownMenuItem(text = { Text("Decks you can almost build") }, onClick = { newMenu = false; almost = true })
                         }
                     }
                 }
@@ -281,6 +283,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
         }
     }
 
+    if (almost) AlmostDecksSheet(vm, onDismiss = { almost = false })
     if (linking) DeckLinkDialog(onDismiss = { linking = false }) { url -> linking = false; vm.importLink(url) }
     if (naming) {
         FolderNameDialog("New folder", "", onSave = { vm.createFolder(it); naming = false }, onDismiss = { naming = false })

@@ -140,6 +140,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import com.mtgscanner.data.almostDecks
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import com.mtgscanner.ui.theme.Corners
@@ -276,6 +277,46 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun renameFolder(id: Long, name: String) = DeckShelfStore.renameFolder(id, name)
     fun moveDeck(deckId: Long, folderId: Long?) = DeckShelfStore.moveDeck(deckId, folderId)
     fun setCover(deckId: Long, name: String?) = DeckShelfStore.setCover(deckId, name)
+
+    /** Decks you could nearly build: null before the first look; [AlmostRun.loading] while EDHREC is read. */
+    val almost = kotlinx.coroutines.flow.MutableStateFlow<AlmostRun?>(null)
+    private var almostJob: kotlinx.coroutines.Job? = null
+
+    /** Looks at the commanders you own and the week's popular ones (again with [fresh]). */
+    fun loadAlmost(fresh: Boolean = false) {
+        val now = almost.value
+        if (now != null && (now.loading || (!fresh && now.decks.isNotEmpty()))) return
+        almostJob?.cancel()
+        almost.value = AlmostRun(loading = true)
+        almostJob = viewModelScope.launch {
+            val decks = runCatching {
+                repo.almostDecks { p -> almost.update { r -> r?.copy(progress = p) } }
+            }.getOrDefault(emptyList())
+            almost.value = AlmostRun(loading = false, decks = decks, failed = decks.isEmpty())
+        }
+    }
+
+    /** Saves [deck]'s typical list as a new Commander deck, with Undo. */
+    fun saveAlmost(deck: com.mtgscanner.data.AlmostDeck) = viewModelScope.launch {
+        val text = deck.asText()
+        val lines = com.mtgscanner.util.DecklistParser.parse(text)
+        val id = repo.saveDeck(0L, deck.commander, text, "commander", com.mtgscanner.data.DeckCommanders.fromLines(lines).encode())
+        Undo.offer("Saved deck: ${deck.commander}") { repo.deleteDeck(id) }
+    }
+
+    /** Adds the cards [deck] is missing to the wishlist, one of each (never on top of what's wanted). */
+    fun wishAlmost(deck: com.mtgscanner.data.AlmostDeck) = viewModelScope.launch {
+        val names = deck.missing
+        val cards = runCatching {
+            com.mtgscanner.data.PrintingLookup.resolve(names.map { com.mtgscanner.data.PrintingLookup.Wanted(it) }) { ids ->
+                repo.api.identify(ids.map(com.mtgscanner.data.PrintingLookup::json))
+            }
+        }.getOrNull()
+        if (cards == null) { Undo.offer("Couldn't reach Scryfall"); return@launch }
+        var n = 0
+        cards.forEach { c -> if (c != null) { repo.wantAtLeast(c, 1); n++ } }
+        Undo.offer(if (n == 1) "1 card on the wishlist" else "$n cards on the wishlist")
+    }
 
     /** Decks › New › From a link. */
     fun importLink(url: String) = viewModelScope.launch {

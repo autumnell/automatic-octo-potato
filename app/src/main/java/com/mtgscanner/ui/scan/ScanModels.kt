@@ -107,7 +107,12 @@ data class SortSession(val entries: List<ScanEntry> = emptyList(), val done: Set
 
 /** A card set aside while auto-adding, with the language read off it. */
 @Serializable
-data class ReviewItem(val card: ScryfallCard, val lang: String? = null)
+data class ReviewItem(
+    val card: ScryfallCard,
+    val lang: String? = null,
+    /** The card as the camera saw it ([com.mtgscanner.scan.ScanPhotos] name), when one was kept. */
+    val photo: String? = null,
+)
 
 /** A card the skip rules skipped this session, and why. */
 data class SkippedItem(val card: ScryfallCard, val reason: String, val lang: String? = null, val key: Long = 0)
@@ -162,6 +167,8 @@ data class PhotoItem(
 data class PhotoRun(
     val loading: Boolean = true, val items: List<PhotoItem> = emptyList(), val failed: Boolean = false,
     val title: String = "Photo",
+    /** How far through a video the reading is, 0 to 1; null for a photo. */
+    val progress: Float? = null,
     /** The batch list being reviewed: closing the sheet puts what's left back on it. */
     val fromBatch: Boolean = false,
 )

@@ -129,6 +129,48 @@ class ArtMatcher(
         ImageHash.pickBestBoth(hash, phash, distinct)
     }
 
+    private val looks = object : LinkedHashMap<String, FrameLook>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FrameLook>?) = size > 200
+    }
+
+    /**
+     * The printing whose footer, set symbol and colours ([FrameLook]) clearly match the scan's [look], for printings
+     * the art can't tell apart. At most [MAX_LOOKS] printings, as each needs its full picture.
+     */
+    suspend fun byLook(printings: List<ScryfallCard>, look: FrameLook?): ScryfallCard? = coroutineScope {
+        if (look == null || printings.size < 2 || printings.size > MAX_LOOKS) return@coroutineScope null
+        val seen = printings.map { card -> async { lookFor(card)?.let { card to it } } }.awaitAll().filterNotNull()
+        // Every printing must have its look, so a missing picture can't win by default.
+        if (seen.size != printings.size) return@coroutineScope null
+        FrameLook.pick(look, seen) { it.id }
+    }
+
+    private suspend fun lookFor(card: ScryfallCard): FrameLook? {
+        synchronized(looks) { looks[card.id]?.let { return it } }
+        val url = card.imageUrl ?: return null
+        val look = gate.withPermit {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+                        val bytes = resp.body?.bytes() ?: return@use null
+                        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@use null
+                        val small = Bitmap.createScaledBitmap(bmp, CardPrintPrep.CARD_W, CardPrintPrep.CARD_H, true)
+                        try {
+                            val px = IntArray(small.width * small.height)
+                            small.getPixels(px, 0, small.width, 0, 0, small.width, small.height)
+                            FrameLook.of(px, small.width, small.height)
+                        } finally {
+                            if (small !== bmp) small.recycle()
+                            bmp.recycle()
+                        }
+                    }
+                }.getOrNull()
+            }
+        } ?: return null
+        synchronized(looks) { looks[card.id] = look }
+        return look
+    }
+
     /** [card]'s art; with [want], also its embedding by that model (a cached one from another model is redone). */
     private suspend fun seenFor(card: ScryfallCard, want: ArtModel?): Seen? {
         synchronized(cache) {
@@ -168,5 +210,7 @@ class ArtMatcher(
 
     companion object {
         const val MAX_PRINTINGS = 40
+        /** Most printings compared by [byLook]. */
+        const val MAX_LOOKS = 12
     }
 }

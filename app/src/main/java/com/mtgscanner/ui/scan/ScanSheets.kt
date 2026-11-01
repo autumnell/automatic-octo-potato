@@ -286,6 +286,12 @@ internal fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
                 Column(Modifier.fillMaxWidth().clickable { open = if (open == c.id) null else c.id }.padding(horizontal = 16.dp, vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CardImage(c.smallImageUrl, Modifier.width(52.dp))
+                        // The card as the camera saw it, next to the guess.
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        com.mtgscanner.scan.ScanPhotos.file(ctx, item.photo)?.let { f ->
+                            Spacer(Modifier.width(6.dp))
+                            coil.compose.AsyncImage(f, "Your scan", Modifier.width(52.dp).clip(RoundedCornerShape(Corners.Small)))
+                        }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

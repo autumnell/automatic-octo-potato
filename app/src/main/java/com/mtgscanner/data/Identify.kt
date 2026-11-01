@@ -191,7 +191,7 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
     val symbol = guess.symbol
     val hash = guess.artHash
     val embedding = guess.artEmbedding
-    if (year == null && symbol == null && hash == null && embedding == null && guess.cardPrint == null) return null
+    if (year == null && symbol == null && hash == null && embedding == null && guess.cardPrint == null && guess.frameLook == null) return null
     // With the set code read (or the set lock standing in for it), only that set's printings are candidates.
     val set = guess.setCode
     // From the loaded set when there is one; else from Scryfall, only around the year read when one was, so a
@@ -224,6 +224,8 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
     if (pool.size > 1 && (hash != null || embedding != null)) {
         runCatching { art.bestPrinting(pool, hash, embedding, guess.artPHash) }.getOrNull()?.let { return base.copy(card = it, exact = true) }
     }
+    // Printings the art can't tell apart: by footer, set symbol and colours.
+    if (pool.size > 1) runCatching { art.byLook(pool, guess.frameLook) }.getOrNull()?.let { return base.copy(card = it, exact = true) }
     if (!narrowed) return null
     val pick = pool.first()
     return base.copy(card = pick, exact = base.exact || (bySymbol && pool.size == 1))
@@ -248,6 +250,7 @@ private suspend fun CollectionRepository.narrowSameNumber(same: List<ScryfallCar
     if (pool.size > 1 && (guess.artHash != null || guess.artEmbedding != null)) {
         runCatching { art.bestPrinting(pool, guess.artHash, guess.artEmbedding, guess.artPHash) }.getOrNull()?.let { return it to true }
     }
+    if (pool.size > 1) runCatching { art.byLook(pool, guess.frameLook) }.getOrNull()?.let { return it to true }
     return pool.first() to (pool.size == 1)
 }
 

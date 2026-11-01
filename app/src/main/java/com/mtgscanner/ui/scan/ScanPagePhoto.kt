@@ -151,6 +151,27 @@ fun ScanViewModel.addPage() {
 /** Reads every card in the picture at [uri], then looks each one up. */
 fun ScanViewModel.readPhoto(uri: android.net.Uri) = readCards("Photo") { com.mtgscanner.scan.PhotoCards.decode(repo.appContext, uri) }
 
+/** Reads every card in the video at [uri], each once, then looks each one up for the review sheet. */
+fun ScanViewModel.readVideo(uri: android.net.Uri) {
+    photoJob?.cancel()
+    _state.update { it.copy(photo = PhotoRun(title = "Video")) }
+    photoJob = viewModelScope.launch {
+        val reads = withContext(Dispatchers.Default) {
+            runCatching {
+                com.mtgscanner.scan.VideoCards.read(repo.appContext, uri, { b -> repo.artEmbedder.embed(b) }, repo.artIndex.hasAny) { p ->
+                    _state.update { s -> s.photo?.takeIf { it.loading }?.let { s.copy(photo = it.copy(progress = p)) } ?: s }
+                }
+            }.getOrNull()
+        }
+        if (reads == null) {
+            _state.update { it.copy(photo = PhotoRun(loading = false, failed = true, title = "Video")) }
+            return@launch
+        }
+        val items = reads.mapIndexed { i, r -> async { photoItem(i, r) } }.awaitAll()
+        _state.update { s -> s.photo?.let { s.copy(photo = PhotoRun(loading = false, items = items, title = "Video")) } ?: s }
+    }
+}
+
 /** Loose cards on the table: reads every card in the next steady camera frame. */
 fun ScanViewModel.captureSpread() = _state.update { it.copy(wantSpread = true, paused = false, status = "Hold still…") }
 

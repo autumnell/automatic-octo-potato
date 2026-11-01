@@ -47,6 +47,7 @@ object WhatsNew {
         157 to "Adding a card from Search can now make a new box or deck on the spot, or put the card straight into a deck.",
         159 to "New: Know cards by picture, an optional download in Settings › Data. It finds cards whose text can't be read (foils, glare, old frames, other languages) and picks the exact printing.",
         163 to "Only boxes you mark To be sorted (box ⋮ menu) count toward cards to sort.",
+        167 to "Scanning reads the foil star, keeps a photo of cards set aside, reads videos and picks printings by footer and colour. Decks › New › Decks you can almost build.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
