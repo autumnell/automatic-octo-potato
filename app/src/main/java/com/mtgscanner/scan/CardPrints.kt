@@ -28,6 +28,9 @@ import java.util.concurrent.TimeUnit
  * Hugging Face, and the gallery is packed into a smaller file. Printings newer than the gallery are added from
  * Scryfall's pictures on Wi-Fi, once a week.
  *
+ * The corner model can be swapped for open-card-collector's YOLO card finder ([Finder.YOLO], about 11 MB more),
+ * downloaded from this app's "models" release. It's more exact on photos; it is AGPL-licensed.
+ *
  * Models: dhvazquez/mtg_card_identification_embeddings and dhvazquez/mtg_card_pose_estimation (MIT).
  * Gallery: maxhille/mtg-gallery-creator (CC-BY 4.0), built from Scryfall's card images.
  */
@@ -54,12 +57,23 @@ object CardPrints {
         private set
     @Volatile private var cardNet: OnnxNet? = null
     @Volatile private var poseNet: OnnxNet? = null
+    @Volatile private var yoloNet: OnnxNet? = null
+
+    /** Which model finds a card's corners. */
+    enum class Finder(val label: String) { GRIMOIRE("Grimoire"), YOLO("YOLO") }
+
+    private val _finder = MutableStateFlow(Finder.GRIMOIRE)
+    val finder: StateFlow<Finder> = _finder
+    /** The YOLO finder's download: null when not needed or done, else percent, or -1 when it failed. */
+    private val _finderDownload = MutableStateFlow<Int?>(null)
+    val finderDownload: StateFlow<Int?> = _finderDownload
 
     private const val PREFS = "scan"
     private const val KEY_ON = "cardPrints"
     private const val KEY_TOPPED = "cardPrintsTopUp"
     private const val KEY_STAND_OUT = "printsStandOut"
     private const val KEY_LEAD = "printsLead"
+    private const val KEY_FINDER = "cornerFinder"
 
     /** How sure a picture match must be: the defaults, or fitted to your own scans ([TestPhotos.tune]). */
     @Volatile var thresholds = MatchThresholds()
@@ -81,9 +95,15 @@ object CardPrints {
     private val GALLERY = Download("$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_f16.bin", "gallery_f16.bin", 54_091_264)
     private val IDS = Download("$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_ids.json", "gallery_ids.json", 4_225_880)
     private val META = Download("$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/meta.json", "meta.json", 7_253_252)
+    private val YOLO_MODEL = Download(
+        "https://github.com/autumnell/automatic-octo-potato/releases/download/models/card-finder-yolo11n-obb.onnx",
+        "finder-yolo.onnx", YOLO_BYTES,
+    )
     private val ALL = listOf(CARD_MODEL, POSE_MODEL, IDS, META, GALLERY)
     /** Rounded, for the settings row. */
     const val DOWNLOAD_MB = 77
+    private const val YOLO_BYTES = 10_835_578L
+    const val YOLO_MB = 11
 
     private const val PACKED = "gallery.bin"
     private const val EXTRA = "gallery-new.bin"
@@ -94,6 +114,7 @@ object CardPrints {
     fun init(ctx: Context) {
         dir = File(ctx.applicationContext.filesDir, "prints")
         val p = prefs(ctx)
+        _finder.value = runCatching { Finder.valueOf(p.getString(KEY_FINDER, null) ?: "") }.getOrDefault(Finder.GRIMOIRE)
         if (p.contains(KEY_STAND_OUT)) thresholds = MatchThresholds(p.getFloat(KEY_STAND_OUT, CardGallery.MIN_STAND_OUT), p.getFloat(KEY_LEAD, CardGallery.MIN_LEAD))
         if (isOn(ctx)) start(ctx.applicationContext)
     }
@@ -101,6 +122,29 @@ object CardPrints {
     fun turnOn(ctx: Context) {
         prefs(ctx).edit().putBoolean(KEY_ON, true).apply()
         start(ctx.applicationContext)
+    }
+
+    /** Picks the corner model; YOLO is downloaded the first time it's picked. */
+    fun setFinder(ctx: Context, f: Finder) {
+        prefs(ctx).edit().putString(KEY_FINDER, f.name).apply()
+        _finder.value = f
+        if (f == Finder.YOLO) scope.launch { lock.withLock { loadYolo() } }
+    }
+
+    /** Downloads (when missing) and opens the YOLO finder; the corner model stays in use when it can't. */
+    private fun loadYolo() {
+        if (_finder.value != Finder.YOLO || yoloNet != null || !::dir.isInitialized) return
+        try {
+            val file = File(dir, YOLO_MODEL.file)
+            if (!file.exists()) {
+                _finderDownload.value = 0
+                fetch(YOLO_MODEL) { done -> _finderDownload.value = (done * 100 / YOLO_MODEL.bytes).toInt().coerceIn(0, 100) }
+            }
+            yoloNet = OnnxNet(file)
+            _finderDownload.value = null
+        } catch (t: Throwable) {
+            _finderDownload.value = -1
+        }
     }
 
     /** Off: the models are closed and every file deleted to free the space. */
@@ -175,6 +219,7 @@ object CardPrints {
         gallery = CardGallery.merge(base, extra)
         cardNet = OnnxNet(File(dir, CARD_MODEL.file))
         poseNet = runCatching { OnnxNet(File(dir, POSE_MODEL.file)) }.getOrNull()
+        loadYolo()
     }
 
     private fun fetch(d: Download, progress: (Long) -> Unit) {
@@ -206,6 +251,7 @@ object CardPrints {
     private fun close() {
         cardNet?.close(); cardNet = null
         poseNet?.close(); poseNet = null
+        yoloNet?.close(); yoloNet = null
         gallery = null
     }
 
@@ -222,14 +268,32 @@ object CardPrints {
 
     /** The four corners of the card in [picture], by the corner model; null when off or no card is clear. */
     fun corners(picture: Bitmap): FloatArray? {
-        val net = poseNet ?: return null
         if (!ready) return null
+        if (_finder.value == Finder.YOLO) yoloNet?.let { return yoloCorners(it, picture) }
+        val net = poseNet ?: return null
         val px = pixelsAt(picture, CardPrintPrep.POSE, CardPrintPrep.POSE)
         return runCatching {
             val out = net.run(CardPrintPrep.poseInput(px), CardPrintPrep.poseShape)
             CardPrintPrep.corners(out["scores"] ?: return null, out["keypoints"] ?: return null, picture.width, picture.height)
         }.getOrNull()
     }
+
+    /** The corners by the YOLO finder: the picture letterboxed into its square. */
+    private fun yoloCorners(net: OnnxNet, picture: Bitmap): FloatArray? = runCatching {
+        val n = YoloFinder.SIZE
+        val (fw, fh) = YoloFinder.fitted(picture.width, picture.height)
+        val square = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
+        try {
+            val canvas = android.graphics.Canvas(square)
+            canvas.drawColor(android.graphics.Color.rgb(YoloFinder.PAD, YoloFinder.PAD, YoloFinder.PAD))
+            canvas.drawBitmap(picture, null, android.graphics.Rect(0, 0, fw, fh), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            val px = IntArray(n * n).also { square.getPixels(it, 0, n, 0, 0, n, n) }
+            val out = net.run(CardPrintPrep.poseInput(px), YoloFinder.shape).values.firstOrNull() ?: return null
+            YoloFinder.corners(out, picture.width, picture.height)
+        } finally {
+            square.recycle()
+        }
+    }.getOrNull()
 
     /** [b]'s pixels at [w] x [h] (stretched to fit, as the models were taught). */
     private fun pixelsAt(b: Bitmap, w: Int, h: Int): IntArray {
