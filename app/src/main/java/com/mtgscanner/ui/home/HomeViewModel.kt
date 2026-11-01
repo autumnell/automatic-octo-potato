@@ -240,6 +240,7 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
         val qty = scan.quantity.coerceAtLeast(1)
         val row = repo.add(card, foil, qty, box, lang = if (card.lang != "en") card.lang else scan.lang ?: "en")
         repo.deletePending(scan.id)
+        com.mtgscanner.scan.ScanPhotos.delete(repo.appContext, com.mtgscanner.scan.ScanPhotos.pendingName(scan.id))
         Undo.offer("Added ${card.name}") {
             repo.remove(row, qty)
             repo.dao.addPending(scan)

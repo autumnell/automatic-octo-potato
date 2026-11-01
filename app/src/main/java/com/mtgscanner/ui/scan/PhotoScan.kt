@@ -72,10 +72,13 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = Palette.Accent)
                         Spacer(Modifier.height(10.dp))
-                        Text("Reading cards…", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        Text(
+                            run.progress?.let { "Reading cards… ${(it * 100).toInt()}%" } ?: "Reading cards…",
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                        )
                     }
                 }
-                run.failed -> EmptyState("Couldn't open that photo")
+                run.failed -> EmptyState(if (run.title == "Video") "Couldn't open that video" else "Couldn't open that photo")
                 run.items.isEmpty() -> EmptyState("No cards found", body = "Try a sharper, closer photo")
                 else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
                     items(run.items, key = { it.key }) { item ->

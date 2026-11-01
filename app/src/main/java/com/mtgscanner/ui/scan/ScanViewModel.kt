@@ -432,7 +432,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 noMatchSince = 0L
                 noMatchGuess = null
                 lastMatch = Triple(guess, earlySkip() != null, id.card.id)
-                onIdentified(id, guess.lang, guess.artHash)
+                onIdentified(id, guess.lang, guess.artHash, guess.footerFoil)
             }
         }
     }
@@ -559,7 +559,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Decides what happens to a match: add it, skip it, set it aside, or stop and ask. */
-    private suspend fun onIdentified(id: com.mtgscanner.data.Identification, lang: String? = null, art: Long? = null) {
+    private suspend fun onIdentified(id: com.mtgscanner.data.Identification, lang: String? = null, art: Long? = null, footerFoil: Boolean? = null) {
         val s = _state.value.settings
         val card = id.card
         // Language only matters when Scryfall gave the English printing.
@@ -600,11 +600,14 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                     UnsureAction.ASIDE -> {
                         val fresh = !alreadyHandled(card, id.exact) && _state.value.review.none { it.card.id == card.id }
                         markHandled(card, art, id.exact)
+                        val photo = if (fresh) runCatching {
+                            com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "review-${card.id}-${System.currentTimeMillis()}")
+                        }.getOrNull() else null
                         _state.update {
                             it.copy(
                                 lookingUp = false,
                                 current = null,
-                                review = if (fresh) it.review + ReviewItem(card, readLang) else it.review,
+                                review = if (fresh) it.review + ReviewItem(card, readLang, photo) else it.review,
                                 asidePulse = it.asidePulse + if (fresh) 1 else 0,
                                 status = "Set aside ${card.name} to check later",
                             )
@@ -640,8 +643,9 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             it.copy(
                 lookingUp = false,
                 current = card,
-                cardFoil = if (same) it.cardFoil else null,
-                foilHint = same && it.foilHint,
+                // The footer's star or dot says foil or not, when the card comes both ways.
+                cardFoil = (if (same) it.cardFoil else null) ?: footerFoil?.takeIf { card.hasFoil && card.hasNonFoil },
+                foilHint = same && it.foilHint && footerFoil == null,
                 priceFresh = same && it.priceFresh,
                 confident = id.confident || accepted,
                 awaiting = s.autoAdd && !accepted,
@@ -710,7 +714,14 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         noMatchSince = 0L
         noMatchGuess = null
         _state.update { it.copy(unknownRead = null, status = "Saved for later") }
-        viewModelScope.launch { runCatching { repo.addUnknown(text, s.boxId, s.foil, qty, lang) } }
+        // The photo is taken now, while it's fresh, and named once the scan has its id.
+        val tmp = runCatching { com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "unsaved") }.getOrNull()
+        viewModelScope.launch {
+            runCatching {
+                val id = repo.addUnknown(text, s.boxId, s.foil, qty, lang)
+                if (tmp != null && id != null) com.mtgscanner.scan.ScanPhotos.rename(repo.appContext, tmp, com.mtgscanner.scan.ScanPhotos.pendingName(id))
+            }
+        }
     }
 
     fun dismissUnknown() {

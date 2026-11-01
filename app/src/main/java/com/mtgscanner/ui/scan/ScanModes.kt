@@ -313,8 +313,12 @@ fun PageGuide(modifier: Modifier) {
 /** Many cards at once: capture a binder page with the camera, or read every card in a photo from the gallery. */
 @Composable
 fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) vm.readPhoto(uri)
+        if (uri == null) return@rememberLauncherForActivityResult
+        // A video (a pack opened, a binder flipped through) is read frame by frame.
+        val video = runCatching { ctx.contentResolver.getType(uri) }.getOrNull()?.startsWith("video/") == true
+        if (video) vm.readVideo(uri) else vm.readPhoto(uri)
     }
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -344,13 +348,13 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
             Spacer(Modifier.width(8.dp))
             Row(
                 Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
-                    .clickable { runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) } }
+                    .clickable { runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) } }
                     .padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Outlined.PhotoLibrary, null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Photo", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                Text("Photo · video", color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
         }
     }

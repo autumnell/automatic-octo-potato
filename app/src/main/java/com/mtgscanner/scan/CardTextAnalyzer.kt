@@ -596,8 +596,9 @@ class CardTextAnalyzer(
         if (g.collectorNumber != null && g.setCode != null) return g
         if (g.nameCandidates.isEmpty() && g.printedName == null) {
             val prints = CardPrints.ready
-            if (!wantsArt() && !prints) return g
             val turns = CardQuad.uprightTurns(quad, rotation + preferredTurn)
+            // Kept in case the card is saved for later, to show it next to the guesses.
+            turns.firstOrNull()?.let { t -> CardParts.whole(quad, t, draw)?.let { runCatching { ScanPhotos.keep(it) }; it.recycle() } }
             val arts = if (wantsArt()) turns.mapNotNull { artOf(quad, it, draw) } else emptyList()
             val fingerprints = if (prints) turns.mapNotNull { printOf(quad, it, draw, track) } else emptyList()
             if (arts.isEmpty() && fingerprints.isEmpty()) return g
@@ -613,7 +614,23 @@ class CardTextAnalyzer(
         return g.copy(
             artHash = art?.hash ?: g.artHash, artPHash = art?.phash, artEmbedding = art?.embedding, symbol = symbol,
             cardPrint = printOf(quad, turn, draw, track, offer = true),
+            frameLook = lookOf(quad, turn, draw) ?: g.frameLook,
         )
+    }
+
+    /** The straightened card's [FrameLook], upright by [turn]. */
+    private fun lookOf(quad: FloatArray, turn: Int, draw: Draw): FrameLook? {
+        val card = CardParts.whole(quad, turn, draw) ?: return null
+        return try {
+            ScanPhotos.keep(card)
+            val px = IntArray(card.width * card.height)
+            card.getPixels(px, 0, card.width, 0, 0, card.width, card.height)
+            FrameLook.of(px, card.width, card.height)
+        } catch (e: Exception) {
+            null
+        } finally {
+            card.recycle()
+        }
     }
 
     /** The art window of the straightened card: its hashes, and its embedding when the art model is ready. */

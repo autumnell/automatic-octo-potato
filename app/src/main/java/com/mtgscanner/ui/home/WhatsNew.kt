@@ -48,6 +48,7 @@ object WhatsNew {
         159 to "New: Know cards by picture, an optional download in Settings › Data. It finds cards whose text can't be read (foils, glare, old frames, other languages) and picks the exact printing.",
         163 to "Only boxes you mark To be sorted (box ⋮ menu) count toward cards to sort.",
         165 to "A bell next to the logo on Home lists every notification the app has sent. Clear them one by one or all at once.",
+        167 to "Scanning reads the foil star, keeps a photo of cards set aside, reads videos and picks printings by footer and colour. Decks › New › Decks you can almost build.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

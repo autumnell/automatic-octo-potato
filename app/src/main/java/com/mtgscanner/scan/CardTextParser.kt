@@ -58,6 +58,10 @@ data class CardTextGuess(
     val noEdges: Boolean = false,
     /** A second hash of the artwork ([ImageHash.pHash]); both must agree for an art match. */
     val artPHash: Long? = null,
+    /** The footer's finish mark: true for a foil's star, false for a normal card's dot, null when not read. */
+    val footerFoil: Boolean? = null,
+    /** Footer, set symbol and colours of the straightened card, to pick between printings that share art. */
+    val frameLook: FrameLook? = null,
     /** Second hashes of the same pictures as [artOnly], in the same order. */
     val artOnlyP: List<Long> = emptyList(),
     /** The whole straightened card's fingerprint by the card picture model ([CardPrints]), when it's on. */
@@ -102,7 +106,10 @@ object CardTextParser {
     // "MOM • EN", OCR often reads the bullet as *, ., -, or drops it. Matched as printed (capitals),
     // so rules text like "loses", "Spirit" or "token" never reads as a footer.
     private val LANGS = "EN|ES|FR|DE|IT|PT|JA|JP|KO|RU|ZHS|ZHT|CS|CT|PH"
-    private val SET_LANG = Regex("""(?<![A-Za-z0-9])([A-Z0-9]{3,5})\s*[•·*.\-+]?\s*($LANGS)(?![A-Za-z])""")
+    private val SET_LANG = Regex("""(?<![A-Za-z0-9])([A-Z0-9]{3,5})\s*[•·*.\-+★☆✶✱⋆]?\s*($LANGS)(?![A-Za-z])""")
+
+    // The mark between set code and language (since 2014): a star on a foil, a dot on a normal card.
+    private val FINISH_MARK = Regex("""(?<![A-Za-z0-9])[A-Z0-9]{3,5}\s*([•·*★☆✶✱⋆])\s*(?:$LANGS)(?![A-Za-z])""")
 
     // Words that are never part of a card name but often show up near the top.
     private val NOISE_WORDS = setOf(
@@ -136,11 +143,12 @@ object CardTextParser {
         val text = clean.sortedBy { it.top }.joinToString("\n") { it.text }.take(600)
         // The language code is printed in the footer only.
         val footerLang = lowerLines(clean).firstNotNullOfOrNull { findLangCode(it.text) }
+        val finish = (if (footerAnywhere) clean else lowerLines(clean)).firstNotNullOfOrNull { findFinish(it.text) }
         // The copyright line is at the very bottom; look there first.
         val year = (lowerLines(clean) + clean).firstNotNullOfOrNull { findCopyrightYear(it.text) }
         return CardTextGuess(
             names, setCode, number, score, findArtBox(clean) ?: estimateArtBox(clean),
-            lang = LanguageDetector.detect(text, footerLang), text = text, year = year,
+            lang = LanguageDetector.detect(text, footerLang), text = text, year = year, footerFoil = finish,
         )
     }
 
@@ -174,7 +182,7 @@ object CardTextParser {
             nameCandidates = names, setCode = set, collectorNumber = number,
             score = maxOf(strips.score, full.score), lang = lang,
             text = full.text.ifEmpty { strips.text }, year = strips.year ?: full.year,
-            glare = strips.glare || full.glare, printedName = printed,
+            glare = strips.glare || full.glare, printedName = printed, footerFoil = strips.footerFoil ?: full.footerFoil,
         )
     }
 
@@ -302,6 +310,16 @@ object CardTextParser {
     }
 
     /** The language code from a footer like "MOM • DE", as printed. */
+    /**
+     * True for a foil's star in the footer ("MOM ★ EN"), false for a normal card's dot, null when unread. A "*" says
+     * nothing: OCR gives it for the dot as often as for the star.
+     */
+    fun findFinish(text: String): Boolean? = when (FINISH_MARK.find(text)?.groupValues?.get(1)) {
+        "•", "·" -> false
+        "★", "☆", "✶", "✱", "⋆" -> true
+        else -> null
+    }
+
     fun findLangCode(text: String): String? {
         val m = SET_LANG.find(text) ?: return null
         if (m.groupValues[1].none { it.isLetter() }) return null

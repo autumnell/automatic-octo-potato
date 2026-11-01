@@ -669,9 +669,9 @@ class CollectionRepository(
     // Unknown scans
 
     /** Saves a card the scanner couldn't identify, so it can be searched by hand later. */
-    suspend fun addUnknown(text: String, boxId: Long, foil: Boolean = false, qty: Int = 1, lang: String? = null) {
-        if (text.isBlank()) return
-        dao.addPending(
+    suspend fun addUnknown(text: String, boxId: Long, foil: Boolean = false, qty: Int = 1, lang: String? = null): Long? {
+        if (text.isBlank()) return null
+        return dao.addPending(
             PendingScan(
                 name = text.trim().take(80), setCode = null, collectorNumber = null, foil = foil, quantity = qty.coerceAtLeast(1),
                 boxId = boxId, unknown = true, lang = lang?.takeIf { it != "en" },

@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.CollectionRepository
@@ -208,6 +209,15 @@ internal fun UnknownScanDialog(
         title = { Text("Find card") },
         text = {
             Column {
+                // The card as the camera saw it, when a photo was kept.
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                com.mtgscanner.scan.ScanPhotos.file(ctx, com.mtgscanner.scan.ScanPhotos.pendingName(scan.id))?.let { f ->
+                    coil.compose.AsyncImage(
+                        f, "Your scan",
+                        Modifier.align(Alignment.CenterHorizontally).width(120.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(com.mtgscanner.ui.theme.Corners.Small)),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
                 OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
