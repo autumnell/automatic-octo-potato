@@ -134,6 +134,7 @@ fun HomeScreen(
     var editingTiles by remember { mutableStateOf(false) }
     var unknown by remember { mutableStateOf<PendingScan?>(null) }
     var finding by remember { mutableStateOf(false) }
+    var bell by remember { mutableStateOf(false) }
     // Which section's picture of a card grows into the card page: the first one showing it, so a card in two
     // carousels doesn't have two pictures claiming the same transition.
     val showPricesNow = AppSettings.showPrices
@@ -199,7 +200,7 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .statusBarsPadding(),
     ) {
-        Header(onSettings, onEdit = { editing = true }, onFind = if (ui.loaded && ui.totalCards > 0) ({ finding = true }) else null)
+        Header(onSettings, onBell = { bell = true }, onEdit = { editing = true }, onFind = if (ui.loaded && ui.totalCards > 0) ({ finding = true }) else null)
         HeroCard(ui, onClick = if (ui.loaded && ui.totalCards > 0) onStats else null)
         // Tap a color to browse those cards: one color exactly, multicolor, or colorless.
         if (ui.loaded && HomePrefs.colorBar && ui.colorSplit.size > 1) ColorBar(ui.colorSplit) { key ->
@@ -267,6 +268,16 @@ fun HomeScreen(
     if (finding) com.mtgscanner.ui.collection.WhereIsSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
     if (editing) EditHomeDialog(onDismiss = { editing = false }, onTiles = { editing = false; editingTiles = true })
     if (editingTiles) EditTilesDialog(listNames, onDismiss = { editingTiles = false })
+    if (bell) NotificationsSheet(
+        onOpen = { where ->
+            when {
+                where.startsWith("card/") -> where.removePrefix("card/").toLongOrNull()?.let(onOpenCard)
+                where == "settings" -> onSettings()
+                where == "collection" -> onCollection()
+            }
+        },
+        onDismiss = { bell = false },
+    )
     unknown?.let { scan ->
         UnknownScanDialog(
             scan = scan,
@@ -279,9 +290,10 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Header(onSettings: () -> Unit, onEdit: () -> Unit, onFind: (() -> Unit)? = null) {
+private fun Header(onSettings: () -> Unit, onBell: () -> Unit, onEdit: () -> Unit, onFind: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Grimoire", style = MaterialTheme.typography.titleLarge)
+        NotificationBell(onBell)
         Spacer(Modifier.weight(1f))
         TextButton(onClick = onEdit) { Text("Edit", color = Palette.Muted) }
         if (onFind != null) IconButton(onClick = onFind) { Icon(Icons.Outlined.Search, "Where is it?", tint = Palette.Icon) }
