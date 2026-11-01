@@ -1,0 +1,38 @@
+# Builds the optional YOLO card finder's ONNX file and keeps it on the "models" release, where the app downloads
+# it (Settings › Data › Card finder). Run it again by hand to rebuild the file.
+name: Models
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/models.yml
+      - .github/scripts/export_yolo.py
+
+permissions:
+  contents: write
+
+jobs:
+  yolo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          pip install ultralytics onnx onnxslim onnxruntime huggingface_hub pillow numpy
+      - name: Export and check
+        run: python .github/scripts/export_yolo.py card-finder-yolo11n-obb.onnx
+      - name: Publish to the models release
+        # Only from main, or a by-hand run: a branch's push only checks the export.
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l card-finder-yolo11n-obb.onnx
+          gh release view models >/dev/null 2>&1 || gh release create models --prerelease --latest=false \
+            --title "Scan models" --notes "Optional model files the app downloads. Not an app build."
+          gh release upload models card-finder-yolo11n-obb.onnx --clobber
