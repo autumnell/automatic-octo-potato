@@ -114,6 +114,18 @@ class CardGallery(
     }
 
     /**
+     * The closest card to [q] when it is one of [names] (a name read from the card), however weakly the picture
+     * alone would decide. Two independent reads agreeing (the text and the picture) stand in for two frames of
+     * text, so a clear card is looked up at once. Null when the picture's best card has another name.
+     */
+    fun agreesWith(q: FloatArray, names: List<String>): GalleryHit? {
+        if (names.isEmpty()) return null
+        val hit = match(q, minScore = AGREE_MIN, minStandOut = AGREE_STAND_OUT, minLead = -2f) ?: return null
+        val faces = hit.name.split(" // ")
+        return hit.takeIf { names.any { n -> faces.any { CardTextParser.similarity(n, it) >= AGREE_NAME } } }
+    }
+
+    /**
      * Of [printings] (Scryfall ids of one card), the one whose picture is closest to [q], when it clearly is:
      * [minLead] ahead of every printing with another picture. Printings sharing a picture (cosine above
      * [SAME_PICTURE]) can't be told apart and don't compete; the best of them is given. Null when fewer than two
@@ -143,6 +155,14 @@ class CardGallery(
          */
         const val MIN_STAND_OUT = 5.9f
         const val MIN_LEAD = 0.07f
+        /**
+         * For [agreesWith]: on real phone scans the right card was the picture's best at scores from 0.35 and
+         * stand outs from 5.1, even when too close to call alone.
+         */
+        const val AGREE_MIN = 0.3f
+        const val AGREE_STAND_OUT = 4.5f
+        /** How close the read name must be to the picture's card (OCR slips a letter or two). */
+        const val AGREE_NAME = 0.85
         const val SAME_PICTURE = 0.95f
         const val PICK_LEAD = 0.03f
         const val PICK_MIN = 0.3f
