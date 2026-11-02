@@ -39,8 +39,9 @@ class CardGalleryTest {
         val q = CardGallery.unit(FloatArray(CardGallery.DIM) { 0.44f * vs[42][it] + 0.94f * other[it] })
         assertNull(g.match(q))
         assertEquals("id42", g.agreesWith(q, listOf("Card 42"))?.id)
-        // OCR slipped a letter.
-        assertEquals("id42", g.agreesWith(q, listOf("Card 4Z"))?.id)
+        // OCR read a stray mark.
+        assertEquals("id42", g.agreesWith(q, listOf("Card 4'2."))?.id)
+        assertEquals("id42", g.agreesWith(q, listOf("Card 042"))?.id)
         assertNull(g.agreesWith(q, listOf("Card 77")))
         assertNull(g.agreesWith(q, emptyList()))
     }
