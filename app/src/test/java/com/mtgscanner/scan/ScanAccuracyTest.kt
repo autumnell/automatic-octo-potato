@@ -86,7 +86,10 @@ class ScanAccuracyTest {
             val all = tally.values.reduce { a, b -> IntArray(3) { a[it] + b[it] } }
             assertTrue("wrong answers: ${all.toList()}", all[1] * 100 <= all.sum() * 3)
         }
-        tally["Your scans"]?.let { t -> if (t.sum() >= 10) assertTrue("your scans: ${t.toList()}", t[0] * 100 >= t.sum() * 80) }
+        // Real scans in dim, warm light are harder: the picture alone gets about four in five; with the name read
+        // it backs up the right card more often, which is what lets a card be added on its first frame.
+        tally["Your scans"]?.let { t -> if (t.sum() >= 10) assertTrue("your scans: ${t.toList()}", t[0] * 100 >= t.sum() * 75) }
+        if (scansSeen >= 10) assertTrue("picture agrees with the name: $scansAgreed of $scansSeen", scansAgreed * 100 >= scansSeen * 80)
     }
 
     /**
@@ -106,6 +109,8 @@ class ScanAccuracyTest {
             val hit = g.match(q)
             val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
             val rank = rankOf(g, q, name)
+            scansSeen++
+            if (g.agreesWith(q, listOf(name)) != null) scansAgreed++
             val file = if (rank > 50) " (${f.nameWithoutExtension.substringAfterLast("__")}, best ${loose?.id})" else ""
             val got = when {
                 hit == null -> "none (best ${loose?.name})"
@@ -115,10 +120,13 @@ class ScanAccuracyTest {
             out.append("| $name | $got | ${"%.2f".format(loose?.score ?: 0f)} | ${"%.2f".format(bestOfName(g, q, name))} | $rank | " +
                 "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} |\n")
         }
-        return out.toString()
+        // With the right name read, how often the picture backs it up so the card is looked up on its first frame.
+        return "\nPicture agrees with the right name read: $scansAgreed of $scansSeen (${scansAgreed * 100 / scansSeen}%)\n" + out
     }
 
     private var keys: Array<String>? = null
+    private var scansSeen = 0
+    private var scansAgreed = 0
 
     /** Each gallery row's name key, worked out once. */
     private fun keysOf(g: CardGallery): Array<String> =

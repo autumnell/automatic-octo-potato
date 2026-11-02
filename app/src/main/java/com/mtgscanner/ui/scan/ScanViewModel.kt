@@ -406,6 +406,11 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             if (prefetched.size > 40) prefetched.clear()
             repo.prefetch(guess, earlySkip())
         }
+        // A name read that the card's picture agrees with is as good as two frames: look it up now. This also
+        // catches a clear card whose read wobbles a letter from frame to frame, so no two frames ever agree.
+        if (!oneFrame && sameKeyFrames == 1 && guess.nameCandidates.isNotEmpty() && guess.cardPrint != null && key !in lookedUp) {
+            confirmByPicture(guess, key)
+        }
         // Wait for two frames that agree, so a blurry half-read doesn't trigger a lookup.
         if (!oneFrame && (sameKeyFrames < 2 || key in lookedUp)) return
         // Already looked up by the exact footer: a name-only read adds nothing.
@@ -415,6 +420,31 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         if (footer == null && sameKeyFrames < POOL_FRAMES && !pool.complete) return
         lookedUp += key
         lookup(if (footer == null) pool.pooled(guess) else guess, single = oneFrame, key = key)
+    }
+
+    /** Reads whose picture check has started, so each is checked once. */
+    private val pictureChecked = HashSet<String>()
+
+    /**
+     * Looks up [guess] at once when the card's picture shows the card its name read names ([CardPrints.agreesWith]).
+     * The picture's card name goes first, so a read a letter off still finds it.
+     */
+    private fun confirmByPicture(guess: CardTextGuess, key: String) {
+        if (!pictureChecked.add(key)) return
+        if (pictureChecked.size > 40) pictureChecked.retainAll(setOf(key))
+        val gen = trackGen
+        viewModelScope.launch {
+            // Scans every printing's fingerprint: off the main thread.
+            val hit = withContext(Dispatchers.Default) {
+                runCatching { com.mtgscanner.scan.CardPrints.agreesWith(guess.cardPrint, guess.nameCandidates) }.getOrNull()
+            } ?: return@launch
+            // Moved on, paused, or already looked up meanwhile.
+            if (gen != trackGen || isPaused || lastKey != key || key in lookedUp) return@launch
+            lookedUp += key
+            val name = hit.name.substringBefore(" // ")
+            val g = pool.pooled(guess)
+            lookup(g.copy(nameCandidates = (listOf(name) + g.nameCandidates).distinct()), key = key)
+        }
     }
 
     /** [single]: looked up on one frame; only an exact, sure answer is used, else the next frame tries again. */

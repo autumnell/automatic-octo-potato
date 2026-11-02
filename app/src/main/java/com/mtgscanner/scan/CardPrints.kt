@@ -320,6 +320,12 @@ object CardPrints {
         return (listOfNotNull(print) + also).mapNotNull { g.match(it, onlySet, minStandOut = t.standOut, minLead = t.lead) }.maxByOrNull { it.standOut }
     }
 
+    /** The picture's card when it is one of the [names] read ([CardGallery.agreesWith]); null otherwise. */
+    fun agreesWith(print: FloatArray?, names: List<String>): GalleryHit? {
+        val g = gallery ?: return null
+        return g.agreesWith(print ?: return null, names)
+    }
+
     /** Of [printings], the one [print] shows, when clear. */
     fun pick(print: FloatArray?, printings: List<ScryfallCard>): ScryfallCard? {
         val g = gallery ?: return null
