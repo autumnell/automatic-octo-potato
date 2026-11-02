@@ -97,6 +97,7 @@ class ScanAccuracyTest {
     private fun yourScans(samples: List<File>, g: CardGallery, scanNames: Map<String, String>, print: (Picture) -> FloatArray): String {
         val scans = samples.filter { it.nameWithoutExtension.contains("__Your scans") }
         if (scans.isEmpty()) return ""
+        var agreed = 0
         val out = StringBuilder("\n#### Your scans, one by one\n\n| Card | Got | Score | Right score | Rank | Stand out | Lead |\n|---|---|---|---|---|---|---|\n")
         for (f in scans) {
             val id = f.name.substringBefore("__")
@@ -106,6 +107,7 @@ class ScanAccuracyTest {
             val hit = g.match(q)
             val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
             val rank = rankOf(g, q, name)
+            if (g.agreesWith(q, listOf(name)) != null) agreed++
             val file = if (rank > 50) " (${f.nameWithoutExtension.substringAfterLast("__")}, best ${loose?.id})" else ""
             val got = when {
                 hit == null -> "none (best ${loose?.name})"
@@ -115,7 +117,8 @@ class ScanAccuracyTest {
             out.append("| $name | $got | ${"%.2f".format(loose?.score ?: 0f)} | ${"%.2f".format(bestOfName(g, q, name))} | $rank | " +
                 "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} |\n")
         }
-        return out.toString()
+        // With the right name read, how often the picture backs it up so the card is looked up on its first frame.
+        return "\nPicture agrees with the right name read: $agreed of ${scans.size} (${agreed * 100 / scans.size}%)\n" + out
     }
 
     private var keys: Array<String>? = null
