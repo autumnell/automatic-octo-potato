@@ -126,6 +126,18 @@ class CardGallery(
     }
 
     /**
+     * No other printing of [id]'s card has the same picture (a reprint with the same art and frame), so a picture
+     * match names this printing and not just the card.
+     */
+    fun onlyPicture(id: String): Boolean {
+        val row = rowOf(id)
+        if (row < 0) return false
+        val name = names[row]
+        for (r in 0 until size) if (r != row && names[r] == name && rowScore(r, row) >= SAME_PICTURE) return false
+        return true
+    }
+
+    /**
      * Of [printings] (Scryfall ids of one card), the one whose picture is closest to [q], when it clearly is:
      * [minLead] ahead of every printing with another picture. Printings sharing a picture (cosine above
      * [SAME_PICTURE]) can't be told apart and don't compete; the best of them is given. Null when fewer than two
@@ -164,6 +176,15 @@ class CardGallery(
         /** How close the read name must be to the picture's card (OCR slips a letter or two). */
         const val AGREE_NAME = 0.85
         const val SAME_PICTURE = 0.95f
+        /**
+         * A picture match this clear is taken on its first frame, without waiting for a second. On 511 real phone
+         * scans, every best card standing out this far and leading this much was the right one (about half of them).
+         */
+        const val SURE_STAND_OUT = 7f
+        const val SURE_LEAD = 0.12f
+
+        /** A match clear enough to take from one frame ([SURE_STAND_OUT], [SURE_LEAD]). */
+        fun isSure(standOut: Float, lead: Float): Boolean = standOut >= SURE_STAND_OUT && lead >= SURE_LEAD
         const val PICK_LEAD = 0.03f
         const val PICK_MIN = 0.3f
 

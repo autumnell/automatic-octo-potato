@@ -30,6 +30,10 @@ data class ArtHit(
     val similarity: Float = 0f,
     /** For a card picture model match: how far it stood out ([StandOut]); 0 for art index matches. */
     val standOut: Float = 0f,
+    /** For a card picture model match: its score less the best card with another name's. */
+    val lead: Float = 0f,
+    /** For a card picture model match: no other printing of the card shares its picture, so it is the printing. */
+    val onlyPrinting: Boolean = false,
 )
 
 /**
