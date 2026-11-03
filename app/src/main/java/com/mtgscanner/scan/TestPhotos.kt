@@ -18,7 +18,6 @@ import java.util.zip.ZipOutputStream
 object TestPhotos {
     private const val PREFS = "scan"
     private const val KEY_ON = "keepTestPhotos"
-    private const val KEEP = 300
     /** A picture older than this when a card is added belongs to another card. */
     private const val FRESH_MS = 4000L
 
@@ -54,7 +53,6 @@ object TestPhotos {
             if (SystemClock.elapsedRealtime() - at > FRESH_MS) return
             val d = dir(ctx).apply { mkdirs() }
             File(d, "${id}_${System.currentTimeMillis()}.jpg").outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
-            d.listFiles()?.sortedByDescending { it.lastModified() }?.drop(KEEP)?.forEach { it.delete() }
         } catch (_: Exception) {
         } finally {
             bmp.recycle()
