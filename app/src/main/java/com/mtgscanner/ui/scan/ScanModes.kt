@@ -46,7 +46,6 @@ import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.ViewModule
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -327,7 +326,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
         )
         Spacer(Modifier.height(10.dp))
         if (state.wantPage || state.wantSpread || state.pageLoading) Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(color = Palette.Accent)
+            com.mtgscanner.ui.components.Spinner()
             Spacer(Modifier.width(12.dp))
             TextButton(onClick = vm::cancelCapture) { Text("Cancel", color = Color.White) }
         }

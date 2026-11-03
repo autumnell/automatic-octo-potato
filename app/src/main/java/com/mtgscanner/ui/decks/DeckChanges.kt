@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -323,7 +322,7 @@ private fun DeckChangesSheet(u: DeckChangesUi, host: DeckChangesHost) {
             }
             Spacer(Modifier.height(12.dp))
             if (u.busy) {
-                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) { com.mtgscanner.ui.components.Spinner() }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = host::cancel) { Text("Cancel") }

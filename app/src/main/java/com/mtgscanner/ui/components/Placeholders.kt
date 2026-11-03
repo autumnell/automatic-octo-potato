@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -112,4 +113,16 @@ fun PlaceholderPage(modifier: Modifier = Modifier, color: Color = Palette.Surfac
         Spacer(Modifier.height(12.dp))
         PlaceholderRows(3, color = color)
     }
+}
+
+/** The app's one loading circle: thin, round-ended, in the accent, at a calm size. */
+@Composable
+fun Spinner(modifier: Modifier = Modifier, size: Dp = 28.dp, color: Color = Palette.Accent) {
+    androidx.compose.material3.CircularProgressIndicator(
+        modifier.size(size),
+        color = color,
+        strokeWidth = 2.5.dp,
+        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+        trackColor = color.copy(alpha = 0.15f),
+    )
 }

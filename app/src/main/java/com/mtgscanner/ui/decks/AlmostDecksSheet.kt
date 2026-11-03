@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -68,7 +67,7 @@ fun AlmostDecksSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
             when {
                 r == null || r.loading -> Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     if ((r?.progress ?: 0f) > 0f) LinearProgressIndicator(progress = { r?.progress ?: 0f }, color = Palette.Accent, modifier = Modifier.fillMaxWidth(0.6f))
-                    else CircularProgressIndicator(color = Palette.Accent)
+                    else com.mtgscanner.ui.components.Spinner()
                     Spacer(Modifier.height(8.dp))
                     Text("Reading EDHREC…", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
