@@ -86,6 +86,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.mtgscanner.ui.components.CollapsingHeader
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextAlign
@@ -235,7 +237,10 @@ fun BrowseScreen(
         Modifier.fillMaxSize().background(Palette.Background)
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, Palette.Background), endY = 900f)),
     ) {
-    Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding()) {
+    val collapse = com.mtgscanner.ui.components.rememberCollapseState()
+    // A new search or sort starts from the top, with the header showing.
+    LaunchedEffect(f.query, f.sort, f.group, f.activeCount) { collapse.show() }
+    Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding().nestedScroll(collapse.connection)) {
         val pickedRows = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) } }
         val pickedEur = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitEur(), it.quantity, it.proxy) } }
         val currency = AppSettings.currency
@@ -303,95 +308,98 @@ fun BrowseScreen(
                 }
             }
         }
-        MoveListHost()
+        // Everything above the cards slides away while scrolling down, and comes back on scrolling up.
+        CollapsingHeader(collapse) {
+            MoveListHost()
 
-        var syntaxHelp by remember { mutableStateOf(false) }
-        SearchField(
-            f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            placeholder = "r:rare t:creature",
-            mono = true,
-            trailing = {
-                Text(
-                    "?",
-                    color = if (syntaxHelp) Palette.Text else Palette.Muted,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { syntaxHelp = !syntaxHelp }.padding(horizontal = 8.dp),
-                )
-            },
-        )
-        ui.searchNote?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 24.dp))
-        }
-        if (syntaxHelp) SyntaxHelp(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-        if (showTip && ui.totalCards > 0 && !picking) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(start = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Hold to zoom or select · swipe right to move, left to sell",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Palette.Muted,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = vm::dismissTip) { Icon(Icons.Outlined.Close, "Hide tip", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
+            var syntaxHelp by remember { mutableStateOf(false) }
+            SearchField(
+                f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                placeholder = "r:rare t:creature",
+                mono = true,
+                trailing = {
+                    Text(
+                        "?",
+                        color = if (syntaxHelp) Palette.Text else Palette.Muted,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable { syntaxHelp = !syntaxHelp }.padding(horizontal = 8.dp),
+                    )
+                },
+            )
+            ui.searchNote?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 24.dp))
             }
-        }
-        if (f.query.isEmpty() && f.activeCount == 0 && (saved.isNotEmpty() || recent.isNotEmpty())) {
+            if (syntaxHelp) SyntaxHelp(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            if (showTip && ui.totalCards > 0 && !picking) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(start = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Hold to zoom or select · swipe right to move, left to sell",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.Muted,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = vm::dismissTip) { Icon(Icons.Outlined.Close, "Hide tip", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
+                }
+            }
+            if (f.query.isEmpty() && f.activeCount == 0 && (saved.isNotEmpty() || recent.isNotEmpty())) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    saved.forEach { sv ->
+                        SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
+                            Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
+                        })
+                    }
+                    recent.forEach { q ->
+                        SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
+                            Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+                        })
+                    }
+                    if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
+                }
+            }
+            // Card pages opened last, hidden while searching or filtering.
+            if (f.query.isEmpty() && f.activeCount == 0 && !picking) RecentCardsStrip(ui.totalCards, onOpen = { tap(it) })
+
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                saved.forEach { sv ->
-                    SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
-                        Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
-                    })
-                }
-                recent.forEach { q ->
-                    SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
-                        Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
-                    })
-                }
-                if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
-            }
-        }
-        // Card pages opened last, hidden while searching or filtering.
-        if (f.query.isEmpty() && f.activeCount == 0 && !picking) RecentCardsStrip(ui.totalCards, onOpen = { tap(it) })
-
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            var sortMenu by remember { mutableStateOf(false) }
-            var groupMenu by remember { mutableStateOf(false) }
-            Box {
-                ToolChip(f.sort.label, Icons.AutoMirrored.Outlined.Sort, { sortMenu = true })
-                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                    SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
-                        DropdownMenuItem(
-                            text = { Text(s.label, color = if (f.sort == s) Palette.Accent else Palette.Text) },
-                            onClick = { vm.update { it.copy(sort = s) }; sortMenu = false },
-                        )
+                var sortMenu by remember { mutableStateOf(false) }
+                var groupMenu by remember { mutableStateOf(false) }
+                Box {
+                    ToolChip(f.sort.label, Icons.AutoMirrored.Outlined.Sort, { sortMenu = true })
+                    DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                        SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(s.label, color = if (f.sort == s) Palette.Accent else Palette.Text) },
+                                onClick = { vm.update { it.copy(sort = s) }; sortMenu = false },
+                            )
+                        }
                     }
                 }
-            }
-            Box {
-                ToolChip(if (f.group == GroupBy.NONE) "Group" else f.group.label, Icons.AutoMirrored.Outlined.FormatListBulleted, { groupMenu = true }, active = f.group != GroupBy.NONE)
-                DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
-                    GroupBy.entries.forEach { g ->
-                        DropdownMenuItem(
-                            text = { Text(g.label, color = if (f.group == g) Palette.Accent else Palette.Text) },
-                            onClick = { vm.update { it.copy(group = g) }; groupMenu = false },
-                        )
+                Box {
+                    ToolChip(if (f.group == GroupBy.NONE) "Group" else f.group.label, Icons.AutoMirrored.Outlined.FormatListBulleted, { groupMenu = true }, active = f.group != GroupBy.NONE)
+                    DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
+                        GroupBy.entries.forEach { g ->
+                            DropdownMenuItem(
+                                text = { Text(g.label, color = if (f.group == g) Palette.Accent else Palette.Text) },
+                                onClick = { vm.update { it.copy(group = g) }; groupMenu = false },
+                            )
+                        }
                     }
                 }
-            }
-            BadgedBox(badge = { if (f.activeCount > 0) Badge(containerColor = Palette.Accent) { Text("${f.activeCount}") } }) {
-                ToolChip("Filters", Icons.Outlined.FilterAlt, { showFilters = true }, active = f.activeCount > 0)
-            }
-            if (f.query.isNotBlank() || f.activeCount > 0) {
-                ToolChip("Save search", Icons.Outlined.StarBorder, { savingSearch = true })
+                BadgedBox(badge = { if (f.activeCount > 0) Badge(containerColor = Palette.Accent) { Text("${f.activeCount}") } }) {
+                    ToolChip("Filters", Icons.Outlined.FilterAlt, { showFilters = true }, active = f.activeCount > 0)
+                }
+                if (f.query.isNotBlank() || f.activeCount > 0) {
+                    ToolChip("Save search", Icons.Outlined.StarBorder, { savingSearch = true })
+                }
             }
         }
 
