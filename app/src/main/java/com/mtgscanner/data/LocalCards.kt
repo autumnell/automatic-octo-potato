@@ -363,6 +363,18 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
     fun releasedSince(day: String, limit: Int = 5000): List<ScryfallCard> =
         query("SELECT data, priced FROM cards WHERE released >= ? ORDER BY released DESC LIMIT $limit", day)
 
+    /** Every printing's id, newest first. */
+    fun idsNewestFirst(): List<String> {
+        val d = db ?: return emptyList()
+        return runCatching {
+            d.rawQuery("SELECT id FROM cards ORDER BY released DESC", null).use { c ->
+                val out = ArrayList<String>(c.count)
+                while (c.moveToNext()) out += c.getString(0)
+                out
+            }
+        }.getOrDefault(emptyList())
+    }
+
     /** Every printing of a card, by oracle id. */
     fun printings(oracleId: String): List<ScryfallCard> = query("SELECT data, priced FROM cards WHERE oracle = ?", oracleId)
 

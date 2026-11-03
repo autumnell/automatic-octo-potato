@@ -71,7 +71,8 @@ object CardPrints {
 
     private const val PREFS = "scan"
     private const val KEY_ON = "cardPrints"
-    private const val KEY_TOPPED = "cardPrintsTopUp"
+    // New name: the earlier top-up added only 600 a week and waited a week after, so it starts over at once.
+    private const val KEY_TOPPED = "cardPrintsTopUp2"
     private const val KEY_STAND_OUT = "printsStandOut"
     private const val KEY_LEAD = "printsLead"
     private const val KEY_FINDER = "cornerFinder"
@@ -335,24 +336,31 @@ object CardPrints {
     }
 
     /**
-     * Adds printings released in the last year that the gallery doesn't have (it was built once; new sets come
-     * out every few weeks), from Scryfall's pictures, at most [max] a time. Once a week, on Wi-Fi.
+     * Adds every printing on the phone's card list that the gallery doesn't have (it was built once, so new sets and
+     * a few older cards are missing), from Scryfall's pictures, newest first, on Wi-Fi. Saved every [batch] cards,
+     * so it carries on next time when stopped. Once all are in, it looks again once a week.
+     * [missingIds] gives the list's ids, newest first; [byId] each card.
      */
-    suspend fun addNewPrintings(ctx: Context, recent: suspend (String) -> List<ScryfallCard>, onWifi: Boolean, max: Int = 600) {
-        if (!ready || !onWifi) return
+    suspend fun addNewPrintings(
+        ctx: Context, missingIds: suspend () -> List<String>, byId: suspend (String) -> ScryfallCard?, onWifi: () -> Boolean,
+        batch: Int = 200,
+    ) {
+        if (!ready || !onWifi()) return
         val p = prefs(ctx)
         val today = LocalDate.now()
         val last = runCatching { LocalDate.parse(p.getString(KEY_TOPPED, "")) }.getOrNull()
         if (last != null && last.plusDays(7) > today) return
         val g = gallery ?: return
-        val missing = recent(today.minusYears(1).toString()).filter { !g.has(it.id) && it.imageUrl != null }.take(max)
-        p.edit().putString(KEY_TOPPED, today.toString()).apply()
-        if (missing.isEmpty()) return
+        val missing = missingIds().filter { !g.has(it) }
         val rows = ArrayList<CardGallery.Row>()
-        for (c in missing) {
-            if (!isOn(ctx)) return
+        var done = 0
+        for (id in missing) {
+            if (!isOn(ctx) || !onWifi()) break
+            done++
+            val c = byId(id)?.takeIf { it.layout != "art_series" } ?: continue
+            val url = c.imageUrl ?: continue
             val bmp = runCatching {
-                client.newCall(Request.Builder().url(c.imageUrl!!).build()).execute().use { r ->
+                client.newCall(Request.Builder().url(url).build()).execute().use { r ->
                     r.body?.bytes()?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                 }
             }.getOrNull() ?: continue
@@ -361,16 +369,25 @@ object CardPrints {
             } finally {
                 bmp.recycle()
             }
+            if (rows.size >= batch) { save(rows); rows.clear() }
         }
+        save(rows)
+        // Only a finished pass waits a week; a stopped one carries on next time.
+        if (done == missing.size) p.edit().putString(KEY_TOPPED, today.toString()).apply()
+    }
+
+    /** Adds [rows] to the saved extra gallery and to the one in use. */
+    private suspend fun save(rows: List<CardGallery.Row>) {
         if (rows.isEmpty()) return
+        val add = CardGallery.of(rows)
         lock.withLock {
             val file = File(dir, EXTRA)
             val old = file.takeIf { it.exists() }?.let { f -> runCatching { f.inputStream().use { CardGallery.Codec.read(it) } }.getOrNull() }
-            val extra = old?.let { CardGallery.merge(it, CardGallery.of(rows)) } ?: CardGallery.of(rows)
+            val extra = old?.let { CardGallery.merge(it, add) } ?: add
             val part = File(dir, "$EXTRA.part")
             part.outputStream().use { CardGallery.Codec.write(extra, it) }
             part.renameTo(file)
-            gallery?.let { gallery = CardGallery.merge(it, CardGallery.of(rows)) }
+            gallery?.let { gallery = CardGallery.merge(it, add) }
         }
     }
 

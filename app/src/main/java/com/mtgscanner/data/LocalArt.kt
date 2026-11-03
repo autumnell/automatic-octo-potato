@@ -19,7 +19,10 @@ suspend fun CollectionRepository.artForBiggestSets() {
     if (com.mtgscanner.scan.CardPrints.ready) {
         if (localCards.ready) {
             com.mtgscanner.scan.CardPrints.addNewPrintings(
-                appContext, { day -> withContext(Dispatchers.IO) { localCards.releasedSince(day) } }, localCards.onWifi(),
+                appContext,
+                missingIds = { withContext(Dispatchers.IO) { localCards.idsNewestFirst() } },
+                byId = { id -> withContext(Dispatchers.IO) { localCards.byId(id) } },
+                onWifi = { localCards.onWifi() },
             )
         }
         return
