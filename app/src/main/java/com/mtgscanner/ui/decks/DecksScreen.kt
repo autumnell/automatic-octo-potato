@@ -67,7 +67,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.remember
+import com.mtgscanner.ui.components.pressScale
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -262,7 +264,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
             }
             items(folderTiles, key = { "f" + it.id }) { f ->
                 val inside = all.filter { it.folderId == f.id }
-                FolderTile(f, inside) { query = ""; folderId = f.id }
+                FolderTile(f, inside, Modifier.animateItem()) { query = ""; folderId = f.id }
             }
             items(shown, key = { "d" + it.deck.id }) { row ->
                 DeckTile(
@@ -271,6 +273,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     onOpen = { onOpenDeck(row.deck.id) },
                     onMove = { moving = row },
                     onCover = { covering = row },
+                    modifier = Modifier.animateItem(),
                 )
             }
             if (decks != null && shown.isEmpty() && folderTiles.isEmpty()) {
@@ -338,12 +341,13 @@ private fun TileArt(url: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: () -> Unit, onCover: () -> Unit) {
+private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: () -> Unit, onCover: () -> Unit, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val owned = row.fullyOwned
     val status = DeckStatusStore.get(ctx, row.deck.id)
-    Surface(onClick = onOpen, shape = TileShape, color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
+    val press = remember { MutableInteractionSource() }
+    Surface(onClick = onOpen, shape = TileShape, color = Palette.Surface, interactionSource = press, modifier = modifier.pressScale(press).fillMaxWidth()) {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(1.35f)) {
                 if (row.art2 != null && row.art != null) {
@@ -431,8 +435,9 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
 }
 
 @Composable
-private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, onOpen: () -> Unit) {
-    Surface(onClick = onOpen, shape = TileShape, color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
+private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
+    Surface(onClick = onOpen, shape = TileShape, color = Palette.BoxCard, interactionSource = press, modifier = modifier.pressScale(press).fillMaxWidth()) {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(1.35f)) {
                 val arts = decks.mapNotNull { it.art }.take(2)

@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -281,9 +280,7 @@ private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
             Text("Cards you own that decks with this commander play", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Spacer(Modifier.height(8.dp))
             when {
-                state.loading -> Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.Center) {
-                    CircularProgressIndicator(Modifier.size(28.dp), color = Palette.Accent)
-                }
+                state.loading -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = 12.dp))
                 state.failed -> EmptyState("Couldn't reach EDHREC or Scryfall", Modifier.padding(vertical = 24.dp))
                 state.ideas.isEmpty() -> EmptyState("Nothing new in your boxes", Modifier.padding(vertical = 24.dp))
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
