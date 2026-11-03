@@ -135,6 +135,8 @@ class CollectionRepository(
         // The card list as a background job, so its first large download carries on when the app is left.
         if (localCards.enabled) runCatching { com.mtgscanner.work.CardListWorker.start(appContext) }
         appScope.launch { runCatching { CardPhotos.sweepOrphans(appContext, dao.allPhotos()) } }
+        // Once: lands out of colorless boxes into a lands box.
+        appScope.launch { runCatching { LandsBox.separateOnce(appContext, this@CollectionRepository) } }
         appScope.launch {
             runCatching { refreshPricesIfStale() }
             runCatching { resolvePending() }
