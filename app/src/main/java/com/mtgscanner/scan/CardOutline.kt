@@ -104,6 +104,33 @@ object CardOutline {
     }
 
     /**
+     * Whether [outer] is clearly bigger than [inner] (by [minGrowth] of its area) and holds it, give or take
+     * [slack] of the outer card's size at each corner: a card found around a frame drawn inside it.
+     */
+    fun encloses(outer: FloatArray, inner: FloatArray, minGrowth: Float = 1.12f, slack: Float = 0.04f): Boolean {
+        if (outer.size != 8 || inner.size != 8) return false
+        val o = order(outer)
+        if (area(o) < area(inner) * minGrowth) return false
+        val xs = (0 until 4).map { o[it * 2] }
+        val ys = (0 until 4).map { o[it * 2 + 1] }
+        val pad = maxOf(xs.max() - xs.min(), ys.max() - ys.min()) * slack
+        // Each inner corner on the inner side of every outer edge (clockwise on screen), within the slack.
+        for (i in 0 until 4) {
+            val ax = o[i * 2]; val ay = o[i * 2 + 1]
+            val bx = o[(i + 1) % 4 * 2]; val by = o[(i + 1) % 4 * 2 + 1]
+            val len = sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay))
+            if (len <= 0f) return false
+            for (k in 0 until 4) {
+                val px = inner[k * 2]; val py = inner[k * 2 + 1]
+                // Distance to the right of the edge (inside, for a clockwise outline with y downwards) is positive.
+                val side = ((bx - ax) * (py - ay) - (by - ay) * (px - ax)) / len
+                if (side < -pad) return false
+            }
+        }
+        return true
+    }
+
+    /**
      * The biggest card-shaped outline among [candidates] (each four x, y pairs in any order) covering at least
      * [minArea], ordered as [order] gives it. Null when none fits.
      */

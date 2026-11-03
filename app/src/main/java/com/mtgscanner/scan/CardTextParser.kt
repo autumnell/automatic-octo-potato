@@ -401,7 +401,9 @@ object CardTextParser {
      */
     fun isTypeLine(text: String): Boolean {
         val t = text.trim()
-        val dash = Regex("""\s[—–-]\s""").find(t)
+        // OCR often drops the spaces around the dash or reads it as ~, _ or =: "Creature—Human Druid". A plain
+        // hyphen needs a space beside it, as in names it joins words ("Snow-Covered Forest").
+        val dash = Regex("""\s*[—–~_=]+\s*|\s-+\s*|-+\s""").find(t)
         val head = if (dash != null) t.substring(0, dash.range.first) else t
         val words = head.lowercase().split(Regex("""\s+""")).filter { it.isNotBlank() }
         if (words.isEmpty()) return false
