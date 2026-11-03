@@ -62,6 +62,7 @@ object WhatsNew {
         203 to "Newer cards are known by their picture too: every card the picture match was missing is added on Wi-Fi, newest first.",
         213 to "A more polished feel: cards, decks and boxes give a little when pressed, lists slide when cards come and go, loading shows quiet placeholders, and pop-up messages match the app's colours.",
         215 to "A tidier card panel when scanning: cost beside the name, a bigger price, a Normal/Foil switch and quieter buttons.",
+        216 to "Collection lists give the cards more room: the search, filters and recent cards slide away as you scroll down and come back when you scroll up.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
