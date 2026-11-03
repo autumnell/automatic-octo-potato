@@ -559,8 +559,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
 
     private fun onArtHit(hit: com.mtgscanner.scan.ArtHit?, guess: CardTextGuess) {
-        // The same card on two frames in a row, so one lucky frame doesn't add the wrong card.
-        val agreed = artVote.offer(hit?.id) ?: return
+        // The same card on two frames in a row, so one lucky frame doesn't add the wrong card; a picture match
+        // clear enough (and the only printing with that picture) is taken at once.
+        val sure = hit != null && hit.onlyPrinting && com.mtgscanner.scan.CardGallery.isSure(hit.standOut, hit.lead)
+        val agreed = artVote.offer(hit?.id).let { if (sure) hit!!.id else it } ?: return
         if (hit == null || hit.id != agreed) return
         val key = "art:$agreed"
         if (key in lookedUp) return

@@ -56,6 +56,7 @@ object WhatsNew {
         180 to "Cards are known by their picture more often: the match was too strict for real phone scans.",
         186 to "A clear card is added sooner: when its picture agrees with the name read, one look is enough.",
         190 to "Lands have their own box: colorless boxes no longer take them, and a Lands box is made next to yours.",
+        191 to "Scanning is faster: a card whose picture is unmistakable is added on the first look, and the camera reads as soon as the card is steady.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
