@@ -71,7 +71,11 @@ suspend fun CollectionRepository.printingsFor(card: ScryfallCard): List<Scryfall
 fun CollectionRepository.matchPicture(guess: com.mtgscanner.scan.CardTextGuess, onlySet: String?): com.mtgscanner.scan.ArtHit? {
     if (guess.artOnlyPrints.isNotEmpty()) {
         com.mtgscanner.scan.CardPrints.match(guess.artOnlyPrints.first(), guess.artOnlyPrints.drop(1), onlySet)?.let { h ->
-            return com.mtgscanner.scan.ArtHit(h.id, h.name, h.set, h.number, 0, 0, h.score, standOut = h.standOut)
+            val g = com.mtgscanner.scan.CardPrints.gallery
+            return com.mtgscanner.scan.ArtHit(
+                h.id, h.name, h.set, h.number, 0, 0, h.score, standOut = h.standOut, lead = h.score - h.runnerUp,
+                onlyPrinting = g?.onlyPicture(h.id) == true,
+            )
         }
     }
     if (guess.artOnly.isEmpty()) return null

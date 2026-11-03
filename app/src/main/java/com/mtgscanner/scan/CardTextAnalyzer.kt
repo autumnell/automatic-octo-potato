@@ -122,7 +122,8 @@ class CardTextAnalyzer(
     }
 
     /** Card check before any text reading: skips frames with no card, or while the card moves. */
-    private val gate = CardGate()
+    // One steady frame is enough: a blurry read is still caught by the strip sharpness check.
+    private val gate = CardGate(stillFrames = 1)
     private var lastGate = 0L
     /** When the wait for a steady binder page started; 0 when not waiting. */
     private var pageWaitSince = 0L

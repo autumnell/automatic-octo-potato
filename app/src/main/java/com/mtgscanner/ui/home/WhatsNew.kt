@@ -55,6 +55,7 @@ object WhatsNew {
         178 to "Everything the scanner uses downloads on first open, with the best models. A name read never lands on an art card.",
         180 to "Cards are known by their picture more often: the match was too strict for real phone scans.",
         186 to "A clear card is added sooner: when its picture agrees with the name read, one look is enough.",
+        191 to "Scanning is faster: a card whose picture is unmistakable is added on the first look, and the camera reads as soon as the card is steady.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
