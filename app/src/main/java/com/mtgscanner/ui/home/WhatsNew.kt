@@ -57,7 +57,7 @@ object WhatsNew {
         186 to "A clear card is added sooner: when its picture agrees with the name read, one look is enough.",
         190 to "Lands have their own box: colorless boxes no longer take them, and a Lands box is made next to yours.",
         191 to "Scanning is faster: a card whose picture is unmistakable is added on the first look, and the camera reads as soon as the card is steady.",
-        195 to "Showcase and borderless cards are read by their name, not their type line. A misread set number no longer adds the wrong card when the picture shows another.",
+        198 to "Showcase and borderless cards are read by their name, not their type line. A misread set number no longer adds the wrong card when the picture shows another.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
