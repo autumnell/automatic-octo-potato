@@ -328,21 +328,28 @@ class CardTextAnalyzer(
                         a = ReadArea(FrameGeometry.grow(bounds, 0.15, frameW, frameH), isCard = true, outline = bounds, quad = q)
                     }
                     // Nothing card-shaped (63:88, upright or sideways) in the guide: no text is read from it.
-                    val quad = a.quad ?: run { noShape(SystemClock.elapsedRealtime()); tracks.update(emptyList()); return@launch }
+                    var quad = a.quad ?: run { noShape(SystemClock.elapsedRealtime()); tracks.update(emptyList()); return@launch }
                     noShapeSince = 0L
                     val track = tracks.update(listOf(quad))[0]
                     val draw = CardParts.drawer({ picture() }, cv)
                     val cjk = CjkNames.scriptFor(scanLang())?.takeIf { ForeignReading.ready }
                     // A found card: read just its name bar and footer, straightened and sharp.
-                    val strips = runCatching { readStrips(quad, rotation, draw, cjk, track) }.getOrNull()
+                    val first = runCatching { readStrips(quad, rotation, draw, cjk, track) }.getOrNull()
+                    // Nothing read: the outline may be a frame inside the card (showcase and borderless frames draw
+                    // card-shaped panels), cutting off the name. The corner model sees the whole card: read that.
+                    val outer = if (found != null && first?.blurry != true && first?.guess?.let(::hasText) != true) {
+                        poseQuad(picture(), guide)?.takeIf { CardOutline.encloses(it, quad) }
+                    } else null
+                    val wider = outer?.let { o -> runCatching { readStrips(o, rotation, draw, cjk, track) }.getOrNull() }
+                    if (wider != null && outer != null) quad = outer
+                    val strips = wider ?: first
                     // Out of focus: reading it would only give a misread. The next frame will do.
                     if (strips?.blurry == true) return@launch
                     val stripGuess = strips?.guess?.let(::locked)
                     // A found card is read by its name bar and footer only, not its rules text. The whole card is
                     // read only when that gave nothing (the outline was a little off); the parser still takes
                     // names from the top and the footer from the bottom of what it reads.
-                    val stripsRead = stripGuess != null &&
-                        (stripGuess.nameCandidates.isNotEmpty() || stripGuess.printedName != null || stripGuess.collectorNumber != null)
+                    val stripsRead = stripGuess?.let(::hasText) == true
                     var guess = if (stripsRead) stripGuess!! else {
                         val b = a.box
                         val bitmap = picture()
@@ -735,6 +742,9 @@ class CardTextAnalyzer(
             if (crop !== frame) crop.recycle()
         }
     }
+
+    /** A name, a printed name or a collector number was read. */
+    private fun hasText(g: CardTextGuess): Boolean = g.nameCandidates.isNotEmpty() || g.printedName != null || g.collectorNumber != null
 
     /** The set symbol's shape, from the right end of the type line. */
     private fun symbolOf(quad: FloatArray, turn: Int, draw: Draw): SymbolPrint? = CardParts.symbol(quad, turn, draw)

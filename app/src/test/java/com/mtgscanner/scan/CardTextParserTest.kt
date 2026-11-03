@@ -248,9 +248,12 @@ class CardTextParserTest {
     }
 
     @Test fun typeLineCheck() {
-        listOf("Instant", "Legendary Creature — Mutant Hero", "Basic Land — Forest", "Artifact Creature - Golem")
-            .forEach { assertTrue(it, CardTextParser.isTypeLine(it)) }
-        listOf("Land Tax", "Lightning Bolt", "World Shaper", "Battle Hymn")
+        listOf(
+            "Instant", "Legendary Creature — Mutant Hero", "Basic Land — Forest", "Artifact Creature - Golem",
+            // As OCR reads showcase frames' type lines: no spaces, or the dash as another mark.
+            "Creature—Human Druid", "Creature ~ Rat Rogue", "Creature -Lizard Rogue", "Creature_Bat Cleric", "Sorcery = Lesson",
+        ).forEach { assertTrue(it, CardTextParser.isTypeLine(it)) }
+        listOf("Land Tax", "Lightning Bolt", "World Shaper", "Battle Hymn", "Snow-Covered Forest", "Will-o'-the-Wisp")
             .forEach { assertTrue(it, !CardTextParser.isTypeLine(it)) }
     }
 }

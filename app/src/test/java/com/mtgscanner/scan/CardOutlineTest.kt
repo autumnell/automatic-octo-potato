@@ -27,6 +27,18 @@ class CardOutlineTest {
         assertTrue(CardOutline.cardLike(o))
     }
 
+    @Test fun aCardFoundAroundAFrameInsideIt() {
+        // A showcase panel: the lower part of the card, inset a little from its sides.
+        val panel = floatArrayOf(130f, 300f, 700f, 300f, 700f, 900f, 130f, 900f)
+        assertTrue(CardOutline.encloses(card, panel))
+        // The card's own outline found a hair wider holds it too.
+        assertTrue(CardOutline.encloses(card, floatArrayOf(95f, 300f, 735f, 300f, 735f, 935f, 95f, 935f)))
+        // About the same size: not a wider find.
+        assertFalse(CardOutline.encloses(card, floatArrayOf(110f, 60f, 720f, 60f, 720f, 920f, 110f, 920f)))
+        // Somewhere else: another card.
+        assertFalse(CardOutline.encloses(card, floatArrayOf(800f, 300f, 1300f, 300f, 1300f, 900f, 800f, 900f)))
+    }
+
     @Test fun areaAndConvexity() {
         assertEquals(630f * 880f, CardOutline.area(card), 1f)
         assertTrue(CardOutline.isConvex(card))
