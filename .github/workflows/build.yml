@@ -56,6 +56,15 @@ jobs:
           gh release download models -p card-finder-yolo11n-obb.onnx -D app/src/main/assets --clobber \
             || echo "No YOLO file on the models release: the build leaves it out."
 
+      # Every printing's picture fingerprint (built daily by gallery.yml), so the scanner knows every card from the
+      # first open. Without it the phone downloads the published gallery and fills the gaps itself.
+      - name: Card gallery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download models -p card-gallery.bin -D app/src/main/assets --clobber \
+            || echo "No card gallery on the models release: the build leaves it out."
+
       # A release build (R8, no debugging): much faster on the phone. Same app id as the old debug
       # builds, and the same committed key unless the private key above is set.
       - name: Build APK
@@ -194,6 +203,8 @@ jobs:
       # A download that fails leaves the test to skip itself rather than failing the build.
       - name: Download models, gallery and sample cards
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           pip install -q pillow numpy
           mkdir -p scan-models
@@ -205,6 +216,8 @@ jobs:
           get "$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_ids.json" gallery_ids.json
           get "$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/meta.json" meta.json
           python3 .github/scripts/scan_samples.py scan-models 40 app/src/test/resources/scan-photos
+          # The gallery that goes in the app, when there is one (not cached: it changes daily).
+          gh release download models -p card-gallery.bin -D scan-models --clobber || rm -f scan-models/card-gallery.bin
 
       - name: Run the accuracy test
         env:

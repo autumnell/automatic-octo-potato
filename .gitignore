@@ -7,3 +7,4 @@ local.properties
 captures/
 .kotlin/
 app/src/main/assets/card-finder-yolo11n-obb.onnx
+app/src/main/assets/card-gallery.bin
