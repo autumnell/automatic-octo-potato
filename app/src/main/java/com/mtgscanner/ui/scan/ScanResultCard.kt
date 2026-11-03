@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -137,172 +138,187 @@ import com.mtgscanner.ui.components.ruleBelow
 @Composable
 internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewModel) {
     val foil = state.isFoil(card)
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface.copy(alpha = 0.97f)) {
-        Column(Modifier.padding(14.dp)) {
+    Surface(
+        Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(Corners.Medium)),
+        shape = RoundedCornerShape(Corners.Medium),
+        color = Palette.Surface.copy(alpha = 0.96f),
+    ) {
+        Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 12.dp)) {
             Row {
-                CardImage(card.imageUrl, Modifier.width(92.dp).foilShimmer(foil))
+                CardImage(card.imageUrl, Modifier.width(84.dp).foilShimmer(foil))
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(card.name, style = MaterialTheme.typography.titleMedium)
-                    ManaCost(card.effectiveManaCost, size = 15.dp)
-                    Spacer(Modifier.height(4.dp))
+                    // Name, with its cost at the right as on the card.
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text(
+                            card.name, style = MaterialTheme.typography.titleMedium, color = Palette.Text,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.padding(top = 3.dp)) { ManaCost(card.effectiveManaCost, size = 14.dp) }
+                    }
                     Text(card.effectiveTypeLine, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RarityDot(card.rarity, 8.dp)
+                        SetIcon(card.set, size = 14.dp, tint = Palette.Muted)
                         Spacer(Modifier.width(6.dp))
                         Text(
                             "${card.set.uppercase()} · #${card.collectorNumber}" + (state.currentLang?.let { " · ${it.uppercase()}" } ?: ""),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelMedium.merge(TabularNums),
+                            color = Palette.Muted,
                         )
+                        Spacer(Modifier.width(6.dp))
+                        RarityDot(card.rarity, 7.dp)
                         if (foil && !(card.hasFoil && card.hasNonFoil)) {
                             Spacer(Modifier.width(6.dp))
                             FoilTag()
                         }
-                        // Set lock on, and this card is from another set (it said so in its footer).
-                        val lock = com.mtgscanner.data.SortPrefs.setLock
-                        if (lock != null && !card.set.equals(lock, ignoreCase = true)) {
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                "Not in ${lock.uppercase()}",
-                                color = Color.Black,
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold).padding(horizontal = 6.dp, vertical = 1.dp),
-                            )
-                        }
                     }
-                    // Foil for this card only, when it comes both ways.
-                    if (card.hasFoil && card.hasNonFoil && state.target != ScanTarget.CHECK) {
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            FoilChip(foil, vm::toggleCardFoil)
-                            // Glare changed between frames like a foil's does. Only a hint: tap to accept.
-                            if (state.foilHint && !foil) {
+                    // Set lock on, and this card is from another set (it said so in its footer).
+                    val lock = com.mtgscanner.data.SortPrefs.setLock
+                    if (lock != null && !card.set.equals(lock, ignoreCase = true)) {
+                        Spacer(Modifier.height(4.dp))
+                        Note("Not in ${lock.uppercase()}", Palette.Gold)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (AppSettings.showPrices) {
+                            Text(scryfallPrice(card, foil), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
+                            // Price check fetches today's price; say so once it's in.
+                            if (state.target == ScanTarget.CHECK && state.priceFresh) {
                                 Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "Looks foil",
-                                    color = Color.Black,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold.copy(alpha = 0.85f))
-                                        .clickable(onClickLabel = "Mark foil", onClick = vm::acceptFoilHint)
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                )
+                                Text("today", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                             }
                         }
+                        Spacer(Modifier.weight(1f))
+                        state.owned?.let { n -> OwnedPill(n) }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        if (AppSettings.showPrices) Text(scryfallPrice(card, foil), style = MaterialTheme.typography.titleLarge.merge(TabularNums), color = Palette.Text)
-                        // Price check fetches today's price; say so once it's in.
-                        if (AppSettings.showPrices && state.target == ScanTarget.CHECK && state.priceFresh) {
-                            Spacer(Modifier.width(6.dp))
-                            Text("today", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(bottom = 3.dp))
-                        }
-                        state.owned?.let { n ->
-                            if (AppSettings.showPrices) Spacer(Modifier.width(10.dp))
-                            Text(
-                                if (n > 0) "Own ×$n" else "Not owned",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = if (n > 0) Palette.Success else Palette.Muted,
-                            )
-                        }
-                    }
-                    // Where you keep it: "Rares ×3 · Bulk ×1".
-                    if (state.keptIn.isNotEmpty()) {
-                        Text(
-                            state.keptIn.joinToString(" · ") { (box, n) -> "$box ×$n" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Palette.Text,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (!state.confident) {
-                        Text("Not sure about this one. Check the printing.", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
-                    }
-                    // Spot proxies: the card's footer, symbol and colours are far from its printing's own picture.
-                    if (state.lookOff) {
-                        Text("Looks different from the real printing. Proxy or misprint?", color = Palette.Gold, style = MaterialTheme.typography.bodySmall)
-                    }
-                    // Centering check: left/right · top/bottom. Borderless and full-art cards have no border to measure.
-                    state.centering?.takeIf { card.borderColor != "borderless" && !card.fullArt }?.let { c ->
-                        Text("Centering ${c.label}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Text)
-                    }
-                    state.wish?.let { w ->
-                        Spacer(Modifier.height(4.dp))
-                        Row(
-                            Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Success.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                }
+            }
+            // The smaller notes, full width under the card.
+            val notes = buildList<@Composable () -> Unit> {
+                // Where you keep it: "Rares ×3 · Bulk ×1".
+                if (state.keptIn.isNotEmpty()) add { Note(state.keptIn.joinToString(" · ") { (box, n) -> "$box ×$n" }, Palette.Text) }
+                if (!state.confident) add { Note("Not sure about this one. Check the printing.", Palette.Gold) }
+                // Spot proxies: the card's footer, symbol and colours are far from its printing's own picture.
+                if (state.lookOff) add { Note("Looks different from the real printing. Proxy or misprint?", Palette.Gold) }
+                // Centering check: left/right · top/bottom. Borderless and full-art cards have no border to measure.
+                state.centering?.takeIf { card.borderColor != "borderless" && !card.fullArt }?.let { c -> add { Note("Centering ${c.label}", Palette.Text) } }
+                state.wish?.let { w ->
+                    add {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Favorite, null, tint = Palette.Success, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                if (w.wanted > 1) "On your wishlist (want ${w.wanted})" else "On your wishlist!",
-                                color = Palette.Success,
-                                style = MaterialTheme.typography.labelMedium,
-                            )
+                            Spacer(Modifier.width(6.dp))
+                            Note(if (w.wanted > 1) "On your wishlist (want ${w.wanted})" else "On your wishlist!", Palette.Success)
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            val tight = PaddingValues(horizontal = 12.dp)
-            // Price check: look, then move on. Nothing is added.
-            if (state.target == ScanTarget.CHECK) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Printing", maxLines = 1)
+            if (notes.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { notes.forEach { it() } }
+            }
+            // Foil for this card only, when it comes both ways.
+            if (card.hasFoil && card.hasNonFoil && state.target != ScanTarget.CHECK) {
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FinishToggle(foil, onPick = { if (it != foil) vm.toggleCardFoil() })
+                    // Glare changed between frames like a foil's does. Only a hint: tap to accept.
+                    if (state.foilHint && !foil) {
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Looks foil?",
+                            color = Palette.Gold,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.clip(RoundedCornerShape(Corners.Small))
+                                .clickable(onClickLabel = "Mark foil", onClick = vm::acceptFoilHint)
+                                .heightIn(min = 40.dp).padding(horizontal = 8.dp).wrapContentHeight(),
+                        )
+                    }
                 }
+            }
+            Spacer(Modifier.height(12.dp))
+            // Price check: look, then move on. Nothing is added.
+            if (state.target == ScanTarget.CHECK) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Ghost("Printing", vm::openPrintings)
                 GradientButton("Next", vm::skip, Modifier.weight(1f).heightIn(min = 48.dp))
             } else if (state.target == ScanTarget.REMOVE || state.target == ScanTarget.BOX) Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Skip", maxLines = 1)
-                }
-                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Printing", maxLines = 1)
-                }
+                Ghost("Skip", vm::skip)
+                Ghost("Printing", vm::openPrintings)
                 if (state.target == ScanTarget.REMOVE) {
                     GradientButton("Remove", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp), enabled = (state.owned ?: 1) > 0)
                 } else {
                     GradientButton("Count", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp))
                 }
-            } else Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = vm::skip, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Skip", maxLines = 1)
-                }
-                OutlinedButton(onClick = vm::openPrintings, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("Printing", maxLines = 1)
-                }
-                // Copies come from the scan bar; +4 stays as a shortcut while it's at one.
+            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Ghost("Skip", vm::skip)
+                Ghost("Printing", vm::openPrintings)
+                // Copies come from Scan settings; +4 stays as a shortcut while it's at one.
                 val qty = ScanBarPrefs.quantity
-                if (qty == 1) OutlinedButton(onClick = { vm.add(4) }, shape = RoundedCornerShape(Corners.Medium), contentPadding = tight, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text("+4", maxLines = 1)
-                }
+                if (qty == 1) Ghost("+4", { vm.add(4) })
                 // Auto-add already added it: the button adds one more copy, same finish and language.
                 val justAdded = state.autoAdd && state.session.firstOrNull()?.card?.id == card.id
-                if (justAdded) GradientButton("+1", vm::sameAgain, Modifier.weight(1f).heightIn(min = 48.dp), hero = true)
+                if (justAdded) GradientButton("+1 more", vm::sameAgain, Modifier.weight(1f).heightIn(min = 48.dp), hero = true)
                 else GradientButton(if (qty > 1) "Add $qty" else "Add", { vm.add(qty) }, Modifier.weight(1f).heightIn(min = 48.dp), hero = true)
             }
         }
     }
 }
 
-/** Foil on/off chip, at least 48dp tall. */
+/** A small line under the card: a note, in [color]. */
 @Composable
-private fun FoilChip(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun Note(text: String, color: Color) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = color, maxLines = 2, overflow = TextOverflow.Ellipsis)
+}
+
+/** "Own 3" in green, or "New" when you have none. */
+@Composable
+private fun OwnedPill(n: Int) {
+    val own = n > 0
+    Text(
+        if (own) "Own $n" else "New",
+        style = MaterialTheme.typography.labelMedium.merge(TabularNums),
+        color = if (own) Palette.Success else Palette.Muted,
+        modifier = Modifier.clip(RoundedCornerShape(50))
+            .background((if (own) Palette.Success else Color.White).copy(alpha = if (own) 0.14f else 0.06f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    )
+}
+
+/** A quiet secondary button: soft fill, plain text, 48dp tall. */
+@Composable
+private fun Ghost(text: String, onClick: () -> Unit) {
     Box(
-        modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(Corners.Small))
-            .background(if (on) Palette.Gold else Color.Black.copy(alpha = 0.6f))
-            .border(1.dp, if (on) Palette.Gold else Color.White.copy(alpha = 0.35f), RoundedCornerShape(Corners.Small))
-            .clickable(onClickLabel = if (on) "Turn foil off" else "Turn foil on", onClick = onClick)
-            .padding(horizontal = 16.dp),
+        Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(Corners.Medium)).background(Color.White.copy(alpha = 0.07f))
+            .clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
+    ) { Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Text, maxLines = 1) }
+}
+
+/** Normal or Foil, side by side; the picked one is filled. */
+@Composable
+private fun FinishToggle(foil: Boolean, onPick: (Boolean) -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.07f)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(if (on) "Foil on" else "Foil", color = if (on) Color.Black else Color.White, style = MaterialTheme.typography.labelLarge)
+        listOf(false to "Normal", true to "Foil").forEach { (isFoil, label) ->
+            val on = foil == isFoil
+            Box(
+                Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(50))
+                    .then(if (on) Modifier.background(if (isFoil) Palette.Gold else Color.White.copy(alpha = 0.16f)) else Modifier)
+                    .clickable(onClickLabel = if (isFoil) "Foil" else "Not foil") { onPick(isFoil) }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label, style = MaterialTheme.typography.labelLarge,
+                    color = when { on && isFoil -> Color.Black; on -> Palette.Text; else -> Palette.Muted },
+                )
+            }
+        }
     }
 }
 
