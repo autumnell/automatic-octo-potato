@@ -292,6 +292,21 @@ suspend fun CollectionRepository.offlineRead(raw: CardTextGuess): OfflineRead? {
     return OfflineRead(guess.printedName ?: "${set.uppercase()} #$number", set, number, lang = guess.lang)
 }
 
+/**
+ * The card a footer alone names ([card], by set and number), checked against the card's picture: a misread digit
+ * names another card of the same set. When the picture clearly shows another card of that set, that card; when it
+ * clearly shows a card of another set, null (the next frame tries again); else [card].
+ */
+private suspend fun CollectionRepository.footerOnly(card: ScryfallCard, guess: CardTextGuess): Identification? {
+    val hit = withContext(Dispatchers.Default) {
+        runCatching { com.mtgscanner.scan.CardPrints.match(guess.cardPrint) }.getOrNull()
+    } ?: return Identification(card, confident = true, exact = true)
+    if (com.mtgscanner.util.CardNames.key(hit.name) == com.mtgscanner.util.CardNames.key(card.name)) return Identification(card, confident = true, exact = true)
+    if (!hit.set.equals(card.set, ignoreCase = true)) return null
+    val shown = runCatching { cardById(hit.id) }.getOrNull() ?: return null
+    return Identification(shown, confident = true, exact = true)
+}
+
 private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
     // Real card names close to what was read come first, then the raw text.
     // Comparing against every card name is heavy: keep it off the main thread.
@@ -307,7 +322,8 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
         val number = guess.collectorNumber
         if (number != null) {
             local.firstOrNull { it.collectorNumber.equals(number, ignoreCase = true) }?.let { c ->
-                if (names.isEmpty() || bestSimilarity(c) >= 0.6) return Identification(c, confident = true, exact = true)
+                if (names.isEmpty()) footerOnly(c, guess)?.let { return it }
+                else if (bestSimilarity(c) >= 0.6) return Identification(c, confident = true, exact = true)
             }
         }
         if (names.isNotEmpty()) {
@@ -324,8 +340,10 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
             .getOrNull()
         if (card != null) {
             val sim = bestSimilarity(card)
-            // If we couldn't read a name, trust the footer; otherwise the name has to agree.
-            if (names.isEmpty() || sim >= 0.6) return Identification(card, confident = true, exact = true)
+            // If we couldn't read a name, trust the footer unless the picture shows another card; otherwise the
+            // name has to agree.
+            if (names.isEmpty()) footerOnly(card, guess)?.let { return it }
+            else if (sim >= 0.6) return Identification(card, confident = true, exact = true)
         }
         // A token prints its card set's code: the number may be in the token set ("tmom") instead.
         if (names.isNotEmpty()) {

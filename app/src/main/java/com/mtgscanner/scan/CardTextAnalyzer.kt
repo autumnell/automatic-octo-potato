@@ -643,7 +643,10 @@ class CardTextAnalyzer(
         // A full footer names the printing. A number with no set code (2003-2019 cards) still needs the art. Its
         // look is still taken, to notice a card that doesn't look like the printing it names (a proxy, a misprint).
         if (g.collectorNumber != null && g.setCode != null) {
-            return stripTurn?.let { t -> runCatching { lookOf(quad, t, draw) }.getOrNull() }?.let { g.copy(frameLook = it) } ?: g
+            val looked = stripTurn?.let { t -> runCatching { lookOf(quad, t, draw) }.getOrNull() }?.let { g.copy(frameLook = it) } ?: g
+            // With no name read, the picture checks the number: a misread digit names another card of the set.
+            if (g.nameCandidates.isNotEmpty() || g.printedName != null || stripTurn == null) return looked
+            return looked.copy(cardPrint = runCatching { printOf(quad, stripTurn, draw, track) }.getOrNull())
         }
         if (g.nameCandidates.isEmpty() && g.printedName == null) {
             val prints = CardPrints.ready
