@@ -140,6 +140,8 @@ internal fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showSettings(false) }, containerColor = Palette.Surface) {
         Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Scan settings", style = MaterialTheme.typography.titleLarge)
+            NextCardsSection(state, vm)
+            HorizontalDivider(color = Palette.Rule)
             ScanSettingsEditor()
             HorizontalDivider(color = Palette.Rule)
             ArtIndexSection(vm)

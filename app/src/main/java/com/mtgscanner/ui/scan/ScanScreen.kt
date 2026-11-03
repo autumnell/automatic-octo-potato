@@ -284,7 +284,19 @@ fun ScanScreen(
 
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalHintTargets provides hintTargets) {
-            Column(Modifier.fillMaxSize().background(Color.Black)) {
+            // The camera fills the whole screen; the header and controls float over it on soft shades.
+            if (hasPermission && !needsBox) Box(Modifier.fillMaxSize().background(Color.Black)) {
+                CameraPreview(vm = vm, torch = state.torch)
+                if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
+                else FrameGuide(
+                    found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused,
+                    // Flashes in the color of the box the card goes to, so a pile can be sorted by color.
+                    flashColor = if (state.lastBoxName != null && state.lastBoxColor != 0) com.mtgscanner.ui.components.boxColor(state.lastBoxColor)
+                    else Palette.Accent,
+                    modifier = Modifier.align(Alignment.Center).hintTarget("frame"),
+                )
+            } else Box(Modifier.fillMaxSize().background(Palette.Background))
+            Column(Modifier.fillMaxSize()) {
                 ScanHeader(state, boxes, vm)
 
                 Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -295,9 +307,7 @@ fun ScanScreen(
                             action = "Create a box",
                             onAction = { vm.showNewBox(true) },
                         )
-                    } else if (hasPermission) {
-                        CameraPreview(vm = vm, torch = state.torch)
-                    } else {
+                    } else if (!hasPermission) {
                         EmptyState(
                             "Camera needed",
                             Modifier.align(Alignment.Center),
@@ -317,7 +327,7 @@ fun ScanScreen(
                         )
                     }
 
-                    if (hasPermission && !needsBox) {
+                if (hasPermission && !needsBox) {
                         if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
                         else FrameGuide(
                             found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused,
@@ -330,6 +340,7 @@ fun ScanScreen(
                             Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
+                            NextCardsChip(state, vm)
                             PackChip(state, vm)
                             BatchChip(state, vm)
                             SortChip(state, vm)
@@ -341,11 +352,11 @@ fun ScanScreen(
                             "Paused",
                             color = Color.White,
                             style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(Corners.Medium))
-                                .background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.align(Alignment.Center).glass(RoundedCornerShape(Corners.Medium))
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                         )
                         Column(
-                            Modifier.align(Alignment.TopEnd).padding(top = 76.dp, end = 12.dp),
+                            Modifier.align(Alignment.TopEnd).padding(top = 68.dp, end = 12.dp),
                             horizontalAlignment = Alignment.End,
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
@@ -360,7 +371,7 @@ fun ScanScreen(
                                     "Skipped ${state.skipped}",
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
+                                    modifier = Modifier.glass(RoundedCornerShape(Corners.Medium))
                                         .clickable(onClickLabel = "Show skipped cards") { vm.showSkipped(true) }
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
@@ -371,7 +382,7 @@ fun ScanScreen(
                                     "Unknown ${state.unknownCount}",
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
+                                    modifier = Modifier.glass(RoundedCornerShape(Corners.Medium))
                                         .clickable(onClickLabel = "Show unknown scans") { vm.showUnknown(true) }
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
@@ -381,7 +392,7 @@ fun ScanScreen(
 
                     // Settings and modes float over the top of the camera.
                     if (!needsBox) Row(
-                        Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
+                        Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -418,8 +429,6 @@ fun ScanScreen(
                                 val sameAgain = if ((state.stack || state.autoAdd) && state.target != ScanTarget.CHECK && state.session.isNotEmpty()) vm::sameAgain else null
                                 LastCardBar(state, onOpenCard, onOpenList = { vm.showList(true) }, Modifier.hintTarget("last"), onSameAgain = sameAgain)
                             }
-                            Spacer(Modifier.height(8.dp))
-                            ScanToggleBar(state, vm, Modifier.hintTarget("bar"))
                         }
                     }
                 }
