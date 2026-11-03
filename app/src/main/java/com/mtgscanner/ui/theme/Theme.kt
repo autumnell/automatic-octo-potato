@@ -185,6 +185,19 @@ private fun scheme(): ColorScheme {
         outline = p.Outline,
         outlineVariant = p.Outline,
         error = p.Danger,
+        // Left at Material's defaults these are lilac: snackbars (inverse*), their action text, raised
+        // surfaces and some containers came out purple against the warm palette.
+        surfaceTint = Color.Transparent,
+        surfaceBright = p.SurfaceHigh,
+        surfaceDim = p.Background,
+        inverseSurface = if (p.dark) lerp(p.SurfaceHigh, Color.White, 0.07f) else Color(0xFF2B2824),
+        inverseOnSurface = if (p.dark) p.Text else Color(0xFFF2EEE8),
+        inversePrimary = if (p.dark) p.AccentText else lerp(p.Accent, Color.White, 0.5f),
+        tertiaryContainer = lerp(p.Surface, p.Gold, 0.22f),
+        onTertiaryContainer = p.Text,
+        errorContainer = lerp(p.Surface, p.Danger, 0.22f),
+        onErrorContainer = p.Text,
+        scrim = Color.Black,
     )
 }
 

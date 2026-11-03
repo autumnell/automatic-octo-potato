@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.components.pressScale
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.util.CardNames
 import com.mtgscanner.ui.components.moneySuffix
@@ -525,11 +526,15 @@ private fun BoxCard(
 ) {
     var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(Corners.Medium)
+    val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(
-            Modifier.weight(1f).clip(shape)
+            Modifier.weight(1f).pressScale(press, pressed = 0.98f).clip(shape)
                 .background(Palette.BoxCard)
-                .combinedClickable(onClick = onClick, onLongClick = { if (b.cards > 0) onCover() }),
+                .combinedClickable(
+                    interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current,
+                    onClick = onClick, onLongClick = { if (b.cards > 0) onCover() },
+                ),
         ) {
             if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout, checked) else BoxCardFull(b, stats, stripe, warning, layout, checked)
         }
@@ -735,7 +740,7 @@ private fun ToolsTab(
         items(trade, key = { "t${it.id}" }) { b ->
             Surface(
                 onClick = { onBrowse(b.id) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.animateItem().fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 shape = RoundedCornerShape(Corners.Medium),
                 color = Palette.Surface,
             ) {
@@ -854,7 +859,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
             if (group != null) item(key = "g:$group") { SectionHeader(group) }
             items(rows, key = { "w${it.id}" }) { w ->
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = w === rows.first(), last = w === rows.last())
+                    Modifier.animateItem().fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = w === rows.first(), last = w === rows.last())
                         .clickable { editing = w }.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

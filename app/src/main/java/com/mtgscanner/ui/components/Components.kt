@@ -34,6 +34,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -305,11 +308,14 @@ fun CardTile(
     imageModifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val press = remember { MutableInteractionSource() }
+    val tint by animateColorAsState(if (selected) Palette.Accent.copy(alpha = 0.22f) else Color.Transparent, label = "tileSelected")
     Column(
         modifier
+            .pressScale(press)
             .clip(RoundedCornerShape(Corners.Small))
-            .then(if (selected) Modifier.background(Palette.Accent.copy(alpha = 0.22f)) else Modifier)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .background(tint)
+            .combinedClickable(interactionSource = press, indication = LocalIndication.current, onClick = onClick, onLongClick = onLongClick)
             .padding(4.dp),
     ) {
         Box {

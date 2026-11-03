@@ -27,7 +27,6 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -143,10 +142,10 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
             }
             LazyColumn(Modifier.weight(1f)) {
                 item { SideHeader("You give", onAdd = { picking = "give" }) }
-                items(ui.give, key = { it.key }) { TradeRow(it, vm, first = it === ui.give.first(), last = it === ui.give.last()) }
+                items(ui.give, key = { it.key }) { TradeRow(it, vm, first = it === ui.give.first(), last = it === ui.give.last(), modifier = Modifier.animateItem()) }
                 item { SideHeader("You get", onAdd = { picking = "get" }) }
                 items(ui.get, key = { it.key }) { g ->
-                    TradeRow(g, vm, first = g === ui.get.first(), last = g === ui.get.last(), onEdit = { editing = g.key; showPrintings = false })
+                    TradeRow(g, vm, first = g === ui.get.first(), last = g === ui.get.last(), onEdit = { editing = g.key; showPrintings = false }, modifier = Modifier.animateItem())
                 }
                 if (ui.give.isEmpty() && ui.get.isEmpty()) {
                     item {
@@ -220,7 +219,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                 .background(Palette.Background.copy(alpha = 0.4f))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
             contentAlignment = Alignment.Center,
-        ) { CircularProgressIndicator(color = Palette.Accent) }
+        ) { com.mtgscanner.ui.components.Spinner() }
     }
 }
 
@@ -237,9 +236,9 @@ private fun SideHeader(title: String, onAdd: () -> Unit) {
 }
 
 @Composable
-private fun TradeRow(item: TradeItem, vm: TradeViewModel, first: Boolean, last: Boolean, onEdit: (() -> Unit)? = null) {
+private fun TradeRow(item: TradeItem, vm: TradeViewModel, first: Boolean, last: Boolean, onEdit: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last)
+        modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last)
             .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -187,7 +187,7 @@ fun GoalsScreen(
                 modifier = Modifier.navigationBarsPadding(),
             ) {
                 items(list, key = { it.goal.id }) { p ->
-                    GoalCard(p, onClick = { if (p.goal.kind == Goals.SET) onOpenSet(p.goal.target) else openId = p.goal.id })
+                    GoalCard(p, onClick = { if (p.goal.kind == Goals.SET) onOpenSet(p.goal.target) else openId = p.goal.id }, modifier = Modifier.animateItem())
                 }
             }
         }

@@ -780,7 +780,7 @@ private fun CardGrid(
                     }
                 }
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
-                    Box {
+                    Box(Modifier.animateItem()) {
                     if (grid) {
                         CardTile(
                             c.smallImageUrl ?: c.imageUrl, c.name, cardPriceShort(c), quantity = c.quantity, foil = c.foil,

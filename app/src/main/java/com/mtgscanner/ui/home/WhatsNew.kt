@@ -60,6 +60,7 @@ object WhatsNew {
         198 to "Showcase and borderless cards are read by their name, not their type line. A misread set number no longer adds the wrong card when the picture shows another.",
         201 to "A cleaner scan screen: the camera fills the screen, and finish, set, language and copies moved into Scan settings.",
         203 to "Newer cards are known by their picture too: every card the picture match was missing is added on Wi-Fi, newest first.",
+        213 to "A more polished feel: cards, decks and boxes give a little when pressed, lists slide when cards come and go, loading shows quiet placeholders, and pop-up messages match the app's colours.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
