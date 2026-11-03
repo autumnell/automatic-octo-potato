@@ -105,6 +105,9 @@ object CardPrints {
     const val DOWNLOAD_MB = 77
 
     private const val PACKED = "gallery.bin"
+    /** Every printing's fingerprint, inside the app when the build had it (see .github/workflows/gallery.yml). */
+    private const val GALLERY_ASSET = "card-gallery.bin"
+    private const val KEY_ASSET = "galleryAsset"
     private const val EXTRA = "gallery-new.bin"
 
     fun isOn(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_ON, false)
@@ -195,6 +198,7 @@ object CardPrints {
     private suspend fun prepare(app: Context) {
         dir.mkdirs()
         val packed = File(dir, PACKED)
+        useBundledGallery(app, packed)
         val needed = ALL.filter { d -> !File(dir, d.file).exists() && !(packed.exists() && d in listOf(GALLERY, IDS, META)) }
         if (needed.isNotEmpty()) {
             val free = dir.usableSpace
@@ -229,6 +233,24 @@ object CardPrints {
         cardNet = OnnxNet(File(dir, CARD_MODEL.file))
         poseNet = runCatching { OnnxNet(File(dir, POSE_MODEL.file)) }.getOrNull()
         loadYolo()
+    }
+
+    /**
+     * The gallery inside the app (every printing, built daily by the build server) replaces the downloaded one
+     * when the app is installed or updated, so nothing needs downloading and no card is missing.
+     */
+    private fun useBundledGallery(app: Context, packed: File) {
+        val stamp = runCatching { app.packageManager.getPackageInfo(app.packageName, 0).lastUpdateTime.toString() }.getOrNull() ?: return
+        val p = prefs(app)
+        if (packed.exists() && p.getString(KEY_ASSET, null) == stamp) return
+        val part = File(dir, "$PACKED.part")
+        val copied = runCatching {
+            app.assets.open(GALLERY_ASSET).use { input -> part.outputStream().use { input.copyTo(it, 1 shl 16) } }
+            part.renameTo(packed)
+        }.getOrDefault(false)
+        if (!copied) { part.delete(); return }
+        p.edit().putString(KEY_ASSET, stamp).apply()
+        listOf(GALLERY, IDS, META).forEach { File(dir, it.file).delete() }
     }
 
     private fun fetch(d: Download, progress: (Long) -> Unit) {
@@ -338,7 +360,7 @@ object CardPrints {
     /**
      * Adds every printing on the phone's card list that the gallery doesn't have (it was built once, so new sets and
      * a few older cards are missing), from Scryfall's pictures, newest first, on Wi-Fi. Saved every [batch] cards,
-     * so it carries on next time when stopped. Once all are in, it looks again once a week.
+     * so it carries on next time when stopped. Once all are in, it looks again the next day.
      * [missingIds] gives the list's ids, newest first; [byId] each card.
      */
     suspend fun addNewPrintings(
@@ -349,7 +371,7 @@ object CardPrints {
         val p = prefs(ctx)
         val today = LocalDate.now()
         val last = runCatching { LocalDate.parse(p.getString(KEY_TOPPED, "")) }.getOrNull()
-        if (last != null && last.plusDays(7) > today) return
+        if (last != null && last.plusDays(1) > today) return
         val g = gallery ?: return
         val missing = missingIds().filter { !g.has(it) }
         val rows = ArrayList<CardGallery.Row>()
@@ -372,7 +394,7 @@ object CardPrints {
             if (rows.size >= batch) { save(rows); rows.clear() }
         }
         save(rows)
-        // Only a finished pass waits a week; a stopped one carries on next time.
+        // Only a finished pass waits a day; a stopped one carries on next time.
         if (done == missing.size) p.edit().putString(KEY_TOPPED, today.toString()).apply()
     }
 

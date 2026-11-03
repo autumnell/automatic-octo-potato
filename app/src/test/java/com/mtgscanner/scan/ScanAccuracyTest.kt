@@ -30,12 +30,17 @@ class ScanAccuracyTest {
         val scanNames = File(d, "samples/scan-names.json").takeIf { it.exists() }?.readText()
             ?.let { Regex(""""([0-9a-f-]{36})"\s*:\s*"((?:[^"\\]|\\.)*)"""").findAll(it).associate { m -> m.groupValues[1] to m.groupValues[2] } }
             .orEmpty()
-        File(d, "gallery_ids.json").reader().use { ids ->
-            File(d, "meta.json").reader().use { meta ->
-                File(d, "gallery_f16.bin").inputStream().use { CardGallery.Published.convert(ids, meta, it, packed) }
+        // The gallery that goes in the app when there is one, else the published one it starts from.
+        val built = File(d, "card-gallery.bin").takeIf { it.exists() }
+        val gallery = if (built != null) built.inputStream().use { CardGallery.Codec.read(it) } else {
+            File(d, "gallery_ids.json").reader().use { ids ->
+                File(d, "meta.json").reader().use { meta ->
+                    File(d, "gallery_f16.bin").inputStream().use { CardGallery.Published.convert(ids, meta, it, packed) }
+                }
             }
+            CardGallery.Codec.read(ByteArrayInputStream(packed.toByteArray()))
         }
-        val gallery = CardGallery.Codec.read(ByteArrayInputStream(packed.toByteArray()))
+        println("Gallery: ${gallery.size} printings" + if (built != null) " (built)" else " (published)")
         val card = OnnxNet(File(d, "card.onnx"))
         val corners = File(d, "corners.onnx").takeIf { it.exists() }?.let { OnnxNet(it) }
 
@@ -83,7 +88,7 @@ class ScanAccuracyTest {
         }
         println(report)
         File("build").mkdirs()
-        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\n$report\n$detail")
+        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\nGallery: ${gallery.size} printings${if (built != null) " (built)" else " (published)"}\n\n$report\n$detail")
 
         // Clean pictures should all be right; a wrong answer is worse than none, so few wrong anywhere.
         tally["Clean"]?.let { t -> assertTrue("clean: ${t.toList()}", t[0] * 100 >= t.sum() * 95) }
