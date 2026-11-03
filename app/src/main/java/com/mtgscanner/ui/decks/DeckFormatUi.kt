@@ -23,7 +23,6 @@ import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -285,7 +284,7 @@ fun AddDeckSheet(
             Text("Kept in this deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Spacer(Modifier.height(20.dp))
             if (busy) {
-                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Palette.Accent) }
+                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) { com.mtgscanner.ui.components.Spinner() }
             } else {
                 GradientButton(
                     text = when (n) { null -> "Add"; 1 -> "Add 1 card"; else -> "Add $n cards" },

@@ -59,7 +59,7 @@ fun RecentActionsSheet(onUndo: (Long) -> Unit, onDismiss: () -> Unit) {
             LazyColumn(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                 items(recent, key = { it.id }) { e ->
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 8.dp),
+                        Modifier.animateItem().fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {

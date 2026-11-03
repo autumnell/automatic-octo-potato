@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,7 +69,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
             when {
                 run.loading -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Palette.Accent)
+                        com.mtgscanner.ui.components.Spinner()
                         Spacer(Modifier.height(10.dp))
                         Text(
                             run.progress?.let { "Reading cards… ${(it * 100).toInt()}%" } ?: "Reading cards…",

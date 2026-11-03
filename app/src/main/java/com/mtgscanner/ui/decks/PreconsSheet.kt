@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -67,9 +66,7 @@ fun PreconsSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
             }
             val l = list
             when {
-                l == null -> Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = Palette.Accent)
-                }
+                l == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = 12.dp))
                 l.isEmpty() -> EmptyState("Couldn't get the precon list", Modifier.padding(vertical = 24.dp), action = "Try again", onAction = { vm.loadPrecons(fresh = true) })
                 shown.isEmpty() -> EmptyState("No precons found", Modifier.padding(vertical = 24.dp))
                 else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
@@ -104,9 +101,7 @@ private fun PreconDeckSheet(name: String, deck: PreconDeck?, failed: Boolean, vm
             Text(name, style = MaterialTheme.typography.titleLarge)
             when {
                 failed -> EmptyState("Couldn't get this deck", Modifier.padding(vertical = 24.dp))
-                deck == null -> Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = Palette.Accent)
-                }
+                deck == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = 12.dp))
                 else -> {
                     val have = deck.ownedCopies(owned)
                     val missing = remember(deck, owned) { deck.missing(owned) }

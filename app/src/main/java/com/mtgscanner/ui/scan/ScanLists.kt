@@ -59,7 +59,7 @@ fun SkippedSheet(state: ScanUiState, vm: ScanViewModel) {
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
             if (state.skippedCards.isEmpty()) item(key = "empty") { EmptyState("Nothing skipped", Modifier.padding(vertical = 24.dp)) }
             items(state.skippedCards, key = { it.key }) { s ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.animateItem().fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     CardImage(s.card.smallImageUrl, Modifier.width(44.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
@@ -89,7 +89,7 @@ fun UnknownSheet(vm: ScanViewModel) {
             if (scans.isEmpty()) item(key = "empty") { EmptyState("None left", Modifier.padding(vertical = 24.dp)) }
             items(scans, key = { it.id }) { p ->
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open = p }.padding(horizontal = 20.dp, vertical = 10.dp),
+                    Modifier.animateItem().fillMaxWidth().heightIn(min = 48.dp).clickable { open = p }.padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(p.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
