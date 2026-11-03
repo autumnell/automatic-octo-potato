@@ -139,18 +139,20 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
     var boxMenu by remember { mutableStateOf(false) }
     val box = boxes.firstOrNull { it.id == state.boxId }
     Row(
-        Modifier.fillMaxWidth().background(Palette.Background).statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 12.dp),
+        Modifier.fillMaxWidth()
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.78f), Color.Black.copy(alpha = 0.45f), Color.Transparent)))
+            .statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Scan", style = MaterialTheme.typography.titleLarge)
+            Text("Scan", style = MaterialTheme.typography.titleLarge, color = Color.White)
             Box {
                 Row(
                     Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { boxMenu = true }.padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
-                    Icon(if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+                    Icon(if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.OnDarkMuted, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Just checking · not adding"
@@ -163,11 +165,11 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                     Text(
                         (if (state.stack) "Stack · " else "") + where,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (state.target != ScanTarget.COLLECTION || state.stack) Palette.Gold else Palette.Muted,
+                        color = if (state.target != ScanTarget.COLLECTION || state.stack) Palette.Gold else Palette.OnDarkMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Icon(Icons.Outlined.ExpandMore, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.ExpandMore, null, tint = Palette.OnDarkMuted, modifier = Modifier.size(16.dp))
                 }
                 DropdownMenu(expanded = boxMenu, onDismissRequest = { boxMenu = false }) {
                     DropdownMenuItem(
@@ -206,8 +208,8 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
         val count = state.sessionCount
         Text(
             (if (count == 1) "1 card" else "$count cards") + moneySuffix(state.sessionValue, state.sessionEur),
-            style = MaterialTheme.typography.titleSmall,
-            color = Palette.Text,
+            style = MaterialTheme.typography.titleSmall.merge(TabularNums),
+            color = Color.White,
             maxLines = 1,
         )
     }
@@ -218,7 +220,9 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
 internal fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
     Row(
         // Extra room at the bottom for the raised Scan tab under it.
-        Modifier.fillMaxWidth().background(Color.Black).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+        Modifier.fillMaxWidth()
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.8f))))
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
@@ -231,18 +235,18 @@ internal fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
         )
         Box(
             Modifier
-                .size(60.dp)
+                .size(64.dp)
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.85f))
-                .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                .background(Color.White.copy(alpha = 0.12f))
+                .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape)
                 .clickable { vm.togglePause() },
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(44.dp).clip(CircleShape).border(3.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(50.dp).clip(CircleShape).background(if (state.paused) Palette.Accent else Color.White), contentAlignment = Alignment.Center) {
                 Icon(
                     if (state.paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
                     contentDescription = if (state.paused) "Resume scanning" else "Pause scanning",
-                    tint = Color.White,
+                    tint = if (state.paused) Color.White else Color.Black,
                 )
             }
         }
@@ -265,7 +269,7 @@ internal fun RoundIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tint: Color = Color.White, modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier.size(44.dp).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.6f)).clickable(onClick = onClick),
+        modifier.size(44.dp).glass(CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
 }
@@ -304,10 +308,8 @@ internal fun FrameGuide(found: Boolean, flash: Int, paused: Boolean, modifier: M
 internal fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .clip(RoundedCornerShape(Corners.Medium))
-            .background(Color.Black.copy(alpha = 0.8f))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(Corners.Medium))
-            .padding(horizontal = 22.dp, vertical = 14.dp),
+            .glass(RoundedCornerShape(Corners.Medium))
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (state.lookingUp) {

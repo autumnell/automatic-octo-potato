@@ -91,7 +91,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
     var into by remember { mutableStateOf(false) }
     Box {
         Box(
-            Modifier.size(44.dp).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.6f)).clickable { open = true },
+            Modifier.size(44.dp).glass(androidx.compose.foundation.shape.CircleShape).clickable { open = true },
             contentAlignment = Alignment.Center,
         ) {
             val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.batch != null || state.target != ScanTarget.COLLECTION

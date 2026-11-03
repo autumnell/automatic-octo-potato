@@ -53,6 +53,7 @@ import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.EmptyState
 import com.mtgscanner.ui.components.FoilTag
+import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.detail.sharedCard
 import com.mtgscanner.ui.components.scryfallPriceShort
 import com.mtgscanner.ui.components.formatUsd
@@ -74,98 +75,91 @@ fun SetIcon(code: String, modifier: Modifier = Modifier, size: Dp = 18.dp, tint:
 }
 
 /**
- * Pill over the bottom of the camera: finish, set, language and copies for the next cards scanned.
- * Foil is the scan setting, the set is the set lock, language and copies are in [ScanBarPrefs].
+ * Finish, set, language, condition and copies for the next cards scanned, in Scan settings.
+ * Foil is the scan setting, the set is the set lock, the rest are in [ScanBarPrefs].
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun ScanToggleBar(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(Corners.Medium))
-            .background(Color.Black.copy(alpha = 0.78f))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(Corners.Medium)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Finish
-        BarCell("Finish", onClick = { vm.setFoil(!state.foil) }) {
-            if (state.foil) FoilTag() else Text("Normal", color = Color.White, style = MaterialTheme.typography.labelLarge)
+fun NextCardsSection(state: ScanUiState, vm: ScanViewModel) {
+    Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Next cards", style = MaterialTheme.typography.titleSmall)
+        NextRow("Finish") {
+            SelectPill("Normal", !state.foil, onClick = { vm.setFoil(false) })
+            SelectPill("Foil", state.foil, onClick = { vm.setFoil(true) })
         }
-        BarDivider()
-        // Set lock
         val lock = SortPrefs.setLock
-        BarCell(if (lock != null) "Set ${lock.uppercase()}, change" else "Any set, pick one", onClick = { vm.showSetLock(true) }) {
-            if (lock != null) Row(verticalAlignment = Alignment.CenterVertically) {
-                SetIcon(lock, tint = Palette.Gold)
-                Spacer(Modifier.width(4.dp))
-                Text(lock.uppercase(), color = Palette.Gold, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-            } else Text("Set: -", color = Color.White, style = MaterialTheme.typography.labelLarge)
-        }
-        BarDivider()
-        // Language
-        var langMenu by remember { mutableStateOf(false) }
-        BarCell("Language", onClick = { langMenu = true }) {
-            val lang = ScanBarPrefs.lang
-            Text(
-                ScanBarPrefs.langLabel(lang),
-                color = if (lang != "en") Palette.Gold else Color.White,
-                style = MaterialTheme.typography.labelLarge,
+        NextRow("Set") {
+            SelectPill("Any", lock == null, onClick = { vm.setLock(null) })
+            SelectPill(
+                lock?.uppercase() ?: "Pick a set",
+                lock != null,
+                onClick = { vm.showSettings(false); vm.showSetLock(true) },
+                leading = lock?.let { { SetIcon(it, size = 16.dp, tint = Palette.Text) } },
             )
-            DropdownMenu(expanded = langMenu, onDismissRequest = { langMenu = false }) {
-                ScanBarPrefs.LANGS.forEach { (code, label) ->
-                    DropdownMenuItem(
-                        text = { Text(label, color = if (code == lang) Palette.AccentText else Palette.Text) },
-                        onClick = { ScanBarPrefs.updateLang(code); langMenu = false },
-                    )
-                }
+        }
+        NextRow("Language") {
+            ScanBarPrefs.LANGS.forEach { (code, label) ->
+                SelectPill(label, ScanBarPrefs.lang == code, onClick = { ScanBarPrefs.updateLang(code) })
             }
         }
-        BarDivider()
-        // Condition
-        var condMenu by remember { mutableStateOf(false) }
-        BarCell("Condition", onClick = { condMenu = true }) {
-            val c = ScanBarPrefs.condition
-            Text(c, color = if (c != "NM") Palette.Gold else Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-            DropdownMenu(expanded = condMenu, onDismissRequest = { condMenu = false }) {
-                ScanBarPrefs.CONDITIONS.forEach { code ->
-                    DropdownMenuItem(
-                        text = { Text(code, color = if (code == c) Palette.AccentText else Palette.Text) },
-                        onClick = { ScanBarPrefs.updateCondition(code); condMenu = false },
-                    )
-                }
+        NextRow("Condition") {
+            ScanBarPrefs.CONDITIONS.forEach { c ->
+                SelectPill(c, ScanBarPrefs.condition == c, onClick = { ScanBarPrefs.updateCondition(c) })
             }
         }
-        BarDivider()
-        // Copies per scan
-        var qtyMenu by remember { mutableStateOf(false) }
-        BarCell("Copies", onClick = { qtyMenu = true }) {
-            val q = ScanBarPrefs.quantity
-            Text("+$q", color = if (q > 1) Palette.Gold else Color.White, style = MaterialTheme.typography.labelLarge)
-            DropdownMenu(expanded = qtyMenu, onDismissRequest = { qtyMenu = false }) {
-                ScanBarPrefs.QUANTITIES.forEach { n ->
-                    DropdownMenuItem(
-                        text = { Text("+$n", color = if (n == q) Palette.AccentText else Palette.Text) },
-                        onClick = { ScanBarPrefs.updateQuantity(n); qtyMenu = false },
-                    )
-                }
+        NextRow("Copies") {
+            ScanBarPrefs.QUANTITIES.forEach { n ->
+                SelectPill("+$n", ScanBarPrefs.quantity == n, onClick = { ScanBarPrefs.updateQuantity(n) })
             }
         }
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun RowScope.BarCell(label: String, onClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(
-        Modifier.weight(1f).heightIn(min = 48.dp).clickable(onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { content() }
+private fun NextRow(label: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) { content() }
+    }
 }
 
+/**
+ * The next-card choices that differ from the usual (foil, a set, a language, a condition, more than one copy),
+ * as one small tag over the camera so they are never forgotten. Tap to change them. Hidden when all are usual.
+ */
 @Composable
-private fun BarDivider() {
-    Box(Modifier.width(1.dp).height(22.dp).background(Color.White.copy(alpha = 0.18f)))
+fun NextCardsChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
+    val lock = SortPrefs.setLock
+    val parts = buildList {
+        if (state.foil) add("Foil")
+        lock?.let { add(it.uppercase()) }
+        if (ScanBarPrefs.lang != "en") add(ScanBarPrefs.langLabel(ScanBarPrefs.lang))
+        if (ScanBarPrefs.condition != "NM") add(ScanBarPrefs.condition)
+        if (ScanBarPrefs.quantity > 1) add("+${ScanBarPrefs.quantity}")
+    }
+    if (parts.isEmpty()) return
+    Row(
+        modifier
+            .glass(RoundedCornerShape(Corners.Medium))
+            .clickable(onClickLabel = "Change next cards") { vm.showSettings(true) }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (lock != null) {
+            SetIcon(lock, size = 14.dp, tint = Palette.Gold)
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(parts.joinToString(" · "), color = Palette.Gold, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+    }
 }
+
+/** The see-through dark panel used for everything floating over the camera. */
+fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape): Modifier =
+    this.clip(shape).background(Color.Black.copy(alpha = 0.58f)).border(1.dp, Color.White.copy(alpha = 0.12f), shape)
 
 /** The last card scanned: image, set, name and price. Tap to open it. [onSameAgain] shows "+1" for another copy. */
 @Composable
@@ -178,8 +172,7 @@ fun LastCardBar(
         modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(Corners.Medium))
-            .background(Color.Black.copy(alpha = 0.78f))
+            .glass(RoundedCornerShape(Corners.Medium))
             .clickable(enabled = e != null) { if (e != null && e.deckId == 0L && e.rowId != 0L) onOpenCard(e.rowId) else onOpenList() }
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
