@@ -23,6 +23,9 @@ data class CardFacts(
     /** Collector number, for boxes kept in number order. */
     val number: String = "",
 ) {
+    /** A land of any kind, by its type line. */
+    val isLand: Boolean get() = typeLine.contains("Land", ignoreCase = true)
+
     /** A token, emblem or art card (see [CardExtras]), from the type line. */
     val tokenOrArt: Boolean get() = CardExtras.isExtra(typeLine)
 }
@@ -95,7 +98,8 @@ data class BoxRules(
         if (colors.isNotEmpty()) {
             val ok = colors.any { sel ->
                 when (sel) {
-                    "C" -> c.colors.isEmpty()
+                    // Lands have no color too, but go in a lands box, not with colorless cards.
+                    "C" -> c.colors.isEmpty() && !c.isLand
                     "M" -> c.colors.length > 1
                     else -> c.colors.length == 1 && c.colors.contains(sel)
                 }
@@ -301,7 +305,8 @@ object RuleCheck {
                 val by = boxes.subList(0, i).firstOrNull { (_, r, lim) -> !lim && !r.isOpen && r.covers(rules) }
                 when {
                     by != null -> out[id] = by.first
-                    colorsAhead.containsAll(ALL_COLORS) -> out[id] = null
+                    // Color boxes don't take lands (colorless ones leave them for a lands box).
+                    colorsAhead.containsAll(ALL_COLORS) && rules.types.none { it.equals("Land", ignoreCase = true) } -> out[id] = null
                 }
                 // A box with only color rules takes every card of those colors.
                 if (!limited && rules.copy(colors = emptySet()).isCatchAll) colorsAhead += rules.colors
@@ -357,6 +362,7 @@ val BOX_TEMPLATES = listOf(
             BoxPreset("Green", "binder", BoxRules(colors = setOf("G"))),
             BoxPreset("Multicolor", "binder", BoxRules(colors = setOf("M"))),
             BoxPreset("Colorless", "binder", BoxRules(colors = setOf("C")), fallback = true),
+            BoxPreset("Lands", "binder", BoxRules(types = setOf("Land"))),
         ),
     ),
     BoxTemplate("Set boxes", "A box per set", emptyList()),

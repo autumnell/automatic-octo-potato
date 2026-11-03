@@ -25,6 +25,24 @@ class BoxRulesTest {
         assertTrue(BoxRules(colors = setOf("C")).matches(card(colors = "")))
     }
 
+    @Test fun landsGoToALandsBoxNotColorless() {
+        val colorless = BoxRules(colors = setOf("C"))
+        val lands = BoxRules(types = setOf("Land"))
+        val forest = card(colors = "", type = "Basic Land — Forest")
+        assertFalse(colorless.matches(forest))
+        assertTrue(lands.matches(forest))
+        assertTrue(colorless.matches(card(colors = "", type = "Artifact — Equipment")))
+        // In Auto-sort order, a colorless box ahead of the lands box still leaves it the lands.
+        val boxes = listOf("Colorless" to colorless, "Lands" to lands)
+        assertEquals("Lands", BoxRules.pick(boxes, forest, fallback = "Colorless"))
+        assertEquals("Colorless", BoxRules.pick(boxes, card(colors = "", type = "Artifact"), fallback = "Colorless"))
+        // The color binders template now has a box for them.
+        assertTrue(BOX_TEMPLATES.first { it.name == "Color binders" }.boxes.any { LandsBox.isLandsBox(it.rules) })
+        // A lands box after every color box isn't dead: color boxes don't take lands.
+        val colorBoxes = listOf("W", "U", "B", "R", "G", "M", "C").map { Triple(it, BoxRules(colors = setOf(it)), false) }
+        assertFalse("L" in RuleCheck.deadBoxes(colorBoxes + Triple("L", lands, false)))
+    }
+
     @Test fun bulkPreset() {
         val bulk = BOX_PRESETS.first { it.name == "Bulk" }.rules
         assertTrue(bulk.matches(card(rarity = "common", price = 0.2)))
