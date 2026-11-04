@@ -177,15 +177,7 @@ fun LastCardBar(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (e == null) {
-            Text(
-                "Scanned cards show up here",
-                color = Palette.OnDarkMuted,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
-            return@Row
-        }
+        if (e == null) return@Row
         // Grows into the card page when tapped.
         CardImage(e.card.smallImageUrl, Modifier.height(40.dp).sharedCard(if (e.deckId == 0L) e.rowId else 0L))
         Spacer(Modifier.width(10.dp))

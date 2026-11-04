@@ -159,7 +159,7 @@ private fun FanCard(e: ScanEntry, modifier: Modifier) {
 }
 
 /** One card on its way to its box: where it starts and ends (window coordinates) and the label it lands on. */
-data class Flight(val id: Int, val imageUrl: String?, val from: Rect, val to: Rect, val label: String, val color: Int)
+data class Flight(val id: Int, val imageUrl: String?, val from: Rect, val to: Rect, val label: String, val color: Int, val angle: Float = 0f)
 
 /**
  * After an add, the card's picture shrinks from the frame toward the scan pile, and a small chip there
@@ -207,8 +207,8 @@ private fun FlightOf(f: Flight, origin: Offset) {
                     scaleY = scale
                     translationX = (to.center.x - from.center.x) * p
                     translationY = (to.center.y - from.center.y) * p
-                    // A slight tilt as it goes, like a card being tossed.
-                    rotationZ = -8f * p
+                    // Starts at the card's own tilt, ending in a slight tilt, like a card being tossed.
+                    rotationZ = f.angle + (-8f - f.angle) * p
                     alpha = if (p < 0.65f) 1f else 1f - (p - 0.65f) / 0.35f
                 },
         )
