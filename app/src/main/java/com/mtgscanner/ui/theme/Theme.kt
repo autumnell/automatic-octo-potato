@@ -219,9 +219,10 @@ private fun typography(headingFont: AppFont, bodyFont: AppFont): Typography {
         displaySmall = heading(headingFont, 40),
         headlineLarge = heading(headingFont, 34),
         headlineMedium = heading(headingFont, 30),
-        headlineSmall = heading(headingFont, 26),
-        titleLarge = heading(headingFont, 23),
-        titleMedium = base(f, 16, FontWeight.SemiBold),
+        // Smaller headings are a step lighter so a title next to a bold price doesn't stack two bolds.
+        headlineSmall = heading(headingFont, 26, FontWeight.SemiBold),
+        titleLarge = heading(headingFont, 23, FontWeight.SemiBold),
+        titleMedium = base(f, 16, FontWeight.Medium),
         titleSmall = base(f, 14, FontWeight.Medium),
         bodyLarge = base(f, 16, FontWeight.Normal),
         bodyMedium = base(f, 14, FontWeight.Normal),

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -208,4 +210,25 @@ fun CoverPickerDialog(
         confirmButton = { TextButton(onClick = { onPick(null) }) { Text("Most valuable") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/**
+ * The value ring folded into one thin bar: a segment per box in its colour, by value (or by cards when
+ * prices are hidden). Tapping it opens the full ring.
+ */
+@Composable
+fun ValueBar(boxes: List<BoxSummary>, colors: Map<Long, Color>, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val prices = AppSettings.showPrices
+    val weights = boxes.map { b -> b to if (prices) b.value else b.cards.toDouble() }.filter { it.second > 0 }
+    val sum = weights.sumOf { it.second }
+    if (sum <= 0) return
+    Row(
+        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp)
+            .height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        weights.forEach { (b, w) ->
+            Box(Modifier.weight((w / sum).toFloat().coerceAtLeast(0.002f)).fillMaxHeight().background(colors[b.id] ?: Palette.Accent))
+        }
+    }
 }

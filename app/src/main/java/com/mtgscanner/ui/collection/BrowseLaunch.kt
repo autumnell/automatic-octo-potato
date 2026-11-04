@@ -13,6 +13,11 @@ object BrowseLaunch {
     @Volatile var title: String? = null
     @Volatile var boxId: Long? = null
 
+    /** Set by the Collection tab's search bar: Browse opens with the cursor in its search field. */
+    @Volatile var focusSearch: Boolean = false
+
+    fun takeFocus(): Boolean = focusSearch.also { focusSearch = false }
+
     /** Opens a smart list: call just before navigating to Browse of [SavedSearch.boxId] (or everything). */
     fun open(s: SavedSearch) {
         filters = s.filters
