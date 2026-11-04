@@ -367,7 +367,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
             else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.Text)
             // With large text the change moves to its own line whole, rather than squeezing "since added" into a column.
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-            androidx.compose.foundation.layout.FlowRow(itemVerticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
                 if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text, modifier = Modifier.padding(end = 10.dp))
                 else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
                 if (prices && ui.valueAtAdd > 0) {
