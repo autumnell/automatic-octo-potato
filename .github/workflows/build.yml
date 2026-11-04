@@ -236,6 +236,17 @@ jobs:
         continue-on-error: true
         run: python3 .github/scripts/miss_sheet.py
 
+      # The fitted correction as text too, for places that can read the log but not download artifacts.
+      - name: Correction as text
+        if: always()
+        continue-on-error: true
+        run: |
+          f=app/build/card-adapter.bin
+          [ -f "$f" ] || { echo "No correction fitted"; exit 0; }
+          sha256sum "$f"
+          cmp -s "$f" app/src/main/assets/card-adapter.bin && echo "Same as the shipped correction" || echo "Differs from the shipped correction"
+          gzip -9c "$f" | base64 -w 4000 | sed 's/^/ADAPTER64 /'
+
       - name: Upload misses and correction
         if: always()
         continue-on-error: true
