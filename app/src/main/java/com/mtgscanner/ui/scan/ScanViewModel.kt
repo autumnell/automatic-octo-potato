@@ -301,18 +301,11 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         viewModelScope.launch { handleGuess(guess) }
     }
 
-    /** Frames in a row with glare, and without. */
-    private var glareRun = 0
-    private var clearRun = 0
+    private val glareHint = GlareHint()
 
-    /** Shows "Tilt to reduce glare" after two frames with glare over the name or footer; hides it after two without. */
+    /** Shows or hides "Tilt to reduce glare" ([GlareHint]). */
     private fun trackGlare(guess: CardTextGuess) {
-        if (guess.glare) { glareRun++; clearRun = 0 } else { clearRun++; glareRun = 0 }
-        val show = when {
-            glareRun >= 2 -> true
-            clearRun >= 2 -> false
-            else -> return
-        }
+        val show = glareHint.onFrame(guess.glare) ?: return
         if (_state.value.glare != show) _state.update { it.copy(glare = show) }
     }
 
@@ -830,14 +823,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
 
     /** Recent frames while a card is in view, for the foil hint. */
     private val lights = ArrayDeque<FrameLight>()
-    private var darkRun = 0
-    private var brightRun = 0
-    /** The flashlight was turned on by low light, not by hand. */
-    private var autoTorchOn = false
-    /** Turned by hand this session: leave it alone from then on. */
-    private var torchByHand = false
-    private var torchCooldownUntil = 0L
-    private var autoTorchCycles = 0
+    /** Low-light flashlight. */
+    private val autoTorch = AutoTorch()
 
     /** Called on the camera thread a few times a second. */
     fun onLight(light: FrameLight) {
@@ -857,21 +844,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             _state.update { it.copy(foilHint = true) }
         }
 
-        darkRun = if (light.luma < LightCheck.DARK) darkRun + 1 else 0
-        brightRun = if (light.luma > LightCheck.BRIGHT) brightRun + 1 else 0
-        if (!st.settings.autoTorch || torchByHand || st.paused) return
-        val now = System.currentTimeMillis()
-        if (!st.torch && darkRun >= 10 && now >= torchCooldownUntil && autoTorchCycles < 3) {
-            autoTorchOn = true
-            darkRun = 0
-            _state.update { it.copy(torch = true) }
-        } else if (st.torch && autoTorchOn && brightRun >= 15) {
-            // Bright again. Wait a bit before turning it back on, so it doesn't flicker.
-            autoTorchOn = false
-            autoTorchCycles++
-            torchCooldownUntil = now + 10_000
-            brightRun = 0
-            _state.update { it.copy(torch = false) }
+        autoTorch.onFrame(light.luma, st.torch, st.settings.autoTorch, st.paused, System.currentTimeMillis())?.let { on ->
+            _state.update { it.copy(torch = on) }
         }
     }
 
@@ -1605,8 +1579,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     }
     /** Flashlight by hand: low light leaves it alone from now on. */
     fun setTorch(on: Boolean) {
-        torchByHand = true
-        autoTorchOn = false
+        autoTorch.turnedByHand()
         _state.update { it.copy(torch = on) }
     }
     fun setBox(id: Long) {

@@ -90,6 +90,14 @@ android {
     }
     // Keep a release build from failing on lint alone. CI runs lintDebug separately and uploads the report;
     // existing warnings and errors don't fail the build yet.
+    // Robolectric tests see the app's resources, fonts and theme.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all { it.maxHeapSize = "4g" }
+        }
+    }
+
     lint {
         checkReleaseBuilds = false
         abortOnError = false
@@ -169,6 +177,12 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
 
     testImplementation("junit:junit:4.13.2")
+    // Android on the build server's JVM: the database upgrade test, the big-collection timing and the screen pictures.
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core-ktx:1.6.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     // The desktop build of the same runtime, for the scan accuracy test on the build server.
     testImplementation("com.microsoft.onnxruntime:onnxruntime:$onnxruntime")
 }

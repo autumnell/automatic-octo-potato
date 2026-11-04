@@ -10,6 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,7 +50,12 @@ fun LineChart(values: List<Double>, modifier: Modifier, line: Color = Palette.Ac
             report?.invoke(null)
         }
     }
-    Canvas(modifier.then(touch)) {
+    // A screen reader hears the line's start, end and range instead of nothing.
+    val spoken = remember(values) {
+        fun f(v: Double) = "%.2f".format(java.util.Locale.US, v)
+        "Chart from ${f(values.first())} to ${f(values.last())}, low ${f(values.min())}, high ${f(values.max())}"
+    }
+    Canvas(modifier.then(touch).semantics { contentDescription = spoken }) {
         val min = values.min()
         val max = values.max()
         val span = (max - min).takeIf { it > 0.0001 } ?: 1.0

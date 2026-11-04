@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -82,7 +83,12 @@ fun ManaCost(cost: String, size: Dp = 16.dp) {
     val density = LocalDensity.current
     val symbolText = with(density) { (size * 0.55f).toSp() }
     val slashText = with(density) { 11.dp.toSp() }
-    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Read aloud as words ("2, blue, blue"), not the symbols' letters.
+    val spoken = remember(cost) { "Mana cost " + com.mtgscanner.util.ManaSpeech.of(cost) }
+    Row(
+        Modifier.clearAndSetSemantics { contentDescription = spoken },
+        horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically,
+    ) {
         symbols.forEach { sym ->
             if (sym == "//") {
                 Text("//", fontSize = slashText, color = Palette.Muted)
