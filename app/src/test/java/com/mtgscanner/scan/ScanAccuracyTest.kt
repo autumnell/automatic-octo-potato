@@ -62,7 +62,9 @@ class ScanAccuracyTest {
             val straight = if (kind == "Photo") corners?.let { findAndStraighten(pic, it) } else pic
             // Real scans are tried both ways up, as the scanner does.
             val tries = straight?.let { if (kind == "Your scans") listOf(it, turned(it)) else listOf(it) }.orEmpty()
-            val hit = tries.mapNotNull { gallery.match(print(it)) }.maxByOrNull { it.standOut }
+            val prints = tries.map { print(it) }
+            if (kind == "Your scans") scanPrints[f.name] = prints
+            val hit = prints.mapNotNull { gallery.match(it) }.maxByOrNull { it.standOut }
             ms[kind] = (ms[kind] ?: 0L) + (System.nanoTime() - start) / 1_000_000
             val row = gallery.rowOf(id)
             val name = if (row >= 0) gallery.nameAt(row) else scanNames[id]
@@ -78,6 +80,7 @@ class ScanAccuracyTest {
             }
         }
         val detail = yourScans(samples, gallery, scanNames, ::print)
+        val adapterReport = runCatching { adapterTrial(samples, gallery) }.getOrElse { "\nAdapter trial failed: $it\n" }
         card.close()
         corners?.close()
 
@@ -88,7 +91,7 @@ class ScanAccuracyTest {
         }
         println(report)
         File("build").mkdirs()
-        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\nGallery: ${gallery.size} printings${if (built != null) " (built)" else " (published)"}\n\n$report\n$detail")
+        File("build/scan-accuracy.md").writeText("### Knowing cards by picture\n\nGallery: ${gallery.size} printings${if (built != null) " (built)" else " (published)"}\n\n$report\n$adapterReport\n$detail")
 
         // Clean pictures should all be right; a wrong answer is worse than none, so few wrong anywhere.
         tally["Clean"]?.let { t -> assertTrue("clean: ${t.toList()}", t[0] * 100 >= t.sum() * 95) }
@@ -116,12 +119,14 @@ class ScanAccuracyTest {
             val id = f.name.substringBefore("__")
             val row = g.rowOf(id)
             val name = if (row >= 0) g.nameAt(row) else scanNames[id] ?: "(unknown)"
-            val q = print(read(f))
+            val q = scanPrints[f.name]?.firstOrNull() ?: print(read(f))
             val hit = g.match(q)
             val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
             val rank = rankOf(g, q, name)
             scansSeen++
             if (g.agreesWith(q, listOf(name)) != null) scansAgreed++
+            // A rough read: every fourth letter misread. Can it still pick the right card among the picture's best?
+            g.agreesWith(q, listOf(rough(name)))?.let { if (sameCard(it.name, name)) roughRight++ else roughWrong++ }
             val file = if (rank > 50) " (${f.nameWithoutExtension.substringAfterLast("__")}, best ${loose?.id})" else ""
             val got = when {
                 hit == null -> "none (best ${loose?.name})"
@@ -132,12 +137,73 @@ class ScanAccuracyTest {
                 "${"%.1f".format(loose?.standOut ?: 0f)} | ${"%.2f".format((loose?.score ?: 0f) - (loose?.runnerUp ?: 0f))} |\n")
         }
         // With the right name read, how often the picture backs it up so the card is looked up on its first frame.
-        return "\nPicture agrees with the right name read: $scansAgreed of $scansSeen (${scansAgreed * 100 / scansSeen}%)\n" + out
+        return "\nPicture agrees with the right name read: $scansAgreed of $scansSeen (${scansAgreed * 100 / scansSeen}%)\n" +
+            "\nWith a rough name read (every fourth letter wrong): right $roughRight, wrong $roughWrong of $scansSeen\n" + out
     }
 
     private var keys: Array<String>? = null
     private var scansSeen = 0
     private var scansAgreed = 0
+    private var roughRight = 0
+    private var roughWrong = 0
+    /** Each real scan's fingerprints, as it lies and turned round, by file name. */
+    private val scanPrints = HashMap<String, List<FloatArray>>()
+
+    /** [name] with every fourth letter read wrong. */
+    private fun rough(name: String): String {
+        var letters = 0
+        return name.map { c -> if (c.isLetter() && ++letters % 4 == 0) 'x' else c }.joinToString("")
+    }
+
+    /**
+     * Fits the phone-photo correction ([CardAdapter]) on the real scans and checks it on scans it wasn't fitted on
+     * (5 rounds, each holding out a fifth of the cards). The one fitted on every scan with the best setting is written to
+     * build/card-adapter.bin, for the app if it does better.
+     */
+    private fun adapterTrial(samples: List<File>, g: CardGallery): String {
+        val data = samples.filter { it.nameWithoutExtension.contains("__Your scans") }.mapNotNull { f ->
+            val row = g.rowOf(f.name.substringBefore("__"))
+            val prints = scanPrints[f.name]
+            if (row < 0 || prints.isNullOrEmpty()) null else Triple(prints, g.vectorAt(row), g.nameAt(row))
+        }
+        if (data.size < 50) return ""
+        fun tally(rows: List<Triple<List<FloatArray>, FloatArray, String>>, fix: (FloatArray) -> FloatArray): IntArray {
+            val t = IntArray(3)
+            for ((prints, _, name) in rows) {
+                val hit = prints.mapNotNull { g.match(fix(it)) }.maxByOrNull { it.standOut }
+                when {
+                    hit == null -> t[2]++
+                    sameCard(hit.name, name) -> t[0]++
+                    else -> t[1]++
+                }
+            }
+            return t
+        }
+        val folds = 5
+        val out = StringBuilder("\n#### Phone-photo correction, checked on scans it wasn't fitted on\n\n| Setting | Right | Wrong | No answer |\n|---|---|---|---|\n")
+        val base = tally(data) { it }
+        out.append("| None | ${base[0]} | ${base[1]} | ${base[2]} |\n")
+        var best: Pair<Double, IntArray>? = null
+        for (lambda in listOf(1.0, 4.0, 16.0)) {
+            val t = IntArray(3)
+            for (k in 0 until folds) {
+                // Split by card, so a card scanned more than once is never both fitted on and checked.
+                fun fold(d: Triple<List<FloatArray>, FloatArray, String>) = Math.floorMod(com.mtgscanner.util.CardNames.key(d.third).hashCode(), folds)
+                val train = data.filter { fold(it) != k }
+                val test = data.filter { fold(it) == k }
+                val a = CardAdapter.fit(train.map { it.first.first() }, train.map { CardGallery.unit(it.second) }, lambda)
+                tally(test) { a.apply(it) }.forEachIndexed { i, v -> t[i] += v }
+            }
+            out.append("| λ $lambda | ${t[0]} | ${t[1]} | ${t[2]} |\n")
+            if (best == null || t[0] - 3 * t[1] > best.second[0] - 3 * best.second[1]) best = lambda to t
+        }
+        val (lambda, t) = best!!
+        val all = CardAdapter.fit(data.map { it.first.first() }, data.map { CardGallery.unit(it.second) }, lambda)
+        File("build").mkdirs()
+        File("build/card-adapter.bin").outputStream().use { all.write(it) }
+        out.append("\nBest: λ $lambda, ${t[0] - base[0]} more right, ${t[1] - base[1]} more wrong than none. Fitted on all ${data.size} scans: build/card-adapter.bin\n")
+        return out.toString()
+    }
 
     /** Each gallery row's name key, worked out once. */
     private fun keysOf(g: CardGallery): Array<String> =

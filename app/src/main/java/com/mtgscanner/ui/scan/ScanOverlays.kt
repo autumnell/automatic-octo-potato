@@ -289,7 +289,11 @@ internal fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(state.status, color = Color.White, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
             if (!state.paused) {
-                state.reading?.let {
+                // The picture's likely card reads better than half-read text; either shows faintly until it settles.
+                val looks = state.looksLike
+                if (looks != null) {
+                    Text("Looks like $looks", color = Palette.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                } else state.reading?.let {
                     Text("Reading “$it”", color = Palette.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (state.glare) {

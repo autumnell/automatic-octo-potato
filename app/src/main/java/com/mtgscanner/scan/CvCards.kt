@@ -89,7 +89,8 @@ object CvCards {
         fun toBitmap(): Bitmap = Bitmap.createBitmap(reuse.cols(), reuse.rows(), Bitmap.Config.ARGB_8888).also { Utils.matToBitmap(reuse, it) }
 
         private val mats = ArrayList<Mat>()
-        private fun <T : Mat> keep(m: T): T = m.also { mats += it }
+        // Parts can be drawn from two threads at once (text strips and the picture fingerprint).
+        private fun <T : Mat> keep(m: T): T = m.also { synchronized(mats) { mats += it } }
 
         /**
          * The card's corners in the frame's pixels, in [CardQuad]'s order, searched for inside [region]. Null when
@@ -235,7 +236,7 @@ object CvCards {
         }
 
         /** Frees what this frame made (not the reused Mat). */
-        fun release() {
+        fun release() = synchronized(mats) {
             mats.forEach { runCatching { it.release() } }
             mats.clear()
         }
