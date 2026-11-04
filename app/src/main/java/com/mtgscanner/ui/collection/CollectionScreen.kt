@@ -634,7 +634,7 @@ private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warni
                 }
                 if (AppSettings.showPrices && layout.shows(CollectionPart.VALUE)) {
                     Spacer(Modifier.width(10.dp))
-                    Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = text, maxLines = 1)
+                    com.mtgscanner.ui.components.RollingMoney(b.value, b.valueEur, MaterialTheme.typography.titleMedium.merge(TabularNums), text)
                 }
             }
             if (warning != null) {
@@ -692,7 +692,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
                         }
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        if (showValue) Text(formatMoneyShort(b.value, b.valueEur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = text)
+                        if (showValue) com.mtgscanner.ui.components.RollingMoney(b.value, b.valueEur, MaterialTheme.typography.headlineSmall.merge(TabularNums), text)
                         val pct = stats?.changePercent
                         if (showChange && stats != null && pct != null && boxChangeShown()) {
                             Text(

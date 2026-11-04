@@ -365,7 +365,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
 fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
     val slots = state.page ?: return
     ModalBottomSheet(onDismissRequest = vm::closePage, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
             val picked = slots.filter { it.selected }
             Text("Binder page", style = MaterialTheme.typography.titleLarge)
             Text(

@@ -109,7 +109,7 @@ fun DrawOddsSheet(cards: List<OddsCard>, onDismiss: () -> Unit) {
     val play = remember(library, hits) { DrawOddsMath.byTurn(library, hits, onPlay = true) }
     val draw = remember(library, hits) { DrawOddsMath.byTurn(library, hits, onPlay = false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding()) {
             Text("Draw odds", style = MaterialTheme.typography.titleLarge)
             Text(
                 "Chance of at least one of ${card ?: group?.let { OddsGroup.valueOf(it).label.lowercase() } ?: "them"} ($hits in $library cards)",

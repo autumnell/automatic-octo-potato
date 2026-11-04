@@ -187,7 +187,14 @@ fun GoalsScreen(
                 modifier = Modifier.navigationBarsPadding(),
             ) {
                 items(list, key = { it.goal.id }) { p ->
-                    GoalCard(p, onClick = { if (p.goal.kind == Goals.SET) onOpenSet(p.goal.target) else openId = p.goal.id }, modifier = Modifier.animateItem())
+                    // Swipe left to delete a goal (with Undo).
+                    com.mtgscanner.ui.components.SwipeActions(
+                        start = null,
+                        end = com.mtgscanner.ui.components.SwipeAction("Delete", Icons.Outlined.DeleteOutline, Palette.Danger) { vm.delete(p.goal) },
+                        modifier = Modifier.animateItem(),
+                    ) {
+                        GoalCard(p, onClick = { if (p.goal.kind == Goals.SET) onOpenSet(p.goal.target) else openId = p.goal.id })
+                    }
                 }
             }
         }

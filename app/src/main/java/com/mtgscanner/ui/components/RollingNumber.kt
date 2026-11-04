@@ -54,3 +54,10 @@ object RollingMath {
         return (450 + 650 * scale).toInt()
     }
 }
+
+/** A money total in the user's currency (like formatMoneyShort) that counts to its new value. */
+@Composable
+fun RollingMoney(usd: Double, eur: Double, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
+    val euros = com.mtgscanner.ui.theme.AppSettings.currency == com.mtgscanner.util.PriceCurrency.EUR
+    RollingText(if (euros) eur else usd, { v -> if (euros) formatEur(v) else formatUsd(v) }, style, color, modifier)
+}

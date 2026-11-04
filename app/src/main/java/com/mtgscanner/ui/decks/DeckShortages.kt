@@ -53,7 +53,7 @@ fun DeckShortagesSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
         SharedCards.shortages(counted.map { it.deck.name to com.mtgscanner.data.ParsedDecks.of(it.deck) }, owned)
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Palette.Surface) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding()) {
             Text("Shortages across decks", style = MaterialTheme.typography.titleLarge)
             Text(
                 if (rows.isEmpty()) "Enough copies to keep all ${counted.size} decks built at once"

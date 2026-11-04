@@ -58,7 +58,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
     var printings by remember { mutableStateOf<List<ScryfallCard>?>(null) }
     val scope = rememberCoroutineScope()
     ModalBottomSheet(onDismissRequest = vm::closePhoto, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
             val found = run.items.filter { it.card != null }
             Text(run.title, style = MaterialTheme.typography.titleLarge)
             if (!run.loading && !run.failed && run.items.isNotEmpty()) Text(

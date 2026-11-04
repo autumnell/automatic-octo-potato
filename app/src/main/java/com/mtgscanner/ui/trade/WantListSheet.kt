@@ -102,9 +102,9 @@ internal fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Co
         matchWants(DecklistParser.parse(text), binder, { it.name }, { it.setCode }, { it.quantity })
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Their want list", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text("Their want list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 FromPhotoButton({ text = appendList(text, it) })
             }
             OutlinedTextField(

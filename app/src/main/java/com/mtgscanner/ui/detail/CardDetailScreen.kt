@@ -563,7 +563,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     Text("History", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                     Spacer(Modifier.height(6.dp))
                     if (events.isEmpty()) {
-                        Text("Nothing yet.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        Text("Nothing yet", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     } else {
                         val shown = if (showAllEvents) events else events.take(4)
                         shown.forEach { e -> EventRow(e) }

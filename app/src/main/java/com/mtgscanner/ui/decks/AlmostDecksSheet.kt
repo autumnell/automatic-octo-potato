@@ -56,7 +56,7 @@ fun AlmostDecksSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
     val run by vm.almost.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf<AlmostDeck?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Decks you can almost build", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (run?.loading == false) TextButton(onClick = { vm.loadAlmost(fresh = true) }) { Text("Refresh") }
@@ -105,7 +105,7 @@ private fun AlmostRow(d: AlmostDeck, onClick: () -> Unit) {
 private fun AlmostDeckSheet(d: AlmostDeck, onSave: () -> Unit, onWish: () -> Unit, onDismiss: () -> Unit) {
     val clip = LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
             Text(d.commander, style = MaterialTheme.typography.titleLarge)
             Text(
                 "You own ${d.cards.size - d.missing.size} of ${d.cards.size} (${(d.share * 100).toInt()}%)" + if (d.ownCommander) " and the commander" else "",

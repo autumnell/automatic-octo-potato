@@ -135,7 +135,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
             if (searching && query.isNotBlank()) {
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
                     if (hits.isEmpty()) {
-                        Text("No setting called \"${query.trim()}\"", color = Palette.Muted, modifier = Modifier.padding(20.dp))
+                        com.mtgscanner.ui.components.EmptyState("No setting called \"${query.trim()}\"")
                     }
                     hits.forEach { e ->
                         Row(
