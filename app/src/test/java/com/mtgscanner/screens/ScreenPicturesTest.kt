@@ -84,7 +84,7 @@ class ScreenPicturesTest {
         val looks = listOf(Triple("dark", ThemeMode.DARK, 1f), Triple("light", ThemeMode.LIGHT, 1f), Triple("large", ThemeMode.DARK, 1.3f))
         for ((label, m, scale) in looks) {
             fontScale = scale
-            ThemeSettings.mode = m
+            ThemeSettings.updateMode(m)
             content = screen
             if (!started) {
                 started = true
