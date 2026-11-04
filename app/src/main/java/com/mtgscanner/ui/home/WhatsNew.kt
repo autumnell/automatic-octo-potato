@@ -68,7 +68,7 @@ object WhatsNew {
         224 to "Scanning: the frame now moves onto the card it finds and follows it, and an added card flies off to the pile from right there.",
         225 to "Search counts the printing you're looking at, not every printing of the card, says how many are in other printings, and shows foils apart (\"2 · 1 foil\"), as do the card page's Versions.",
         226 to "Quicker, surer scans: the picture is checked while the text is read, the picture search is several times faster, the card model runs the quickest way your phone allows, \"Looks like…\" shows the likely card early, a half-read name can pick between near look-alikes, a crooked outline gets a second look, and the picture model now allows for how phone photos look, which got 97% of the test scans right (was 79%).",
-        238 to "Steadier app: every update is now checked against collections from every older version, so no cards go missing, and screen readers say mana costs and price charts in words.",
+        238 to "Steadier app: every update is now checked against collections from every older version, so no cards go missing; clear cards are taken on their first frame more often; a half-read name confirms a clear picture; and screen readers say mana costs and price charts in words.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

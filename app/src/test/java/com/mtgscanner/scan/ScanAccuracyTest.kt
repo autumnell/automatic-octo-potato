@@ -56,8 +56,11 @@ class ScanAccuracyTest {
         val samples = File(d, "samples").listFiles().orEmpty().filter { it.extension == "rgb" }.sortedBy { it.name }
         val shots = ArrayList<Shot>()
         for (f in samples) {
-            val id = f.name.substringBefore("__")
             val kind = f.nameWithoutExtension.substringAfter("__").substringBefore("__")
+            val fix = if (kind == "Your scans") relabel[f.nameWithoutExtension.substringAfterLast("__")] else null
+            if (fix == "?") continue
+            if (fix != null) relabeled += f.name
+            val id = if (fix != null) "" else f.name.substringBefore("__")
             val pic = read(f)
             val start = System.nanoTime()
             val straight = if (kind == "Photo") corners?.let { findAndStraighten(pic, it) } else pic
@@ -67,7 +70,7 @@ class ScanAccuracyTest {
             ms[kind] = (ms[kind] ?: 0L) + (System.nanoTime() - start) / 1_000_000
             counted[kind] = (counted[kind] ?: 0) + 1
             val row = gallery.rowOf(id)
-            val name = if (row >= 0) gallery.nameAt(row) else scanNames[id]
+            val name = fix ?: if (row >= 0) gallery.nameAt(row) else scanNames[id]
             // A card newer than the published gallery can't be known by it here (the phone adds new printings).
             val missing = kind == "Your scans" && row < 0 && name != null && keysOf(gallery).none { it == com.mtgscanner.util.CardNames.key(name) }
             shots += Shot(f, id, kind, name, prints, missing)
@@ -141,9 +144,11 @@ class ScanAccuracyTest {
         if (scans.isEmpty()) return ""
         val out = StringBuilder("\n#### Your scans, one by one\n\n| Card | Got | Score | Right score | Rank | Stand out | Lead |\n|---|---|---|---|---|---|---|\n")
         for (f in scans) {
-            val id = f.name.substringBefore("__")
+            val fix = relabel[f.nameWithoutExtension.substringAfterLast("__")]
+            if (fix == "?") continue
+            val id = if (fix != null) "" else f.name.substringBefore("__")
             val row = g.rowOf(id)
-            val name = if (row >= 0) g.nameAt(row) else scanNames[id] ?: "(unknown)"
+            val name = fix ?: if (row >= 0) g.nameAt(row) else scanNames[id] ?: "(unknown)"
             val q = fixedPrints[f.name]?.firstOrNull() ?: print(read(f))
             val hit = g.match(q)
             val loose = g.match(q, minScore = 0f, minStandOut = 0f, minLead = -2f)
@@ -173,6 +178,15 @@ class ScanAccuracyTest {
     private var roughWrong = 0
     /** Each real scan's fingerprints, as it lies and turned round, by file name. */
     private val scanPrints = HashMap<String, List<FloatArray>>()
+    /** Scans saved under the wrong card (scan-photos/relabel.txt): stamp to the card's real name, or "?". */
+    private val relabel: Map<String, String> by lazy {
+        File("src/test/resources/scan-photos/relabel.txt").takeIf { it.exists() }?.readLines().orEmpty()
+            .filter { it.isNotBlank() && !it.startsWith("#") && '=' in it }
+            .associate { it.substringBefore('=').trim() to it.substringAfter('=').trim() }
+    }
+    /** Sample files of relabeled scans: never fitted on, as their file names the wrong card. */
+    private val relabeled = HashSet<String>()
+
     /** The same, with the photo correction the table is scored with. */
     private val fixedPrints = HashMap<String, List<FloatArray>>()
 
@@ -267,7 +281,7 @@ class ScanAccuracyTest {
 
     /** Real scans of cards in the gallery: their fingerprints, their card's gallery fingerprint, and name. */
     private fun trainingRows(g: CardGallery): List<Triple<List<FloatArray>, FloatArray, String>> =
-        scanPrints.entries.sortedBy { it.key }.mapNotNull { (file, prints) ->
+        scanPrints.entries.filter { it.key !in relabeled }.sortedBy { it.key }.mapNotNull { (file, prints) ->
             val row = g.rowOf(file.substringBefore("__"))
             if (row < 0 || prints.isEmpty()) null else Triple(prints, g.vectorAt(row), g.nameAt(row))
         }

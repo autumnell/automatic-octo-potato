@@ -43,7 +43,7 @@ jobs:
 
       - name: Big-collection timing
         if: always()
-        run: cat app/build/big-collection.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No timing report"
+        run: cat app/build/big-collection.md 2>/dev/null | tee -a "$GITHUB_STEP_SUMMARY" || echo "No timing report"
 
       # Optional private signing key. Only used when the RELEASE_KEYSTORE_BASE64 secret is set (plus
       # RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD); otherwise the build uses the

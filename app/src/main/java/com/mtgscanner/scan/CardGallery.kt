@@ -191,9 +191,11 @@ class CardGallery(
         // A rough read (a smudged or half-read name) can still settle a near tie: of the picture's few best cards,
         // the one the read names clearly better than the others.
         val top = topCards(q).filter { it.score >= AGREE_MIN }
-        if (top.size < 2) return null
+        if (top.isEmpty()) return null
         val liked = top.map { it to nameLike(it.name, names) }.sortedByDescending { it.second }
         val (card, like) = liked[0]
+        // One clear best card: a rough read that looks like it is enough.
+        if (liked.size == 1) return card.takeIf { like >= ROUGH_ALONE }
         return card.takeIf { like >= ROUGH_NAME && like - liked[1].second >= ROUGH_LEAD }
     }
 
@@ -260,14 +262,17 @@ class CardGallery(
         /** The rough read must be this like the card's name, and this much more like it than the next card's. */
         const val ROUGH_NAME = 0.6
         const val ROUGH_LEAD = 0.2
+        /** With no near look-alike in the picture, how like the card's name a rough read must be. */
+        const val ROUGH_ALONE = 0.75
         /** Searches are split into at most this many parts, one per core. */
         val PARTS = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         /**
-         * A picture match this clear is taken on its first frame, without waiting for a second. On 511 real phone
-         * scans, every best card standing out this far and leading this much was the right one (about half of them).
+         * A picture match this clear is taken on its first frame, without waiting for a second. With the photo
+         * correction, on 1,331 real phone scans: 6.5 and 0.10 took 1,256 on one frame (7 and 0.12 took 1,190), and
+         * no wrong card that the stricter limits kept out.
          */
-        const val SURE_STAND_OUT = 7f
-        const val SURE_LEAD = 0.12f
+        const val SURE_STAND_OUT = 6.5f
+        const val SURE_LEAD = 0.10f
 
         /** A match clear enough to take from one frame ([SURE_STAND_OUT], [SURE_LEAD]). */
         fun isSure(standOut: Float, lead: Float): Boolean = standOut >= SURE_STAND_OUT && lead >= SURE_LEAD
