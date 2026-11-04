@@ -33,7 +33,11 @@ class UpgradeTest {
     private fun schema(v: Int): JsonObject? =
         File(dir, "$v.json").takeIf { it.exists() }?.let { json.parseToJsonElement(it.readText()).jsonObject["database"]!!.jsonObject }
 
-    private val current: Int get() = AppDatabase::class.java.getAnnotation(androidx.room.Database::class.java)!!.version
+    /** Today's version, from the @Database line (Room's annotation isn't kept at run time). */
+    private val current: Int by lazy {
+        val src = File("src/main/java/com/mtgscanner/data/db/AppDatabase.kt").readText()
+        Regex("""version\s*=\s*(\d+)""").find(src)!!.groupValues[1].toInt()
+    }
 
     @Test
     fun todaysLayoutIsSaved() {
