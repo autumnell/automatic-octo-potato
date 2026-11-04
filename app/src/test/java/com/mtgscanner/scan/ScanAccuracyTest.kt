@@ -157,7 +157,7 @@ class ScanAccuracyTest {
 
     /**
      * Fits the phone-photo correction ([CardAdapter]) on the real scans and checks it on scans it wasn't fitted on
-     * (5 rounds, each holding out a fifth). The one fitted on every scan with the best setting is written to
+     * (5 rounds, each holding out a fifth of the cards). The one fitted on every scan with the best setting is written to
      * build/card-adapter.bin, for the app if it does better.
      */
     private fun adapterTrial(samples: List<File>, g: CardGallery): String {
@@ -187,8 +187,10 @@ class ScanAccuracyTest {
         for (lambda in listOf(1.0, 4.0, 16.0)) {
             val t = IntArray(3)
             for (k in 0 until folds) {
-                val train = data.filterIndexed { i, _ -> i % folds != k }
-                val test = data.filterIndexed { i, _ -> i % folds == k }
+                // Split by card, so a card scanned more than once is never both fitted on and checked.
+                fun fold(d: Triple<List<FloatArray>, FloatArray, String>) = Math.floorMod(com.mtgscanner.util.CardNames.key(d.third).hashCode(), folds)
+                val train = data.filter { fold(it) != k }
+                val test = data.filter { fold(it) == k }
                 val a = CardAdapter.fit(train.map { it.first.first() }, train.map { CardGallery.unit(it.second) }, lambda)
                 tally(test) { a.apply(it) }.forEachIndexed { i, v -> t[i] += v }
             }
