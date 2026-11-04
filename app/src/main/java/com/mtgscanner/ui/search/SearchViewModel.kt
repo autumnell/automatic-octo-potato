@@ -73,21 +73,64 @@ data class SearchUi(
 data class Viewed(val id: String, val name: String, val image: String? = null)
 
 /**
- * How many copies of a card (any printing) are in the collection, and where most of them are.
- * [boxId] is the box holding the most copies; [rowId] is the biggest row in it, opened by "You own".
+ * How many copies of a card are in the collection, and where most of them are. [count] is every printing;
+ * [foil] of them are foil. [boxId] is the box holding the most copies; [rowId] is the biggest row in it, opened by
+ * "You own".
  */
-data class Owned(val count: Int, val boxName: String?, val boxCount: Int, val boxId: Long? = null, val rowId: Long? = null) {
+data class Owned(
+    val count: Int, val boxName: String?, val boxCount: Int, val boxId: Long? = null, val rowId: Long? = null,
+    val foil: Int = 0,
+) {
     /** "You own 3 · Rares", or "You own 3 · 2 boxes". */
-    val label: String get() = "You own $count" + when {
+    val label: String get() = "You own $count" + where
+
+    private val where: String get() = when {
         boxCount > 1 -> " · $boxCount boxes"
         boxName != null -> " · $boxName"
         else -> ""
     }
+
+    /** "2 · 1 foil" style count, foils said apart. */
+    val countLabel: String get() = when {
+        foil == 0 -> "$count"
+        foil == count -> "$count foil"
+        else -> "$count · $foil foil"
+    }
 }
 
-/** Owned copies keyed by "o:<oracleId>" and "n:<lowercase name>". */
+/** This printing's copies and the card's copies in every printing, for "You own" lines. */
+data class OwnedPrinting(val printing: Owned?, val anyPrinting: Owned?) {
+    /** Copies of this exact printing (0 when only other printings are owned). */
+    val count: Int get() = printing?.count ?: 0
+    /** Copies in other printings. */
+    val others: Int get() = (anyPrinting?.count ?: 0) - count
+
+    /** "You own 2 of this printing (1 foil) · Rares · 3 more in other printings", or null when none at all. */
+    val label: String?
+        get() {
+            val p = printing
+            val more = if (others > 0) "$others in other printings" else null
+            if (p == null) return more?.let { "You own $it" }
+            val foils = when {
+                p.foil == 0 -> ""
+                p.foil == p.count -> ", foil"
+                else -> " (${p.foil} foil)"
+            }
+            return "You own ${p.count} of this printing$foils" + (if (p.boxCount > 1) " · ${p.boxCount} boxes" else p.boxName?.let { " · $it" } ?: "") +
+                (more?.let { " · $it" } ?: "")
+        }
+
+    /** The row to open from "You own": this printing's when owned, else any. */
+    val rowId: Long? get() = printing?.rowId ?: anyPrinting?.rowId
+    val boxId: Long? get() = printing?.boxId ?: anyPrinting?.boxId
+}
+
+/** Owned copies keyed by "o:<oracleId>", "n:<lowercase name>" and "p:<scryfall id>" (one printing). */
 fun Map<String, Owned>.of(card: ScryfallCard): Owned? =
     card.oracleId?.let { this["o:$it"] } ?: this["n:${card.name.lowercase()}"]
+
+/** [card]'s own printing (as scanned or added) apart from the card's other printings. */
+fun Map<String, Owned>.printingOf(card: ScryfallCard): OwnedPrinting = OwnedPrinting(this["p:${card.id}"], of(card))
 
 /** Search Scryfall (full search syntax works) and browse sets; add any printing to the collection. */
 class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
@@ -111,9 +154,10 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
             val byBox = rows.groupBy { it.boxId }.mapValues { (_, r) -> r.sumOf { it.quantity } }
             val top = byBox.maxByOrNull { it.value }?.key
             val row = rows.filter { it.boxId == top }.maxByOrNull { it.quantity }
-            return Owned(rows.sumOf { it.quantity }, top?.let { names[it] }, byBox.size, top, row?.id)
+            return Owned(rows.sumOf { it.quantity }, top?.let { names[it] }, byBox.size, top, row?.id, foil = rows.filter { it.foil }.sumOf { it.quantity })
         }
         val out = HashMap<String, Owned>()
+        cards.groupBy { it.scryfallId }.forEach { (k, rows) -> out["p:$k"] = summarize(rows) }
         cards.filter { it.oracleId != null }.groupBy { it.oracleId!! }.forEach { (k, rows) -> out["o:$k"] = summarize(rows) }
         cards.groupBy { it.name.lowercase() }.forEach { (k, rows) -> out["n:$k"] = summarize(rows) }
         out.toMap()
