@@ -66,20 +66,22 @@ class ScreenPicturesTest {
         }
     }
 
-    /** Lets loading finish (the lists are worked out off the main thread) and animations end. */
+    /**
+     * Lets loading finish (lists are worked out off the main thread) and entrance animations end. The clock is
+     * moved by hand: some screens keep a timer or a shimmer running, so Compose is never fully idle.
+     */
     private fun settle() {
-        repeat(10) {
-            Thread.sleep(150)
+        repeat(16) {
+            Thread.sleep(120)
             ShadowLooper.idleMainLooper()
-            runCatching { rule.mainClock.advanceTimeBy(500) }
+            rule.mainClock.advanceTimeBy(250)
         }
     }
 
-    /** The screen as a picture: Compose's own capture, or the window drawn by hand if that never settles. */
-    private fun capture(): Bitmap = runCatching { rule.onRoot().captureToImage().asAndroidBitmap() }.getOrElse { e ->
-        println("captureToImage failed (${e.javaClass.simpleName}); drawing the window")
+    /** The window drawn into a picture (Compose's own capture waits for an idle that never comes). */
+    private fun capture(): Bitmap {
         val view = rule.activity.window.decorView
-        Bitmap.createBitmap(view.width.coerceAtLeast(1), view.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888).also {
+        return Bitmap.createBitmap(view.width.coerceAtLeast(1), view.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888).also {
             view.draw(android.graphics.Canvas(it))
         }
     }
@@ -90,6 +92,7 @@ class ScreenPicturesTest {
 
     /** Draws [screen] in each look and saves it as [name]-dark.png, -light.png and -large.png. */
     private fun shoot(name: String, screen: @Composable () -> Unit) {
+        rule.mainClock.autoAdvance = false
         val looks = listOf(Triple("dark", ThemeMode.DARK, 1f), Triple("light", ThemeMode.LIGHT, 1f), Triple("large", ThemeMode.DARK, 1.3f))
         for ((label, m, scale) in looks) {
             fontScale = scale
