@@ -104,7 +104,12 @@ class ScreenPicturesTest {
                     val d = LocalDensity.current
                     CompositionLocalProvider(LocalDensity provides Density(d.density, fontScale)) {
                         MtgTheme {
-                            Box(Modifier.fillMaxSize().background(Palette.Background)) { content?.invoke() }
+                            // Like the app's Scaffold: the page color, and text in the page's text color.
+                            androidx.compose.material3.Surface(
+                                Modifier.fillMaxSize(),
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.background,
+                                contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onBackground,
+                            ) { content?.invoke() }
                         }
                     }
                 }

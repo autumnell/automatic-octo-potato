@@ -374,7 +374,8 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
             if (selected) Icon(Icons.Outlined.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.height(2.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Shrinks with large text instead of cutting the name off.
+        com.mtgscanner.ui.components.AutoSizeText(label, MaterialTheme.typography.labelSmall, color = Palette.Muted, minScale = 0.6f)
     }
 }
 
