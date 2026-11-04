@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -109,13 +110,13 @@ fun DrawOddsSheet(cards: List<OddsCard>, onDismiss: () -> Unit) {
     val play = remember(library, hits) { DrawOddsMath.byTurn(library, hits, onPlay = true) }
     val draw = remember(library, hits) { DrawOddsMath.byTurn(library, hits, onPlay = false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Draw odds", style = MaterialTheme.typography.titleLarge)
             Text(
                 "Chance of at least one of ${card ?: group?.let { OddsGroup.valueOf(it).label.lowercase() } ?: "them"} ($hits in $library cards)",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 OddsGroup.entries.forEach { g ->
                     SelectPill(g.label, card == null && group == g.name, { group = g.name; card = null; query = "" })
                 }
@@ -129,25 +130,25 @@ fun DrawOddsSheet(cards: List<OddsCard>, onDismiss: () -> Unit) {
                 items(matches, key = { it.name }) { c ->
                     Text(
                         c.name + if (c.copies > 1) " ×${c.copies}" else "", style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.fillMaxWidth().clickable { card = c.name; group = null; query = "" }.padding(vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { card = c.name; group = null; query = "" }.padding(vertical = Space.s2),
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            Row(Modifier.fillMaxWidth().padding(vertical = Space.s1)) {
                 Text("Turn", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.width(56.dp))
                 Text("On the play", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
                 Text("On the draw", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
             }
             HorizontalDivider(color = Palette.Rule)
             (0 until DrawOddsMath.TURNS).forEach { i ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                     Text("${i + 1}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), modifier = Modifier.width(56.dp))
                     Text(pct(play[i]), style = MaterialTheme.typography.bodyMedium.merge(TabularNums), modifier = Modifier.weight(1f), textAlign = TextAlign.End)
                     Text(pct(draw[i]), style = MaterialTheme.typography.bodyMedium.merge(TabularNums), modifier = Modifier.weight(1f), textAlign = TextAlign.End)
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,9 +49,9 @@ import androidx.compose.ui.graphics.Color
 fun StatsCard(records: List<GameRecord>, onOpen: () -> Unit) {
     val top = remember(records) { GameStats.byPlayer(records).firstOrNull() }
     Surface(onClick = onOpen, shape = RoundedCornerShape(Corners.Small), color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.EmojiEvents, null, tint = Palette.Gold)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Space.s3))
             Column(Modifier.weight(1f)) {
                 Text("Game stats", style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -75,7 +76,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
     val fmt = remember { SimpleDateFormat("MMM d", Locale.US) }
     var confirmClear by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Game stats", style = MaterialTheme.typography.titleLarge)
             Text(
                 "${records.size} games" + (avg?.let { " · about $it min each" } ?: ""),
@@ -86,14 +87,14 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
             } else {
                 Header("Players")
                 players.forEach { p ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                         Text(p.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         Text("${p.wins} of ${p.games} won · ${p.winRate}%", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                     }
                 }
                 Header("Past games")
                 records.forEach { r ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(r.winner?.let { "$it won" } ?: "Draw", style = MaterialTheme.typography.bodyLarge)
                             Text(
@@ -107,19 +108,19 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 if (confirmClear) Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Delete all ${records.size} games?", modifier = Modifier.weight(1f))
                     TextButton(onClick = { vm.clearRecords(); confirmClear = false }) { Text("Delete all", color = Palette.Danger) }
                     TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
                 } else TextButton(onClick = { confirmClear = true }) { Text("Clear stats", color = Palette.Muted) }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Space.s6))
         }
     }
 }
 
 @Composable
 private fun Header(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Text, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Text, modifier = Modifier.padding(top = Space.s4, bottom = Space.s1))
 }

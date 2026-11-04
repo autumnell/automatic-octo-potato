@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -115,9 +116,9 @@ internal fun ArtPicker(current: String?, vm: GameViewModel, onPick: (String?) ->
             query, { query = it; vm.searchArt(it) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search your collection, like your commander") },
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
         if (choices.isEmpty()) Text("No cards with art found. Scan some cards first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             choices.take(24).forEach { c ->
                 Column(Modifier.width(96.dp).clip(RoundedCornerShape(Corners.Small)).clickable { onPick(c.art); open = false }) {
                     AsyncImage(c.art, c.name, Modifier.fillMaxWidth().height(70.dp)

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -105,28 +106,28 @@ fun FirstSetupScreen(onDone: () -> Unit) {
     val failed = steps.any { it.failed }
     val finished = steps.count { it.done }
     Column(
-        Modifier.fillMaxSize().background(Palette.Background).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp),
+        Modifier.fillMaxSize().background(Palette.Background).safeDrawingPadding().verticalScroll(rememberScrollState()).padding(Space.s6),
         verticalArrangement = Arrangement.Center,
     ) {
         Text("Getting the scanner ready", style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.s2))
         Text(
             "Every card, its pictures and the scanning models, so cards are found fast and offline. A few hundred MB, once. " +
                 "Best on Wi-Fi.",
             style = MaterialTheme.typography.bodyMedium, color = Palette.Muted,
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Space.s6))
         LinearProgressIndicator(
             progress = { if (steps.isEmpty()) 0f else finished.toFloat() / steps.size },
             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
             color = Palette.Accent,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.s4))
         steps.forEach { s -> StepRow(s) }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Space.s6))
         if (failed) {
             GradientButton("Try again", onClick = { FirstSetup.start(ctx) }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
         }
         TextButton(onClick = { FirstSetup.markDone(ctx); onDone() }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
             Text("Use the app now, finish in the background")
@@ -136,14 +137,14 @@ fun FirstSetupScreen(onDone: () -> Unit) {
 
 @Composable
 private fun StepRow(s: SetupStep) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = Space.s2)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             when {
                 s.done -> Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Success, modifier = Modifier.size(20.dp))
                 s.failed -> Icon(Icons.Outlined.ErrorOutline, null, tint = Palette.Danger, modifier = Modifier.size(20.dp))
                 else -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Space.s3))
             Text(s.label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             val right = when {
                 s.done -> "Done"
@@ -154,12 +155,12 @@ private fun StepRow(s: SetupStep) {
             Text(right, style = MaterialTheme.typography.bodySmall, color = if (s.failed) Palette.Danger else Palette.Muted)
         }
         if (s.failed && s.note != null) {
-            Text(s.note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 32.dp, top = 2.dp))
+            Text(s.note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s8, top = Space.s1))
         }
         if (!s.done && !s.failed && s.progress != null) {
             LinearProgressIndicator(
                 progress = { s.progress.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().padding(start = 32.dp, top = 6.dp).height(4.dp).clip(RoundedCornerShape(Corners.Small)),
+                modifier = Modifier.fillMaxWidth().padding(start = Space.s8, top = Space.s2).height(4.dp).clip(RoundedCornerShape(Corners.Small)),
                 color = Palette.Accent,
             )
         }

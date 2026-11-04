@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -79,7 +80,7 @@ internal fun PriceAlertRow(c: CollectionCard) {
             null,
             Modifier.size(18.dp), tint = if (blocked) Palette.Danger else if (alert != null) Palette.AccentText else Palette.Icon,
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(
             if (alert != null) alertLines(alert) else "Price alert",
             color = if (alert != null) Palette.AccentText else Palette.Muted,
@@ -142,7 +143,7 @@ private fun PriceAlertDialog(
                     "${if (c.foil) "Foil" else "Non-foil"} · now ${formatUsd(c.nearMintPrice())} · checked daily",
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.s3))
                 OutlinedTextField(
                     value = overText,
                     onValueChange = { overText = it.take(12) },
@@ -152,7 +153,7 @@ private fun PriceAlertDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.s2))
                 OutlinedTextField(
                     value = underText,
                     onValueChange = { underText = it.take(12) },
@@ -163,10 +164,10 @@ private fun PriceAlertDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (problem != null) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Text(problem, style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                 } else if (notifyOff) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Text("Notifications are off for the app.", style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                 }
             }

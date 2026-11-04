@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,7 +64,7 @@ fun SampleHandSheet(lines: List<DeckCheckLine>, leads: List<String>, onDismiss: 
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Palette.Surface,
     ) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4).navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Sample hand", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (state.mulligans > 0) Text(
@@ -72,31 +73,31 @@ fun SampleHandSheet(lines: List<DeckCheckLine>, leads: List<String>, onDismiss: 
                 )
             }
             if (deck.isEmpty()) {
-                EmptyState("No main deck cards", Modifier.padding(vertical = 24.dp))
+                EmptyState("No main deck cards", Modifier.padding(vertical = Space.s6))
                 return@Column
             }
             if (leadCards.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 Text(if (leadCards.size > 1) "Commanders" else "Commander", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s1))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     leadCards.forEach { c -> HandTile(c, Modifier.width(72.dp)) }
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             Text(
                 "${state.hand.size} in hand · ${state.library.size} left",
                 style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.s1))
             state.hand.chunked(4).forEach { row ->
-                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth().padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     row.forEach { c -> HandTile(c, Modifier.weight(1f)) }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
                 com.mtgscanner.ui.components.QuietButton(
                     onClick = { state = SampleHandMath.mulligan(state, random) },
                     modifier = Modifier.weight(1f).height(48.dp),
@@ -104,7 +105,7 @@ fun SampleHandSheet(lines: List<DeckCheckLine>, leads: List<String>, onDismiss: 
                 ) { Text("Mulligan") }
                 GradientButton("Draw", { state = SampleHandMath.draw(state) }, Modifier.weight(1f), enabled = state.canDraw)
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }
@@ -116,7 +117,7 @@ private fun HandTile(c: HandCard, modifier: Modifier) {
         if (c.imageUrl == null) Text(
             c.name, style = MaterialTheme.typography.labelSmall, color = Palette.Text, textAlign = TextAlign.Center,
             maxLines = 3, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.Center).padding(4.dp),
+            modifier = Modifier.align(Alignment.Center).padding(Space.s1),
         )
     }
 }

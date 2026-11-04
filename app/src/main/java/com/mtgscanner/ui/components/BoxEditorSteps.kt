@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -78,12 +79,12 @@ internal fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (I
         add(2 to "Name")
         add(3 to "Rules")
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalAlignment = Alignment.CenterVertically) {
         steps.forEachIndexed { i, (n, label) ->
             val done = n < step
             val reachable = n <= step || canJump
             Row(
-                Modifier.clip(RoundedCornerShape(Corners.Small)).clickable(enabled = reachable) { onStep(n) }.padding(end = 6.dp),
+                Modifier.clip(RoundedCornerShape(Corners.Small)).clickable(enabled = reachable) { onStep(n) }.padding(end = Space.s2),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
@@ -96,7 +97,7 @@ internal fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (I
                     if (done) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(14.dp))
                     else Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = if (n == step) Palette.OnAccent else Palette.Muted)
                 }
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Space.s2))
                 Text(label, style = MaterialTheme.typography.labelLarge, color = if (n == step) Palette.Text else Palette.Muted)
             }
         }
@@ -109,23 +110,23 @@ internal fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (I
 internal fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) -> Unit)? = null) {
     if (onTemplate != null) {
         Text("Whole system", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Spacer(Modifier.height(8.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(Space.s2))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             BOX_TEMPLATES.forEach { t ->
                 Surface(onClick = { onTemplate(t) }, shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh) {
-                    Column(Modifier.width(150.dp).padding(12.dp)) {
+                    Column(Modifier.width(150.dp).padding(Space.s3)) {
                         Text(t.name, style = MaterialTheme.typography.titleSmall, color = Palette.Text, maxLines = 1)
                         Text(t.blurb, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
                     }
                 }
             }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.s4))
         Text("One box", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
     } else {
         Text("Pick a starting point.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Space.s3))
     }
     Surface(
         onClick = { onPick(BoxDraft()) },
@@ -133,27 +134,27 @@ internal fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) ->
         shape = RoundedCornerShape(Corners.Medium),
         color = Palette.SurfaceHigh,
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.CheckBoxOutlineBlank, null, tint = Palette.Icon)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Space.s3))
             Column {
                 Text("Blank box", style = MaterialTheme.typography.titleSmall)
                 Text("Name it and set your own rules", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             }
         }
     }
-    Spacer(Modifier.height(10.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Spacer(Modifier.height(Space.s3))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         BOX_PRESETS.forEach { p ->
             Surface(
                 onClick = { onPick(BoxDraft(p.name, p.kind, 0, p.rules, divider = p.divider)) },
                 shape = RoundedCornerShape(Corners.Medium),
                 color = Palette.SurfaceHigh,
             ) {
-                Column(Modifier.width(150.dp).padding(12.dp)) {
+                Column(Modifier.width(150.dp).padding(Space.s3)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(boxIcon(p.kind), null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                     }
                     Text(p.rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
@@ -179,14 +180,14 @@ internal fun DetailsStep(draft: BoxDraft, onChange: (BoxDraft) -> Unit) {
     )
 
     Label("Kind")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         CardBox.KINDS.forEach { k ->
             SelectPill(kindLabel(k), draft.kind == k, { onChange(draft.copy(kind = k)) }, leading = { Icon(boxIcon(k), null, Modifier.size(16.dp)) })
         }
     }
 
     Label("Color")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s1), verticalArrangement = Arrangement.spacedBy(Space.s1)) {
         CardBox.COLORS.forEachIndexed { i, c ->
             val selected = draft.color == c
             val fill = boxColor(c)
@@ -213,11 +214,11 @@ internal fun DetailsStep(draft: BoxDraft, onChange: (BoxDraft) -> Unit) {
         }
     }
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(Space.s4))
     Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Icon(boxIcon(draft.kind), null, tint = boxColor(draft.color), modifier = Modifier.size(26.dp))
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
             Text(draft.name.ifBlank { "Your box" }, style = MaterialTheme.typography.titleLarge, color = boxColor(draft.color))
         }
     }
@@ -246,10 +247,10 @@ internal fun RulesStep(
         style = MaterialTheme.typography.bodySmall,
         color = Palette.Muted,
     )
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(Space.s2))
 
     RuleCard("Colors", rules.colors.takeIf { it.isNotEmpty() }?.joinToString(", ") { BoxRules.COLOR_NAMES[it] ?: it }, open == "colors", { toggle("colors") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf("W", "U", "B", "R", "G", "M", "C").forEach { c ->
                 SelectPill(BoxRules.COLOR_NAMES.getValue(c), c in rules.colors, { onRules(rules.copy(colors = rules.colors.toggle(c))) },
                     leading = { ColorPip(c[0]) })
@@ -257,7 +258,7 @@ internal fun RulesStep(
         }
     }
     RuleCard("Rarity", rules.rarities.takeIf { it.isNotEmpty() }?.joinToString(", ") { it.replaceFirstChar(Char::uppercase) }, open == "rarity", { toggle("rarity") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf("common", "uncommon", "rare", "mythic").forEach { r ->
                 SelectPill(r.replaceFirstChar(Char::uppercase), r in rules.rarities, { onRules(rules.copy(rarities = rules.rarities.toggle(r))) },
                     leading = { RarityMark(r) })
@@ -265,7 +266,7 @@ internal fun RulesStep(
         }
     }
     RuleCard("Printing", rules.treatments.takeIf { it.isNotEmpty() }?.joinToString(", ") { BoxRules.TREATMENT_NAMES[it] ?: it }, open == "printing", { toggle("printing") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             BoxRules.TREATMENT_NAMES.forEach { (k, label) ->
                 SelectPill(label, k in rules.treatments, { onRules(rules.copy(treatments = rules.treatments.toggle(k))) })
             }
@@ -273,21 +274,21 @@ internal fun RulesStep(
     }
     val finishSummary = when (rules.finish) { "foil" -> "Foil only"; "nonfoil" -> "Non-foil only"; else -> null }
     RuleCard("Finish", finishSummary, open == "finish", { toggle("finish") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf("any" to "Any", "foil" to "Foil only", "nonfoil" to "Non-foil only").forEach { (k, label) ->
                 SelectPill(label, rules.finish == k, { onRules(rules.copy(finish = k)) })
             }
         }
     }
     RuleCard("Card type", rules.types.takeIf { it.isNotEmpty() }?.joinToString(", "), open == "type", { toggle("type") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             BoxRules.TYPES.forEach { t -> SelectPill(t, t in rules.types, { onRules(rules.copy(types = rules.types.toggle(t))) }, leading = { Mana.Icon(t.lowercase(), Palette.Text, 16.dp) }) }
         }
     }
     if (AppSettings.showPrices || minText.isNotEmpty() || maxText.isNotEmpty()) {
         val priceSummary = BoxRules(minPrice = rules.minPrice, maxPrice = rules.maxPrice).takeIf { !it.isCatchAll }?.describe()
         RuleCard("Price per card", priceSummary, open == "price", { toggle("price") }) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
                 OutlinedTextField(
                     value = minText, onValueChange = onMin, label = { Text("At least $") },
                     singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
@@ -310,14 +311,14 @@ internal fun RulesStep(
     }
     val idSummary = BoxRules(identity = rules.identity, identityMode = rules.identityMode).takeIf { rules.identity.isNotEmpty() }?.describe()
     RuleCard("Color identity", idSummary, open == "identity", { toggle("identity") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf("W", "U", "B", "R", "G", "C").forEach { c ->
                 SelectPill(BoxRules.COLOR_NAMES.getValue(c), c in rules.identity, { onRules(rules.copy(identity = rules.identity.toggle(c))) },
                     leading = { ColorPip(c[0]) })
             }
         }
-        Spacer(Modifier.height(8.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(Space.s2))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf("exact" to "Exactly", "within" to "Fits in deck").forEach { (k, label) ->
                 SelectPill(label, rules.identityMode == k, { onRules(rules.copy(identityMode = k)) })
             }
@@ -327,20 +328,20 @@ internal fun RulesStep(
     StatRule("Power", "Power", rules.minPower, rules.maxPower, nums, onNum, open == "power", { toggle("power") })
     StatRule("Toughness", "Toughness", rules.minToughness, rules.maxToughness, nums, onNum, open == "tough", { toggle("tough") })
     RuleCard("Format", rules.formats.takeIf { it.isNotEmpty() }?.joinToString(", ") { BoxRules.FORMAT_NAMES[it] ?: it }, open == "format", { toggle("format") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             BoxRules.FORMAT_NAMES.forEach { (k, label) ->
                 SelectPill(label, k in rules.formats, { onRules(rules.copy(formats = rules.formats.toggle(k))) })
             }
         }
     }
     RuleCard("Reserved List", if (rules.reserved) "Only" else null, open == "reserved", { toggle("reserved") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             SelectPill("Any", !rules.reserved, { onRules(rules.copy(reserved = false)) })
             SelectPill("Reserved only", rules.reserved, { onRules(rules.copy(reserved = true)) })
         }
     }
     RuleCard("Tokens & art cards", if (rules.tokens) "Only" else null, open == "tokens", { toggle("tokens") }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             SelectPill("Any", !rules.tokens, { onRules(rules.copy(tokens = false)) })
             SelectPill("Tokens & art only", rules.tokens, { onRules(rules.copy(tokens = true)) })
         }
@@ -361,7 +362,7 @@ private fun StatRule(
         else -> null
     }
     RuleCard(title, summary, expanded, onToggle) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
             listOf("min$key" to "From", "max$key" to "To").forEach { (k, label) ->
                 OutlinedTextField(
                     value = nums[k].orEmpty(), onValueChange = { v -> onNum(k, v.filter { it.isDigit() }.take(2)) },
@@ -402,10 +403,10 @@ internal fun LayoutCards(
             placeholder = { Text("Closet, top shelf") },
             singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = fieldColors(),
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.s3))
         Text("Rows of cards", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
-        Spacer(Modifier.height(6.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Spacer(Modifier.height(Space.s2))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf(1, 2, 3, 4, 5, 6, 8).forEach { n -> SelectPill(n.toString(), rows == n, { onRows(n) }) }
         }
     }
@@ -422,13 +423,13 @@ internal fun LayoutCards(
 @Composable
 private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = Space.s1),
         shape = RoundedCornerShape(Corners.Medium),
         color = Palette.SurfaceHigh,
         border = if (summary != null) androidx.compose.foundation.BorderStroke(1.dp, Palette.Accent.copy(alpha = 0.5f)) else null,
     ) {
         Column {
-            Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleSmall)
                     Text(summary ?: "Any", style = MaterialTheme.typography.bodySmall, color = if (summary != null) Palette.Text else Palette.Muted, maxLines = 1)
@@ -436,7 +437,7 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
                 Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (expanded) "Collapse" else "Expand", tint = Palette.Icon)
             }
             AnimatedVisibility(expanded) {
-                Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) { content() }
+                Column(Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s4)) { content() }
             }
         }
     }
@@ -459,10 +460,10 @@ internal fun LivePreview(rules: BoxRules, editingId: Long?) {
     val takenCount = result.takenBy.sumOf { (_, idx) -> idx.sumOf { all[it].quantity } }
 
     Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Background, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(Space.s4)) {
             Text("Preview", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
             Text(rules.describe(), style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.s2))
             Text(
                 when {
                     all.isEmpty() -> "Your collection is empty, so nothing to preview yet."
@@ -474,17 +475,17 @@ internal fun LivePreview(rules: BoxRules, editingId: Long?) {
             )
             val thumbs = result.fits.map { all[it] }.distinctBy { it.scryfallId }.take(14)
             if (thumbs.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s2))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     items(thumbs, key = { it.id }) { c -> CardImage(c.smallImageUrl, Modifier.height(64.dp)) }
                 }
             }
             if (result.takenBy.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.s3))
                 val names = result.takenBy.take(3).joinToString(", ") { (b, idx) -> "${b.name} (${idx.sumOf { all[it].quantity }})" }
                 Row(verticalAlignment = Alignment.Top) {
                     Icon(Icons.Outlined.Warning, null, tint = Palette.Gold, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text(
                         "$takenCount of these go to $names first, because ${if (result.takenBy.size == 1) "that box is" else "those boxes are"} checked " +
                             "earlier in Auto-sort. You can change the order under Collection › Auto-sort order.",
@@ -499,9 +500,9 @@ internal fun LivePreview(rules: BoxRules, editingId: Long?) {
 
 @Composable
 private fun Label(text: String) {
-    Spacer(Modifier.height(14.dp))
+    Spacer(Modifier.height(Space.s4))
     Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-    Spacer(Modifier.height(6.dp))
+    Spacer(Modifier.height(Space.s2))
 }
 
 @Composable

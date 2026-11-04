@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.outlined.Close
@@ -113,7 +114,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Space.s1, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                 IconButton(onClick = { searching = !searching; query = "" }) {
@@ -127,7 +128,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                     placeholder = { Text("Find a setting") },
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Muted) },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).focusRequester(focus),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1).focusRequester(focus),
                 )
                 LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
             }
@@ -139,17 +140,17 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                     }
                     hits.forEach { e ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { tab = e.tab; searching = false; query = "" }.padding(horizontal = 20.dp, vertical = 12.dp),
+                            Modifier.fillMaxWidth().clickable { tab = e.tab; searching = false; query = "" }.padding(horizontal = Space.s4, vertical = Space.s3),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(e.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                             Text(e.where, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                         }
-                        HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(horizontal = Space.s4))
                     }
                 }
             } else {
-            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = 4.dp, bottom = 6.dp), horizontalPadding = 16.dp)
+            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = Space.s1, bottom = Space.s2), horizontalPadding = 16.dp)
             // Each branch is its own call site, so each tab keeps its own scroll position.
             when (tab) {
                 0 -> Page { LookTab() }
@@ -173,7 +174,7 @@ private fun ColumnScope.Page(content: @Composable ColumnScope.() -> Unit) {
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .padding(bottom = 24.dp),
+            .padding(bottom = Space.s6),
         content = content,
     )
 }
@@ -184,7 +185,7 @@ private fun LookTab() {
     var picking by remember { mutableStateOf(false) }
 
     SectionLabel("Theme")
-    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.padding(horizontal = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
         ThemeMode.entries.forEach { m ->
             ModeCard(
                 mode = m,
@@ -195,14 +196,14 @@ private fun LookTab() {
         }
     }
 
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(Space.s3))
     Card {
         ToggleRow("True black", "Black backgrounds in dark mode", ThemeSettings.trueBlack) { ThemeSettings.updateTrueBlack(it) }
     }
 
     SectionLabel("Accent color")
     val fromCollection = ThemeSettings.accentFromCollection
-    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
+    PlainGroup(Modifier.padding(horizontal = Space.s1)) {
         Column {
             ToggleRow(
                 "From my collection",
@@ -211,9 +212,9 @@ private fun LookTab() {
             ) { ThemeSettings.updateAccentFromCollection(it) }
             HorizontalDivider(color = Palette.Rule)
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s2),
+                verticalArrangement = Arrangement.spacedBy(Space.s3),
+                modifier = Modifier.fillMaxWidth().padding(Space.s3),
             ) {
                 // Tapping a swatch turns "From my collection" off.
                 ThemeSettings.presets.forEach { p ->
@@ -234,17 +235,17 @@ private fun LookTab() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         SectionLabel("Fonts")
         Spacer(Modifier.weight(1f))
-        TextButton(onClick = { FontSettings.reset() }, modifier = Modifier.padding(end = 8.dp, top = 6.dp)) {
+        TextButton(onClick = { FontSettings.reset() }, modifier = Modifier.padding(end = Space.s2, top = Space.s2)) {
             Text("Reset", color = Palette.Muted)
         }
     }
     // One panel for the three font rows, split by hairlines.
-    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
-        Column(Modifier.padding(bottom = 10.dp)) {
+    PlainGroup(Modifier.padding(horizontal = Space.s1)) {
+        Column(Modifier.padding(bottom = Space.s3)) {
             FontRow("Headings", AppFont.headings, FontSettings.heading) { FontSettings.updateHeading(it) }
-            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = 10.dp))
+            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = Space.s3))
             FontRow("Text", AppFont.body, FontSettings.body) { FontSettings.updateBody(it) }
-            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = 10.dp))
+            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = Space.s3))
             FontRow("Prices", AppFont.prices, FontSettings.price) { FontSettings.updatePrice(it) }
         }
     }
@@ -277,9 +278,9 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
 
     if (AppSettings.scanLogUnlocked) {
         SectionLabel("Troubleshooting")
-        PlainGroup(Modifier.padding(horizontal = 4.dp)) {
+        PlainGroup(Modifier.padding(horizontal = Space.s1)) {
             Row(
-                Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth().clickable(onClick = onScanLog).padding(start = Space.s4, end = Space.s2, top = Space.s2, bottom = Space.s2),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
@@ -292,9 +293,9 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
     }
 
     SectionLabel("About")
-    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
+    PlainGroup(Modifier.padding(horizontal = Space.s1)) {
         Column {
-            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     buildLabel(com.mtgscanner.BuildConfig.BUILD_NUMBER, com.mtgscanner.BuildConfig.BUILD_DATE),
                     style = MaterialTheme.typography.titleSmall,
@@ -315,7 +316,7 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
                 "Data from Scryfall. Unofficial; Magic is © Wizards of the Coast.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s3),
             )
         }
     }
@@ -328,7 +329,7 @@ private fun colorName(letter: Char?): String = when (letter) {
 
 @Composable
 internal fun SectionLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s4, top = Space.s4, bottom = Space.s2))
 }
 
 @Composable
@@ -344,12 +345,12 @@ private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onC
             .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Accent else Palette.Outline, RoundedCornerShape(Corners.Medium))
             .clickable(onClick = onClick)
             .background(bg)
-            .padding(vertical = 10.dp),
+            .padding(vertical = Space.s3),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = if (selected) Palette.AccentText else fg, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(mode.label, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
     }
 }
@@ -373,7 +374,7 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
         ) {
             if (selected) Icon(Icons.Outlined.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(16.dp))
         }
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(Space.s1))
         // Shrinks with large text instead of cutting the name off.
         com.mtgscanner.ui.components.AutoSizeText(label, MaterialTheme.typography.labelSmall, color = Palette.Muted, minScale = 0.6f)
     }
@@ -395,7 +396,7 @@ private fun CustomSwatch(onClick: () -> Unit) {
                 Icon(Icons.Outlined.Add, "Pick a custom color", tint = Color.White, modifier = Modifier.size(14.dp))
             }
         }
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(Space.s1))
         Text("Pick…", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
     }
 }
@@ -403,10 +404,10 @@ private fun CustomSwatch(onClick: () -> Unit) {
 /** One font slot: a sideways row of samples, each drawn in its own font. */
 @Composable
 private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPick: (AppFont) -> Unit) {
-    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
+    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(start = Space.s4, top = Space.s2, bottom = Space.s1))
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s3),
+        horizontalArrangement = Arrangement.spacedBy(Space.s2),
     ) {
         fonts.forEach { f ->
             val on = f == selected
@@ -416,7 +417,7 @@ private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPi
                     .border(if (on) 2.dp else 1.dp, if (on) Palette.Accent else Palette.Outline, RoundedCornerShape(Corners.Medium))
                     .background(if (on) Palette.SurfaceHigh else Palette.Surface)
                     .clickable { onPick(f) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(horizontal = Space.s4, vertical = Space.s2),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
@@ -434,8 +435,8 @@ private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPi
 /** A one-line mock-up so the chosen colors and fonts can be judged at a glance. */
 @Composable
 private fun Preview() {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = Space.s4), shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
@@ -467,14 +468,14 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onPick: (Co
         text = {
             Column {
                 SatValSquare(hue, sat, value) { s, v -> sat = s; value = v; editingHex = false }
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(Space.s4))
                 HueBar(hue) { hue = it; editingHex = false }
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(Space.s4))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(40.dp).clip(RoundedCornerShape(Corners.Medium)).background(color))
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Row(
-                        Modifier.weight(1f).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
+                        Modifier.weight(1f).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = Space.s3, vertical = Space.s3),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("#", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)

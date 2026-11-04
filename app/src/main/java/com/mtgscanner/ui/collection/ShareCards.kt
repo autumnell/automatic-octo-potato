@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.util.shareText
 import android.content.Context
 import androidx.compose.foundation.clickable
@@ -99,6 +100,6 @@ fun ShareDialog(
 private fun ShareChoice(label: String, onClick: () -> Unit) {
     Text(
         label, style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.s3),
     )
 }

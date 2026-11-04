@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -133,7 +134,7 @@ private fun FanCard(e: ScanEntry, modifier: Modifier) {
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = Space.s2, vertical = Space.s1),
         )
         AsyncImage(
             model = e.card.imageUrl ?: e.card.smallImageUrl,
@@ -149,10 +150,10 @@ private fun FanCard(e: ScanEntry, modifier: Modifier) {
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 2.dp, end = 3.dp)
+                    .padding(top = Space.s1, end = Space.s1)
                     .clip(RoundedCornerShape(Corners.Small))
                     .background(Palette.Gold)
-                    .padding(horizontal = 4.dp),
+                    .padding(horizontal = Space.s1),
             )
         }
     }
@@ -235,11 +236,11 @@ private fun FlightOf(f: Flight, origin: Offset) {
             .clip(RoundedCornerShape(Corners.Small))
             .background(Color.Black.copy(alpha = 0.85f))
             .border(1.dp, boxColor(f.color).copy(alpha = 0.8f), RoundedCornerShape(Corners.Small))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = Space.s3, vertical = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(boxColor(f.color)))
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(f.label, color = Color.White, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

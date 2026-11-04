@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "appName": "Grimoire",
+    "formFactor": "Mobile App",
+    "appType": "Productivity / Tools (card collection manager)",
+    "framework": "Jetpack Compose (Android)",
+    "targetUser": "A Magic: The Gathering collector sorting and pricing a physical collection, phone in one hand, cards on the table",
+    "coreAction": "Scan cards into the right box",
+    "vibeWords": "warm, archival, precise",
+    "direction": "A · Grimoire (chosen by Rae 2026-11-04)",
+    "source": "Code mirror: app/src/main/java/com/mtgscanner/ui/theme/Theme.kt (Palette, Space, Corners, typography). Change both together."
+  },
+  "color": {
+    "dark": {
+      "bg": "#100F0E",
+      "surface": "#1E1C19",
+      "surface2": "#2B2824",
+      "surfaceOffset": "#221F1B",
+      "text": "#ECE8E1",
+      "textMuted": "#A29C92",
+      "textFaint": "#77716A",
+      "rule": "#332F2A",
+      "outline": "#423D36",
+      "primary": "#9E3A33",
+      "primaryText": "computed: primary lightened to 4.6:1 on bg",
+      "onPrimary": "#FFFFFF",
+      "error": "#E5534B",
+      "warning": "#F2C14E",
+      "success": "#4CC38A",
+      "info": "#5B9BE0"
+    },
+    "light": {
+      "bg": "#E7E2D5",
+      "surface": "#FDFCF8",
+      "surface2": "#DCD6C8",
+      "surfaceOffset": "#FAF7F0",
+      "text": "#1C1B19",
+      "textMuted": "#5E5A52",
+      "textFaint": "#8A8478",
+      "rule": "#CAC4B5",
+      "outline": "#B0A999",
+      "primary": "#8A2F29",
+      "primaryText": "computed: primary darkened to 4.6:1 on bg",
+      "onPrimary": "#FFFFFF",
+      "error": "#C62F28",
+      "warning": "#A87610",
+      "success": "#1E8E5A",
+      "info": "#2F6FB8"
+    },
+    "trueBlack": { "bg": "#000000", "surface": "#151412", "surface2": "#221F1C" },
+    "_why": "Ink-brown darks and paper lights read as an old binder, not a tech dashboard. One accent (oxblood) is kept for actions and the selected state only. Each panel step is clearly lighter than the one below it, because Rae asked for clear contrast between panels and background."
+  },
+  "typography": {
+    "fontDisplay": "Cormorant SC (user can switch: Cinzel, Fraunces, Lexend)",
+    "fontBody": "Lexend (user can switch: Inter, Manrope, Space Grotesk)",
+    "fontNumbers": "IBM Plex Mono / chosen price font, tabular lining figures",
+    "scale": { "xs": "11sp", "sm": "12sp", "base": "14sp", "lg": "16sp", "xl": "23sp", "2xl": "26sp", "3xl": "30sp", "display": "40sp" },
+    "lineHeight": { "heading": 1.2, "body": 1.4 },
+    "_why": "A small-caps serif for headings gives the grimoire feel; Lexend is wide and very legible at small sizes on a phone held at arm's length. Numbers use tabular figures so prices line up in lists. Body line height is 1.4, not the 1.6 used on web pages, because most text here is one-line list rows, not paragraphs."
+  },
+  "spacing": {
+    "s1": "4dp", "s2": "8dp", "s3": "12dp", "s4": "16dp", "s6": "24dp", "s8": "32dp", "s12": "48dp",
+    "gutter": "16dp",
+    "_why": "8pt grid. 4 and 12 are half steps, used only inside a component (icon to label, chip padding). Screens use a 16dp side margin everywhere."
+  },
+  "radius": { "sm": "4dp", "md": "4dp", "card": "5% (a real card's corner)", "pill": "50%" , "_why": "Near-square corners. Rae asked for no big rounded cards." },
+  "shadow": { "sm": "none", "md": "none", "lg": "2dp, sheets and menus only", "_why": "Panels are separated by a surface step, not shadows." },
+  "motion": { "fast": "120ms", "base": "200ms", "slow": "320ms", "easing": "FastOutSlowIn" },
+  "touch": { "minTarget": "48dp" }
+}

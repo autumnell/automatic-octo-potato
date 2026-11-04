@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,12 +36,12 @@ import com.mtgscanner.ui.theme.TabularNums
 fun ScanSummarySheet(summary: ScanSummary, onDismiss: () -> Unit) {
     val prices = AppSettings.showPrices
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4)) {
             Text(summary.title, style = MaterialTheme.typography.titleLarge, color = Palette.Text)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 summary.best?.let { CardImage(it.imageUrl, Modifier.width(72.dp), zoom = true) }
-                if (summary.best != null) Spacer(Modifier.width(14.dp))
+                if (summary.best != null) Spacer(Modifier.width(Space.s4))
                 Column(Modifier.weight(1f)) {
                     Text(
                         if (summary.cards == 1) "1 card added" else "${summary.cards} cards added",
@@ -51,7 +52,7 @@ fun ScanSummarySheet(summary: ScanSummary, onDismiss: () -> Unit) {
                         if (prices) Text("Paid ${formatUsd(paid)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Muted)
                     }
                     summary.best?.let { b ->
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(Space.s2))
                         Text("Best card", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                         Text(
                             if (prices) "${b.name} · ${formatMoney(b.unitPrice, b.unitEur)}" else b.name,
@@ -61,7 +62,7 @@ fun ScanSummarySheet(summary: ScanSummary, onDismiss: () -> Unit) {
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
             summary.boxes.forEachIndexed { i, (box, n) ->
                 if (i > 0) HorizontalDivider(color = Palette.Rule)
                 Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -69,9 +70,9 @@ fun ScanSummarySheet(summary: ScanSummary, onDismiss: () -> Unit) {
                     Text("$n", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Muted)
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
             GradientButton("Done", onDismiss, Modifier.fillMaxWidth())
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

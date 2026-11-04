@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.focusRequester
@@ -164,7 +165,7 @@ import com.mtgscanner.ui.theme.TabularNums
 @Composable
 internal fun SyntaxHelp(modifier: Modifier = Modifier) {
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(horizontal = Space.s4, vertical = Space.s3),
     ) {
         listOf(
             "t:elf  c:rg  id<=esper  mv>=4",
@@ -194,12 +195,12 @@ fun SearchField(
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     if (focusOnOpen) LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
     Row(
-        modifier.fillMaxWidth().heightIn(min = 44.dp).clip(LookShape).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().heightIn(min = 44.dp).clip(LookShape).background(Palette.SurfaceHigh).padding(horizontal = Space.s3, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!mono) {
             Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
         }
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = textStyle, maxLines = 1)
@@ -288,8 +289,8 @@ internal fun CardGrid(
             groups.forEachIndexed { gi, (title, cards) ->
                 if (title.isNotEmpty()) {
                     item(key = "h-$gi-$title", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
-                        if (tabs) DividerTabHead(title, counts[gi], gi, Modifier.padding(top = 14.dp, bottom = 6.dp))
-                        else SectionHead(title, counts[gi], Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp))
+                        if (tabs) DividerTabHead(title, counts[gi], gi, Modifier.padding(top = Space.s4, bottom = Space.s2))
+                        else SectionHead(title, counts[gi], Modifier.padding(start = Space.s2, top = Space.s4, bottom = Space.s2))
                     }
                 }
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
@@ -316,7 +317,7 @@ internal fun CardGrid(
         if (p >= 0 && p < groups.size) {
             SectionHead(
                 groups[p].first, counts[p],
-                Modifier.fillMaxWidth().background(Palette.Background).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth().background(Palette.Background).padding(start = Space.s4, end = Space.s4, top = Space.s2, bottom = Space.s2),
             )
         }
         if (jumpBar) {
@@ -353,7 +354,7 @@ private fun FreshDot(modifier: Modifier = Modifier) {
 private fun SectionHead(title: String, count: Int, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.s2))
         Text("$count", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
     }
 }
@@ -366,7 +367,7 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
     Column(
         modifier
             .fillMaxHeight()
-            .padding(vertical = 12.dp)
+            .padding(vertical = Space.s3)
             .width(26.dp)
             .onSizeChanged { heightPx = it.height.coerceAtLeast(1) }
             .pointerInput(entries) {
@@ -433,17 +434,17 @@ private fun SwipeRow(onMove: () -> Unit, onSell: () -> Unit, content: @Composabl
             Row(
                 Modifier.fillMaxSize().clip(RoundedCornerShape(Corners.Medium))
                     .background(if (toEnd) Palette.Accent.copy(alpha = 0.25f) else Palette.Gold.copy(alpha = 0.22f))
-                    .padding(horizontal = 18.dp),
+                    .padding(horizontal = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = if (toEnd) Arrangement.Start else Arrangement.End,
             ) {
                 if (toEnd) {
                     Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null, tint = Palette.AccentText)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text("Move", color = Palette.AccentText)
                 } else {
                     Text("Sell", color = Palette.Gold)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Icon(Icons.Outlined.Sell, null, tint = Palette.Gold)
                 }
             }
@@ -500,7 +501,7 @@ private fun rowPrice(c: CollectionCard): String =
 private fun ListHeader(end: Dp) {
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = end, top = 6.dp, bottom = 6.dp),
+            Modifier.fillMaxWidth().padding(start = Space.s4, end = end, top = Space.s2, bottom = Space.s2),
             horizontalArrangement = Arrangement.spacedBy(COL_GAP),
         ) {
             val style = MaterialTheme.typography.labelSmall
@@ -537,33 +538,33 @@ private fun PriceRow(
             }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .heightIn(min = if (dense) 44.dp else 52.dp)
-            .padding(horizontal = 6.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s2, vertical = Space.s2),
         horizontalArrangement = Arrangement.spacedBy(COL_GAP),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(Modifier.width(SET_COL), verticalAlignment = Alignment.CenterVertically) {
             SetMark(c.setCode, c.rarity)
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(Space.s1))
             Text(c.setCode.uppercase(), style = Mono11, color = Palette.Muted, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
         }
         if (!dense) Thumb(c, 30.dp, onClick)
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ColorDot(c.colorIdentity)
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.s2))
                 Text(
                     c.name, style = MaterialTheme.typography.bodyMedium, color = Palette.Text,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 if (c.quantity > 1) {
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text("×${c.quantity}", style = Mono12, color = Palette.Muted, maxLines = 1)
                 }
-                if (c.foil) { Spacer(Modifier.width(6.dp)); FoilTag() }
+                if (c.foil) { Spacer(Modifier.width(Space.s2)); FoilTag() }
             }
             if (!dense) {
-                Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Icon, modifier = Modifier.size(12.dp).padding(end = 2.dp))
+                Row(Modifier.padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                    if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Icon, modifier = Modifier.size(12.dp).padding(end = Space.s1))
                     Text(
                         listOfNotNull("#${c.collectorNumber}", slot).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -572,7 +573,7 @@ private fun PriceRow(
             } else if (slot != null) {
                 Text(
                     slot, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 16.dp),
+                    modifier = Modifier.padding(start = Space.s4),
                 )
             }
         }
@@ -597,7 +598,7 @@ internal fun BinderPages(cards: List<CollectionCard>, unslotted: Int, perCopy: B
     // With a pocket per copy, a card fills one pocket for each copy.
     val bySlot = remember(cards, perCopy) { Binder.pockets(cards, { it.binderSlot }, { Binder.span(it.quantity, perCopy) }) }
     val pages = bySlot.keys.maxOrNull()?.let { Binder.page(it) } ?: 0
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = Space.s4, end = Space.s4, bottom = Space.s6)) {
         if (unslotted > 0 && pages > 0) item(key = "number") {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("$unslotted to number", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -609,10 +610,10 @@ internal fun BinderPages(cards: List<CollectionCard>, unslotted: Int, perCopy: B
         }
         items(pages, key = { "p$it" }) { i ->
             val page = i + 1
-            Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                Text("Page $page", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(bottom = 6.dp))
+            Column(Modifier.fillMaxWidth().padding(top = Space.s3)) {
+                Text("Page $page", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(bottom = Space.s2))
                 for (row in 0 until 3) {
-                    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         for (col in 0 until 3) {
                             val slot = (page - 1) * Binder.POCKETS + row * 3 + col + 1
                             val c = bySlot[slot]

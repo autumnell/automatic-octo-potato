@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,7 +55,7 @@ fun ScanLogScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { log.load() }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(Space.s1), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Column(Modifier.weight(1f)) {
                 Text("Scan log", style = MaterialTheme.typography.titleLarge)
@@ -75,10 +76,10 @@ fun ScanLogScreen(onBack: () -> Unit) {
         }
         LazyColumn(Modifier.fillMaxSize()) {
             com.mtgscanner.scan.ScanLogStats.of(list.orEmpty())?.let { st ->
-                item { Text(st.text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) }
+                item { Text(st.text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s3)) }
             }
             items(list.orEmpty()) { e -> LogRow(e); HorizontalDivider(color = Palette.Rule) }
-            item { Spacer(Modifier.navigationBarsPadding().padding(8.dp)) }
+            item { Spacer(Modifier.navigationBarsPadding().padding(Space.s2)) }
         }
     }
 }
@@ -92,10 +93,10 @@ private fun LogRow(e: ScanLogEntry) {
         "unsure", "corrected" -> Palette.GoldText
         else -> Palette.Danger
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s3)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(e.outcome.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelLarge, color = color)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Text(logTime.format(Date(e.at)), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             Spacer(Modifier.weight(1f))
             if (e.ms > 0) Text((if (e.seenMs > 0) "${e.seenMs} ms in view · " else "") + "${e.ms} ms", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)

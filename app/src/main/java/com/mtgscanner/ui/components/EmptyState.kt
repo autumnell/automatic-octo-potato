@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,9 +49,9 @@ fun EmptyState(
     fullScreen: Boolean = false,
 ) {
     val inline = body != null && title.length + body.length <= 44
-    Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2)) {
         if (fullScreen) {
-            CardBack(Modifier.padding(top = 16.dp, bottom = 12.dp).width(84.dp))
+            CardBack(Modifier.padding(top = Space.s4, bottom = Space.s3).width(84.dp))
         }
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -72,7 +73,7 @@ fun EmptyState(
             Text(body, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
         }
         if (content != null) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             content()
         }
     }

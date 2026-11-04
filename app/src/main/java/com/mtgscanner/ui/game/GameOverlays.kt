@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -118,7 +119,7 @@ private fun TableOverlay(
     var turn by remember { mutableIntStateOf(rotation) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color(0xFF07080A)).systemBarsPadding()) {
-            Column(Modifier.fillMaxSize().rotateLayout(turn).padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Column(Modifier.fillMaxSize().rotateLayout(turn).padding(horizontal = Space.s4, vertical = Space.s3)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
@@ -132,10 +133,10 @@ private fun TableOverlay(
                     }
                 }
                 if (tabs.size > 1) Row(
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    Modifier.fillMaxWidth().padding(vertical = Space.s2),
+                    horizontalArrangement = Arrangement.spacedBy(Space.s2),
                 ) { tabs.forEachIndexed { k, t -> TabPill(t, k == tab, Modifier.weight(1f)) { onTab(k) } } }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 content()
             }
         }
@@ -153,7 +154,7 @@ private fun TabPill(text: String, selected: Boolean, modifier: Modifier = Modifi
     ) {
         Text(
             text, color = if (selected) Palette.OnAccent else Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp),
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = Space.s2),
         )
     }
 }
@@ -169,7 +170,7 @@ private fun ScrollPage(state: ScrollableState, modifier: Modifier = Modifier, co
     Row(modifier.fillMaxSize()) {
         Box(Modifier.weight(1f).fillMaxHeight()) { content() }
         if (state.canScrollBackward || state.canScrollForward) {
-            Column(Modifier.fillMaxHeight().padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.fillMaxHeight().padding(start = Space.s3), verticalArrangement = Arrangement.spacedBy(Space.s3)) {
                 PageButton(Icons.Outlined.KeyboardArrowUp, "Scroll up", state.canScrollBackward, Modifier.weight(1f)) {
                     scope.launch { state.animateScrollBy(-step) }
                 }
@@ -199,9 +200,9 @@ private fun PageButton(icon: ImageVector, label: String, enabled: Boolean, modif
 private fun TileGrid(count: Int, minTile: Int = 170, modifier: Modifier = Modifier, tile: @Composable (Int, Modifier) -> Unit) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val cols = (maxWidth.value / minTile).toInt().coerceIn(2, 6)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             (0 until count).chunked(cols).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     row.forEach { k -> tile(k, Modifier.weight(1f)) }
                     repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
                 }
@@ -221,11 +222,11 @@ private fun CounterTile(
         modifier, shape = RoundedCornerShape(Corners.Medium), color = Color(0xFF22242B),
         border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
     ) {
-        Column(Modifier.padding(vertical = 10.dp, horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(vertical = Space.s3, horizontal = Space.s2), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
                     Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                 }
                 Text(label, color = Color.White, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -263,9 +264,9 @@ private fun ActionTile(
         shape = RoundedCornerShape(Corners.Medium), color = Color(0xFF22242B),
         border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
     ) {
-        Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(Modifier.padding(Space.s3), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(38.dp))
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.s2))
             Text(label, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (detail != null) Text(detail, color = Palette.OnDarkMuted, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -281,7 +282,7 @@ private fun PlayerPicker(g: GameState, question: String, current: Int?, onPick: 
             Text(question, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             TextButton(onClick = onBack) { Text("Back", fontSize = 19.sp) }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
         TileGrid(g.players.size + if (allowNobody) 1 else 0, minTile = 150) { k, mod ->
             if (k < g.players.size) {
                 val p = g.players[k]
@@ -330,7 +331,7 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
             "Damage" -> {
                 Text("21 from one commander and you're out.",
                     color = Palette.OnDarkMuted, fontSize = 16.sp)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 val sources = g.players.indices.filter { it != i }.flatMap { from -> listOf(from to false) + if (g.partners) listOf(from to true) else emptyList() }
                 val scroll = rememberScrollState()
                 ScrollPage(scroll) { Column(Modifier.verticalScroll(scroll)) {
@@ -355,14 +356,14 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
 private fun PlayerSettings(g: GameState, i: Int, vm: GameViewModel) {
     val p = g.players[i]
     var name by remember(p.name) { mutableStateOf(p.name) }
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Name") }, modifier = Modifier.weight(1f))
                 TextButton(onClick = { vm.update { Game.rename(it, i, name) } }, enabled = name.isNotBlank() && name != p.name) { Text("Save") }
             }
-            Spacer(Modifier.height(10.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(Modifier.height(Space.s3))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s3), verticalArrangement = Arrangement.spacedBy(Space.s3)) {
                 PLAYER_COLORS.forEachIndexed { k, c ->
                     Box(
                         Modifier.size(40.dp).clip(CircleShape).background(c)
@@ -371,11 +372,11 @@ private fun PlayerSettings(g: GameState, i: Int, vm: GameViewModel) {
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             ArtPicker(p.art, vm, onPick = { art -> vm.update { Game.setArt(it, i, art) } })
         }
-        if (g.players.size > 1) Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (g.players.size > 1) Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 ActionTile(TableMarker.MONARCH.icon, "Monarch", Modifier.weight(1f), if (g.monarch == i) "Yours" else "Take it",
                     tint = if (g.monarch == i) Palette.Gold else Color.White) {
                     vm.update { Game.monarch(it, if (it.monarch == i) null else i) }
@@ -385,7 +386,7 @@ private fun PlayerSettings(g: GameState, i: Int, vm: GameViewModel) {
                     vm.update { Game.initiative(it, if (it.initiative == i) null else i) }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 ActionTile(Icons.Outlined.SkipNext, "Their turn", Modifier.weight(1f), if (g.active == i) "Now" else null,
                     tint = if (g.active == i) Palette.Accent else Color.White) { vm.update { Game.setActive(it, i) } }
                 ActionTile(Icons.Outlined.Flag, if (p.conceded) "Back in" else "Concede", Modifier.weight(1f)) {

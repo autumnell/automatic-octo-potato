@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.util.PriceCurrency
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -78,9 +79,9 @@ internal fun StatTileRow(data: TileData, onTap: (TileMetric) -> Unit, onEdit: ()
     if (shown.isEmpty()) return
     val compact = shown.size >= 4
     // Plain figures split by hairlines, no boxes: the value card above is the only panel.
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = Space.s2), verticalAlignment = Alignment.CenterVertically) {
         shown.forEachIndexed { i, m ->
-            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 10.dp).background(Palette.Hairline))
+            if (i > 0) Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = Space.s3).background(Palette.Hairline))
             val label = if (m == TileMetric.CUSTOM) listName.orEmpty() else m.short
             // Money tiles follow Settings › Prices; Both shows dollars, as other tight spots do.
             val euro = m.money && AppSettings.currency == PriceCurrency.EUR
@@ -101,13 +102,13 @@ internal fun StatTileRow(data: TileData, onTap: (TileMetric) -> Unit, onEdit: ()
 /** One stat: the number counting up in the serif, its label under it. */
 @Composable
 private fun FlatTile(label: String, value: Double, format: (Double) -> String, compact: Boolean, modifier: Modifier) {
-    Column(modifier.padding(horizontal = 4.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.padding(horizontal = Space.s1, vertical = Space.s3), horizontalAlignment = Alignment.CenterHorizontally) {
         RollingText(
             value, format,
             PriceStyle.copy(fontSize = PriceStyle.fontSize * (if (compact) 1.2f else 1.4f), lineHeight = PriceStyle.lineHeight * 1.3f),
             Palette.Text,
         )
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(Space.s1))
         Text(
             label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
@@ -137,7 +138,7 @@ internal fun EditTilesDialog(lists: List<String>, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Pick 2 to 4", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.s1))
                 chosen.forEachIndexed { i, m ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
@@ -155,12 +156,12 @@ internal fun EditTilesDialog(lists: List<String>, onDismiss: () -> Unit) {
                 }
                 if (TileMetric.CUSTOM in chosen) {
                     if (lists.isEmpty()) {
-                        Text("Save a search in Browse first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 12.dp))
+                        Text("Save a search in Browse first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s3))
                     } else {
                         FlowRow(
-                            Modifier.padding(start = 12.dp, top = 2.dp, bottom = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            Modifier.padding(start = Space.s3, top = Space.s1, bottom = Space.s2),
+                            horizontalArrangement = Arrangement.spacedBy(Space.s2),
+                            verticalArrangement = Arrangement.spacedBy(Space.s2),
                         ) {
                             lists.forEach { n -> SelectPill(n, n == listName, { listName = n }) }
                         }

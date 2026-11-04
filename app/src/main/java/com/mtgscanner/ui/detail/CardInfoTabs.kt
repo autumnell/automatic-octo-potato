@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -134,14 +135,14 @@ fun CardInfoTabs(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewModel
         listOf("Rules", "Versions"), if (tab == "rules") 0 else 1,
         { tab = if (it == 0) "rules" else "versions" }, horizontalPadding = 0.dp,
     )
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(Space.s3))
     if (tab == "rules") RulesTab(c, live, vm) else VersionsTab(c, vm)
 }
 
 @Composable
 private fun TabPanel(content: @Composable () -> Unit) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Small), color = Palette.Surface) {
-        Column(Modifier.padding(14.dp)) { content() }
+        Column(Modifier.padding(Space.s4)) { content() }
     }
 }
 
@@ -152,14 +153,14 @@ private fun RulesTab(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewM
     val legal = live?.legalities?.takeIf { it.isNotEmpty() } ?: c.textInfo().legalities
     TabPanel {
         Text("Legality", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
         val rows = legalityRows(legal)
         if (rows.isEmpty()) {
             Text("No data", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 rows.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
                         pair.forEach { (label, status) -> LegalityCell(status, label, Modifier.weight(1f)) }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
@@ -168,20 +169,20 @@ private fun RulesTab(c: CollectionCard, live: ScryfallCard?, vm: CardDetailViewM
         }
         val offline by vm.liveFailed.collectAsStateWithLifecycle()
         if (live == null && offline) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.s1))
             Text("Offline: main formats only", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }
     }
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(Space.s3))
     TabPanel {
         Text("Rulings", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
         val list = rulings.data.orEmpty()
         when {
             rulings.loading || (rulings.data == null && !rulings.failed) -> Loading()
             rulings.failed -> Retry("Couldn't load") { vm.loadRulings(force = true) }
             list.isEmpty() -> Text("No rulings", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { list.forEach { RulingRow(it) } }
+            else -> Column(verticalArrangement = Arrangement.spacedBy(Space.s3)) { list.forEach { RulingRow(it) } }
         }
     }
 }
@@ -193,7 +194,7 @@ private fun RulingRow(r: ScryfallRuling) {
             rulingDate(r.publishedAt) + if (r.source == "wotc") " · WotC" else "",
             style = MaterialTheme.typography.labelSmall, color = Palette.Muted,
         )
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(Space.s1))
         Text(r.comment, style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -208,7 +209,7 @@ private fun LegalityCell(status: String, format: String, modifier: Modifier) {
     }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.width(74.dp).clip(RoundedCornerShape(Corners.Small)).background(bg).padding(vertical = 3.dp),
+            Modifier.width(74.dp).clip(RoundedCornerShape(Corners.Small)).background(bg).padding(vertical = Space.s1),
             contentAlignment = Alignment.Center,
         ) {
             // Shrinks to fit the badge with a big font, instead of cutting "RESTRICTED" off.
@@ -217,14 +218,14 @@ private fun LegalityCell(status: String, format: String, modifier: Modifier) {
                 color = fg, textAlign = TextAlign.Center, minScale = 0.6f,
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(format, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
 private fun Loading() {
-    PlaceholderRows(3, Modifier.padding(vertical = 12.dp), rowHeight = 44.dp)
+    PlaceholderRows(3, Modifier.padding(vertical = Space.s3), rowHeight = 44.dp)
 }
 
 @Composable
@@ -263,7 +264,7 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
                     }
                 }
                 if (all.size > 6) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.s2))
                     OutlinedTextField(
                         value = filter,
                         onValueChange = { filter = it.take(40) },
@@ -273,10 +274,10 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.s2))
                 val groups = remember(all, filter) { groupPrintings(all, filter) }
                 if (groups.isEmpty()) {
-                    Text("No match", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(vertical = 8.dp))
+                    Text("No match", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s2))
                 } else {
                     val total = groups.sumOf { it.second.size }
                     val visible = if (showAll) groups else limitGroups(groups, PAGE)
@@ -303,16 +304,16 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
 
 @Composable
 private fun SetHeader(code: String, name: String, icon: String?) {
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(top = Space.s3, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         AsyncImage(
             model = icon ?: "https://svgs.scryfall.io/sets/${code.lowercase()}.svg",
             contentDescription = null,
             colorFilter = ColorFilter.tint(Palette.Text),
             modifier = Modifier.size(18.dp),
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(code.uppercase(), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
     }
 }
@@ -328,18 +329,18 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
                 .then(if (current) Modifier.background(Palette.SurfaceHigh) else Modifier)
                 .clickable { menu = true }
                 .ruleBelow()
-                .padding(horizontal = 6.dp, vertical = 8.dp),
+                .padding(horizontal = Space.s2, vertical = Space.s2),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CardImage(p.smallImageUrl, Modifier.width(34.dp), zoom = true)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RarityDot(p.rarity, 8.dp)
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text("#${p.collectorNumber}", style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                     if (current) {
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text("This", style = MaterialTheme.typography.labelSmall, color = Palette.Text)
                     }
                 }
@@ -351,7 +352,7 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
             }
             if (ownedCount > 0) {
                 OwnedBadge(ownedCount, foil = ownedFoil)
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Space.s2))
             }
             if (AppSettings.showPrices) {
                 PriceCell(if (p.hasNonFoil) p.prices.usd else null)

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -61,12 +62,12 @@ fun ArtIndexSection(vm: ScanViewModel) {
     val scope = rememberCoroutineScope()
     val names = remember(sets) { sets.associate { it.code to it.name } }
 
-    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Text("Art match", style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s2)) {
+        Text("Art match", style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.padding(top = Space.s4, bottom = Space.s1))
         Text("Finds cards by their art when no text reads.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
 
         download?.let { d ->
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val count = if (d.total > 0) " · ${d.done}/${d.total}" else ""
                 val waiting = if (d.queued > 0) " · ${d.queued} more" else ""
@@ -79,7 +80,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
                 color = Palette.Accent,
             )
         }
-        failed?.let { Text("Couldn't get ${it.uppercase()}", style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.padding(top = 6.dp)) }
+        failed?.let { Text("Couldn't get ${it.uppercase()}", style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.padding(top = Space.s2)) }
 
         // Indexes made without the chosen model still work by hash; updating them downloads every picture again.
         val model by vm.artModel.collectAsStateWithLifecycle()
@@ -87,7 +88,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
         val stale = remember(have, model, modelDownload, download) { vm.staleArt() }
         var askUpdate by remember { mutableStateOf(false) }
         if (stale.isNotEmpty() && download == null) {
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (stale.size == 1) "1 index on the old model" else "${stale.size} indexes on the old model",
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f),
@@ -106,9 +107,9 @@ fun ArtIndexSection(vm: ScanViewModel) {
 
         val lock = SortPrefs.setLock
         have.forEach { s ->
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 SetIcon(s.set, size = 18.dp, tint = if (s.set == lock) Palette.AccentText else Palette.Text)
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(Space.s3))
                 Column(Modifier.weight(1f)) {
                     Text(names[s.set] ?: s.set.uppercase(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${s.set.uppercase()} · ${s.cards} cards" + if (s.set == lock) " · locked" else "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -117,7 +118,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
             }
         }
 
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = Space.s3), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             SelectPill("Add set", false, { vm.loadSets(); picking = true }, leading = {
                 Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
             })
@@ -173,14 +174,14 @@ private fun ArtSetPicker(vm: ScanViewModel, onDismiss: () -> Unit) {
         text = {
             Column {
                 OutlinedTextField(query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Name or code") })
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                     if (typed != null) item(key = "typed") { PickRow(typed, typed.uppercase(), "Set code") { pick(typed) } }
                     items(shown, key = { it.code }) { s ->
                         PickRow(s.code, s.name, s.code.uppercase() + " · ${s.cardCount} cards") { pick(s.code) }
                     }
                     if (sets.isEmpty() && typed == null) item(key = "empty") {
-                        Text("Type a set code.", color = Palette.Muted, modifier = Modifier.padding(vertical = 16.dp))
+                        Text("Type a set code.", color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s4))
                     }
                 }
             }
@@ -192,11 +193,11 @@ private fun ArtSetPicker(vm: ScanViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun PickRow(code: String, title: String, sub: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = Space.s1, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SetIcon(code, size = 20.dp, tint = Palette.Text)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

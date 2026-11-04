@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -55,13 +56,13 @@ import com.mtgscanner.ui.components.ruleBelow
 @Composable
 fun SkippedSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showSkipped(false) }, containerColor = Palette.Surface) {
-        Text("Skipped", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
+        Text("Skipped", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
-            if (state.skippedCards.isEmpty()) item(key = "empty") { EmptyState("Nothing skipped", Modifier.padding(vertical = 24.dp)) }
+            if (state.skippedCards.isEmpty()) item(key = "empty") { EmptyState("Nothing skipped", Modifier.padding(vertical = Space.s6)) }
             items(state.skippedCards, key = { it.key }) { s ->
-                Row(Modifier.animateItem().fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.animateItem().fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                     CardImage(s.card.smallImageUrl, Modifier.width(44.dp))
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Column(Modifier.weight(1f)) {
                         Text(s.card.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
@@ -84,12 +85,12 @@ fun UnknownSheet(vm: ScanViewModel) {
     val scans by vm.unknownScans.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf<PendingScan?>(null) }
     ModalBottomSheet(onDismissRequest = { vm.showUnknown(false) }, containerColor = Palette.Surface) {
-        Text("Unknown scans", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
+        Text("Unknown scans", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
-            if (scans.isEmpty()) item(key = "empty") { EmptyState("None left", Modifier.padding(vertical = 24.dp)) }
+            if (scans.isEmpty()) item(key = "empty") { EmptyState("None left", Modifier.padding(vertical = Space.s6)) }
             items(scans, key = { it.id }) { p ->
                 Row(
-                    Modifier.animateItem().fillMaxWidth().heightIn(min = 48.dp).clickable { open = p }.padding(horizontal = 20.dp, vertical = 10.dp),
+                    Modifier.animateItem().fillMaxWidth().heightIn(min = 48.dp).clickable { open = p }.padding(horizontal = Space.s4, vertical = Space.s3),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(p.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -131,7 +132,7 @@ fun BoxPickDialog(boxes: List<CardBox>, vm: ScanViewModel) {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { vm.startBoxCheck(b) }
-                            .padding(vertical = 12.dp, horizontal = 4.dp),
+                            .padding(vertical = Space.s3, horizontal = Space.s1),
                     )
                 }
             }
@@ -145,7 +146,7 @@ fun BoxPickDialog(boxes: List<CardBox>, vm: ScanViewModel) {
 fun BoxCheckChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val run = state.boxCheck ?: return
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text(run.boxName, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${run.scans.sumOf { it.count }} scanned", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
@@ -160,7 +161,7 @@ fun BoxCheckChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
 fun RemoveChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     if (state.target != ScanTarget.REMOVE) return
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Removing", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 Text("${state.removedCount} out", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
@@ -182,7 +183,7 @@ fun BoxCheckSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> U
     var ending by remember { mutableStateOf(false) }
     val cards = remember(run.scans) { run.scans.associateBy { it.card.id } }
     ModalBottomSheet(onDismissRequest = { vm.showBoxCheck(false) }, containerColor = Palette.Surface) {
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(run.boxName, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${run.scans.sumOf { it.count }} scanned", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -192,14 +193,14 @@ fun BoxCheckSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> U
         val r = result
         UnderlineTabs(
             listOf("Missing ${r?.missingCount ?: 0}", "Not recorded ${r?.notRecordedCount ?: 0}", "Found ${r?.foundCount ?: 0}"),
-            tab.ordinal, { tab = CheckTab.entries[it] }, Modifier.padding(bottom = 4.dp),
+            tab.ordinal, { tab = CheckTab.entries[it] }, Modifier.padding(bottom = Space.s1),
         )
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
             if (r == null) {
-                item(key = "loading") { Text("…", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
+                item(key = "loading") { Text("…", color = Palette.Muted, modifier = Modifier.padding(Space.s6)) }
             } else when (tab) {
                 CheckTab.MISSING -> {
-                    if (r.missing.isEmpty()) item(key = "e1") { EmptyState("Nothing missing", Modifier.padding(vertical = 24.dp)) }
+                    if (r.missing.isEmpty()) item(key = "e1") { EmptyState("Nothing missing", Modifier.padding(vertical = Space.s6)) }
                     items(r.missing, key = { "m${it.first.rowId}" }) { (row, n) ->
                         CheckRow(row.name + if (n > 1) " ×$n" else "", if (row.foil) "Foil" else null, null, onClick = { onOpenCard(row.rowId) }) {
                             TextButton(onClick = { vm.tickBoxRow(row.rowId, n) }) { Text("Found") }
@@ -208,7 +209,7 @@ fun BoxCheckSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> U
                     }
                 }
                 CheckTab.NOT_RECORDED -> {
-                    if (r.notRecorded.isEmpty()) item(key = "e2") { EmptyState("All recorded", Modifier.padding(vertical = 24.dp)) }
+                    if (r.notRecorded.isEmpty()) item(key = "e2") { EmptyState("All recorded", Modifier.padding(vertical = Space.s6)) }
                     items(r.notRecorded, key = { "n${it.first.scryfallId}${it.first.foil}" }) { (scan, n) ->
                         val card = cards[scan.scryfallId]?.card
                         CheckRow(
@@ -220,7 +221,7 @@ fun BoxCheckSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> U
                     }
                 }
                 CheckTab.FOUND -> {
-                    if (r.found.isEmpty()) item(key = "e3") { EmptyState("Nothing found yet", Modifier.padding(vertical = 24.dp)) }
+                    if (r.found.isEmpty()) item(key = "e3") { EmptyState("Nothing found yet", Modifier.padding(vertical = Space.s6)) }
                     items(r.found, key = { "f${it.first.rowId}" }) { (row, n) ->
                         val ticked = run.ticked[row.rowId] ?: 0
                         CheckRow(row.name + if (n > 1) " ×$n" else "", if (row.foil) "Foil" else null, null, onClick = { onOpenCard(row.rowId) }) {
@@ -249,18 +250,18 @@ private fun CheckRow(
 ) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 48.dp).let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 20.dp).ruleBelow().padding(vertical = 8.dp),
+            .padding(horizontal = Space.s4).ruleBelow().padding(vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (imageUrl != null) {
             CardImage(imageUrl, Modifier.width(36.dp))
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (tag != null) {
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     FoilTag()
                 }
             }

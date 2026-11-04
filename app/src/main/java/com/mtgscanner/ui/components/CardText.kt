@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,28 +100,28 @@ fun CardTextBlock(info: CardTextInfo, modifier: Modifier = Modifier) {
         Column {
             info.faces.forEachIndexed { i, f ->
                 if (i > 0) Divider(thick = true)
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
                     Text(f.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     ManaCost(f.manaCost, size = 18.dp)
                 }
                 Divider()
-                Text(f.typeLine, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                Text(f.typeLine, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
                 if (f.rules.isNotBlank() || f.flavor != null) {
                     Divider()
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Column(Modifier.padding(horizontal = Space.s4, vertical = Space.s3)) {
                         f.rules.split('\n').filter { it.isNotBlank() }.forEachIndexed { k, para ->
-                            if (k > 0) Spacer(Modifier.height(6.dp))
+                            if (k > 0) Spacer(Modifier.height(Space.s2))
                             RulesText(para)
                         }
                         f.flavor?.let {
-                            if (f.rules.isNotBlank()) Spacer(Modifier.height(8.dp))
+                            if (f.rules.isNotBlank()) Spacer(Modifier.height(Space.s2))
                             Text(it, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic, color = Palette.Muted)
                         }
                     }
                 }
                 f.stats?.let {
                     Divider()
-                    Text(it, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    Text(it, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
                 }
             }
             info.watermark?.let {
@@ -133,9 +134,9 @@ fun CardTextBlock(info: CardTextInfo, modifier: Modifier = Modifier) {
             }
             if (info.legalities.isNotEmpty()) {
                 Divider(thick = true)
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Column(Modifier.padding(Space.s3), verticalArrangement = Arrangement.spacedBy(Space.s1)) {
                     FORMATS.filter { it.first in info.legalities }.chunked(2).forEach { pair ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
                             pair.forEach { (key, label) -> Legality(info.legalities[key].orEmpty(), label, Modifier.weight(1f)) }
                             if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
@@ -160,7 +161,7 @@ private fun Line(label: String, value: String) {
             pop()
         },
         style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
     )
 }
 
@@ -174,7 +175,7 @@ private fun Legality(status: String, format: String, modifier: Modifier) {
     }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.width(76.dp).clip(RoundedCornerShape(Corners.Small)).background(bg).padding(vertical = 3.dp),
+            Modifier.width(76.dp).clip(RoundedCornerShape(Corners.Small)).background(bg).padding(vertical = Space.s1),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -182,7 +183,7 @@ private fun Legality(status: String, format: String, modifier: Modifier) {
                 color = if (status == "legal" || status == "banned" || status == "restricted") Color.White else Palette.Muted,
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(format, style = MaterialTheme.typography.bodySmall, maxLines = 1)
     }
 }

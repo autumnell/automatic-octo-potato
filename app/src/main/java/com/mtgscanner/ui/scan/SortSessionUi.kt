@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -83,7 +84,7 @@ private fun stacks(session: SortSession, boxes: List<CardBox>): List<SortStack> 
 fun SortChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val s = state.sort ?: return
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Sorting", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 Text("${s.entries.sumOf { it.count }} cards", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
@@ -102,7 +103,7 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
     val all = remember(session.entries, boxes) { stacks(session, boxes) }
     val (done, todo) = remember(all, session.done) { all.partition { it.boxId in session.done } }
     ModalBottomSheet(onDismissRequest = { vm.showSort(false) }, containerColor = Palette.Surface) {
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Sort the pile", style = MaterialTheme.typography.titleLarge)
                 Text(
@@ -117,7 +118,7 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
                 val isDone = st.boxId in session.done
                 item(key = "h${st.boxId}") {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+                        Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, top = Space.s3, bottom = Space.s1),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -128,25 +129,25 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         if (st.full && !isDone) {
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Space.s2))
                             FullTag()
                         }
                         Spacer(Modifier.weight(1f))
                         Row(
-                            Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { vm.toggleSortDone(st.boxId) }.padding(horizontal = 10.dp, vertical = 6.dp),
+                            Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { vm.toggleSortDone(st.boxId) }.padding(horizontal = Space.s3, vertical = Space.s2),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 if (isDone) Icons.Filled.CheckCircle else Icons.Outlined.CheckBoxOutlineBlank, null,
                                 tint = if (isDone) Palette.Success else Palette.Icon, modifier = Modifier.size(18.dp),
                             )
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(Space.s1))
                             Text("Done", style = MaterialTheme.typography.labelLarge, color = if (isDone) Palette.Success else Palette.Text)
                         }
                     }
                 }
                 if (!isDone) items(st.entries, key = { it.key }) { e ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             e.spot ?: "",
                             style = MaterialTheme.typography.labelMedium, color = Palette.Text,
@@ -158,11 +159,11 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
                             modifier = Modifier.weight(1f, fill = false),
                         )
                         if (e.foil) {
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Space.s2))
                             FoilTag()
                         }
                         e.note?.let {
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Space.s2))
                             Text(it, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1)
                         }
                     }
@@ -170,7 +171,7 @@ fun SortSheet(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
             }
         }
         if (all.isNotEmpty() && todo.isEmpty()) {
-            GradientButton("All filed · End", vm::endSort, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp))
+            GradientButton("All filed · End", vm::endSort, Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2))
         }
         Spacer(Modifier.navigationBarsPadding().height(12.dp))
     }
@@ -183,6 +184,6 @@ fun FullTag(modifier: Modifier = Modifier) {
         "Full",
         color = Color.Black,
         style = MaterialTheme.typography.labelSmall,
-        modifier = modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold).padding(horizontal = 6.dp, vertical = 1.dp),
+        modifier = modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold).padding(horizontal = Space.s2, vertical = 1.dp),
     )
 }

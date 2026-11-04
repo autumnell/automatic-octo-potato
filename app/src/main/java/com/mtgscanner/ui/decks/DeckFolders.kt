@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.clickable
@@ -206,12 +207,12 @@ fun CoverPickerDialog(names: List<String>, current: String?, onPick: (String?) -
 @Composable
 private fun PickRow(icon: ImageVector?, label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 4.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.s3, horizontal = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
             Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Space.s3))
         }
         Text(
             label,

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -81,7 +82,7 @@ fun SetIcon(code: String, modifier: Modifier = Modifier, size: Dp = 18.dp, tint:
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun NextCardsSection(state: ScanUiState, vm: ScanViewModel) {
-    Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.padding(vertical = Space.s3), verticalArrangement = Arrangement.spacedBy(Space.s3)) {
         Text("Next cards", style = MaterialTheme.typography.titleSmall)
         NextRow("Finish") {
             SelectPill("Normal", !state.foil, onClick = { vm.setFoil(false) })
@@ -118,11 +119,11 @@ fun NextCardsSection(state: ScanUiState, vm: ScanViewModel) {
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun NextRow(label: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
         androidx.compose.foundation.layout.FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.s2),
+            verticalArrangement = Arrangement.spacedBy(Space.s2),
         ) { content() }
     }
 }
@@ -146,12 +147,12 @@ fun NextCardsChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mo
         modifier
             .glass(RoundedCornerShape(Corners.Medium))
             .clickable(onClickLabel = "Change next cards") { vm.showSettings(true) }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = Space.s3, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (lock != null) {
             SetIcon(lock, size = 14.dp, tint = Palette.Gold)
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Space.s2))
         }
         Text(parts.joinToString(" · "), color = Palette.Gold, style = MaterialTheme.typography.labelLarge, maxLines = 1)
     }
@@ -174,15 +175,15 @@ fun LastCardBar(
             .heightIn(min = 48.dp)
             .glass(RoundedCornerShape(Corners.Medium))
             .clickable(enabled = e != null) { if (e != null && e.deckId == 0L && e.rowId != 0L) onOpenCard(e.rowId) else onOpenList() }
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s2, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (e == null) return@Row
         // Grows into the card page when tapped.
         CardImage(e.card.smallImageUrl, Modifier.height(40.dp).sharedCard(if (e.deckId == 0L) e.rowId else 0L))
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         SetIcon(e.card.set, size = 16.dp)
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(
             e.card.name + if (e.count > 1) " ×${e.count}" else "",
             color = Color.White,
@@ -192,23 +193,23 @@ fun LastCardBar(
             modifier = Modifier.weight(1f),
         )
         if (e.foil) {
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Space.s2))
             FoilTag()
         }
         if (AppSettings.showPrices) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Text(scryfallPriceShort(e.card, e.foil), color = Color.White, style = MaterialTheme.typography.titleSmall)
         }
         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Open card", tint = Palette.OnDarkMuted)
         if (onSameAgain != null) {
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(Space.s1))
             Box(
                 Modifier
                     .heightIn(min = 40.dp)
                     .clip(RoundedCornerShape(Corners.Small))
                     .background(Palette.Gold)
                     .clickable(onClickLabel = "Add another copy", onClick = onSameAgain)
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = Space.s4),
                 contentAlignment = Alignment.Center,
             ) { Text("+1", color = Color.Black, style = MaterialTheme.typography.labelLarge) }
         }
@@ -223,9 +224,9 @@ fun SetPickSheet(vm: ScanViewModel) {
     var query by remember { mutableStateOf("") }
     val lock = SortPrefs.setLock
     ModalBottomSheet(onDismissRequest = { vm.showSetLock(false) }, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Set", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             OutlinedTextField(
                 query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Name or code") },
@@ -251,10 +252,10 @@ fun SetPickSheet(vm: ScanViewModel) {
                 }
                 items(shown, key = { it.code }) { s -> SetRow(s, s.code == lock) { vm.setLock(s.code) } }
                 if (sets.isEmpty() && typed == null) item(key = "empty") {
-                    EmptyState("No sets. Type a code.", Modifier.fillMaxWidth().padding(vertical = 24.dp))
+                    EmptyState("No sets. Type a code.", Modifier.fillMaxWidth().padding(vertical = Space.s6))
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
         }
     }
 }
@@ -271,11 +272,11 @@ private fun SetRow(s: ScryfallSet, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun SetRowItem(title: String, sub: String, selected: Boolean, icon: @Composable () -> Unit, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(horizontal = Space.s2, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) { icon() }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(
                 title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,

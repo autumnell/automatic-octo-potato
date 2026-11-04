@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -196,12 +197,12 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(start = Space.s4, end = Space.s4, bottom = Space.s6),
+        horizontalArrangement = Arrangement.spacedBy(Space.s3),
+        verticalArrangement = Arrangement.spacedBy(Space.s3),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 if (folder != null) {
                     IconButton(onClick = { folderId = null }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "All decks") }
                     Text(
@@ -218,7 +219,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     Box {
                         TextButton(onClick = { newMenu = true }) {
                             Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(Space.s1))
                             Text("New")
                         }
                         DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
@@ -256,7 +257,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
             }
             if (tagsShown.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "tags") {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         SelectPill("All", tag == null, { picked = null })
                         tagsShown.forEach { t -> SelectPill(t, tag == t, { picked = if (tag == t) null else t }) }
                     }
@@ -360,10 +361,10 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                 }
                 if (row.identity.isNotEmpty()) {
                     Row(
-                        Modifier.align(Alignment.TopEnd).padding(6.dp)
+                        Modifier.align(Alignment.TopEnd).padding(Space.s2)
                             .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.45f))
-                            .padding(horizontal = 4.dp, vertical = 3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            .padding(horizontal = Space.s1, vertical = Space.s1),
+                        horizontalArrangement = Arrangement.spacedBy(Space.s1),
                     ) {
                         row.identity.forEach { c -> Mana.Symbol(c.toString(), 15.dp) }
                     }
@@ -377,13 +378,13 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
                         maxLines = 1,
-                        modifier = Modifier.align(Alignment.TopStart).padding(6.dp)
+                        modifier = Modifier.align(Alignment.TopStart).padding(Space.s2)
                             .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                            .padding(horizontal = Space.s2, vertical = Space.s1),
                     )
                 }
             }
-            Row(Modifier.padding(start = 12.dp, top = 8.dp), verticalAlignment = Alignment.Top) {
+            Row(Modifier.padding(start = Space.s3, top = Space.s2), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         row.deck.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
@@ -419,15 +420,15 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                 }
             }
             if (owned) {
-                Spacer(Modifier.height(8.dp))
-            } else Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp)) {
+                Spacer(Modifier.height(Space.s2))
+            } else Column(Modifier.padding(start = Space.s3, end = Space.s3, bottom = Space.s3, top = Space.s1)) {
                 LinearProgressIndicator(
                     progress = { if (row.cards == 0) 0f else row.owned.toFloat() / row.cards },
                     modifier = Modifier.fillMaxWidth().height(4.dp),
                     color = Palette.Accent,
                     trackColor = Palette.SurfaceHigh,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.s1))
                 Text("You own ${row.owned} of ${row.cards}", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1)
             }
         }
@@ -449,9 +450,9 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, modifier: Modif
                     TileArt(arts.firstOrNull(), Modifier.matchParentSize())
                 }
                 Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)))))
-                Icon(Icons.Outlined.Folder, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(28.dp))
+                Icon(Icons.Outlined.Folder, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(Space.s3).size(28.dp))
             }
-            Column(Modifier.padding(12.dp)) {
+            Column(Modifier.padding(Space.s3)) {
                 Text(
                     folder.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.goals
 
+import com.mtgscanner.ui.theme.Space
 import androidx.activity.compose.BackHandler
 import com.mtgscanner.data.suggestNames
 import androidx.compose.foundation.background
@@ -168,7 +169,7 @@ fun GoalsScreen(
     BackHandler(enabled = open != null) { openId = -1L }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = Space.s1, end = Space.s2), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (open != null) openId = -1L else onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text(
                 open?.goal?.name ?: "Goals", style = MaterialTheme.typography.headlineSmall,
@@ -179,11 +180,11 @@ fun GoalsScreen(
         }
         val list = goals
         when {
-            list == null -> PlaceholderRows(3, Modifier.padding(16.dp), rowHeight = 72.dp)
+            list == null -> PlaceholderRows(3, Modifier.padding(Space.s4), rowHeight = 72.dp)
             open != null -> MissingList(open, vm, onRetry = { vm.retry() })
             list.isEmpty() -> EmptyState("No goals yet", action = "Add goal", onAction = { adding = true })
             else -> LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = Space.s4, end = Space.s4, top = Space.s1, bottom = Space.s6),
                 modifier = Modifier.navigationBarsPadding(),
             ) {
                 items(list, key = { it.goal.id }) { p ->
@@ -211,7 +212,7 @@ fun GoalsScreen(
 /** One goal with its progress bar. Used on Home too. */
 @Composable
 fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).clickable(onClick = onClick).padding(14.dp)) {
+    Column(modifier.fillMaxWidth().padding(vertical = Space.s1).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).clickable(onClick = onClick).padding(Space.s4)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
@@ -223,7 +224,7 @@ fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
         LinearProgressIndicator(
             progress = { p.fraction },
             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
@@ -245,13 +246,13 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
         return
     }
     if (!p.loaded) {
-        PlaceholderRows(6, Modifier.padding(16.dp))
+        PlaceholderRows(6, Modifier.padding(Space.s4))
         return
     }
     val wished by vm.wished.collectAsStateWithLifecycle()
-    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), modifier = Modifier.navigationBarsPadding()) {
+    LazyColumn(contentPadding = PaddingValues(start = Space.s4, end = Space.s4, bottom = Space.s6), modifier = Modifier.navigationBarsPadding()) {
         item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Missing ${p.missing.size}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
                     if (AppSettings.showPrices && p.cost > 0) {
@@ -260,7 +261,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                 }
                 TextButton(onClick = { vm.wishlistAll(p.missing) }) {
                     Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(Space.s1))
                     Text("Wishlist all")
                 }
             }
@@ -268,11 +269,11 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
         items(p.missing, key = { it.id }) { c ->
             val isWished = c.oracleId != null && c.oracleId in wished
             Row(
-                Modifier.fillMaxWidth().clickable(onClickLabel = if (isWished) "Remove from wishlist" else "Add to wishlist") { vm.toggleWish(c) }.padding(vertical = 5.dp),
+                Modifier.fillMaxWidth().clickable(onClickLabel = if (isWished) "Remove from wishlist" else "Add to wishlist") { vm.toggleWish(c) }.padding(vertical = Space.s1),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CardImage(c.smallImageUrl, Modifier.width(34.dp), zoom = true)
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(Space.s3))
                 Column(Modifier.weight(1f)) {
                     Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
@@ -282,7 +283,7 @@ private fun MissingList(p: GoalProgress, vm: GoalsViewModel, onRetry: () -> Unit
                 }
                 if (AppSettings.showPrices) Goals.cheapest(c)?.let {
                     Text(formatUsd(it), style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                 }
                 Icon(
                     if (isWished) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -325,7 +326,7 @@ private fun AddGoalDialog(vm: GoalsViewModel, onDismiss: () -> Unit) {
                     suggestions.forEach { s ->
                         Text(
                             s, style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.fillMaxWidth().clickable { picked = s; text = s; suggestions = emptyList() }.padding(vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { picked = s; text = s; suggestions = emptyList() }.padding(vertical = Space.s2),
                         )
                     }
                 }

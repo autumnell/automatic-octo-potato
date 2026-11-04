@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -96,7 +97,7 @@ fun WhereIsSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
         containerColor = Palette.Surface,
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
-            Text("Where is it?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
+            Text("Where is it?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -107,7 +108,7 @@ fun WhereIsSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                 singleLine = true,
                 shape = RoundedCornerShape(Corners.Small),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).focusRequester(focus),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2).focusRequester(focus),
             )
             // Keyboard up as the sheet opens.
             LaunchedEffect(Unit) {
@@ -117,7 +118,7 @@ fun WhereIsSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
             val list = found.second
             val q = query.trim()
             if (q.length >= 2 && found.first == query && list.isEmpty()) {
-                EmptyState("Not in your collection", Modifier.padding(vertical = 24.dp))
+                EmptyState("Not in your collection", Modifier.padding(vertical = Space.s6))
             } else {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
                     items(list, key = { it.card.id }) { f -> FoundRow(f.card, f.where) { onOpenCard(f.card.id) } }

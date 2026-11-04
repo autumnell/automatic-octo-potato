@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -280,7 +281,7 @@ private fun toolsVm(): ToolsViewModel = viewModel(factory = AppViewModels.Factor
 
 @Composable
 private fun TopBar(title: String, subtitle: String?, onBack: () -> Unit, actions: @Composable () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(end = Space.s2, top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -302,24 +303,24 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         TopBar("Set tracker", "How much of each set you own", onBack)
         var filter by remember { mutableStateOf("") }
-        SearchField(filter, { filter = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter sets")
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
+        SearchField(filter, { filter = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), placeholder = "Filter sets")
+        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s1)) {
             SelectPill("Include variants", variants, { vm.setIncludeVariants(!variants) })
         }
         if (failed) Text(
             "Offline: set sizes missing.",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(horizontal = 20.dp),
+            style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(horizontal = Space.s4),
         )
         val q = filter.trim().lowercase()
         val list = progress?.let { all -> if (q.isEmpty()) all else all.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q } }
         when {
-            list != null && list.isEmpty() && q.isNotEmpty() -> EmptyState("No sets found", Modifier.padding(top = 24.dp))
-            list == null -> PlaceholderRows(8, Modifier.padding(16.dp))
-            list.isEmpty() -> EmptyState("No sets yet", Modifier.padding(top = 24.dp))
-            else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            list != null && list.isEmpty() && q.isNotEmpty() -> EmptyState("No sets found", Modifier.padding(top = Space.s6))
+            list == null -> PlaceholderRows(8, Modifier.padding(Space.s4))
+            list.isEmpty() -> EmptyState("No sets yet", Modifier.padding(top = Space.s6))
+            else -> LazyColumn(contentPadding = PaddingValues(bottom = Space.s6)) {
                 items(list, key = { it.code }) { s ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { onOpenSet(s.code) }.padding(horizontal = 20.dp, vertical = 10.dp),
+                        Modifier.fillMaxWidth().clickable { onOpenSet(s.code) }.padding(horizontal = Space.s4, vertical = Space.s3),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
@@ -327,7 +328,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
                                 s.iconUrl, null, Modifier.size(26.dp), colorFilter = ColorFilter.tint(Palette.Text),
                             ) else Text(s.code.take(3), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(s.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -338,7 +339,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
                                 )
                             }
                             if (s.total > 0) {
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(Space.s2))
                                 LinearProgressIndicator(
                                     progress = { s.fraction },
                                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
@@ -397,7 +398,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
     val toWish = remember(missing, owned) { wishTargets(missing, owned.mapNotNull { it.oracleId }.toSet()) { it.oracleId } }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(end = Space.s1, top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Spacer(Modifier.weight(1f))
             val isPinned = code.lowercase() in pinned
@@ -430,13 +431,13 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
             missingCost = if (missing.isEmpty()) null else missingCost,
         )
         when {
-            failed && cards == null -> EmptyState("Couldn't load this set", Modifier.padding(top = 24.dp), action = "Try again", onAction = { vm.loadSet(code) })
-            cards == null -> PlaceholderCards(9, Modifier.padding(16.dp))
+            failed && cards == null -> EmptyState("Couldn't load this set", Modifier.padding(top = Space.s6), action = "Try again", onAction = { vm.loadSet(code) })
+            cards == null -> PlaceholderCards(9, Modifier.padding(Space.s4))
             else -> {
-                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Filter this set")
+                SearchField(query, { query = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), placeholder = "Filter this set")
                 Row(
-                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Space.s4, vertical = Space.s1),
+                    horizontalArrangement = Arrangement.spacedBy(Space.s2),
                 ) {
                     SelectPill("All", show == "all", { show = "all" })
                     SelectPill("Owned", show == "owned", { show = "owned" })
@@ -454,19 +455,19 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                         .filter { it.third.isNotEmpty() }
                 }
                 if (groups.isEmpty()) {
-                    EmptyState(if (show == "missing" && q.isEmpty()) "You own the whole set" else "No cards", Modifier.padding(top = 24.dp))
+                    EmptyState(if (show == "missing" && q.isEmpty()) "You own the whole set" else "No cards", Modifier.padding(top = Space.s6))
                 } else {
                     LazyVerticalGrid(
                         GridCells.Fixed(when (layout) { 0 -> 3; 1 -> 5; else -> 1 }),
-                        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(start = Space.s3, end = Space.s3, bottom = Space.s6),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         groups.forEach { (key, label, list) ->
                             item(key = "h_$key", span = { GridItemSpan(maxLineSpan) }) {
                                 val got = list.count { it.collectorNumber.lowercase() in mine }
-                                Row(Modifier.padding(start = 6.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.padding(start = Space.s2, top = Space.s4, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                                     RarityMark(key, Modifier.size(12.dp))
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(Space.s2))
                                     Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                                     Text("$got / ${list.size}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                                 }
@@ -554,13 +555,13 @@ private fun SetHeader(
     total: Int,
     missingCost: Double?,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {
                 if (iconUrl != null) AsyncImage(iconUrl, null, Modifier.size(32.dp), colorFilter = ColorFilter.tint(Palette.Accent))
                 else Text(code.uppercase().take(4), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             }
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(Space.s4))
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -570,7 +571,7 @@ private fun SetHeader(
             }
         }
         if (total > 0) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "You own $have of $total",
@@ -582,7 +583,7 @@ private fun SetHeader(
                     Text("Missing ${formatUsd(missingCost)}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.s2))
             LinearProgressIndicator(
                 progress = { (have.toFloat() / total).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
@@ -598,14 +599,14 @@ private fun SetHeader(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun SetPosterTile(c: ScryfallCard, qty: Int, onClick: () -> Unit, onWish: (() -> Unit)?) {
-    Box(Modifier.padding(2.dp).clip(RoundedCornerShape(Corners.Small)).combinedClickable(onClick = onClick, onLongClick = onWish)) {
+    Box(Modifier.padding(Space.s1).clip(RoundedCornerShape(Corners.Small)).combinedClickable(onClick = onClick, onLongClick = onWish)) {
         CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.55f), grey = qty == 0)
         if (qty > 1) Text(
             "$qty",
             style = MaterialTheme.typography.labelSmall,
             color = Color.White,
-            modifier = Modifier.align(Alignment.TopStart).padding(3.dp)
-                .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = 4.dp),
+            modifier = Modifier.align(Alignment.TopStart).padding(Space.s1)
+                .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = Space.s1),
         )
     }
 }
@@ -613,18 +614,18 @@ private fun SetPosterTile(c: ScryfallCard, qty: Int, onClick: () -> Unit, onWish
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit, onWish: (() -> Unit)?) {
-    Column(Modifier.padding(4.dp).clip(RoundedCornerShape(Corners.Small)).combinedClickable(onClick = onClick, onLongClick = onWish)) {
+    Column(Modifier.padding(Space.s1).clip(RoundedCornerShape(Corners.Small)).combinedClickable(onClick = onClick, onLongClick = onWish)) {
         Box {
             // Missing cards in grey; hold one to wishlist it.
             CardImage(c.imageUrl ?: c.smallImageUrl, Modifier.fillMaxWidth().alpha(if (qty > 0) 1f else 0.55f), zoom = qty > 0, grey = qty == 0)
-            if (qty > 0) OwnedBadge(qty, Modifier.align(Alignment.TopStart).padding(5.dp))
+            if (qty > 0) OwnedBadge(qty, Modifier.align(Alignment.TopStart).padding(Space.s1))
             val price = c.anyPrice()
             if (AppSettings.showPrices && price != null) Text(
                 formatUsd(price),
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.White,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp)
-                    .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = 5.dp, vertical = 1.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(Space.s1)
+                    .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = Space.s1, vertical = 1.dp),
             )
         }
         Text(
@@ -632,7 +633,7 @@ private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit, onWish: 
             style = MaterialTheme.typography.labelSmall,
             color = if (qty > 0) Palette.Text else Palette.Muted,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 3.dp),
+            modifier = Modifier.padding(top = Space.s1),
         )
     }
 }
@@ -640,11 +641,11 @@ private fun SetCardTile(c: ScryfallCard, qty: Int, onClick: () -> Unit, onWish: 
 @Composable
 private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = Space.s1, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl, Modifier.width(42.dp).alpha(if (qty > 0) 1f else 0.45f), zoom = true)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(
                 c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -656,11 +657,11 @@ private fun SetCardRow(c: ScryfallCard, qty: Int, onClick: () -> Unit) {
             )
         }
         if (qty > 0) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             OwnedBadge(qty)
         }
         if (AppSettings.showPrices) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Text(formatUsd(c.anyPrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
         }
     }
@@ -682,23 +683,23 @@ fun ExtrasScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         TopBar("Extras", "Copies beyond what a deck can use", onBack)
         MoveListHost()
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
             Text("Keep", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             QuantityStepper(keep, onChange = vm::setKeep)
         }
         Text(
             "Not counted: basic lands, trade binders, decks.",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp),
+            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4),
         )
         if (groups.isEmpty()) {
-            EmptyState("No extras over $keep", Modifier.padding(top = 24.dp))
+            EmptyState("No extras over $keep", Modifier.padding(top = Space.s6))
             return@Column
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = Space.s2)) {
             items(groups, key = { it.key }) { g ->
                 val on = g.key !in skipped
                 Row(
-                    Modifier.fillMaxWidth().clickable { skipped = if (on) skipped + g.key else skipped - g.key }.padding(horizontal = 12.dp, vertical = 4.dp),
+                    Modifier.fillMaxWidth().clickable { skipped = if (on) skipped + g.key else skipped - g.key }.padding(horizontal = Space.s3, vertical = Space.s1),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(on, { skipped = if (on) skipped + g.key else skipped - g.key }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
@@ -711,13 +712,13 @@ fun ExtrasScreen(onBack: () -> Unit) {
             }
         }
         Surface(color = Palette.Surface) {
-            Column(Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth().padding(Space.s4).navigationBarsPadding()) {
                 if (trade.isEmpty()) {
                     Text("Make a trade binder to move extras into.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     GradientButton("Create a trade binder", { vm.createTradeBinder() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Add)
                 } else {
-                    if (trade.size > 1) Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (trade.size > 1) Row(Modifier.padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         trade.forEach { b ->
                             SelectPill(b.name, dest == b.id, { target = b.id }, leading = { Icon(boxIcon(b.kind), null, Modifier.size(14.dp), tint = boxColor(b.color)) })
                         }

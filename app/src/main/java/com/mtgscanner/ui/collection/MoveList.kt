@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.util.shareText
 import android.content.Context
 import android.content.SharedPreferences
@@ -160,13 +161,13 @@ fun MoveListHost(modifier: Modifier = Modifier) {
     val left = lines.filterIndexed { i, _ -> i !in MoveList.done }.sumOf { it.qty }
     Surface(
         onClick = { MoveList.open = true },
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1),
         shape = RoundedCornerShape(Corners.Medium),
         color = Palette.BoxCard,
     ) {
-        Row(Modifier.padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
             Text(if (left == 0) "Move list done" else "Move list · $left to move", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             TextButton(onClick = { MoveList.open = true }) { Text("Open") }
         }
@@ -185,7 +186,7 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
         containerColor = Palette.Surface,
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 Text("Move list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 IconButton(onClick = { shareText(ctx, "Move list", MoveLists.text(lines, MoveList.done)) }) { Icon(Icons.Outlined.Share, "Share or print") }
                 TextButton(onClick = { MoveList.clear() }) { Text("Clear") }
@@ -194,7 +195,7 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
                 itemsIndexed(lines) { i, l ->
                     val ticked = i in MoveList.done
                     Row(
-                        Modifier.fillMaxWidth().clickable { MoveList.toggle(i) }.padding(start = 8.dp, end = 16.dp),
+                        Modifier.fillMaxWidth().clickable { MoveList.toggle(i) }.padding(start = Space.s2, end = Space.s4),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Checkbox(ticked, { MoveList.toggle(i) }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
@@ -214,7 +215,7 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
                     }
                 }
             }
-            GradientButton("Done", { MoveList.clear() }, Modifier.fillMaxWidth().padding(16.dp))
+            GradientButton("Done", { MoveList.clear() }, Modifier.fillMaxWidth().padding(Space.s4))
         }
     }
 }

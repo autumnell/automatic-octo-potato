@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.clickable
@@ -103,7 +104,7 @@ fun PullListView(
     leads: List<String> = emptyList(),
 ) {
     if (list == null) {
-        PlaceholderRows(6, Modifier.padding(16.dp))
+        PlaceholderRows(6, Modifier.padding(Space.s4))
         return
     }
     val total = list.toPull
@@ -111,7 +112,7 @@ fun PullListView(
     val (first, rest) = PullListMath.splitLeads(list, leads, DeckNames::key)
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         if (total == 0) "Nothing to pull" else "$done / $total pulled",
@@ -126,11 +127,11 @@ fun PullListView(
             if (onMoveChecked != null && done > 0) {
                 com.mtgscanner.ui.components.QuietButton(
                     onClick = onMoveChecked,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1),
                     shape = RoundedCornerShape(Corners.Medium),
                 ) {
                     Icon(Icons.Outlined.Style, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text("Move checked to deck")
                 }
             }
@@ -141,7 +142,7 @@ fun PullListView(
                 PullRow(p, p.key in checked, first = i == 0, last = i == first.items.lastIndex, where = box) { onToggle(p.key) }
             }
             items(first.missing, key = { "lm" + it.name }) { m -> MissingRow(m, note = "Missing") }
-            item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), thickness = 0.5.dp, color = Palette.Rule) }
+            item(key = "leadsEnd") { HorizontalDivider(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), thickness = 0.5.dp, color = Palette.Rule) }
         }
         for (g in rest.groups) {
             item(key = "b${g.boxId}") { SectionHeader("${g.boxName} (${g.items.sumOf { it.qty }})") }
@@ -151,7 +152,7 @@ fun PullListView(
             item(key = "missing") { SectionHeader("Missing (${rest.missing.sumOf { it.qty }})") }
             items(rest.missing, key = { "m" + it.name }) { m -> MissingRow(m) }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Spacer(Modifier.height(Space.s6)) }
     }
 }
 
@@ -163,7 +164,7 @@ private fun MissingRow(m: PullMissing, note: String? = null) {
         color = Palette.Muted,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
     )
 }
 
@@ -171,13 +172,13 @@ private fun MissingRow(m: PullMissing, note: String? = null) {
 @Composable
 private fun PullRow(p: PullItem, ticked: Boolean, first: Boolean, last: Boolean, where: String? = null, onToggle: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(onClick = onToggle)
-            .padding(start = 2.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first, last).clickable(onClick = onToggle)
+            .padding(start = Space.s1, end = Space.s3, top = Space.s1, bottom = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(ticked, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
         CardImage(p.imageUrl, Modifier.width(34.dp), zoom = true)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(
                 p.name,

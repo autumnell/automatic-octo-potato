@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.trade
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -102,7 +103,7 @@ internal fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Co
         matchWants(DecklistParser.parse(text), binder, { it.name }, { it.setCode }, { it.quantity })
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
+        Column(Modifier.padding(horizontal = Space.s4)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Their want list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 FromPhotoButton({ text = appendList(text, it) })
@@ -118,7 +119,7 @@ internal fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Co
         }
         LazyColumn(Modifier.fillMaxWidth().height(300.dp)) {
             when {
-                text.isBlank() -> item { Text("One card per line", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
+                text.isBlank() -> item { Text("One card per line", color = Palette.Muted, modifier = Modifier.padding(Space.s6)) }
                 matches.isEmpty() -> item { com.mtgscanner.ui.components.EmptyState("No matches in this binder") }
                 else -> items(matches, key = { it.first.id }) { m ->
                     val c = m.first
@@ -130,7 +131,7 @@ internal fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Co
         GradientButton(
             if (matches.isEmpty()) "Add all to give" else "Add all ${matches.sumOf { it.second }} to give",
             { onAddAll(matches) },
-            Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding(),
+            Modifier.fillMaxWidth().padding(Space.s4).navigationBarsPadding(),
             enabled = matches.isNotEmpty(),
         )
     }

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.sell
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -147,7 +148,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> U
     Haptics.Attach()
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(Space.s1), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text("Sell", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             val shown = cards.orEmpty()
@@ -158,7 +159,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> U
             }
         }
         if (AppSettings.showPrices) {
-            UnderlineTabs(listOf("My sell list", "Card Kingdom offers"), tab, { tab = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
+            UnderlineTabs(listOf("My sell list", "Card Kingdom offers"), tab, { tab = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
         }
         if (tab == 1) BuylistContent(onOpenCard) else SellListContent(vm, onBrowse)
     }
@@ -174,8 +175,8 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
     run {
         val list = cards ?: return@run
         if (AppSettings.showPrices && (list.isNotEmpty() || earned > 0)) {
-            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-                Column(Modifier.padding(14.dp)) {
+            Surface(Modifier.fillMaxWidth().padding(horizontal = Space.s4), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+                Column(Modifier.padding(Space.s4)) {
                     if (list.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${list.sumOf { it.quantity }} cards", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Text(formatUsd(list.sumOf { (it.salePrice() ?: 0.0) * it.quantity }), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text)
@@ -188,10 +189,10 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
             }
         }
         if (list.isEmpty()) {
-            EmptyState("Nothing for sale", Modifier.padding(top = 24.dp), action = "Browse cards", onAction = onBrowse)
+            EmptyState("Nothing for sale", Modifier.padding(top = Space.s6), action = "Browse cards", onAction = onBrowse)
             return@run
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = Space.s2)) {
             items(list, key = { it.id }) { c -> SellRow(c, first = c === list.first(), last = c === list.last()) { editing = c } }
         }
     }
@@ -213,11 +214,11 @@ private fun ColumnScope.SellListContent(vm: SellViewModel, onBrowse: () -> Unit)
 @Composable
 private fun SellRow(c: CollectionCard, first: Boolean, last: Boolean, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first, last).clickable(onClick = onClick).padding(horizontal = Space.s3, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl, Modifier.width(40.dp), zoom = true)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val ck = if (AppSettings.showPrices) CardKingdom.buyPrice(c.scryfallId, c.foil)?.let { " · CK buys ${formatUsd(it)}" }.orEmpty() else ""
@@ -227,7 +228,7 @@ private fun SellRow(c: CollectionCard, first: Boolean, last: Boolean, onClick: (
             )
         }
         if (AppSettings.showPrices) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatUsd(c.salePrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                 Text(if (c.askPrice != null) "Ask" else "Market", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
@@ -281,13 +282,13 @@ private fun SoldDialog(c: CollectionCard, onSold: (qty: Int, each: Double) -> Un
         text = {
             Column {
                 Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.s3))
                 if (c.quantity > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Copies", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         QuantityStepper(qty, onChange = { qty = it.coerceIn(1, c.quantity) })
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(Space.s3))
                 }
                 OutlinedTextField(
                     value = text,

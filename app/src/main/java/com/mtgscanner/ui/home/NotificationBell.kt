@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -70,17 +71,17 @@ internal fun NotificationsSheet(onOpen: (String) -> Unit, onDismiss: () -> Unit)
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Text("Notifications", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             if (entries.isNotEmpty()) TextButton(onClick = { NotificationLog.clear(ctx) }) { Text("Clear all", color = Palette.AccentText) }
         }
         if (entries.isEmpty()) {
-            EmptyState("No notifications", Modifier.padding(bottom = 32.dp))
+            EmptyState("No notifications", Modifier.padding(bottom = Space.s8))
         } else {
-            LazyColumn(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().padding(bottom = Space.s4)) {
                 items(entries, key = { "${it.at}|${it.title}" }) { e ->
                     NotificationRow(e, now, onOpen = { onDismiss(); onOpen(e.where) }, onClear = { NotificationLog.remove(ctx, e) })
-                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = Palette.Rule)
+                    HorizontalDivider(Modifier.padding(horizontal = Space.s4), color = Palette.Rule)
                 }
             }
         }
@@ -90,7 +91,7 @@ internal fun NotificationsSheet(onOpen: (String) -> Unit, onDismiss: () -> Unit)
 @Composable
 private fun NotificationRow(e: NotificationEntry, now: Long, onOpen: () -> Unit, onClear: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onOpen).padding(start = 20.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onOpen).padding(start = Space.s4, end = Space.s1, top = Space.s2, bottom = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

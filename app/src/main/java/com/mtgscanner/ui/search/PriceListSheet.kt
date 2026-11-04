@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.data.undoWishes
 import com.mtgscanner.data.wishSnapshot
 import androidx.compose.foundation.layout.Arrangement
@@ -102,13 +103,13 @@ fun PriceListSheet(owned: Map<String, Owned>, onDismiss: () -> Unit) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Palette.Surface,
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             val result = rows
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Price a list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (result != null) TextButton(onClick = { rows = null; note = null }) { Text("Edit list") }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             if (result == null) {
                 OutlinedTextField(
                     value = text, onValueChange = { text = it },
@@ -117,10 +118,10 @@ fun PriceListSheet(owned: Map<String, Owned>, onDismiss: () -> Unit) {
                     shape = RoundedCornerShape(Corners.Medium),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
                 )
-                note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.padding(top = 6.dp)) }
-                Spacer(Modifier.height(12.dp))
+                note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.padding(top = Space.s2)) }
+                Spacer(Modifier.height(Space.s3))
                 GradientButton(if (busy) "Pricing…" else "Price it", { price() }, Modifier.fillMaxWidth(), enabled = !busy && text.isNotBlank())
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(Space.s4))
             } else {
                 PriceResult(result, wished, note, onWish = {
                     if (!wished && !busy) {
@@ -154,7 +155,7 @@ fun PriceListSheet(owned: Map<String, Owned>, onDismiss: () -> Unit) {
 @Composable
 private fun PriceResult(rows: List<PriceRow>, wished: Boolean, note: String?, onWish: () -> Unit) {
     if (rows.isEmpty()) {
-        EmptyState("No cards in the list", Modifier.padding(vertical = 24.dp))
+        EmptyState("No cards in the list", Modifier.padding(vertical = Space.s6))
         return
     }
     val t = remember(rows) { PriceListMath.totals(rows.map { it.line }) }
@@ -168,11 +169,11 @@ private fun PriceResult(rows: List<PriceRow>, wished: Boolean, note: String?, on
         if (prices && t.unpriced > 0) add("${t.unpriced} no price")
     }
     if (extras.isNotEmpty()) Text(extras.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-    Spacer(Modifier.height(8.dp))
-    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Spacer(Modifier.height(Space.s2))
+    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp), verticalArrangement = Arrangement.spacedBy(Space.s1)) {
         items(rows) { r -> PriceLineRow(r, prices) }
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(Space.s3))
     val shortCards = t.shortCards
     if (shortCards > 0) {
         GradientButton(
@@ -180,16 +181,16 @@ private fun PriceResult(rows: List<PriceRow>, wished: Boolean, note: String?, on
             onWish, Modifier.fillMaxWidth(), enabled = !wished,
         )
     }
-    note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 6.dp)) }
-    Spacer(Modifier.height(16.dp))
+    note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s2)) }
+    Spacer(Modifier.height(Space.s4))
 }
 
 @Composable
 private fun PriceLineRow(r: PriceRow, prices: Boolean) {
     val l = r.line
-    Row(Modifier.fillMaxWidth().ruleBelow().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().ruleBelow().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
         CardImage(r.card?.smallImageUrl, Modifier.width(32.dp), zoom = r.card != null)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(
                 if (l.quantity > 1) "${l.quantity} ${l.name}" else l.name,

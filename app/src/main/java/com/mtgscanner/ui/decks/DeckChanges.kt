@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -242,7 +243,7 @@ private fun DestPicker(label: String, boxes: List<Place>, selected: Boolean, onP
 
 @Composable
 private fun ChangeRow(text: String, detail: String?, trailing: (@Composable () -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(text, style = MaterialTheme.typography.bodyLarge.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (!detail.isNullOrEmpty()) {
@@ -250,7 +251,7 @@ private fun ChangeRow(text: String, detail: String?, trailing: (@Composable () -
             }
         }
         if (trailing != null) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             trailing()
         }
     }
@@ -267,7 +268,7 @@ private fun DeckChangesSheet(u: DeckChangesUi, host: DeckChangesHost) {
         containerColor = Palette.Surface,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Changes", style = MaterialTheme.typography.titleLarge)
             Text(
                 listOfNotNull(
@@ -278,7 +279,7 @@ private fun DeckChangesSheet(u: DeckChangesUi, host: DeckChangesHost) {
                 style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
             )
             if (u.leaving.size > 1) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.s3))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Send all to", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.weight(1f))
                     val same = u.leaving.map { it.dest }.distinct().singleOrNull()
@@ -314,22 +315,22 @@ private fun DeckChangesSheet(u: DeckChangesUi, host: DeckChangesHost) {
                         Text(
                             (if (showSame) "Hide unchanged" else "Unchanged (${d.unchangedCount})"),
                             style = MaterialTheme.typography.labelLarge, color = Palette.AccentText,
-                            modifier = Modifier.fillMaxWidth().clickable { showSame = !showSame }.padding(vertical = 12.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { showSame = !showSame }.padding(vertical = Space.s3),
                         )
                     }
                     if (showSame) itemsIndexed(d.unchanged, key = { i, _ -> "u$i" }) { _, s -> ChangeRow("${s.qty} ${s.name}", s.printing) }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             if (u.busy) {
                 Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) { com.mtgscanner.ui.components.Spinner() }
             } else {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     TextButton(onClick = host::cancel) { Text("Cancel") }
                     GradientButton("Save", host::confirm, Modifier.weight(1f))
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

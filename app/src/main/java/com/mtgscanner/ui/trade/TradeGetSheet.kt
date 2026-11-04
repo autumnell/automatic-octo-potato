@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.trade
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,31 +62,31 @@ internal fun GetCardSheet(
         containerColor = Palette.Surface,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Space.s4).navigationBarsPadding()) {
             Row {
                 CardImage(card.imageUrl, Modifier.width(110.dp))
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(Space.s4))
                 Column(Modifier.weight(1f)) {
                     Text(card.name, style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RarityDot(card.rarity, 8.dp)
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text("${card.setName} · #${card.collectorNumber}", style = MaterialTheme.typography.bodySmall)
                     }
                     if (AppSettings.showPrices) {
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(Space.s2))
                         Text(formatMoney(item.price, item.eur), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
                         item.buyPrice?.let { Text("CK buys ${formatUsd(it)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted) }
                     }
                     TextButton(onClick = onPrintings, contentPadding = PaddingValues(0.dp)) {
                         Icon(Icons.Outlined.SwapHoriz, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(Space.s1))
                         Text("Other printings")
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Foil", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 Switch(
@@ -95,19 +96,19 @@ internal fun GetCardSheet(
                     colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent),
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             Text("Condition", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 TRADE_CONDITIONS.forEach { c -> Pill(c, c == item.condition) { onChange(item.foil, c, item.lang) } }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             Text("Language", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 TRADE_LANGS.forEach { l -> Pill(l.uppercase(), l == item.lang) { onChange(item.foil, item.condition, l) } }
             }
-            GradientButton("Done", onDismiss, Modifier.fillMaxWidth().padding(vertical = 16.dp))
+            GradientButton("Done", onDismiss, Modifier.fillMaxWidth().padding(vertical = Space.s4))
         }
     }
 }
@@ -123,6 +124,6 @@ private fun Pill(label: String, selected: Boolean, onClick: () -> Unit) {
             .background(Palette.SurfaceHigh)
             .border(1.dp, if (selected) Palette.Text else Color.Transparent, RoundedCornerShape(Corners.Small))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = Space.s4, vertical = Space.s2),
     )
 }

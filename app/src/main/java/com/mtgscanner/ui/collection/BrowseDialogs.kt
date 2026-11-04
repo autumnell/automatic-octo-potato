@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.focusRequester
@@ -166,7 +167,7 @@ internal fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, v
     var moveMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().background(Palette.Surface).padding(end = 4.dp, top = 4.dp, bottom = 4.dp),
+        Modifier.fillMaxWidth().background(Palette.Surface).padding(end = Space.s1, top = Space.s1, bottom = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = vm::clearSelection) { Icon(Icons.Outlined.Close, "Stop picking") }
@@ -185,7 +186,7 @@ internal fun SelectionBar(count: Int, boxes: List<CardBox>, decks: List<Deck>, v
                     )
                 }
                 if (decks.isNotEmpty()) {
-                    DecksHeader(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                    DecksHeader(Modifier.padding(horizontal = Space.s3, vertical = Space.s2))
                     decks.forEach { d ->
                         DropdownMenuItem(
                             text = { Text(d.name) },
@@ -234,24 +235,24 @@ internal fun BulkEditDialog(onApply: (String?, String?, Boolean?, Double?, Strin
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Condition", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
-                Spacer(Modifier.height(6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s2))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     CARD_CONDITIONS.forEach { (c, _) -> SelectPill(c, cond == c, { cond = if (cond == c) null else c }) }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Text("Language", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
-                Spacer(Modifier.height(6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s2))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     CARD_LANGUAGES.forEach { (code, label) -> SelectPill(label, lang == code, { lang = if (lang == code) null else code }) }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Text("Finish", style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s2))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     SelectPill("Foil", foil == true, { foil = if (foil == true) null else true })
                     SelectPill("Non-foil", foil == false, { foil = if (foil == false) null else false })
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 // After buying a lot: what each card cost and who it came from.
                 OutlinedTextField(
                     paidText, { paidText = it }, singleLine = true,
@@ -260,7 +261,7 @@ internal fun BulkEditDialog(onApply: (String?, String?, Boolean?, Double?, Strin
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.s2))
                 OutlinedTextField(
                     from, { from = it }, singleLine = true,
                     label = { Text("From") }, placeholder = { Text("e.g. Local game store") },
@@ -304,8 +305,8 @@ fun TagDialog(existing: List<String>, onDone: (String) -> Unit, onDismiss: () ->
             Column {
                 OutlinedTextField(tag, { tag = it }, singleLine = true, placeholder = { Text("e.g. For Kenji's deck, Lent out") })
                 if (existing.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(Modifier.height(Space.s3))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                         existing.forEach { t -> SelectPill(t, false, { onDone(t) }) }
                     }
                 }
@@ -335,23 +336,23 @@ fun BoxPickerDialog(
                 if (boxes.isEmpty() && decks.isEmpty()) Text("Make another box first.", color = Palette.Muted)
                 boxes.forEach { b ->
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPick(b.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPick(b.id) }.padding(vertical = Space.s3, horizontal = Space.s1),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Text(b.name, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
                 if (decks.isNotEmpty()) {
-                    DecksHeader(Modifier.padding(top = 10.dp, bottom = 2.dp, start = 4.dp))
+                    DecksHeader(Modifier.padding(top = Space.s3, bottom = Space.s1, start = Space.s1))
                     decks.forEach { d ->
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPickDeck(d.id) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPickDeck(d.id) }.padding(vertical = Space.s3, horizontal = Space.s1),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Outlined.Style, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(10.dp))
+                            Spacer(Modifier.width(Space.s3))
                             Text(d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }

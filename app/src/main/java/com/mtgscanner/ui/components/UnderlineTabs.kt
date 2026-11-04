@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +47,7 @@ fun UnderlineTabs(
                 .fillMaxWidth()
                 .then(if (fill) Modifier else Modifier.horizontalScroll(rememberScrollState()))
                 .padding(horizontal = horizontalPadding),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.s6),
         ) {
             labels.forEachIndexed { i, label ->
                 UnderlineTab(label, i == selected, if (fill) Modifier.weight(1f) else Modifier) { onSelect(i) }
@@ -70,7 +71,7 @@ private fun UnderlineTab(label: String, selected: Boolean, modifier: Modifier, o
             color = if (selected) Palette.Text else Palette.Muted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(vertical = 12.dp),
+            modifier = Modifier.padding(vertical = Space.s3),
         )
         Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) Palette.Accent else Color.Transparent))
     }

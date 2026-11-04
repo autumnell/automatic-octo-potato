@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Size
@@ -137,7 +138,7 @@ import com.mtgscanner.ui.components.ruleBelow
 @Composable
 internal fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showSettings(false) }, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Scan settings", style = MaterialTheme.typography.titleLarge)
             NextCardsSection(state, vm)
             HorizontalDivider(color = Palette.Rule)
@@ -154,7 +155,7 @@ internal fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.fillMaxWidth()
                     .clickable { vm.showSettings(false); ScanBarPrefs.updateHintsSeen(false) }
-                    .padding(vertical = 14.dp),
+                    .padding(vertical = Space.s4),
             )
             if (state.pendingCount > 0) {
                 HorizontalDivider(color = Palette.Rule)
@@ -162,22 +163,22 @@ internal fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
                     "${state.pendingCount} cards saved while offline. They're added automatically when you're back online.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Gold,
-                    modifier = Modifier.padding(vertical = 12.dp),
+                    modifier = Modifier.padding(vertical = Space.s3),
                 )
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Space.s6))
         }
     }
 }
 
 @Composable
 private fun SettingRow(title: String, body: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
     }
 }
@@ -186,7 +187,7 @@ private fun SettingRow(title: String, body: String, checked: Boolean, onChange: 
 @Composable
 internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> Unit) {
     ModalBottomSheet(onDismissRequest = { vm.showList(false) }, containerColor = Palette.Surface) {
-        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
                 Text("${state.sessionCount} cards${moneySuffix(state.sessionValue, state.sessionEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
@@ -197,7 +198,7 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
             }
             TextButton(onClick = vm::clearList) { Text("Clear list") }
         }
-        Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s1), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             SelectPill("Newest first", !state.listByBox, { vm.setListByBox(false) })
             SelectPill("By box", state.listByBox, { vm.setListByBox(true) })
         }
@@ -205,7 +206,7 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
             "Clearing keeps cards in your collection.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
         )
         // Regrouped only when the list or the grouping changes, not on every redraw.
         val groups = remember(state.session, state.listByBox) {
@@ -214,7 +215,7 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
         }
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
           if (state.session.isEmpty()) item(key = "empty") {
-              EmptyState("Nothing scanned yet", Modifier.padding(vertical = 24.dp), fullScreen = true)
+              EmptyState("Nothing scanned yet", Modifier.padding(vertical = Space.s6), fullScreen = true)
           }
           groups.forEach { (boxName, entries) ->
             if (boxName.isNotEmpty()) item(key = "h$boxName") {
@@ -222,7 +223,7 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
                     "$boxName · ${entries.sumOf { it.count }} cards",
                     style = MaterialTheme.typography.titleSmall,
                     color = Palette.Text,
-                    modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
+                    modifier = Modifier.padding(start = Space.s4, top = Space.s3, bottom = Space.s1),
                 )
             }
             items(entries, key = { it.key }) { e ->
@@ -230,16 +231,16 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
                     Modifier
                         .fillMaxWidth()
                         .clickable(enabled = e.deckId == 0L) { vm.showList(false); onOpenCard(e.rowId) }
-                        .padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp),
+                        .padding(horizontal = Space.s4).ruleBelow().padding(vertical = Space.s3),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CardImage(e.card.smallImageUrl, Modifier.width(44.dp))
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(e.card.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                             if (e.foil) {
-                                Spacer(Modifier.width(6.dp))
+                                Spacer(Modifier.width(Space.s2))
                                 FoilTag()
                             }
                         }
@@ -268,12 +269,12 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
 @Composable
 internal fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showReview(false) }, containerColor = Palette.Surface) {
-        Text("Check these", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
+        Text("Check these", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
         Text(
             "Auto-add wasn't sure about these.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
         )
         // Tap a card to see it big and pick its printing.
         var open by remember { mutableStateOf<String?>(null) }
@@ -281,19 +282,19 @@ internal fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
         var printings by remember { mutableStateOf<List<ScryfallCard>?>(null) }
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
-            if (state.review.isEmpty()) item(key = "empty") { EmptyState("All checked", Modifier.padding(vertical = 24.dp)) }
+            if (state.review.isEmpty()) item(key = "empty") { EmptyState("All checked", Modifier.padding(vertical = Space.s6)) }
             items(state.review, key = { it.card.id }) { item ->
                 val c = item.card
-                Column(Modifier.fillMaxWidth().clickable { open = if (open == c.id) null else c.id }.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Column(Modifier.fillMaxWidth().clickable { open = if (open == c.id) null else c.id }.padding(horizontal = Space.s4, vertical = Space.s2)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CardImage(c.smallImageUrl, Modifier.width(52.dp))
                         // The card as the camera saw it, next to the guess.
                         val ctx = androidx.compose.ui.platform.LocalContext.current
                         com.mtgscanner.scan.ScanPhotos.file(ctx, item.photo)?.let { f ->
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Space.s2))
                             coil.compose.AsyncImage(f, "Your scan", Modifier.width(52.dp).clip(RoundedCornerShape(Corners.Small)))
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Column(Modifier.weight(1f)) {
                             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
@@ -305,9 +306,9 @@ internal fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
                         TextButton(onClick = { vm.addFromReview(item) }) { Text("Add") }
                     }
                     if (open == c.id) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(Space.s2))
                         CardImage(c.imageUrl, Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally))
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(Space.s2))
                         com.mtgscanner.ui.components.QuietButton(
                             onClick = {
                                 picking = item

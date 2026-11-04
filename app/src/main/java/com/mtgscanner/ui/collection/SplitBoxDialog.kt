@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -52,11 +53,11 @@ internal fun SplitBoxDialog(box: BoxSummary, cards: List<CollectionCard>?, onSpl
                     Text("This box can't split further.")
                 } else {
                     Text("Second box starts at", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(Modifier.height(Space.s2))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         letters.forEach { l -> SelectPill(l.toString(), l == at, { picked = l }) }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Space.s3))
                     if (cards == null) {
                         Text("Counting…", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     } else {
@@ -64,7 +65,7 @@ internal fun SplitBoxDialog(box: BoxSummary, cards: List<CollectionCard>?, onSpl
                         val from = rules.nameFrom ?: "A"
                         val to = rules.nameTo ?: "Z"
                         HalfRow("$from–${at - 1}", first + outside)
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(Space.s2))
                         HalfRow("$at–$to", second)
                     }
                 }
@@ -80,7 +81,7 @@ internal fun SplitBoxDialog(box: BoxSummary, cards: List<CollectionCard>?, onSpl
 @Composable
 private fun HalfRow(range: String, copies: Int) {
     Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3)) {
             Text(range, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(if (copies == 1) "1 card" else "$copies cards", style = MaterialTheme.typography.labelLarge, color = Palette.Text)
         }

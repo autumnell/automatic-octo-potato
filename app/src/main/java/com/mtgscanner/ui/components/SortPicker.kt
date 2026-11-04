@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -39,18 +40,18 @@ fun SortPicker(key: String, onKey: (String) -> Unit) {
     val layout = BoxLayout.of(key)
     val preset = SortPreset.of(key)
     var custom by remember { mutableStateOf(preset == null && layout.needsFacts) }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         SelectPill("None", !custom && !layout.needsFacts, { custom = false; onKey("") })
         SortPreset.ALL.forEach { p -> SelectPill(p.label, !custom && preset == p, { custom = false; onKey(p.key) }) }
         SelectPill("Custom", custom, { custom = true })
     }
     if (!custom) return
     val levels = layout.levels
-    Column(Modifier.padding(top = 12.dp)) {
+    Column(Modifier.padding(top = Space.s3)) {
         // One more level than is picked, up to the most a box can have.
         for (i in 0 until minOf(levels.size + 1, BoxLayout.MAX_LEVELS)) {
             Heading(if (i == 0) "Dividers" else "Then")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("None", levels.size <= i, { onKey(BoxLayout(levels.take(i), layout.order).key) })
                 Divider.entries.filter { it != Divider.NONE && it !in levels.take(i) }.forEach { d ->
                     SelectPill(d.label, levels.getOrNull(i) == d, {
@@ -58,10 +59,10 @@ fun SortPicker(key: String, onKey: (String) -> Unit) {
                     })
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
         }
         Heading("Cards behind each divider")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             CardOrder.entries.forEach { o -> SelectPill(o.label, layout.order == o, { onKey(layout.copy(order = o).key) }) }
         }
     }
@@ -69,5 +70,5 @@ fun SortPicker(key: String, onKey: (String) -> Unit) {
 
 @Composable
 private fun Heading(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(bottom = 6.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(bottom = Space.s2))
 }

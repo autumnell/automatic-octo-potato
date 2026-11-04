@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -55,7 +56,7 @@ fun PlaceholderRows(
     val a = pulse()
     Column(
         modifier.fillMaxWidth().graphicsLayer { alpha = a.value },
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(Space.s2),
     ) {
         repeat(count) {
             Box(Modifier.fillMaxWidth().height(rowHeight).clip(RoundedCornerShape(Corners.Medium)).background(color))
@@ -75,10 +76,10 @@ fun PlaceholderCards(
     val perRow = columns.coerceAtLeast(1)
     Column(
         modifier.fillMaxWidth().graphicsLayer { alpha = a.value },
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(Space.s2),
     ) {
         repeat((count + perRow - 1) / perRow) { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 repeat(perRow) { col ->
                     val shown = row * perRow + col < count
                     Box(
@@ -110,7 +111,7 @@ fun PlaceholderBlock(
 fun PlaceholderPage(modifier: Modifier = Modifier, color: Color = Palette.Surface) {
     Column(modifier.fillMaxWidth()) {
         PlaceholderBlock(320.dp, color = color)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Space.s3))
         PlaceholderRows(3, color = color)
     }
 }

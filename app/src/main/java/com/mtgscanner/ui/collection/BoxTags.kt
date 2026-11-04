@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -85,9 +86,9 @@ fun BoxQrScanSheet(onBox: (Long) -> Unit, onDismiss: () -> Unit) {
     var wrong by remember { mutableStateOf(false) }
     var handled by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Scan a box label", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             Box(
                 Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(Corners.Medium)).background(Color.Black),
                 contentAlignment = Alignment.Center,
@@ -109,7 +110,7 @@ fun BoxQrScanSheet(onBox: (Long) -> Unit, onDismiss: () -> Unit) {
                 if (wrong) "That's not a box code" else "Point at the QR code on a box",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (wrong) Palette.GoldText else Palette.Muted,
-                modifier = Modifier.padding(vertical = 12.dp),
+                modifier = Modifier.padding(vertical = Space.s3),
             )
         }
     }

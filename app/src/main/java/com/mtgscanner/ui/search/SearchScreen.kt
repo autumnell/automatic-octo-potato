@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.pinchToResize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -179,10 +180,10 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
     val closeKeyboard = com.mtgscanner.ui.components.rememberKeyboardCloser()
     Column(Modifier.fillMaxSize().nestedScroll(closeKeyboard).nestedScroll(collapse.connection)) {
         com.mtgscanner.ui.components.CollapsingHeader(collapse) {
-            Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = Space.s4, vertical = Space.s3)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(start = 16.dp),
+                        Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(start = Space.s4),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.weight(1f)) {
@@ -201,30 +202,30 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         if (ui.query.isNotEmpty()) {
                             IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
                         } else {
-                            Spacer(Modifier.width(16.dp))
+                            Spacer(Modifier.width(Space.s4))
                         }
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(Corners.Medium))
                             .background(Palette.Accent)
                             .clickable { focus.clearFocus(); vm.submit() }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .padding(horizontal = Space.s4, vertical = Space.s4),
                     ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
                     IconButton(onClick = vm::toggleGrid) {
                         Icon(if (ui.grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
                     }
                 }
-                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(top = Space.s3), verticalAlignment = Alignment.CenterVertically) {
                     val n = ui.filters.activeCount
                     SelectPill(
                         if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
                         leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     SelectPill("Price a list", false, { pricing = true })
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -234,24 +235,24 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                 ui.suggestions.isNotEmpty() -> LazyColumn(Modifier.fillMaxSize()) {
                     items(ui.suggestions) { name ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.pickSuggestion(name) }.padding(horizontal = 20.dp, vertical = 14.dp),
+                            Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.pickSuggestion(name) }.padding(horizontal = Space.s4, vertical = Space.s4),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(14.dp))
+                            Spacer(Modifier.width(Space.s4))
                             Text(name, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
                 ui.ranQuery == null && ui.query.isEmpty() && (ui.recent.isNotEmpty() || ui.viewed.isNotEmpty()) -> History(ui, vm)
-                ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = Space.s6))
                 ui.results.isEmpty() && ui.loading ->
-                    if (ui.grid) PlaceholderCards(9, Modifier.align(Alignment.TopCenter).padding(16.dp))
-                    else PlaceholderRows(8, Modifier.align(Alignment.TopCenter).padding(16.dp))
+                    if (ui.grid) PlaceholderCards(9, Modifier.align(Alignment.TopCenter).padding(Space.s4))
+                    else PlaceholderRows(8, Modifier.align(Alignment.TopCenter).padding(Space.s4))
                 ui.results.isEmpty() && ui.failed && ui.error != null ->
-                    EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = 24.dp), body = ui.error.orEmpty())
-                ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-                ui.results.isEmpty() -> EmptyState("No cards found", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                    EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = Space.s6), body = ui.error.orEmpty())
+                ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = Space.s6))
+                ui.results.isEmpty() -> EmptyState("No cards found", Modifier.align(Alignment.TopCenter).padding(top = Space.s6))
                 else -> Results(
                     results = ui.results, hasMore = ui.hasMore, loading = ui.loading, moreFailed = ui.moreFailed,
                     grid = ui.grid, ranLabel = ui.ranLabel, owned = owned,
@@ -297,18 +298,18 @@ private fun Results(
     LazyVerticalGrid(
         columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
         state = state,
-        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(start = Space.s3, end = Space.s3, bottom = Space.s6),
         modifier = Modifier.fillMaxSize().pinchToResize(onBigger, onSmaller),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(Modifier.padding(start = 6.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = Space.s2, top = Space.s3, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 Text(ranLabel.orEmpty(), style = MaterialTheme.typography.titleMedium, color = Palette.Text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${results.size}${if (hasMore) "+" else ""} cards", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
                 IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear results", tint = Palette.Icon) }
             }
         }
         if (note != null) item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
+            Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s2, bottom = Space.s2))
         }
         itemsIndexed(results, key = { _, c -> c.id }) { _, c ->
             // This printing's copies: a card owned only in another printing doesn't count as this one.
@@ -321,11 +322,11 @@ private fun Results(
         }
         if (loading) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                PlaceholderRows(2, Modifier.padding(6.dp))
+                PlaceholderRows(2, Modifier.padding(Space.s2))
             }
         } else if (moreFailed) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().padding(Space.s4), contentAlignment = Alignment.Center) {
                     androidx.compose.material3.TextButton(onClick = onLoadMore) { Text("Couldn't load more · Retry", color = Palette.AccentText) }
                 }
             }
@@ -337,20 +338,20 @@ private fun Results(
 private fun ResultRow(c: ScryfallCard, mine: OwnedPrinting, onClick: () -> Unit) {
     val owned = mine.count
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = Space.s1, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl, Modifier.width(46.dp), zoom = true)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Space.s2))
                 ManaCost(c.effectiveManaCost, size = 14.dp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SetMark(c.set, c.rarity)
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Space.s2))
                 Text("${c.set.uppercase()} #${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             // Copies in other printings are said apart, not counted as this one.
@@ -359,11 +360,11 @@ private fun ResultRow(c: ScryfallCard, mine: OwnedPrinting, onClick: () -> Unit)
             }
         }
         if (owned > 0) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             OwnedBadge(owned, foil = mine.printing?.foil ?: 0)
         }
         if (AppSettings.showPrices) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatMoney(c.prices.usd?.toDoubleOrNull(), c.prices.eur?.toDoubleOrNull()), style = MaterialTheme.typography.titleSmall, color = Palette.Text)
                 CardKingdom.buyPrice(c.id, foil = c.prices.usd == null && c.prices.usdFoil != null)?.let {
@@ -378,17 +379,17 @@ private fun ResultRow(c: ScryfallCard, mine: OwnedPrinting, onClick: () -> Unit)
 @Composable
 private fun History(ui: SearchUi, vm: SearchViewModel) {
     val focus = LocalFocusManager.current
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Space.s6)) {
         if (ui.viewed.isNotEmpty()) {
             item {
-                Text("Recently viewed", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp))
+                Text("Recently viewed", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s4, top = Space.s4, bottom = Space.s2))
             }
             item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 14.dp)) {
+                LazyRow(contentPadding = PaddingValues(horizontal = Space.s4)) {
                     items(ui.viewed, key = { it.id }) { v ->
-                        Column(Modifier.width(84.dp).clip(RoundedCornerShape(Corners.Small)).clickable { vm.openViewed(v) }.padding(4.dp)) {
+                        Column(Modifier.width(84.dp).clip(RoundedCornerShape(Corners.Small)).clickable { vm.openViewed(v) }.padding(Space.s1)) {
                             CardImage(v.image, Modifier.fillMaxWidth(), zoom = true)
-                            Text(v.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                            Text(v.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s1))
                         }
                     }
                 }
@@ -396,18 +397,18 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
         }
         if (ui.recent.isNotEmpty()) {
             item {
-                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, top = Space.s3), verticalAlignment = Alignment.CenterVertically) {
                     Text("Recent searches", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
                 }
             }
             items(ui.recent) { q ->
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = q === ui.recent.first(), last = q === ui.recent.last())
-                        .clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = 12.dp, vertical = 12.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first = q === ui.recent.first(), last = q === ui.recent.last())
+                        .clickable { focus.clearFocus(); vm.rerun(q) }.padding(horizontal = Space.s3, vertical = Space.s3),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(Space.s4))
                     Column {
                         Text(q.text.ifEmpty { "Filtered" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val f = q.filterLabel
@@ -417,7 +418,7 @@ private fun History(ui: SearchUi, vm: SearchViewModel) {
             }
         }
         item {
-            androidx.compose.material3.TextButton(onClick = vm::clearHistory, modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
+            androidx.compose.material3.TextButton(onClick = vm::clearHistory, modifier = Modifier.padding(start = Space.s2, top = Space.s1)) {
                 Text("Clear history", color = Palette.Muted)
             }
         }
@@ -432,23 +433,23 @@ private fun OfflineState(onRetry: () -> Unit, modifier: Modifier = Modifier) {
 
 @Composable
 private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, Int>, onOpenSet: ((String) -> Unit)?) {
-    SearchField(ui.setFilter, vm::setSetFilter, Modifier.padding(16.dp), placeholder = "Filter sets")
+    SearchField(ui.setFilter, vm::setSetFilter, Modifier.padding(Space.s4), placeholder = "Filter sets")
     val sets = ui.sets
     if (ui.setsFailed) {
-        OfflineState(vm::retrySets, Modifier.padding(top = 24.dp))
+        OfflineState(vm::retrySets, Modifier.padding(top = Space.s6))
         return
     }
     if (sets == null) {
-        PlaceholderRows(8, Modifier.padding(horizontal = 16.dp))
+        PlaceholderRows(8, Modifier.padding(horizontal = Space.s4))
         return
     }
     val q = ui.setFilter.trim().lowercase()
     val shown = remember(sets, q) { if (q.isEmpty()) sets else sets.filter { it.name.lowercase().contains(q) || it.code.lowercase() == q } }
     if (shown.isEmpty()) {
-        EmptyState("No sets found", Modifier.padding(top = 24.dp))
+        EmptyState("No sets found", Modifier.padding(top = Space.s6))
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Space.s6)) {
         items(shown, key = { it.code }) { s ->
             SetRow(s, ownedSets[s.code.lowercase()] ?: 0) { if (onOpenSet != null) onOpenSet(s.code) else vm.openSet(s) }
         }
@@ -458,7 +459,7 @@ private fun SetsTab(ui: SearchUi, vm: SearchViewModel, ownedSets: Map<String, In
 @Composable
 private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s4).ruleBelow().padding(vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {
@@ -469,7 +470,7 @@ private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
                 modifier = Modifier.size(24.dp),
             )
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(Space.s4))
         Column(Modifier.weight(1f)) {
             Text(s.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(

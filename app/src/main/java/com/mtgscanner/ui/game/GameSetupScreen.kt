@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Space
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -107,26 +108,26 @@ fun GameSetupScreen(onPlay: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4),
         ) {
-            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(top = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 Text("Game", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 StyleMenu(style, vm::setStyle)
             }
 
             current?.let { g ->
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    Column(Modifier.padding(horizontal = Space.s3, vertical = Space.s3)) {
                         Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
                         Text(
                             g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall,
                             color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(Space.s2))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             GradientButton("Resume", onPlay, Modifier.weight(1f))
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(Space.s2))
                             TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
                         }
                     }
@@ -134,7 +135,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
             }
 
             // The setup as one line: tap a word to change it.
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             val words = buildList {
                 add(format.label); add(if (players == 1) "1 player" else "$players players"); add("$life life")
                 if (format.commanderDamage) add(if (partners) "partners" else "no partners")
@@ -165,25 +166,25 @@ fun GameSetupScreen(onPlay: () -> Unit) {
             }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             TablePreview(players, life, names, onRename = { i, v -> names[i] = v })
-            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth().padding(top = Space.s1), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { players-- }, enabled = players > 1) { Text("− Seat") }
                 TextButton(onClick = { players++ }, enabled = players < Player.MAX_PLAYERS) { Text("+ Seat") }
             }
 
             if (last != null) {
                 SameAsLast(last, names) { begin(last.format, last.players, last.life, last.partners) }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
             }
             StatsCard(records, onOpen = { showStats = true })
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
         }
         // Pinned under the scroll so it's always in reach.
         GradientButton(
             if (current != null) "Start a new game" else "Start",
             { begin(format, players, life, partners) },
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
         )
     }
 
@@ -211,7 +212,7 @@ private fun Pick(style: TextStyle, text: String, options: List<String>, onPick: 
             style = style.copy(textDecoration = TextDecoration.Underline),
             maxLines = 1, softWrap = false,
             color = Palette.Text,
-            modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { open = true }.padding(horizontal = 2.dp, vertical = 4.dp),
+            modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { open = true }.padding(horizontal = Space.s1, vertical = Space.s1),
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEachIndexed { i, o -> DropdownMenuItem(text = { Text(o) }, onClick = { open = false; onPick(i) }) }
@@ -221,7 +222,7 @@ private fun Pick(style: TextStyle, text: String, options: List<String>, onPick: 
 
 @Composable
 private fun Dot(style: TextStyle) {
-    Text(" · ", style = style, maxLines = 1, color = Palette.Muted, modifier = Modifier.padding(vertical = 4.dp))
+    Text(" · ", style = style, maxLines = 1, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s1))
 }
 
 /** The table seats laid out the way the life counter will show them, with names to type on each seat. */
@@ -288,7 +289,7 @@ private fun TablePreview(players: Int, life: Int, names: List<String>, onRename:
 /** One seat: the player's color, their life, and their name to type in. */
 @Composable
 private fun Seat(i: Int, value: String, life: Int, onChange: (String) -> Unit, modifier: Modifier) {
-    Box(modifier.clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]).padding(horizontal = 10.dp, vertical = 6.dp)) {
+    Box(modifier.clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]).padding(horizontal = Space.s3, vertical = Space.s2)) {
         Text(
             "$life", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = PlexMonoText),
             color = Color.White, modifier = Modifier.align(Alignment.Center),
@@ -312,7 +313,7 @@ private fun Seat(i: Int, value: String, life: Int, onChange: (String) -> Unit, m
 private fun SameAsLast(last: LastSetup, names: List<String>, onStart: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface)
-            .clickable(onClick = onStart).padding(horizontal = 12.dp, vertical = 10.dp),
+            .clickable(onClick = onStart).padding(horizontal = Space.s3, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -334,7 +335,7 @@ private fun StyleMenu(style: TableStyle, onPick: (TableStyle) -> Unit) {
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "More", tint = Palette.Icon) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Text("Table style", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            Text("Table style", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s3, vertical = Space.s2))
             TableStyle.entries.forEach { t ->
                 DropdownMenuItem(
                     text = { Text(t.label) },
