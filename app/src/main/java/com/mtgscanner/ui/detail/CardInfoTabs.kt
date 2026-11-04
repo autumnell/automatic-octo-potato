@@ -286,7 +286,8 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
                             PrintingRow(
                                 p,
                                 current = p.id == c.scryfallId,
-                                ownedCount = owned[p.id] ?: 0,
+                                ownedCount = owned[p.id]?.first ?: 0,
+                                ownedFoil = owned[p.id]?.second ?: 0,
                                 onSwitch = { vm.changePrinting(p) },
                             )
                         }
@@ -317,7 +318,7 @@ private fun SetHeader(code: String, name: String, icon: String?) {
 }
 
 @Composable
-private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSwitch: () -> Unit) {
+private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSwitch: () -> Unit, ownedFoil: Int = 0) {
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     Box {
@@ -349,7 +350,7 @@ private fun PrintingRow(p: ScryfallCard, current: Boolean, ownedCount: Int, onSw
                 }
             }
             if (ownedCount > 0) {
-                OwnedBadge(ownedCount)
+                OwnedBadge(ownedCount, foil = ownedFoil)
                 Spacer(Modifier.width(6.dp))
             }
             if (AppSettings.showPrices) {

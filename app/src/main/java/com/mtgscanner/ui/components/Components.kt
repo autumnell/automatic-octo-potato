@@ -348,18 +348,24 @@ fun CardTile(
 
 /** Small "✓ 3" badge marking a card you already own. */
 @Composable
-fun OwnedBadge(count: Int, modifier: Modifier = Modifier) {
+fun OwnedBadge(count: Int, modifier: Modifier = Modifier, foil: Int = 0) {
+    // Foils are said apart: "2 · 1 foil", or "1 foil" when every copy is.
+    val text = when {
+        foil <= 0 -> "$count"
+        foil >= count -> "$count foil"
+        else -> "$count · $foil foil"
+    }
     Row(
         modifier
             .clip(RoundedCornerShape(Corners.Small))
             .background(Palette.Accent)
             .padding(horizontal = 6.dp, vertical = 2.dp)
-            .semantics(mergeDescendants = true) { contentDescription = "You own $count" },
+            .semantics(mergeDescendants = true) { contentDescription = "You own $text" },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Outlined.Check, null, tint = Palette.OnAccent, modifier = Modifier.size(12.dp))
         Spacer(Modifier.width(2.dp))
-        Text("$count", color = Palette.OnAccent, style = MaterialTheme.typography.labelSmall)
+        Text(text, color = Palette.OnAccent, style = MaterialTheme.typography.labelSmall)
     }
 }
 

@@ -66,6 +66,7 @@ object WhatsNew {
         219 to "More room and less in the way: the tab bar and headers slide off while you scroll, removing a card no longer asks first (Undo is there), pop-ups are slimmer and swipe away, wishlist, trade and goal rows swipe, totals count up, and new cards glow as they land.",
         222 to "Slimmer Collection: a search bar in place of the big Browse button, a thin value bar (tap for the ring), a small \"to sort\" chip, one menu by Boxes, shorter box cards with their menu inside, a one-line totals strip, recent cards on request, a smaller price chart with 7d and 30d, and lighter titles.",
         224 to "Scanning: the frame now moves onto the card it finds and follows it, and an added card flies off to the pile from right there.",
+        226 to "Search counts the printing you're looking at, not every printing of the card, says how many are in other printings, and shows foils apart (\"2 · 1 foil\"), as do the card page's Versions.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

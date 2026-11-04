@@ -101,6 +101,7 @@ import com.mtgscanner.ui.components.formatUsd
 import com.mtgscanner.ui.components.priceSuffix
 import com.mtgscanner.ui.search.SearchViewModel
 import com.mtgscanner.ui.search.of
+import com.mtgscanner.ui.search.printingOf
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -505,7 +506,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
             onDismiss = { search.select(null) },
             onCreateBox = { newBox = true },
             onWishlist = search::wishlist,
-            owned = ownedAny.of(card)?.label,
+            owned = ownedAny.printingOf(card).label,
             decks = decks,
             onAddToDeck = search::addToDeck,
             onCreateDeck = { name -> search.createDeck(name) { pick = com.mtgscanner.ui.components.AddPick(deckId = it) } },

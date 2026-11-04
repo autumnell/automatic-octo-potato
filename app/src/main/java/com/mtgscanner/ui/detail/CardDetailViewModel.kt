@@ -399,9 +399,9 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         else all.filter { if (key.first != null) it.oracleId == key.first else it.name == key.second }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Copies owned of each printing of this card (by Scryfall id), across all boxes. */
-    val ownedPrintings: StateFlow<Map<String, Int>> = sameCardRows
-        .map { rows -> rows.groupBy { it.scryfallId }.mapValues { (_, r) -> r.sumOf { it.quantity } } }
+    /** Copies owned of each printing of this card (by Scryfall id), across all boxes: (all copies, foil ones). */
+    val ownedPrintings: StateFlow<Map<String, Pair<Int, Int>>> = sameCardRows
+        .map { rows -> rows.groupBy { it.scryfallId }.mapValues { (_, r) -> r.sumOf { it.quantity } to r.filter { it.foil }.sumOf { it.quantity } } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** (box id, copies) for every row of this card, any printing: the "where are my copies" line. */

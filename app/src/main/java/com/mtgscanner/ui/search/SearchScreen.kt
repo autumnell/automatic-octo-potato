@@ -125,19 +125,19 @@ fun SearchScreen(
 
     ui.selected?.let { card ->
         if (!ui.showPrintings) {
-            val mine = owned.of(card)
+            val mine = owned.printingOf(card)
             AddCardSheet(
                 card = card,
                 boxes = boxes,
                 // Default to where you already keep this card.
-                defaultBoxId = mine?.boxId?.takeIf { id -> boxes.any { it.id == id } } ?: vm.lastBoxId,
+                defaultBoxId = mine.boxId?.takeIf { id -> boxes.any { it.id == id } } ?: vm.lastBoxId,
                 onAdd = vm::add,
                 onChangePrinting = vm::openPrintings,
                 onDismiss = { vm.select(null) },
                 onCreateBox = { newBox = true },
                 onWishlist = vm::wishlist,
-                owned = mine?.label,
-                onOwned = mine?.rowId?.let { id -> onOpenCard?.let { open -> { vm.select(null); open(id) } } },
+                owned = mine.label,
+                onOwned = mine.rowId?.let { id -> onOpenCard?.let { open -> { vm.select(null); open(id) } } },
                 decks = decks,
                 onAddToDeck = vm::addToDeck,
                 onCreateDeck = { name -> vm.createDeck(name) { pick = com.mtgscanner.ui.components.AddPick(deckId = it) } },
@@ -311,11 +311,12 @@ private fun Results(
             Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
         }
         itemsIndexed(results, key = { _, c -> c.id }) { _, c ->
-            val have = owned.of(c)?.count ?: 0
+            // This printing's copies: a card owned only in another printing doesn't count as this one.
+            val mine = owned.printingOf(c)
             if (grid) {
-                CardTile(c.smallImageUrl, c.name, scryfallPriceShort(c, foil = c.prices.usd == null && c.prices.usdFoil != null), owned = have, onClick = { onSelect(c) })
+                CardTile(c.smallImageUrl, c.name, scryfallPriceShort(c, foil = c.prices.usd == null && c.prices.usdFoil != null), owned = mine.count, onClick = { onSelect(c) })
             } else {
-                ResultRow(c, have) { onSelect(c) }
+                ResultRow(c, mine) { onSelect(c) }
             }
         }
         if (loading) {
@@ -333,7 +334,8 @@ private fun Results(
 }
 
 @Composable
-private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
+private fun ResultRow(c: ScryfallCard, mine: OwnedPrinting, onClick: () -> Unit) {
+    val owned = mine.count
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).ruleBelow().padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -351,10 +353,14 @@ private fun ResultRow(c: ScryfallCard, owned: Int, onClick: () -> Unit) {
                 Spacer(Modifier.width(6.dp))
                 Text("${c.set.uppercase()} #${c.collectorNumber} · ${c.effectiveTypeLine}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            // Copies in other printings are said apart, not counted as this one.
+            if (mine.others > 0) {
+                Text("${mine.others} in other printings", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
         if (owned > 0) {
             Spacer(Modifier.width(8.dp))
-            OwnedBadge(owned)
+            OwnedBadge(owned, foil = mine.printing?.foil ?: 0)
         }
         if (AppSettings.showPrices) {
             Spacer(Modifier.width(8.dp))
