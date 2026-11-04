@@ -63,6 +63,7 @@ object WhatsNew {
         213 to "A more polished feel: cards, decks and boxes give a little when pressed, lists slide when cards come and go, loading shows quiet placeholders, and pop-up messages match the app's colours.",
         215 to "A tidier card panel when scanning: cost beside the name, a bigger price, a Normal/Foil switch and quieter buttons.",
         216 to "Collection lists give the cards more room: the search, filters and recent cards slide away as you scroll down and come back when you scroll up.",
+        219 to "More room and less in the way: the tab bar and headers slide off while you scroll, removing a card no longer asks first (Undo is there), pop-ups are slimmer and swipe away, wishlist, trade and goal rows swipe, totals count up, and new cards glow as they land.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

@@ -56,7 +56,7 @@ fun PreconsSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
         list.orEmpty().filter { (!onlyCommander || it.isCommander) && (q.isEmpty() || it.name.contains(q, true) || it.code.equals(q, true)) }
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
             Text("Precon decks", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
             SearchField(query, { query = it }, placeholder = "Search precons")
@@ -97,7 +97,7 @@ private fun PreconDeckSheet(name: String, deck: PreconDeck?, failed: Boolean, vm
     val owned by vm.ownedByName.collectAsStateWithLifecycle()
     val clip = LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
             Text(name, style = MaterialTheme.typography.titleLarge)
             when {
                 failed -> EmptyState("Couldn't get this deck", Modifier.padding(vertical = 24.dp))

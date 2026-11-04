@@ -33,7 +33,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -164,13 +163,13 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                 enabled = !ui.busy && (ui.give.isNotEmpty() || ui.get.isNotEmpty()),
             )
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        com.mtgscanner.ui.components.SlimSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 
     if (picking != null) {
         ModalBottomSheet(onDismissRequest = { picking = null }, containerColor = Palette.Surface) {
             var q by remember { mutableStateOf("") }
-            Column(Modifier.padding(horizontal = 16.dp)) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
                 SearchField(q, { q = it; if (picking == "get") vm.suggest(it) }, placeholder = if (picking == "give") "Search binder" else "Search any card")
             }
             LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
@@ -237,20 +236,27 @@ private fun SideHeader(title: String, onAdd: () -> Unit) {
 
 @Composable
 private fun TradeRow(item: TradeItem, vm: TradeViewModel, first: Boolean, last: Boolean, onEdit: (() -> Unit)? = null, modifier: Modifier = Modifier) {
-    Row(
-        modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last)
-            .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    // Swipe left to take the card out of the trade.
+    com.mtgscanner.ui.components.SwipeActions(
+        start = null,
+        end = com.mtgscanner.ui.components.SwipeAction("Remove", Icons.Outlined.Close, Palette.Danger) { vm.setQty(item, 0) },
+        modifier = modifier.padding(horizontal = 16.dp),
     ) {
-        CardImage(item.imageUrl, Modifier.width(40.dp), zoom = true, onTap = onEdit)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val prices = if (AppSettings.showPrices) " · ${formatMoney(item.price, item.eur)}" + item.buyPrice?.let { " · CK buys ${formatUsd(it)}" }.orEmpty() else ""
-            Text((if (item.card != null) item.getLabel() else item.set) + prices, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(
+            Modifier.fillMaxWidth().panelRow(first, last)
+                .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CardImage(item.imageUrl, Modifier.width(40.dp), zoom = true, onTap = onEdit)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val prices = if (AppSettings.showPrices) " · ${formatMoney(item.price, item.eur)}" + item.buyPrice?.let { " · CK buys ${formatUsd(it)}" }.orEmpty() else ""
+                Text((if (item.card != null) item.getLabel() else item.set) + prices, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            QuantityStepper(item.qty, onChange = { vm.setQty(item, it.coerceAtMost(item.owned?.quantity ?: 99)) })
+            IconButton(onClick = { vm.setQty(item, 0) }) { Icon(Icons.Outlined.Close, "Remove", tint = Palette.Icon) }
         }
-        QuantityStepper(item.qty, onChange = { vm.setQty(item, it.coerceAtMost(item.owned?.quantity ?: 99)) })
-        IconButton(onClick = { vm.setQty(item, 0) }) { Icon(Icons.Outlined.Close, "Remove", tint = Palette.Icon) }
     }
 }
 

@@ -75,7 +75,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -309,7 +308,7 @@ internal fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
                         Spacer(Modifier.height(8.dp))
                         CardImage(c.imageUrl, Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally))
                         Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
+                        com.mtgscanner.ui.components.QuietButton(
                             onClick = {
                                 picking = item
                                 printings = null

@@ -231,7 +231,7 @@ fun SetPickSheet(vm: ScanViewModel) {
     var query by remember { mutableStateOf("") }
     val lock = SortPrefs.setLock
     ModalBottomSheet(onDismissRequest = { vm.showSetLock(false) }, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
             Text("Set", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(

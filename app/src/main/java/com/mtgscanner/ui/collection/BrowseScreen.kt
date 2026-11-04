@@ -88,6 +88,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.mtgscanner.ui.components.CollapsingHeader
+import com.mtgscanner.ui.components.flashOnce
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextAlign
@@ -240,7 +241,8 @@ fun BrowseScreen(
     val collapse = com.mtgscanner.ui.components.rememberCollapseState()
     // A new search or sort starts from the top, with the header showing.
     LaunchedEffect(f.query, f.sort, f.group, f.activeCount) { collapse.show() }
-    Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding().nestedScroll(collapse.connection)) {
+    val closeKeyboard = com.mtgscanner.ui.components.rememberKeyboardCloser()
+    Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding().nestedScroll(closeKeyboard).nestedScroll(collapse.connection)) {
         val pickedRows = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) } }
         val pickedEur = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitEur(), it.quantity, it.proxy) } }
         val currency = AppSettings.currency
@@ -717,7 +719,7 @@ fun SearchField(
             )
         }
         if (value.isNotEmpty()) {
-            Icon(Icons.Outlined.Clear, "Clear", tint = Palette.Icon, modifier = Modifier.size(20.dp).clickable { onChange("") })
+            IconButton(onClick = { onChange("") }) { Icon(Icons.Outlined.Clear, "Clear", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
         }
         trailing?.invoke()
     }
@@ -768,6 +770,10 @@ private fun CardGrid(
     var railLetter by remember { mutableStateOf<String?>(null) }
     // Card ids in the order shown, for selecting a run by dragging.
     val order = remember(groups) { groups.flatMap { g -> g.second.map { it.id } } }
+    // Cards that turn up while the list is open (just added or moved in) glow for a moment; a big change,
+    // such as a new search, doesn't.
+    val newIds = remember { com.mtgscanner.ui.components.NewIds() }
+    val justAdded = remember(order) { newIds.update(order).takeIf { it.size <= 3 } ?: emptySet() }
     val selectedNow by rememberUpdatedState(selected)
     Column(modifier.fillMaxSize()) {
     if (!grid) ListHeader(end = (if (jumpBar) 28.dp else 10.dp) + 6.dp)
@@ -788,7 +794,7 @@ private fun CardGrid(
                     }
                 }
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
-                    Box(Modifier.animateItem()) {
+                    Box(Modifier.animateItem().flashOnce(c.id in justAdded)) {
                     if (grid) {
                         CardTile(
                             c.smallImageUrl ?: c.imageUrl, c.name, cardPriceShort(c), quantity = c.quantity, foil = c.foil,

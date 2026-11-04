@@ -102,9 +102,9 @@ internal fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Co
         matchWants(DecklistParser.parse(text), binder, { it.name }, { it.setCode }, { it.quantity })
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Their want list", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text("Their want list", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 FromPhotoButton({ text = appendList(text, it) })
             }
             OutlinedTextField(
@@ -119,7 +119,7 @@ internal fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Co
         LazyColumn(Modifier.fillMaxWidth().height(300.dp)) {
             when {
                 text.isBlank() -> item { Text("One card per line", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
-                matches.isEmpty() -> item { Text("No matches in this binder", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
+                matches.isEmpty() -> item { com.mtgscanner.ui.components.EmptyState("No matches in this binder") }
                 else -> items(matches, key = { it.first.id }) { m ->
                     val c = m.first
                     val sub = "${c.setCode} · ×${m.second}" + if (AppSettings.showPrices) " · ${cardPrice(c)}" else ""

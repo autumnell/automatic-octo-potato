@@ -71,7 +71,13 @@ fun ColorDot(identity: String, modifier: Modifier = Modifier) {
  * and then only the card count shows.
  */
 @Composable
-fun StatsStrip(cards: String, value: String?, week: String?, modifier: Modifier = Modifier) {
+fun StatsStrip(
+    cards: String, value: String?, week: String?, modifier: Modifier = Modifier,
+    /** When given, the card count and value count to their new numbers instead of jumping. */
+    cardCount: Int? = null,
+    valueNumber: Double? = null,
+    valueFormat: ((Double) -> String)? = null,
+) {
     val cells = buildList {
         add("Cards" to cards)
         if (value != null) add("Value" to value)
@@ -87,7 +93,13 @@ fun StatsStrip(cards: String, value: String?, week: String?, modifier: Modifier 
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(label, style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = Palette.Muted, maxLines = 1)
-                Text(v, style = monoStyle(15.sp), color = Palette.Text, maxLines = 1)
+                when {
+                    label == "Cards" && cardCount != null ->
+                        com.mtgscanner.ui.components.RollingText(cardCount.toDouble(), { "%,d".format(it.toLong()) }, monoStyle(15.sp), Palette.Text)
+                    label == "Value" && valueNumber != null && valueFormat != null ->
+                        com.mtgscanner.ui.components.RollingText(valueNumber, valueFormat, monoStyle(15.sp), Palette.Text)
+                    else -> Text(v, style = monoStyle(15.sp), color = Palette.Text, maxLines = 1)
+                }
             }
         }
     }

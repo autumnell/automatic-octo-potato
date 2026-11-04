@@ -121,7 +121,7 @@ fun BoxPickDialog(boxes: List<CardBox>, vm: ScanViewModel) {
         containerColor = Palette.Surface,
         title = { Text("Check a box") },
         text = {
-            if (boxes.isEmpty()) Text("No boxes yet.", color = Palette.Muted)
+            if (boxes.isEmpty()) Text("No boxes yet", color = Palette.Muted)
             else Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
                 boxes.forEach { b ->
                     Text(

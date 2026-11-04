@@ -66,14 +66,7 @@ import com.mtgscanner.ui.components.ruleBelow
 @Composable
 internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
     if (goals.isEmpty()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("No goals yet", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-            TextButton(onClick = onGoals) {
-                Icon(Icons.Outlined.Add, null)
-                Spacer(Modifier.width(4.dp))
-                Text("Add a goal")
-            }
-        }
+        com.mtgscanner.ui.components.EmptyState("No goals yet", action = "Add a goal", onAction = onGoals)
         return
     }
     // On a panel, like Stats. Tapping a goal opens that goal, not just the list.

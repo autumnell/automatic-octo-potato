@@ -179,7 +179,7 @@ fun CoverPickerDialog(
         title = { Text("Cover for $boxName", maxLines = 1, overflow = TextOverflow.Ellipsis) },
         text = {
             if (sorted.isEmpty()) {
-                Text("No cards with art yet.", color = Palette.Muted)
+                Text("No cards with art yet", color = Palette.Muted)
             } else {
                 LazyColumn(Modifier.heightIn(max = 420.dp)) {
                     items(sorted, key = { it.id }) { c ->

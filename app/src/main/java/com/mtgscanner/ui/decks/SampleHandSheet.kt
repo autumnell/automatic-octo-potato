@@ -16,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -98,7 +97,7 @@ fun SampleHandSheet(lines: List<DeckCheckLine>, leads: List<String>, onDismiss: 
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
+                com.mtgscanner.ui.components.QuietButton(
                     onClick = { state = SampleHandMath.mulligan(state, random) },
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(Corners.Medium),
