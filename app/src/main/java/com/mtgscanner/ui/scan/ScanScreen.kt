@@ -229,6 +229,8 @@ fun ScanScreen(
     // Lines added since the screen opened slide into the pile; older ones are already there.
     val startKey = remember { state.session.maxOfOrNull { it.key } ?: 0L }
     var flight by remember { mutableStateOf<Flight?>(null) }
+    // Where the frame sits on the card, so an added card flies off from there.
+    val tracked = remember { TrackedCard() }
     var lastLine by remember { mutableStateOf(state.session.firstOrNull()?.let { it.key to it.count }) }
     // Bumps once per new add on this screen; drives the frame flash and box callout without replaying them on return.
     var addTick by remember { mutableStateOf(0) }
@@ -248,13 +250,16 @@ fun ScanScreen(
             if (e != null && isNewAdd(lastLine, line)) {
                 // One frame so the pile has laid out with the new card before aiming at it.
                 withFrameNanos { }
-                val from = hintTargets["frame"]
+                // From the card where the frame found it (at its tilt), else from the guide.
+                val pose = tracked.pose()
+                val from = pose?.first ?: hintTargets["frame"]
                 val to = hintTargets["fan"] ?: hintTargets["list"]
                 if (from != null && to != null) {
                     flight = Flight(
                         id = addTick,
                         imageUrl = e.card.imageUrl,
                         from = from,
+                        angle = pose?.second ?: 0f,
                         to = to,
                         label = e.where.ifEmpty { "Added" } + if (e.full) " · Full" else "",
                         color = if (e.deckId != 0L) 0 else state.lastBoxColor,
@@ -288,12 +293,13 @@ fun ScanScreen(
             if (hasPermission && !needsBox) Box(Modifier.fillMaxSize().background(Color.Black)) {
                 CameraPreview(vm = vm, torch = state.torch)
                 if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
-                else FrameGuide(
+                else TrackingFrame(
                     found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused,
+                    tracked = tracked,
+                    guide = Modifier.hintTarget("frame"),
                     // Flashes in the color of the box the card goes to, so a pile can be sorted by color.
                     flashColor = if (state.lastBoxName != null && state.lastBoxColor != 0) com.mtgscanner.ui.components.boxColor(state.lastBoxColor)
                     else Palette.Accent,
-                    modifier = Modifier.align(Alignment.Center).hintTarget("frame"),
                 )
             } else Box(Modifier.fillMaxSize().background(Palette.Background))
             Column(Modifier.fillMaxSize()) {
@@ -328,14 +334,6 @@ fun ScanScreen(
                     }
 
                 if (hasPermission && !needsBox) {
-                        if (state.pageMode) PageGuide(Modifier.align(Alignment.Center))
-                        else FrameGuide(
-                            found = state.current != null, flash = if (state.settings.flash) addTick else 0, paused = state.paused,
-                            // Flashes in the color of the box the card goes to, so a pile can be sorted by color.
-                            flashColor = if (state.lastBoxName != null && state.lastBoxColor != 0) com.mtgscanner.ui.components.boxColor(state.lastBoxColor)
-                            else Palette.Accent,
-                            modifier = Modifier.align(Alignment.Center).hintTarget("frame"),
-                        )
                         Column(
                             Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -423,7 +421,7 @@ fun ScanScreen(
                         }
                         if (!needsBox) {
                             // The last card hides while a new one is on screen.
-                            if (state.current == null && state.offline == null) {
+                            if (state.current == null && state.offline == null && state.session.isNotEmpty()) {
                                 Spacer(Modifier.height(8.dp))
                                 // Stack mode drops a copy that looks just like the last one; "+1" adds it.
                                 val sameAgain = if ((state.stack || state.autoAdd) && state.target != ScanTarget.CHECK && state.session.isNotEmpty()) vm::sameAgain else null

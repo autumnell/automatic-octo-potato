@@ -72,6 +72,8 @@ class CardTextAnalyzer(
     private val setLock: () -> String? = { null },
     /** The centering check is on: each read card's border widths are measured ([CenteringCheck]). */
     private val wantsCentering: () -> Boolean = { false },
+    /** Where the card is, for the frame on screen to follow: its corners in the frame's own pixels, or null when gone. */
+    private val onQuad: (quad: FloatArray?, w: Int, h: Int, rotation: Int) -> Unit = { _, _, _, _ -> },
 ) : ImageAnalysis.Analyzer {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -262,6 +264,9 @@ class CardTextAnalyzer(
                     runCatching { onFocus((o.left + o.right) / 2f, (o.top + o.bottom) / 2f, image.width, image.height) }
                 }
             }
+            // The frame on screen follows the card; an empty guide sends it back.
+            result?.second?.quad?.let { q -> runCatching { onQuad(q.copyOf(), image.width, image.height, rotation) } }
+            if (result?.first?.state == GateState.EMPTY) runCatching { onQuad(null, image.width, image.height, rotation) }
             if (result != null && !result.first.runOcr) {
                 if (result.first.state == GateState.EMPTY && now - lastRun >= minIntervalMs) {
                     // Nothing in the guide: tell the scanner, so it knows the card has left.
@@ -338,6 +343,7 @@ class CardTextAnalyzer(
                     // Nothing card-shaped (63:88, upright or sideways) in the guide: no text is read from it.
                     var quad = a.quad ?: run { noShape(SystemClock.elapsedRealtime()); tracks.update(emptyList()); return@launch }
                     noShapeSince = 0L
+                    runCatching { onQuad(quad.copyOf(), frameW, frameH, rotation) }
                     val track = tracks.update(listOf(quad))[0]
                     val draw = CardParts.drawer({ picture() }, cv)
                     val cjk = CjkNames.scriptFor(scanLang())?.takeIf { ForeignReading.ready }

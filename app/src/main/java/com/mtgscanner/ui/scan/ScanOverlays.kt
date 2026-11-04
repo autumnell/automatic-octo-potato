@@ -274,36 +274,6 @@ internal fun RoundIconButton(
     ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
 }
 
-/** Card-shaped frame. Turns orange when a card is recognized and flashes when one is added. */
-@Composable
-internal fun FrameGuide(found: Boolean, flash: Int, paused: Boolean, modifier: Modifier, flashColor: Color = Palette.Accent) {
-    val color by animateColorAsState(
-        when {
-            paused -> Color.White.copy(alpha = 0.25f)
-            found -> Palette.Accent
-            else -> Color.White.copy(alpha = 0.55f)
-        },
-        label = "frame",
-    )
-    var flashing by remember { mutableStateOf(false) }
-    LaunchedEffect(flash) {
-        if (flash > 0) {
-            flashing = true
-            kotlinx.coroutines.delay(220)
-            flashing = false
-        }
-    }
-    val fill by animateFloatAsState(if (flashing) 0.25f else 0f, tween(200), label = "flash")
-    Box(
-        modifier
-            .fillMaxWidth(0.66f)
-            .aspectRatio(63f / 88f)
-            .clip(CardShape)
-            .background(flashColor.copy(alpha = fill))
-            .border(3.dp, if (flashing) flashColor else color, CardShape),
-    )
-}
-
 @Composable
 internal fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
     Row(
