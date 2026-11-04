@@ -16,15 +16,61 @@ import kotlin.math.exp
  * An ONNX model run with ONNX Runtime: float numbers in, float numbers out, whether the model works in full or
  * half precision. The same code runs on the phone and in the tests on the build server.
  */
-class OnnxNet(file: File, threads: Int = 2) : Closeable {
+class OnnxNet(file: File, threads: Int = 2, xnnpack: Boolean = false) : Closeable {
     private val env = OrtEnvironment.getEnvironment()
     private val session: OrtSession = env.createSession(
         file.path,
         OrtSession.SessionOptions().apply {
-            setIntraOpNumThreads(threads)
+            if (xnnpack) {
+                // XNNPACK does the work on its own threads; ONNX Runtime's own pool would only compete with them.
+                addXnnpack(mapOf("intra_op_num_threads" to threads.toString()))
+                setIntraOpNumThreads(1)
+            } else {
+                setIntraOpNumThreads(threads)
+            }
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
         },
     )
+
+    /** How a model is run: ONNX Runtime threads, and whether XNNPACK (fast on ARM phones) does the work. */
+    data class Setup(val threads: Int, val xnnpack: Boolean) {
+        override fun toString() = "$threads:$xnnpack"
+
+        companion object {
+            fun parse(s: String?): Setup? = s?.split(":")?.takeIf { it.size == 2 }?.let { p ->
+                p[0].toIntOrNull()?.let { Setup(it, p[1] == "true") }
+            }
+        }
+    }
+
+    companion object {
+        /** The setups worth trying on a phone, the plain one first. */
+        fun setups(cores: Int): List<Setup> {
+            val many = cores.coerceIn(2, 4)
+            return listOfNotNull(Setup(2, false), Setup(many, false).takeIf { many > 2 }, Setup(many, true)).distinct()
+        }
+
+        /**
+         * Tries each of [setups] on [input] and keeps the quickest (each warmed up once, then timed over two runs).
+         * A setup that fails to load or run is skipped. Gives the net and the setup it uses.
+         */
+        fun fastest(file: File, setups: List<Setup>, input: FloatArray, shape: LongArray): Pair<OnnxNet, Setup>? {
+            var best: Triple<OnnxNet, Setup, Long>? = null
+            for (s in setups) {
+                val net = runCatching { OnnxNet(file, s.threads, s.xnnpack) }.getOrNull() ?: continue
+                val took = runCatching {
+                    net.run(input, shape)
+                    val t0 = System.nanoTime()
+                    repeat(2) { net.run(input, shape) }
+                    System.nanoTime() - t0
+                }.getOrNull()
+                if (took == null) { net.close(); continue }
+                val b = best
+                if (b == null || took < b.third) { b?.first?.close(); best = Triple(net, s, took) } else net.close()
+            }
+            return best?.let { it.first to it.second }
+        }
+    }
     private val inputName = session.inputNames.first()
     private val inputHalf = (session.inputInfo[inputName]?.info as? TensorInfo)?.type == OnnxJavaType.FLOAT16
 

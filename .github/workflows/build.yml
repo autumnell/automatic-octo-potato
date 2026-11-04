@@ -230,6 +230,25 @@ jobs:
           cat app/build/scan-accuracy.md 2>/dev/null || echo "No report (test skipped)"
           cat app/build/scan-accuracy.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report (test skipped)" >> "$GITHUB_STEP_SUMMARY"
 
+      # The worst misses side by side, and the phone-photo correction the test fitted, to download from the run.
+      - name: Pictures of the worst misses
+        if: always()
+        continue-on-error: true
+        run: python3 .github/scripts/miss_sheet.py
+
+      - name: Upload misses and correction
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-accuracy
+          retention-days: 7
+          path: |
+            app/build/scan-misses.png
+            app/build/card-adapter.bin
+            app/build/scan-accuracy.md
+          if-no-files-found: ignore
+
   # Grimoire's card picture model and corner model against open-card-collector's DINOv3 Small embedder and
   # YOLO11n OBB detector, on the same sample pictures. Only reports; it never fails the build. Pull requests and
   # manual runs only, as it installs PyTorch.

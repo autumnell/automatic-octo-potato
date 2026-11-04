@@ -108,6 +108,10 @@ object CardPrints {
     /** Every printing's fingerprint, inside the app when the build had it (see .github/workflows/gallery.yml). */
     private const val GALLERY_ASSET = "card-gallery.bin"
     private const val KEY_ASSET = "galleryAsset"
+    /** Fitted on the build server from real scans; only shipped when it scored better there. */
+    private const val ADAPTER_ASSET = "card-adapter.bin"
+    private const val KEY_NET_STAMP = "cardNetStamp"
+    private const val KEY_NET_SETUP = "cardNetSetup"
     private const val EXTRA = "gallery-new.bin"
 
     fun isOn(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_ON, false)
@@ -230,7 +234,8 @@ object CardPrints {
         val base = packed.inputStream().use { CardGallery.Codec.read(it) }
         val extra = File(dir, EXTRA).takeIf { it.exists() }?.let { f -> runCatching { f.inputStream().use { CardGallery.Codec.read(it) } }.getOrNull() }
         gallery = CardGallery.merge(base, extra)
-        cardNet = OnnxNet(File(dir, CARD_MODEL.file))
+        cardNet = quickestCardNet(app, File(dir, CARD_MODEL.file))
+        adapter = runCatching { app.assets.open(ADAPTER_ASSET).use { CardAdapter.read(it) } }.getOrNull()
         poseNet = runCatching { OnnxNet(File(dir, POSE_MODEL.file)) }.getOrNull()
         loadYolo()
     }
@@ -287,15 +292,20 @@ object CardPrints {
     }
 
     /** The fingerprint of a straightened card picture ([CardPrintPrep.CARD_W] x [CardPrintPrep.CARD_H]); null when off. */
-    fun fingerprint(card: Bitmap): FloatArray? {
+    fun fingerprint(card: Bitmap, photo: Boolean = true): FloatArray? {
         val net = cardNet ?: return null
         if (!ready) return null
         val px = pixelsAt(card, CardPrintPrep.CARD_W, CardPrintPrep.CARD_H)
         return runCatching {
             val out = net.run(CardPrintPrep.cardInput(px), CardPrintPrep.cardShape).values.firstOrNull() ?: return null
-            CardGallery.unit(out)
+            val v = CardGallery.unit(out)
+            // A phone photo is corrected toward how its card's clean picture looks; a gallery picture is left as it is.
+            if (photo) adapter?.apply(v) ?: v else v
         }.getOrNull()
     }
+
+    /** The phone-photo correction ([CardAdapter]) when the app carries one. */
+    @Volatile private var adapter: CardAdapter? = null
 
     /** The four corners of the card in [picture], by the corner model; null when off or no card is clear. */
     fun corners(picture: Bitmap): FloatArray? {
@@ -343,6 +353,16 @@ object CardPrints {
         return (listOfNotNull(print) + also).mapNotNull { g.match(it, onlySet, minStandOut = t.standOut, minLead = t.lead) }.maxByOrNull { it.standOut }
     }
 
+    /**
+     * The card the picture most looks like, even when not sure enough to add: for showing while the scan settles.
+     * Null when the picture is unclear.
+     */
+    fun likely(print: FloatArray?): GalleryHit? {
+        val g = gallery ?: return null
+        return g.topCards(print ?: return null, k = 1).firstOrNull()
+            ?.takeIf { it.score >= CardGallery.AGREE_MIN && it.standOut >= CardGallery.AGREE_STAND_OUT }
+    }
+
     /** The picture's card when it is one of the [names] read ([CardGallery.agreesWith]); null otherwise. */
     fun agreesWith(print: FloatArray?, names: List<String>): GalleryHit? {
         val g = gallery ?: return null
@@ -387,7 +407,7 @@ object CardPrints {
                 }
             }.getOrNull() ?: continue
             try {
-                fingerprint(bmp)?.let { rows += CardGallery.Row(c.id, c.name, c.set, c.collectorNumber, it) }
+                fingerprint(bmp, photo = false)?.let { rows += CardGallery.Row(c.id, c.name, c.set, c.collectorNumber, it) }
             } finally {
                 bmp.recycle()
             }
@@ -414,4 +434,25 @@ object CardPrints {
     }
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /**
+     * The card picture model, run the quickest way this phone allows: more cores, or XNNPACK, can be much quicker
+     * on some phones and slower on others, so each is timed once (on a grey card) and the choice remembered for
+     * this model file. The plain setup is the fallback.
+     */
+    private fun quickestCardNet(app: Context, file: File): OnnxNet {
+        val p = prefs(app)
+        val stamp = "${file.length()}:${file.lastModified()}"
+        if (p.getString(KEY_NET_STAMP, null) == stamp) {
+            OnnxNet.Setup.parse(p.getString(KEY_NET_SETUP, null))?.let { s ->
+                runCatching { OnnxNet(file, s.threads, s.xnnpack) }.getOrNull()?.let { return it }
+            }
+        }
+        val grey = CardPrintPrep.cardInput(IntArray(CardPrintPrep.CARD_W * CardPrintPrep.CARD_H) { 0xFF808080.toInt() })
+        val cores = Runtime.getRuntime().availableProcessors()
+        val picked = runCatching { OnnxNet.fastest(file, OnnxNet.setups(cores), grey, CardPrintPrep.cardShape) }.getOrNull()
+            ?: return OnnxNet(file)
+        p.edit().putString(KEY_NET_STAMP, stamp).putString(KEY_NET_SETUP, picked.second.toString()).apply()
+        return picked.first
+    }
 }

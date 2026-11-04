@@ -61,6 +61,8 @@ import kotlinx.coroutines.launch
 data class ScanUiState(
     val status: String = "Point your camera at a card",
     val reading: String? = null,
+    /** The card the picture most looks like while it isn't sure yet, shown faintly until the scan settles. */
+    val looksLike: String? = null,
     val current: ScryfallCard? = null,
     val confident: Boolean = false,
     val lookingUp: Boolean = false,

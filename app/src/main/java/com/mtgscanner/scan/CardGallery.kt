@@ -60,12 +60,79 @@ class CardGallery(
     fun idAt(row: Int): String = ids[row]
     fun nameAt(row: Int): String = names[row]
 
+    /** A row's fingerprint as decimal numbers. */
+    fun vectorAt(row: Int): FloatArray = FloatArray(DIM) { vecs[row * DIM + it] * scales[row] }
+
     /** Cosine of [q] (unit length, [DIM] numbers) with [row]. */
     fun score(q: FloatArray, row: Int): Float {
         var s = 0f
         val base = row * DIM
         for (j in 0 until DIM) s += q[j] * vecs[base + j]
         return s * scales[row]
+    }
+
+    /** The last search's scores, kept for the same fingerprint asked again (the picture check, then the lookup). */
+    @Volatile private var lastScores: Triple<FloatArray, String?, FloatArray>? = null
+
+    /**
+     * Every printing's score for [q] (NaN outside [set], when given). The fingerprint is turned into whole numbers
+     * like the rows, so each comparison is whole-number maths, and the rows are split across the phone's cores.
+     */
+    fun scoresFor(q: FloatArray, set: String? = null): FloatArray {
+        lastScores?.let { (lq, ls, out) -> if (lq === q && ls == set) return out }
+        val qb = ByteArray(DIM)
+        val qs = quantizeInto(q, qb, 0)
+        val out = FloatArray(size)
+        val parts = PARTS.coerceAtMost(maxOf(1, size / 4096))
+        val chunk = (size + parts - 1) / parts
+        fun run(from: Int, to: Int) {
+            for (r in from until to) {
+                if (set != null && sets[r] != set) { out[r] = Float.NaN; continue }
+                val b = r * DIM
+                var acc = 0
+                var j = 0
+                while (j < DIM) {
+                    acc += qb[j] * vecs[b + j] + qb[j + 1] * vecs[b + j + 1] + qb[j + 2] * vecs[b + j + 2] + qb[j + 3] * vecs[b + j + 3]
+                    j += 4
+                }
+                out[r] = acc * qs * scales[r]
+            }
+        }
+        if (parts <= 1) run(0, size)
+        else java.util.stream.IntStream.range(0, parts).parallel().forEach { p -> run(p * chunk, minOf(size, (p + 1) * chunk)) }
+        lastScores = Triple(q, set, out)
+        return out
+    }
+
+    /**
+     * The best printing of each of the [k] best-scoring cards (by name) for [q], best first, each with how far it
+     * stands out. Only cards within [gap] of the best are looked at.
+     */
+    fun topCards(q: FloatArray, k: Int = TOP_CARDS, gap: Float = TOP_GAP, onlySet: String? = null): List<GalleryHit> {
+        if (size == 0 || q.size != DIM) return emptyList()
+        val scores = scoresFor(q, onlySet?.lowercase())
+        var bestS = -2f
+        var sum = 0.0
+        var sumSq = 0.0
+        var n = 0
+        for (s in scores) {
+            if (s.isNaN()) continue
+            sum += s; sumSq += s.toDouble() * s; n++
+            if (s > bestS) bestS = s
+        }
+        if (n == 0) return emptyList()
+        val bestRow = HashMap<String, Int>()
+        for (r in 0 until size) {
+            val s = scores[r]
+            if (s.isNaN() || s < bestS - gap) continue
+            val prev = bestRow[names[r]]
+            if (prev == null || scores[prev] < s) bestRow[names[r]] = r
+        }
+        val rows = bestRow.values.sortedByDescending { scores[it] }.take(k)
+        return rows.mapIndexed { i, r ->
+            val next = rows.getOrNull(if (i == 0) 1 else 0)?.let { scores[it] } ?: -1f
+            GalleryHit(ids[r], names[r], sets[r], numbers[r], scores[r], next, StandOut.z(scores[r], sum, sumSq, n))
+        }
     }
 
     /** Cosine of two rows: printings that reuse a picture score about 1. */
@@ -88,16 +155,15 @@ class CardGallery(
     ): GalleryHit? {
         if (size == 0 || q.size != DIM) return null
         val set = onlySet?.lowercase()
-        val scores = FloatArray(size)
+        val scores = scoresFor(q, set)
         var best = -1
         var bestS = -2f
         var sum = 0.0
         var sumSq = 0.0
         var n = 0
         for (r in 0 until size) {
-            if (set != null && sets[r] != set) { scores[r] = Float.NaN; continue }
-            val s = score(q, r)
-            scores[r] = s
+            val s = scores[r]
+            if (s.isNaN()) continue
             sum += s; sumSq += s.toDouble() * s; n++
             if (s > bestS) { bestS = s; best = r }
         }
@@ -121,8 +187,20 @@ class CardGallery(
     fun agreesWith(q: FloatArray, names: List<String>): GalleryHit? {
         if (names.isEmpty()) return null
         val hit = match(q, minScore = AGREE_MIN, minStandOut = AGREE_STAND_OUT, minLead = -2f) ?: return null
-        val faces = hit.name.split(" // ")
-        return hit.takeIf { names.any { n -> faces.any { CardTextParser.similarity(n, it) >= AGREE_NAME } } }
+        if (nameLike(hit.name, names) >= AGREE_NAME) return hit
+        // A rough read (a smudged or half-read name) can still settle a near tie: of the picture's few best cards,
+        // the one the read names clearly better than the others.
+        val top = topCards(q).filter { it.score >= AGREE_MIN }
+        if (top.size < 2) return null
+        val liked = top.map { it to nameLike(it.name, names) }.sortedByDescending { it.second }
+        val (card, like) = liked[0]
+        return card.takeIf { like >= ROUGH_NAME && like - liked[1].second >= ROUGH_LEAD }
+    }
+
+    /** How like any of the [read] names [cardName] (or one of its faces) is, 0 to 1. */
+    private fun nameLike(cardName: String, read: List<String>): Double {
+        val faces = cardName.split(" // ")
+        return read.maxOfOrNull { n -> faces.maxOf { CardTextParser.similarity(n, it) } } ?: 0.0
     }
 
     /**
@@ -176,6 +254,14 @@ class CardGallery(
         /** How close the read name must be to the picture's card (OCR slips a letter or two). */
         const val AGREE_NAME = 0.85
         const val SAME_PICTURE = 0.95f
+        /** For a rough read choosing among the picture's best cards: how many, and how close to the best they score. */
+        const val TOP_CARDS = 5
+        const val TOP_GAP = 0.1f
+        /** The rough read must be this like the card's name, and this much more like it than the next card's. */
+        const val ROUGH_NAME = 0.6
+        const val ROUGH_LEAD = 0.2
+        /** Searches are split into at most this many parts, one per core. */
+        val PARTS = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         /**
          * A picture match this clear is taken on its first frame, without waiting for a second. On 511 real phone
          * scans, every best card standing out this far and leading this much was the right one (about half of them).

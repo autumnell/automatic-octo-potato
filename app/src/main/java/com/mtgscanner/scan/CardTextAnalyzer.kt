@@ -18,6 +18,10 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -306,8 +310,11 @@ class CardTextAnalyzer(
             var small: Bitmap? = null
             var cv: CvCards.Frame? = direct
             var made: Bitmap? = null
+            // The picture fingerprint, worked out while the text is read; awaited before the frame is let go.
+            var early: Deferred<*>? = null
+            val madeLock = Any()
             // The whole frame as a Bitmap: the one handed over, or made from OpenCV's copy when first needed.
-            fun picture(): Bitmap = given ?: made ?: cv!!.toBitmap().also { made = it }
+            fun picture(): Bitmap = given ?: synchronized(madeLock) { made ?: cv!!.toBitmap().also { made = it } }
             val frameW = given?.width ?: direct!!.width
             val frameH = given?.height ?: direct!!.height
             try {
@@ -334,6 +341,13 @@ class CardTextAnalyzer(
                     val track = tracks.update(listOf(quad))[0]
                     val draw = CardParts.drawer({ picture() }, cv)
                     val cjk = CjkNames.scriptFor(scanLang())?.takeIf { ForeignReading.ready }
+                    // The picture fingerprint for the likely way up, made while the text reader works (it runs on its
+                    // own threads): when the strips settle on the same way up, the fingerprint is already there.
+                    val likely = CardQuad.uprightTurns(quad, rotation + preferredTurn).firstOrNull()
+                    if (CardPrints.ready && likely != null) {
+                        val q0 = quad
+                        early = async { runCatching { printOf(q0, likely, draw, track) } }
+                    }
                     // A found card: read just its name bar and footer, straightened and sharp.
                     val first = runCatching { readStrips(quad, rotation, draw, cjk, track) }.getOrNull()
                     // Nothing read: the outline may be a frame inside the card (showcase and borderless frames draw
@@ -364,8 +378,19 @@ class CardTextAnalyzer(
                         readBestOrientation(readable, rotation, if (a.isCard) 1.0 else GUIDE_IN_CROP, cjk)
                     }
                     if (strips != null) guess = guess.copy(glare = strips.glare)
+                    early?.await()
                     // The straightened card's art, and its set symbol, tell printings (or a textless card) apart.
                     guess = runCatching { withArt(quad, rotation, strips?.turn, guess, draw, track) }.getOrDefault(guess)
+                    // The picture is unclear though OpenCV found an outline: it may be off (a sleeve, a finger, the
+                    // card beside it). The corner model's outline is a second opinion, used when its picture is clear.
+                    val print = guess.cardPrint
+                    if (found != null && outer == null && print != null && CardPrints.likely(print) == null) {
+                        poseQuad(picture(), guide)?.takeIf { !nearlySame(it, quad) }?.let { q2 ->
+                            val t2 = CardQuad.uprightTurns(q2, rotation + preferredTurn).firstOrNull() ?: return@let
+                            val p2 = runCatching { printOf(q2, t2, draw, null) }.getOrNull() ?: return@let
+                            if (CardPrints.likely(p2) != null) guess = guess.copy(cardPrint = p2)
+                        }
+                    }
                     if (strips?.turn != null && wantsCentering()) {
                         runCatching { centeringOf(quad, strips.turn, draw) }.getOrNull()?.let { guess = guess.copy(centering = it) }
                     }
@@ -374,6 +399,8 @@ class CardTextAnalyzer(
             } catch (_: Throwable) {
                 // Skip this frame; the next one will try again.
             } finally {
+                // The fingerprint may still be drawing from this frame: let it finish before the frame goes.
+                early?.let { e -> runCatching { withContext(NonCancellable) { e.join() } } }
                 cv?.let { runCatching { it.release() } }
                 small?.recycle()
                 crop?.recycle()
@@ -382,6 +409,15 @@ class CardTextAnalyzer(
                 busy.set(false)
             }
         }
+    }
+
+    /** Two outlines whose corners are all within a few percent of the card's size of each other. */
+    private fun nearlySame(a: FloatArray, b: FloatArray): Boolean {
+        val size = kotlin.math.hypot((a[4] - a[0]).toDouble(), (a[5] - a[1]).toDouble())
+        val most = (0 until 4).maxOf { i ->
+            (0 until 4).minOf { j -> kotlin.math.hypot((a[2 * i] - b[2 * j]).toDouble(), (a[2 * i + 1] - b[2 * j + 1]).toDouble()) }
+        }
+        return most < size * 0.04
     }
 
     /** A copy of the frame turned upright, for reading loose cards (the frame bitmap itself may be reused). */

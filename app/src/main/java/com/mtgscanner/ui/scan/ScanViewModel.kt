@@ -353,7 +353,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 lights.clear()
                 _state.update {
                     it.copy(
-                        reading = null, status = if (it.autoAdd && it.current != null) it.status else "Point your camera at a card",
+                        reading = null, looksLike = null, status = if (it.autoAdd && it.current != null) it.status else "Point your camera at a card",
                         foilHint = it.foilHint && it.current != null,
                     )
                 }
@@ -380,6 +380,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         noteFrame(guess)
         lastKey = key
         _state.update { it.copy(reading = readLabel(guess)) }
+        showLooksLike(guess.cardPrint)
         // Text keeps coming but nothing matched for a few seconds: offer to keep it for later.
         if (noMatchSince > 0 && System.currentTimeMillis() - noMatchSince >= UNKNOWN_AFTER_MS) offerUnknown()
         // A stack of the same name: clearly different artwork is a different printing, so a new card.
@@ -541,7 +542,24 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     /** The newest frame had a card but no text, so an art match that finishes still applies. */
     private var lastFrameArtOnly = false
 
+    /** Picture checks for [showLooksLike], one at a time. */
+    private var looksJob: Job? = null
+
+    /** Shows the card the picture most looks like (a quick search), so the answer shows before the scan settles. */
+    private fun showLooksLike(print: FloatArray?) {
+        if (print == null || looksJob?.isActive == true || _state.value.current != null) return
+        val gen = trackGen
+        looksJob = viewModelScope.launch {
+            val name = withContext(Dispatchers.Default) {
+                runCatching { com.mtgscanner.scan.CardPrints.likely(print) }.getOrNull()
+            }?.name?.substringBefore(" // ") ?: return@launch
+            if (gen != trackGen || isPaused || _state.value.current != null) return@launch
+            if (_state.value.looksLike != name) _state.update { it.copy(looksLike = name) }
+        }
+    }
+
     private fun handleArt(guess: CardTextGuess) {
+        showLooksLike(guess.artOnlyPrints.firstOrNull())
         printPool.add(guess.artOnlyPrints)
         if (artJob?.isActive == true) return
         val gen = trackGen
@@ -1570,7 +1588,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         resetTracking()
         _state.update {
             val p = !it.paused
-            it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null, lookingUp = false)
+            it.copy(paused = p, status = if (p) "Paused" else "Point your camera at a card", reading = null, looksLike = null, lookingUp = false)
         }
     }
 

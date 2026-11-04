@@ -65,6 +65,7 @@ object WhatsNew {
         216 to "Collection lists give the cards more room: the search, filters and recent cards slide away as you scroll down and come back when you scroll up.",
         219 to "More room and less in the way: the tab bar and headers slide off while you scroll, removing a card no longer asks first (Undo is there), pop-ups are slimmer and swipe away, wishlist, trade and goal rows swipe, totals count up, and new cards glow as they land.",
         222 to "Slimmer Collection: a search bar in place of the big Browse button, a thin value bar (tap for the ring), a small \"to sort\" chip, one menu by Boxes, shorter box cards with their menu inside, a one-line totals strip, recent cards on request, a smaller price chart with 7d and 30d, and lighter titles.",
+        225 to "Quicker, surer scans: the picture is checked while the text is read, the picture search is several times faster, the card model runs the quickest way your phone allows, \"Looks like…\" shows the likely card early, a half-read name can pick between near look-alikes, and a crooked outline gets a second look.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
