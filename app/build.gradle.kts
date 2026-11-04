@@ -94,7 +94,14 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
-            all { it.maxHeapSize = "4g" }
+            all {
+                it.maxHeapSize = "4g"
+                // Full errors in the build log, which is all CI shows from here.
+                it.testLogging {
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                    showStandardStreams = System.getenv("SCREEN_PICTURES") == "1"
+                }
+            }
         }
     }
 
