@@ -53,10 +53,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,6 +70,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -180,7 +179,10 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
         Modifier.fillMaxSize().background(Palette.Background)
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, Palette.Background), endY = 1100f)),
     ) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        // The commander header slides away while the card list scrolls.
+        val collapse = com.mtgscanner.ui.components.rememberCollapseState()
+        LaunchedEffect(view, ui.editing) { collapse.show() }
+        Column(Modifier.fillMaxSize().statusBarsPadding().nestedScroll(collapse.connection)) {
             Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text(
@@ -223,11 +225,13 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                 LaunchedEffect(Unit) { runCatching { com.mtgscanner.data.SaltScores.load(ctx) } }
                 val saltScores = com.mtgscanner.data.SaltScores.scores
                 val salt = remember(ui.text, saltScores) { com.mtgscanner.data.SaltMath.deck(com.mtgscanner.util.DecklistParser.parse(ui.text), saltScores) }
-                DeckHeader(
-                    ui.format, ui.commanders, ui.leadArt, ui.issues,
-                    onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
-                    salt = salt,
-                )
+                com.mtgscanner.ui.components.CollapsingHeader(collapse) {
+                    DeckHeader(
+                        ui.format, ui.commanders, ui.leadArt, ui.issues,
+                        onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
+                        salt = salt,
+                    )
+                }
                 UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
                 when (view) {
                     1 -> {
@@ -240,7 +244,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                 }
             }
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        com.mtgscanner.ui.components.SlimSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
     ui.picker?.let { slot ->
         val first = ui.commanders.commanders.firstOrNull()?.let { ui.leadInfo[it.lowercase()] }
@@ -427,7 +431,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             }
             if (played.any { it.missing > 0 }) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(
+                    com.mtgscanner.ui.components.QuietButton(
                         onClick = vm::wishlistMissing,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(Corners.Medium),

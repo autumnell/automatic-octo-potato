@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -125,7 +124,7 @@ fun PullListView(
                 if (checked.isNotEmpty()) TextButton(onClick = onClear) { Text("Clear") }
             }
             if (onMoveChecked != null && done > 0) {
-                OutlinedButton(
+                com.mtgscanner.ui.components.QuietButton(
                     onClick = onMoveChecked,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(Corners.Medium),

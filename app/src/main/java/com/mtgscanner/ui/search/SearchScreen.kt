@@ -43,11 +43,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -120,7 +120,7 @@ fun SearchScreen(
             TabBar(ui.tab, vm::setTab)
             if (ui.tab == 0) CardsTab(ui, vm, owned) else SetsTab(ui, vm, ownedSets, onOpenSet)
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        com.mtgscanner.ui.components.SlimSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 
     ui.selected?.let { card ->
@@ -166,56 +166,6 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
     var showFilters by remember { mutableStateOf(false) }
     var pricing by remember { mutableStateOf(false) }
     if (pricing) PriceListSheet(owned, onDismiss = { pricing = false })
-    Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(start = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.weight(1f)) {
-                    if (ui.query.isEmpty()) Text("Search for card…", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
-                    BasicTextField(
-                        value = ui.query,
-                        onValueChange = vm::setQuery,
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
-                        cursorBrush = SolidColor(Palette.Accent),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { focus.clearFocus(); vm.submit() }),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (ui.query.isNotEmpty()) {
-                    IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
-                } else {
-                    Spacer(Modifier.width(16.dp))
-                }
-            }
-            Spacer(Modifier.width(10.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(Corners.Medium))
-                    .background(Palette.Accent)
-                    .clickable { focus.clearFocus(); vm.submit() }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-            ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
-            IconButton(onClick = vm::toggleGrid) {
-                Icon(if (ui.grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
-            }
-        }
-        Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            val n = ui.filters.activeCount
-            SelectPill(
-                if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
-                leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
-            )
-            Spacer(Modifier.width(8.dp))
-            SelectPill("Price a list", false, { pricing = true })
-            Spacer(Modifier.width(10.dp))
-            Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-
     if (showFilters) FilterSheet(
         filters = ui.filters,
         onChange = vm::setFilters,
@@ -223,36 +173,93 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
         onDismiss = { showFilters = false },
     )
 
-    Box(Modifier.fillMaxSize()) {
-        when {
-            ui.suggestions.isNotEmpty() -> LazyColumn(Modifier.fillMaxSize()) {
-                items(ui.suggestions) { name ->
+    // The search field and filters slide away while scrolling the results, and come back on the way up.
+    val collapse = com.mtgscanner.ui.components.rememberCollapseState()
+    LaunchedEffect(ui.ranQuery) { collapse.show() }
+    val closeKeyboard = com.mtgscanner.ui.components.rememberKeyboardCloser()
+    Column(Modifier.fillMaxSize().nestedScroll(closeKeyboard).nestedScroll(collapse.connection)) {
+        com.mtgscanner.ui.components.CollapsingHeader(collapse) {
+            Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.pickSuggestion(name) }.padding(horizontal = 20.dp, vertical = 14.dp),
+                        Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(start = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(14.dp))
-                        Text(name, style = MaterialTheme.typography.bodyLarge)
+                        Box(Modifier.weight(1f)) {
+                            if (ui.query.isEmpty()) Text("Search for card…", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
+                            BasicTextField(
+                                value = ui.query,
+                                onValueChange = vm::setQuery,
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
+                                cursorBrush = SolidColor(Palette.Accent),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus(); vm.submit() }),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        if (ui.query.isNotEmpty()) {
+                            IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+                        } else {
+                            Spacer(Modifier.width(16.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(Corners.Medium))
+                            .background(Palette.Accent)
+                            .clickable { focus.clearFocus(); vm.submit() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                    ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
+                    IconButton(onClick = vm::toggleGrid) {
+                        Icon(if (ui.grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
                     }
                 }
+                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val n = ui.filters.activeCount
+                    SelectPill(
+                        if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
+                        leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    SelectPill("Price a list", false, { pricing = true })
+                    Spacer(Modifier.width(10.dp))
+                    Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
-            ui.ranQuery == null && ui.query.isEmpty() && (ui.recent.isNotEmpty() || ui.viewed.isNotEmpty()) -> History(ui, vm)
-            ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            ui.results.isEmpty() && ui.loading ->
-                if (ui.grid) PlaceholderCards(9, Modifier.align(Alignment.TopCenter).padding(16.dp))
-                else PlaceholderRows(8, Modifier.align(Alignment.TopCenter).padding(16.dp))
-            ui.results.isEmpty() && ui.failed && ui.error != null ->
-                EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = 24.dp), body = ui.error.orEmpty())
-            ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            ui.results.isEmpty() -> EmptyState("No cards found", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
-            else -> Results(
-                results = ui.results, hasMore = ui.hasMore, loading = ui.loading, moreFailed = ui.moreFailed,
-                grid = ui.grid, ranLabel = ui.ranLabel, owned = owned,
-                note = if (ui.fromPhone && !ui.loading) "Offline · from the card list on your phone" else null,
-                onSelect = vm::select, onLoadMore = vm::loadMore, onClear = vm::clearResults,
-                onBigger = { vm.setGrid(true) }, onSmaller = { vm.setGrid(false) },
-            )
+        }
+        Box(Modifier.fillMaxSize()) {
+            when {
+                ui.suggestions.isNotEmpty() -> LazyColumn(Modifier.fillMaxSize()) {
+                    items(ui.suggestions) { name ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { focus.clearFocus(); vm.pickSuggestion(name) }.padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(14.dp))
+                            Text(name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+                ui.ranQuery == null && ui.query.isEmpty() && (ui.recent.isNotEmpty() || ui.viewed.isNotEmpty()) -> History(ui, vm)
+                ui.ranQuery == null -> EmptyState("Find any card", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                ui.results.isEmpty() && ui.loading ->
+                    if (ui.grid) PlaceholderCards(9, Modifier.align(Alignment.TopCenter).padding(16.dp))
+                    else PlaceholderRows(8, Modifier.align(Alignment.TopCenter).padding(16.dp))
+                ui.results.isEmpty() && ui.failed && ui.error != null ->
+                    EmptyState("Can't run this search", Modifier.align(Alignment.TopCenter).padding(top = 24.dp), body = ui.error.orEmpty())
+                ui.results.isEmpty() && ui.failed -> OfflineState(vm::retry, Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                ui.results.isEmpty() -> EmptyState("No cards found", Modifier.align(Alignment.TopCenter).padding(top = 24.dp))
+                else -> Results(
+                    results = ui.results, hasMore = ui.hasMore, loading = ui.loading, moreFailed = ui.moreFailed,
+                    grid = ui.grid, ranLabel = ui.ranLabel, owned = owned,
+                    note = if (ui.fromPhone && !ui.loading) "Offline · from the card list on your phone" else null,
+                    onSelect = vm::select, onLoadMore = vm::loadMore, onClear = vm::clearResults,
+                    onBigger = { vm.setGrid(true) }, onSmaller = { vm.setGrid(false) },
+                )
+            }
         }
     }
 }

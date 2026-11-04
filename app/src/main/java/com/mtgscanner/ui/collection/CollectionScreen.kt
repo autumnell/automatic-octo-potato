@@ -34,6 +34,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.CallSplit
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Add
@@ -72,6 +78,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -198,50 +205,61 @@ fun CollectionScreen(
     }
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Outlined.QrCodeScanner, "Scan a box label", tint = Palette.Icon) }
-                IconButton(onClick = vm::refreshPrices) { Icon(Icons.Outlined.Refresh, "Refresh prices", tint = Palette.Icon) }
-                Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More", tint = Palette.Icon) }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Edit page") },
-                            leadingIcon = { Icon(Icons.Outlined.Tune, null) },
-                            onClick = { menu = false; editingLayout = true },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Settings, backup & import") },
-                            leadingIcon = { Icon(Icons.Outlined.Settings, null) },
-                            onClick = { menu = false; onSettings() },
-                        )
-                        if (ui.totalCards > 0) DropdownMenuItem(
-                            text = { Text("Share collection") },
-                            leadingIcon = { Icon(Icons.Outlined.Share, null) },
-                            onClick = { menu = false; sharingAll = true },
-                        )
-                        if (ui.boxes.isNotEmpty()) DropdownMenuItem(
-                            text = { Text("Print box labels") },
-                            leadingIcon = { Icon(Icons.Outlined.Print, null) },
-                            onClick = { menu = false; labelsLauncher.launch("box-labels.pdf") },
-                        )
+        // The title, totals and Browse all slide away while a tab's list scrolls; the tabs stay.
+        val collapse = com.mtgscanner.ui.components.rememberCollapseState()
+        LaunchedEffect(tab) { collapse.show() }
+        Column(Modifier.fillMaxSize().statusBarsPadding().nestedScroll(collapse.connection)) {
+            com.mtgscanner.ui.components.CollapsingHeader(collapse) {
+                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                    if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Outlined.QrCodeScanner, "Scan a box label", tint = Palette.Icon) }
+                    IconButton(onClick = vm::refreshPrices) { Icon(Icons.Outlined.Refresh, "Refresh prices", tint = Palette.Icon) }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More", tint = Palette.Icon) }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Edit page") },
+                                leadingIcon = { Icon(Icons.Outlined.Tune, null) },
+                                onClick = { menu = false; editingLayout = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Settings, backup & import") },
+                                leadingIcon = { Icon(Icons.Outlined.Settings, null) },
+                                onClick = { menu = false; onSettings() },
+                            )
+                            if (ui.totalCards > 0) DropdownMenuItem(
+                                text = { Text("Share collection") },
+                                leadingIcon = { Icon(Icons.Outlined.Share, null) },
+                                onClick = { menu = false; sharingAll = true },
+                            )
+                            if (ui.boxes.isNotEmpty()) DropdownMenuItem(
+                                text = { Text("Print box labels") },
+                                leadingIcon = { Icon(Icons.Outlined.Print, null) },
+                                onClick = { menu = false; labelsLauncher.launch("box-labels.pdf") },
+                            )
+                        }
                     }
                 }
+                if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
+                if (layout.shows(CollectionPart.STATS)) {
+                    val prices = AppSettings.showPrices
+                    StatsStrip(
+                        cards = "%,d".format(ui.totalCards),
+                        value = if (prices) formatMoneyShort(ui.totalValue, ui.totalEur) else null,
+                        // History is in dollars, so there's no week change to show in euros.
+                        week = if (prices) WeekChange.label(weekChange.takeIf { AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR }) else null,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        cardCount = ui.totalCards,
+                        valueNumber = if (prices) com.mtgscanner.ui.components.primaryValue(ui.totalValue, ui.totalEur) else null,
+                        valueFormat = { v ->
+                            if (AppSettings.currency == com.mtgscanner.util.PriceCurrency.EUR) com.mtgscanner.ui.components.formatEur(v)
+                            else formatUsd(v)
+                        },
+                    )
+                }
+                // Above the tabs, so it's there on every one.
+                if (layout.shows(CollectionPart.BROWSE)) BrowseAllButton { onBrowse(-1L) }
             }
-            if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
-            if (layout.shows(CollectionPart.STATS)) {
-                val prices = AppSettings.showPrices
-                StatsStrip(
-                    cards = "%,d".format(ui.totalCards),
-                    value = if (prices) formatMoneyShort(ui.totalValue, ui.totalEur) else null,
-                    // History is in dollars, so there's no week change to show in euros.
-                    week = if (prices) WeekChange.label(weekChange.takeIf { AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR }) else null,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                )
-            }
-            // Above the tabs, so it's there on every one.
-            if (layout.shows(CollectionPart.BROWSE)) BrowseAllButton { onBrowse(-1L) }
             // A hidden tab still shows while it's open (Home's wishlist link lands on it).
             val tabs = CollectionTab.shown(layout).let { if (tab in it) it else it + tab }
             if (tabs.size > 1) {
@@ -540,26 +558,36 @@ private fun BoxCard(
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Box options", tint = Palette.Icon) }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
-                if (b.cards > 0) DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
-                if (b.kind == "trade") DropdownMenuItem(text = { Text("Trade") }, onClick = { menu = false; onTrade() })
-                DropdownMenuItem(text = { Text("Card order") }, onClick = { menu = false; onLayout() })
-                if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { menu = false; onSplit() })
-                if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, onClick = { menu = false; onSort() })
-                if (b.kind != "deck") {
-                    val ctx = androidx.compose.ui.platform.LocalContext.current
-                    val marked = b.id in com.mtgscanner.data.BoxPrefs.toSort
-                    DropdownMenuItem(
-                        text = { Text("To be sorted") },
-                        trailingIcon = { if (marked) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
-                        onClick = { menu = false; com.mtgscanner.data.BoxPrefs.setToSort(ctx, b.id, !marked) },
-                    )
+            // The everyday actions first; sharing, decks and NFC wait under More, and Delete sits apart at the end.
+            var more by remember { mutableStateOf(false) }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false; more = false }) {
+                val close = { menu = false; more = false }
+                if (!more) {
+                    DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Outlined.Edit, null) }, onClick = { close(); onEdit() })
+                    if (b.cards > 0) DropdownMenuItem(text = { Text("Sort out") }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.CallSplit, null) }, onClick = { close(); onSort() })
+                    DropdownMenuItem(text = { Text("Card order") }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null) }, onClick = { close(); onLayout() })
+                    if (b.kind != "deck") {
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        val marked = b.id in com.mtgscanner.data.BoxPrefs.toSort
+                        DropdownMenuItem(
+                            text = { Text("To be sorted") },
+                            leadingIcon = { Icon(Icons.Outlined.Inbox, null) },
+                            trailingIcon = { if (marked) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
+                            onClick = { close(); com.mtgscanner.data.BoxPrefs.setToSort(ctx, b.id, !marked) },
+                        )
+                    }
+                    if (b.kind == "trade") DropdownMenuItem(text = { Text("Trade") }, leadingIcon = { Icon(Icons.Outlined.SwapHoriz, null) }, onClick = { close(); onTrade() })
+                    DropdownMenuItem(text = { Text("More") }, leadingIcon = { Icon(Icons.Outlined.MoreHoriz, null) }, onClick = { more = true })
+                    HorizontalDivider(color = Palette.Outline)
+                    DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, leadingIcon = { Icon(Icons.Outlined.DeleteOutline, null, tint = Palette.Danger) }, onClick = { close(); onDelete() })
+                } else {
+                    DropdownMenuItem(text = { Text("Back") }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ArrowBack, null) }, onClick = { more = false })
+                    if (b.cards > 0) DropdownMenuItem(text = { Text("Cover card") }, onClick = { close(); onCover() })
+                    if (b.cards > 1) DropdownMenuItem(text = { Text("Split") }, onClick = { close(); onSplit() })
+                    if (b.cards > 0) DropdownMenuItem(text = { Text("Share") }, onClick = { close(); onShare() })
+                    if (b.cards > 0) DropdownMenuItem(text = { Text("Move to a deck") }, onClick = { close(); onToDeck() })
+                    if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { close(); onNfc() })
                 }
-                if (b.cards > 0) DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onShare() })
-                if (b.cards > 0) DropdownMenuItem(text = { Text("Move to a deck") }, onClick = { menu = false; onToDeck() })
-                if (onNfc != null) DropdownMenuItem(text = { Text("Write to NFC tag") }, onClick = { menu = false; onNfc() })
-                DropdownMenuItem(text = { Text("Delete", color = Palette.Danger) }, onClick = { menu = false; onDelete() })
             }
         }
     }
@@ -858,39 +886,46 @@ private fun WishlistTab(vm: CollectionViewModel) {
         groups.forEach { (group, rows) ->
             if (group != null) item(key = "g:$group") { SectionHeader(group) }
             items(rows, key = { "w${it.id}" }) { w ->
-                Row(
-                    Modifier.animateItem().fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = w === rows.first(), last = w === rows.last())
-                        .clickable { editing = w }.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                // Swipe right for Got it, left to remove (with Undo).
+                com.mtgscanner.ui.components.SwipeActions(
+                    start = com.mtgscanner.ui.components.SwipeAction("Got it", Icons.Outlined.Check, Palette.Accent) { vm.startGotIt(w) },
+                    end = com.mtgscanner.ui.components.SwipeAction("Remove", Icons.Outlined.DeleteOutline, Palette.Danger) { vm.removeWish(w) },
+                    modifier = Modifier.animateItem().padding(horizontal = 16.dp),
                 ) {
-                    CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(w.name, style = MaterialTheme.typography.titleSmall)
-                        com.mtgscanner.work.WatchStore.tag(watch, w.oracleId)?.let { tag ->
-                            Text(tag, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1)
+                    Row(
+                        Modifier.fillMaxWidth().panelRow(first = w === rows.first(), last = w === rows.last())
+                            .clickable { editing = w }.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(w.name, style = MaterialTheme.typography.titleSmall)
+                            com.mtgscanner.work.WatchStore.tag(watch, w.oracleId)?.let { tag ->
+                                Text(tag, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1)
+                            }
+                            val decks = wishDecks[CardNames.key(w.name)].orEmpty()
+                            val more = if (group != null) decks.drop(1) else decks
+                            val isOrdered = w.oracleId in ordered
+                            Text(
+                                (if (isOrdered) "Ordered · " else "") +
+                                    "Want ${w.wanted}" + if (more.isNotEmpty()) " · ${if (group != null) "also " else ""}${more.joinToString(", ")}" else "",
+                                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        val decks = wishDecks[CardNames.key(w.name)].orEmpty()
-                        val more = if (group != null) decks.drop(1) else decks
+                        if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+                        // To buy → Ordered → Received: the truck marks it ordered (tap again to undo), the check receives it.
                         val isOrdered = w.oracleId in ordered
-                        Text(
-                            (if (isOrdered) "Ordered · " else "") +
-                                "Want ${w.wanted}" + if (more.isNotEmpty()) " · ${if (group != null) "also " else ""}${more.joinToString(", ")}" else "",
-                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
+                        IconButton(onClick = { vm.setOrdered(w, !isOrdered) }) {
+                            Icon(
+                                if (isOrdered) Icons.Filled.LocalShipping else Icons.Outlined.LocalShipping,
+                                if (isOrdered) "Ordered, tap for to buy" else "Mark ordered",
+                                tint = if (isOrdered) Palette.Accent else Palette.Icon,
+                            )
+                        }
+                        IconButton(onClick = { vm.startGotIt(w) }) { Icon(Icons.Outlined.Check, if (isOrdered) "Received" else "Got it", tint = Palette.Icon) }
+                        IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Outlined.DeleteOutline, "Remove", tint = Palette.Icon) }
                     }
-                    if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
-                    // To buy → Ordered → Received: the truck marks it ordered (tap again to undo), the check receives it.
-                    val isOrdered = w.oracleId in ordered
-                    IconButton(onClick = { vm.setOrdered(w, !isOrdered) }) {
-                        Icon(
-                            if (isOrdered) Icons.Filled.LocalShipping else Icons.Outlined.LocalShipping,
-                            if (isOrdered) "Ordered, tap for to buy" else "Mark ordered",
-                            tint = if (isOrdered) Palette.Accent else Palette.Icon,
-                        )
-                    }
-                    IconButton(onClick = { vm.startGotIt(w) }) { Icon(Icons.Outlined.Check, if (isOrdered) "Received" else "Got it", tint = Palette.Icon) }
-                    IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Outlined.DeleteOutline, "Remove", tint = Palette.Icon) }
                 }
             }
             if (group != null) item(key = "s:$group") { Spacer(Modifier.height(8.dp)) }

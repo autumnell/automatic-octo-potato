@@ -58,6 +58,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -182,6 +183,8 @@ class MainActivity : ComponentActivity() {
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
+private fun isTab(route: String?): Boolean = tabs.any { it.route == route }
+
 private val tabs = listOf(
     Tab("home", "Home", Icons.Outlined.Home, Icons.Filled.Home),
     Tab("search", "Search", Icons.Outlined.Search, Icons.Filled.Search),
@@ -216,23 +219,27 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
+    // The tab bar slides away while a list scrolls down and comes back on the way up, or on a new page.
+    val tabBar = remember { com.mtgscanner.ui.components.HideOnScroll() }
+    LaunchedEffect(route) { tabBar.shown = true }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // Haptic ticks work from any screen and view model from the start, not only after a screen that attaches them.
     com.mtgscanner.util.Haptics.Attach()
     // Reopens on the tab used last; widget, shortcut and link requests below still go where they ask.
     val startTab = remember { com.mtgscanner.ui.home.LastTab.load(ctx, tabs.map { it.route }) }
     LaunchedEffect(route) { if (route != null && tabs.any { it.route == route }) com.mtgscanner.ui.home.LastTab.save(ctx, route) }
-    var showTour by remember { mutableStateOf(!Tour.seen(ctx)) }
+    // The tour no longer opens by itself (first setup and the scan screen's own hints cover a first open);
+    // Settings still shows it on request.
+    var showTour by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     // Changes anywhere in the app can be undone from one snackbar.
     LaunchedEffect(Unit) {
         Undo.events.collectLatest { e ->
-            val result = snackbar.showSnackbar(
-                e.message,
-                actionLabel = if (e.undo != null) "Undo" else null,
-                duration = SnackbarDuration.Short,
-            )
+            // Short and out of the way: a plain note for 2.5 s, one with Undo for 4 s (it can be swiped off).
+            val result = kotlinx.coroutines.withTimeoutOrNull(if (e.undo != null) 4_000L else 2_500L) {
+                snackbar.showSnackbar(e.message, actionLabel = if (e.undo != null) "Undo" else null, duration = SnackbarDuration.Indefinite)
+            }
             if (result == SnackbarResult.ActionPerformed) {
                 // Listed changes undo through Recent actions' history, so the list stays right.
                 // Runs app-wide, so leaving right after the tap can't stop it partway.
@@ -274,7 +281,11 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         // On Scan the bottom is busy (result card, controls, strip), so the snackbar shows at the top instead.
         snackbarHost = { if (route != "scan") com.mtgscanner.ui.components.UndoSnackbarHost(snackbar) },
         bottomBar = {
-            if (tabs.any { it.route == route }) AppTabBar(
+            if (tabs.any { it.route == route }) androidx.compose.animation.AnimatedVisibility(
+                visible = tabBar.shown || route == "scan" || route == "game",
+                enter = androidx.compose.animation.expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+            ) { AppTabBar(
                 route, badges,
                 shortcuts = { tab ->
                     fun wishlist() { com.mtgscanner.ui.home.WishlistLaunch.open(); nav.goToTab("collection") }
@@ -297,7 +308,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                         else -> emptyList()
                     }
                 },
-            ) { nav.goToTab(it) }
+            ) { nav.goToTab(it) } }
         },
     ) { padding ->
       // Card pictures can grow into the card page (see ui/detail/CardTransition.kt).
@@ -306,9 +317,21 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         NavHost(
             nav,
             startDestination = startTab,
-            modifier = Modifier.padding(padding),
-            enterTransition = { fadeIn() },
-            exitTransition = { fadeOut() },
+            modifier = Modifier.padding(padding).nestedScroll(tabBar.connection),
+            // Tabs crossfade quickly. A page opened on top slides in (set per page below) while the page under
+            // it drifts a little to the left, and drifts back on the way back.
+            enterTransition = { fadeIn(tween(220)) },
+            exitTransition = {
+                // The card page grows out of a picture on this page, so this page stays put under it.
+                if (targetState.destination.route == "card/{id}") fadeOut()
+                else if (isTab(targetState.destination.route)) fadeOut(tween(160))
+                else slideOutHorizontally(tween(300)) { -it / 8 } + fadeOut(tween(300), targetAlpha = 0.6f)
+            },
+            popEnterTransition = {
+                if (initialState.destination.route == "card/{id}") fadeIn()
+                else if (isTab(initialState.destination.route)) fadeIn(tween(220))
+                else slideInHorizontally(tween(300)) { -it / 8 } + fadeIn(tween(300), initialAlpha = 0.6f)
+            },
         ) {
             composable("home") {
               ScreenAnimation(this) {

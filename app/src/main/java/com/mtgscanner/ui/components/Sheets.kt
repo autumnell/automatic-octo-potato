@@ -26,7 +26,6 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.SwapHoriz
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -231,12 +230,12 @@ fun AddCardSheet(
                 Text("Cards go into boxes. Create one to add this card.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onCreateBox, shape = RoundedCornerShape(Corners.Medium)) {
+                    QuietButton(onClick = onCreateBox, shape = RoundedCornerShape(Corners.Medium)) {
                         Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Create a box")
                     }
-                    if (showDecks && onCreateDeck != null) OutlinedButton(onClick = { namingDeck = true }, shape = RoundedCornerShape(Corners.Medium)) {
+                    if (showDecks && onCreateDeck != null) QuietButton(onClick = { namingDeck = true }, shape = RoundedCornerShape(Corners.Medium)) {
                         Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("New deck")
@@ -287,7 +286,7 @@ fun AddCardSheet(
             )
             if (onWishlist != null) {
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onWishlist, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium)) {
+                QuietButton(onClick = onWishlist, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium)) {
                     Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Add to wishlist")

@@ -119,7 +119,7 @@ internal fun WantListSheet(binder: List<CollectionCard>, onAddAll: (List<Pair<Co
         LazyColumn(Modifier.fillMaxWidth().height(300.dp)) {
             when {
                 text.isBlank() -> item { Text("One card per line", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
-                matches.isEmpty() -> item { Text("No matches in this binder", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
+                matches.isEmpty() -> item { com.mtgscanner.ui.components.EmptyState("No matches in this binder") }
                 else -> items(matches, key = { it.first.id }) { m ->
                     val c = m.first
                     val sub = "${c.setCode} · ×${m.second}" + if (AppSettings.showPrices) " · ${cardPrice(c)}" else ""

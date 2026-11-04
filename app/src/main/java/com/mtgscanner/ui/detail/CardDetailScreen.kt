@@ -179,7 +179,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
     val places by vm.places.collectAsStateWithLifecycle()
     val decks by vm.decks.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
-    var confirmDelete by remember { mutableStateOf(false) }
     var addingTag by remember { mutableStateOf(false) }
     val history by vm.priceHistory.collectAsStateWithLifecycle()
     val live by vm.live.collectAsStateWithLifecycle()
@@ -628,7 +627,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                 )
                 Spacer(Modifier.weight(1f))
             }
-            if (c != null) IconButton(onClick = { confirmDelete = true }, colors = btn) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection") }
+            if (c != null) IconButton(onClick = { vm.delete(onBack) }, colors = btn) { Icon(Icons.Outlined.DeleteOutline, "Remove from collection") }
         }
     }
 
@@ -740,17 +739,6 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
     if (addingTag) {
         val allTags by vm.allTags.collectAsStateWithLifecycle()
         TagDialog(allTags, onDone = { vm.addTag(it); addingTag = false }, onDismiss = { addingTag = false })
-    }
-
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            containerColor = Palette.Surface,
-            title = { Text("Remove ${card?.name ?: "card"}?") },
-            text = { Text("This removes all ${card?.quantity ?: 0} copies from your collection.") },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.delete(onBack) }) { Text("Remove", color = Palette.Danger) } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
-        )
     }
 }
 

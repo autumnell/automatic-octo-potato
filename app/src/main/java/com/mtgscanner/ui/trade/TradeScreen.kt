@@ -33,7 +33,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -164,7 +163,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                 enabled = !ui.busy && (ui.give.isNotEmpty() || ui.get.isNotEmpty()),
             )
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        com.mtgscanner.ui.components.SlimSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 
     if (picking != null) {
