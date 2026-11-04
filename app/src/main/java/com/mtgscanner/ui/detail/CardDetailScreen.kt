@@ -503,7 +503,17 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         )
                     }
 
-                    val points = history.mapNotNull { p -> (if (c.foil) p.usdFoil ?: p.usd else p.usd)?.let { p.day to it } }
+                    val allPoints = history.mapNotNull { p -> (if (c.foil) p.usdFoil ?: p.usd else p.usd)?.let { p.day to it } }
+                    // 7 days, 30 days or everything; a range with under 2 points shows everything.
+                    var range by rememberSaveable { mutableIntStateOf(0) }
+                    val points = remember(allPoints, range) {
+                        val days = when (range) { 1 -> 7L; 2 -> 30L; else -> 0L }
+                        if (days == 0L) allPoints
+                        else {
+                            val from = java.time.LocalDate.now().minusDays(days).toString()
+                            allPoints.filter { it.first >= from }.takeIf { it.size >= 2 } ?: allPoints
+                        }
+                    }
                     if (AppSettings.showPrices && points.size >= 2) {
                         Spacer(Modifier.height(12.dp))
                         Panel {
@@ -515,12 +525,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                                     Text(shortDay(points[s].first), style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
                                     Text(formatUsd(points[s].second), style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.Text)
                                 } else {
-                                    Text("Price history", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                                    RangeSegments(range) { range = it }
+                                    Spacer(Modifier.weight(1f))
                                     ChangeText(points.last().second - points.first().second, points.first().second, MaterialTheme.typography.labelMedium)
                                 }
                             }
-                            Spacer(Modifier.height(10.dp))
-                            LineChart(points.map { it.second }, Modifier.fillMaxWidth().height(80.dp), onScrub = { scrub = it })
+                            Spacer(Modifier.height(8.dp))
+                            LineChart(points.map { it.second }, Modifier.fillMaxWidth().height(56.dp), onScrub = { scrub = it })
                             Spacer(Modifier.height(6.dp))
                             Row {
                                 Text(shortDay(points.first().first), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -848,6 +859,27 @@ private fun Badge(text: String) {
 internal fun identityCost(identity: String): String {
     val letters = identity.filter { it.uppercaseChar() in "WUBRG" }
     return if (letters.isEmpty()) "{C}" else letters.map { "{${it.uppercaseChar()}}" }.joinToString("")
+}
+
+/** "All · 7d · 30d" as one small segmented row for the price chart. */
+@Composable
+private fun RangeSegments(selected: Int, onPick: (Int) -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        listOf("All", "7d", "30d").forEachIndexed { i, label ->
+            val on = i == selected
+            Box(
+                Modifier.clip(RoundedCornerShape(Corners.Small))
+                    .background(if (on) Palette.Surface else androidx.compose.ui.graphics.Color.Transparent)
+                    .clickable { onPick(i) }
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(label, style = MaterialTheme.typography.labelMedium, color = if (on) Palette.Text else Palette.Muted)
+            }
+        }
+    }
 }
 
 private fun shortDay(day: String): String = runCatching {

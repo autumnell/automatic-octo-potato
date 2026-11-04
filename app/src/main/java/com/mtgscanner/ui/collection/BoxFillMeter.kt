@@ -23,14 +23,14 @@ fun fillColor(state: BoxFill, normal: Color): Color = when (state) {
 
 /** A box's fill as a row of segments, like slots in a shelf. */
 @Composable
-fun BoxFillMeter(cards: Int, capacity: Int, color: Color, modifier: Modifier = Modifier) {
+fun BoxFillMeter(cards: Int, capacity: Int, color: Color, modifier: Modifier = Modifier, thickness: androidx.compose.ui.unit.Dp = 5.dp) {
     if (capacity <= 0) return
     val state = BoxFillMath.state(cards, capacity)
     val n = BoxFillMath.segments(capacity)
     val lit = BoxFillMath.lit(cards, capacity, n)
     val on = fillColor(state, color)
     val off = Palette.Outline.copy(alpha = 0.7f)
-    Canvas(modifier.fillMaxWidth().height(5.dp).semantics { contentDescription = "$cards of $capacity" }) {
+    Canvas(modifier.fillMaxWidth().height(thickness).semantics { contentDescription = "$cards of $capacity" }) {
         val gap = 3.dp.toPx()
         val w = (size.width - gap * (n - 1)) / n
         val r = CornerRadius(1.5.dp.toPx())

@@ -238,9 +238,16 @@ private fun LookTab() {
             Text("Reset", color = Palette.Muted)
         }
     }
-    FontRow("Headings", AppFont.headings, FontSettings.heading) { FontSettings.updateHeading(it) }
-    FontRow("Text", AppFont.body, FontSettings.body) { FontSettings.updateBody(it) }
-    FontRow("Prices", AppFont.prices, FontSettings.price) { FontSettings.updatePrice(it) }
+    // One panel for the three font rows, split by hairlines.
+    PlainGroup(Modifier.padding(horizontal = 4.dp)) {
+        Column(Modifier.padding(bottom = 10.dp)) {
+            FontRow("Headings", AppFont.headings, FontSettings.heading) { FontSettings.updateHeading(it) }
+            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = 10.dp))
+            FontRow("Text", AppFont.body, FontSettings.body) { FontSettings.updateBody(it) }
+            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = 10.dp))
+            FontRow("Prices", AppFont.prices, FontSettings.price) { FontSettings.updatePrice(it) }
+        }
+    }
 
     SectionLabel("Text")
     Card {
@@ -395,9 +402,9 @@ private fun CustomSwatch(onClick: () -> Unit) {
 /** One font slot: a sideways row of samples, each drawn in its own font. */
 @Composable
 private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPick: (AppFont) -> Unit) {
-    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(start = 20.dp, top = 6.dp, bottom = 4.dp))
+    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         fonts.forEach { f ->

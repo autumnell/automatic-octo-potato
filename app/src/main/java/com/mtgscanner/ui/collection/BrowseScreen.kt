@@ -1,6 +1,8 @@
 package com.mtgscanner.ui.collection
 
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.shape.CircleShape
@@ -315,10 +317,12 @@ fun BrowseScreen(
             MoveListHost()
 
             var syntaxHelp by remember { mutableStateOf(false) }
+            var recentCards by rememberSaveable { mutableStateOf(false) }
             SearchField(
                 f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                 placeholder = "r:rare t:creature",
                 mono = true,
+                focusOnOpen = remember { BrowseLaunch.takeFocus() },
                 trailing = {
                     Text(
                         "?",
@@ -332,6 +336,11 @@ fun BrowseScreen(
                 Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 24.dp))
             }
             if (syntaxHelp) SyntaxHelp(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            // The tip shows on one visit only: it goes by itself after a few seconds, or when closed.
+            if (showTip && ui.totalCards > 0 && !picking) LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(8_000)
+                vm.dismissTip()
+            }
             if (showTip && ui.totalCards > 0 && !picking) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
@@ -347,27 +356,6 @@ fun BrowseScreen(
                     IconButton(onClick = vm::dismissTip) { Icon(Icons.Outlined.Close, "Hide tip", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
                 }
             }
-            if (f.query.isEmpty() && f.activeCount == 0 && (saved.isNotEmpty() || recent.isNotEmpty())) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    saved.forEach { sv ->
-                        SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
-                            Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
-                        })
-                    }
-                    recent.forEach { q ->
-                        SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
-                            Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
-                        })
-                    }
-                    if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
-                }
-            }
-            // Card pages opened last, hidden while searching or filtering.
-            if (f.query.isEmpty() && f.activeCount == 0 && !picking) RecentCardsStrip(ui.totalCards, onOpen = { tap(it) })
-
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -402,7 +390,24 @@ fun BrowseScreen(
                 if (f.query.isNotBlank() || f.activeCount > 0) {
                     ToolChip("Save search", Icons.Outlined.StarBorder, { savingSearch = true })
                 }
+                // Saved and recent searches share this row, after the tools.
+                if (f.query.isEmpty() && f.activeCount == 0) {
+                    if (!picking) ToolChip("Recent cards", Icons.Outlined.History, { recentCards = !recentCards }, active = recentCards)
+                    saved.forEach { sv ->
+                        SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
+                            Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
+                        })
+                    }
+                    recent.forEach { q ->
+                        SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
+                            Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+                        })
+                    }
+                    if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
+                }
             }
+            // Card pages opened last: only when asked for with the Recent cards chip.
+            if (recentCards && f.query.isEmpty() && f.activeCount == 0 && !picking) RecentCardsStrip(ui.totalCards, onOpen = { tap(it) })
         }
 
         when {
@@ -692,8 +697,12 @@ fun SearchField(
     /** Scryfall-syntax search: placeholder and text in Plex Mono, no search icon. */
     mono: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
+    /** Puts the cursor in the field (keyboard up) when it first shows. */
+    focusOnOpen: Boolean = false,
 ) {
     val textStyle = if (mono) monoStyle(14.sp) else MaterialTheme.typography.bodyLarge
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    if (focusOnOpen) LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
     Row(
         modifier.fillMaxWidth().heightIn(min = 44.dp).clip(LookShape).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -715,7 +724,7 @@ fun SearchField(
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide(); focus.clearFocus() }),
                 textStyle = textStyle.copy(color = Palette.Text),
                 cursorBrush = SolidColor(Palette.Accent),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             )
         }
         if (value.isNotEmpty()) {

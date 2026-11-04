@@ -209,6 +209,18 @@ fun CollectionScreen(
         val collapse = com.mtgscanner.ui.components.rememberCollapseState()
         LaunchedEffect(tab) { collapse.show() }
         Column(Modifier.fillMaxSize().statusBarsPadding().nestedScroll(collapse.connection)) {
+            // Once the big title has slid away, a small one stays in its place.
+            val gone = collapse.fraction > 0.85f
+            androidx.compose.animation.AnimatedVisibility(
+                visible = gone,
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+            ) {
+                Text(
+                    "Collection", style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.fillMaxWidth().clickable { collapse.show() }.padding(horizontal = 20.dp, vertical = 8.dp),
+                )
+            }
             com.mtgscanner.ui.components.CollapsingHeader(collapse) {
                 Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
@@ -296,20 +308,31 @@ fun CollectionScreen(
     plan?.let { p -> BoxPlanSheet(p, onApply = { vm.applyPlan() }, onDiscard = vm::discardPlan) }
 }
 
+/** "12 to sort ›": opens the cards waiting in boxes marked To be sorted. */
+@Composable
+private fun ToSortChip(count: Int, onClick: () -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).clickable(onClick = onClick)
+            .heightIn(min = 32.dp).padding(start = 10.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("$count to sort", style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Text)
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
+    }
+}
+
 @Composable
 private fun BrowseAllButton(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(Corners.Medium),
-        color = Palette.Surface,
+    // A slim search bar: tapping it opens every card with the cursor already in the search field.
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh)
+            .clickable { BrowseLaunch.focusSearch = true; onClick() }.padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Search, null, tint = Palette.Icon)
-            Spacer(Modifier.width(12.dp))
-            Text("Browse entire collection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon)
-        }
+        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text("Search your collection", style = MaterialTheme.typography.bodyLarge, color = Palette.Muted, modifier = Modifier.weight(1f), maxLines = 1)
     }
 }
 
@@ -357,52 +380,54 @@ private fun BoxesTab(
 
     // Search hidden: nothing typed earlier keeps filtering the boxes.
     val searching = layout.shows(CollectionPart.SEARCH)
+    var ringOpen by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         val q = if (searching) query.trim() else ""
         if (layout.sections.isEmpty()) EmptyState("All hidden", action = "Edit page", onAction = onEditPage)
         for (section in layout.sections) {
             when (section) {
-                CollectionSection.RING ->
-                    ValueRing(ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue, totalEur = ui.totalEur, legend = layout.shows(CollectionPart.LEGEND))
+                // A thin colour bar by default; tap it for the full ring, and the ring to fold it back.
+                CollectionSection.RING -> if (ringOpen) {
+                    ValueRing(
+                        ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue, totalEur = ui.totalEur, legend = layout.shows(CollectionPart.LEGEND),
+                        modifier = Modifier.clickable { ringOpen = false },
+                    )
+                } else ValueBar(ui.boxes, colors, onClick = { ringOpen = true })
+                // Shown in the Boxes heading as a chip; here only when the Boxes section is hidden.
                 CollectionSection.TO_SORT -> {
                     val toMove = toSort.sumOf { it.card.quantity }
-                    if (toMove > 0) {
-                        Surface(
-                            onClick = { sortingOpen = true },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(Corners.Medium),
-                            color = Palette.Surface,
-                        ) {
-                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Icon)
-                                Spacer(Modifier.width(12.dp))
-                                Text("$toMove to sort", style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.weight(1f))
-                                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon)
-                            }
-                        }
+                    if (toMove > 0 && CollectionSection.BOXES !in layout.sections) {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { ToSortChip(toMove) { sortingOpen = true } }
                     }
                 }
                 CollectionSection.BOXES -> {
                     SectionHeader("Boxes") {
-                        if (layout.shows(CollectionPart.BOX_TOOLS)) {
-                            if (ui.boxes.isNotEmpty()) TextButton(onClick = { shelf = true }) { Text("Shelf") }
-                            if (ui.boxes.size > 1) TextButton(onClick = { ordering = true }) { Text("Auto-sort order") }
-                        }
-                        if (ui.boxes.size > 1) Box {
+                        val toMove = toSort.sumOf { it.card.quantity }
+                        if (toMove > 0) ToSortChip(toMove) { sortingOpen = true }
+                        // One menu for the box tools and order, then New.
+                        if (ui.boxes.size > 1 || (ui.boxes.isNotEmpty() && layout.shows(CollectionPart.BOX_TOOLS))) Box {
                             IconButton(onClick = { orderMenu = true }) {
-                                Icon(Icons.AutoMirrored.Outlined.Sort, "Box order", tint = if (LastChecked.oldestFirst) Palette.Text else Palette.Icon)
+                                Icon(Icons.Outlined.MoreVert, "Box tools", tint = if (LastChecked.oldestFirst) Palette.Text else Palette.Icon)
                             }
                             DropdownMenu(expanded = orderMenu, onDismissRequest = { orderMenu = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("Auto-sort order") },
-                                    trailingIcon = { if (!LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
-                                    onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, false) },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Last checked") },
-                                    trailingIcon = { if (LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
-                                    onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, true) },
-                                )
+                                if (layout.shows(CollectionPart.BOX_TOOLS)) {
+                                    if (ui.boxes.isNotEmpty()) DropdownMenuItem(text = { Text("Shelf") }, onClick = { orderMenu = false; shelf = true })
+                                    if (ui.boxes.size > 1) DropdownMenuItem(text = { Text("Auto-sort order") }, onClick = { orderMenu = false; ordering = true })
+                                }
+                                if (ui.boxes.size > 1) {
+                                    HorizontalDivider(color = Palette.Outline)
+                                    Text("Show boxes by", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                                    DropdownMenuItem(
+                                        text = { Text("Auto-sort order") },
+                                        trailingIcon = { if (!LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
+                                        onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, false) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Last checked") },
+                                        trailingIcon = { if (LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
+                                        onClick = { orderMenu = false; LastChecked.setOldestFirst(ctx, true) },
+                                    )
+                                }
                             }
                         }
                         TextButton(onClick = { creating = true }) {
@@ -545,19 +570,12 @@ private fun BoxCard(
     var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(Corners.Medium)
     val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(
-            Modifier.weight(1f).pressScale(press, pressed = 0.98f).clip(shape)
-                .background(Palette.BoxCard)
-                .combinedClickable(
-                    interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current,
-                    onClick = onClick, onLongClick = { if (b.cards > 0) onCover() },
-                ),
-        ) {
-            if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout, checked) else BoxCardFull(b, stats, stripe, warning, layout, checked)
-        }
+    // The ⋮ sits inside the card's top line, so the card uses the full width.
+    val menuButton: @Composable (Boolean) -> Unit = { onArt ->
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Box options", tint = Palette.Icon) }
+            IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Outlined.MoreVert, "Box options", tint = if (onArt) Color.White else Palette.Icon, modifier = Modifier.size(20.dp))
+            }
             // The everyday actions first; sharing, decks and NFC wait under More, and Delete sits apart at the end.
             var more by remember { mutableStateOf(false) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false; more = false }) {
@@ -591,6 +609,16 @@ private fun BoxCard(
             }
         }
     }
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).pressScale(press, pressed = 0.98f).clip(shape)
+            .background(Palette.BoxCard)
+            .combinedClickable(
+                interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current,
+                onClick = onClick, onLongClick = { if (b.cards > 0) onCover() },
+            ),
+    ) {
+        if (layout.compact) BoxCardCompact(b, stats, stripe, warning, layout, checked, menuButton) else BoxCardFull(b, stats, stripe, warning, layout, checked, menuButton)
+    }
 }
 
 /** "12 / 400 · Full", "No cards" or "57 cards". */
@@ -619,14 +647,14 @@ private fun BoxArtBackground(art: String?, content: @Composable (onArt: Boolean)
 
 /** One line: the name, then count and value. */
 @Composable
-private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null) {
+private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null, menu: @Composable (Boolean) -> Unit = {}) {
     val fill = BoxFillMath.state(b.cards, b.capacity)
     val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
     BoxArtBackground(art) { onArt ->
         val text = if (onArt) Color.White else Palette.Text
         val muted = if (onArt) Palette.OnDarkMuted else Palette.Muted
         Column {
-            Row(Modifier.padding(start = 22.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = 18.dp, end = 2.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 BoxTitle(b, stripe, onArt = onArt, modifier = Modifier.weight(1f))
                 if (layout.shows(CollectionPart.COUNT)) {
                     Spacer(Modifier.width(8.dp))
@@ -636,6 +664,7 @@ private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warni
                     Spacer(Modifier.width(10.dp))
                     com.mtgscanner.ui.components.RollingMoney(b.value, b.valueEur, MaterialTheme.typography.titleMedium.merge(TabularNums), text)
                 }
+                menu(onArt)
             }
             if (warning != null) {
                 Text(
@@ -656,7 +685,7 @@ private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warni
 
 /** The full card: cover art behind everything, rules, count, value with change, and the fill meter, each when turned on. */
 @Composable
-private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null) {
+private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning: String?, layout: CollectionLayout, checked: String? = null, menu: @Composable (Boolean) -> Unit = {}) {
     val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
     val fill = BoxFillMath.state(b.cards, b.capacity)
     val art = if (b.cards > 0 && layout.shows(CollectionPart.ART)) stats?.artUrl else null
@@ -666,33 +695,38 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
     BoxArtBackground(art) { onArt ->
         val text = if (onArt) Color.White else Palette.Text
         val muted = if (onArt) Palette.OnDarkMuted else Palette.Muted
-        Column(Modifier.padding(start = 22.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
-            BoxTitle(b, stripe, onArt = onArt)
-            com.mtgscanner.data.BoxPrefs.places[b.id]?.location?.takeIf { it.isNotBlank() }?.let { where ->
-                Text(where, style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Slimmer than before: tighter padding, where-and-status on one line, one line of rules, a title-size
+        // value, and the fill meter as a thin line along the bottom edge.
+        Column {
+        Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BoxTitle(b, stripe, onArt = onArt, modifier = Modifier.weight(1f))
+                menu(onArt)
             }
-            if (b.id in com.mtgscanner.data.BoxPrefs.toSort) Text("To be sorted", style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1)
+            val where = com.mtgscanner.data.BoxPrefs.places[b.id]?.location?.takeIf { it.isNotBlank() }
+            val note = listOfNotNull(where, "To be sorted".takeIf { b.id in com.mtgscanner.data.BoxPrefs.toSort }).joinToString(" · ")
+            if (note.isNotEmpty()) Text(note, style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 12.dp))
             if (layout.shows(CollectionPart.RULES)) {
-                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 12.dp))
             }
             if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (checked != null) Text(checked, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
             if (showCount || showValue || showChange) {
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
+                Spacer(Modifier.height(4.dp))
+                Row(Modifier.padding(end = 12.dp), verticalAlignment = Alignment.Bottom) {
                     // Keeps the value on the right when the count is off.
                     Box(Modifier.weight(1f)) {
                         if (showCount) {
                             Text(
                                 boxCountText(b, fill),
-                                style = MaterialTheme.typography.bodyLarge.merge(TabularNums),
+                                style = MaterialTheme.typography.bodyMedium.merge(TabularNums),
                                 color = fillColor(fill, text),
-                                modifier = Modifier.padding(bottom = 4.dp),
+                                modifier = Modifier.padding(bottom = 2.dp),
                             )
                         }
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        if (showValue) com.mtgscanner.ui.components.RollingMoney(b.value, b.valueEur, MaterialTheme.typography.headlineSmall.merge(TabularNums), text)
+                        if (showValue) com.mtgscanner.ui.components.RollingMoney(b.value, b.valueEur, MaterialTheme.typography.titleLarge.merge(TabularNums), text)
                         val pct = stats?.changePercent
                         if (showChange && stats != null && pct != null && boxChangeShown()) {
                             Text(
@@ -704,10 +738,10 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
                     }
                 }
             }
-            if (b.capacity > 0 && layout.shows(CollectionPart.FILL)) {
-                Spacer(Modifier.height(8.dp))
-                BoxFillMeter(b.cards, b.capacity, stripe)
-            }
+        }
+        if (b.capacity > 0 && layout.shows(CollectionPart.FILL)) {
+            BoxFillMeter(b.cards, b.capacity, stripe, Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), thickness = 3.dp)
+        }
         }
     }
 }

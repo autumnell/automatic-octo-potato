@@ -33,6 +33,9 @@ class CollapseState {
 
     fun show() { offset = 0f }
 
+    /** How far the header has gone: 0 shown in full, 1 gone. */
+    val fraction: Float get() = height.let { h -> if (h == 0) 0f else (-offset / h).coerceIn(0f, 1f) }
+
     val connection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
             val h = height

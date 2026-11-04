@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -67,40 +68,33 @@ fun ColorDot(identity: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * Cards / Value / 7 days in three cells split by hairlines. [value] and [week] are null when prices are off,
- * and then only the card count shows.
+ * The collection's totals on one quiet line: "1,234 cards · $5,678 · +2.1% 7d". [value] and [week] are null
+ * when prices are off, and then only the card count shows. With [cardCount] / [valueNumber] the numbers
+ * count to their new values instead of jumping.
  */
 @Composable
 fun StatsStrip(
     cards: String, value: String?, week: String?, modifier: Modifier = Modifier,
-    /** When given, the card count and value count to their new numbers instead of jumping. */
     cardCount: Int? = null,
     valueNumber: Double? = null,
     valueFormat: ((Double) -> String)? = null,
 ) {
-    val cells = buildList {
-        add("Cards" to cards)
-        if (value != null) add("Value" to value)
-        if (week != null) add("7 days" to week)
-    }
-    Row(
-        modifier.fillMaxWidth().background(RuleColor).padding(1.dp).height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(1.dp),
-    ) {
-        cells.forEach { (label, v) ->
-            Column(
-                Modifier.weight(1f).fillMaxHeight().background(Palette.Background).padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(label, style = MaterialTheme.typography.labelSmall, fontSize = 11.sp, color = Palette.Muted, maxLines = 1)
-                when {
-                    label == "Cards" && cardCount != null ->
-                        com.mtgscanner.ui.components.RollingText(cardCount.toDouble(), { "%,d".format(it.toLong()) }, monoStyle(15.sp), Palette.Text)
-                    label == "Value" && valueNumber != null && valueFormat != null ->
-                        com.mtgscanner.ui.components.RollingText(valueNumber, valueFormat, monoStyle(15.sp), Palette.Text)
-                    else -> Text(v, style = monoStyle(15.sp), color = Palette.Text, maxLines = 1)
-                }
-            }
+    val style = monoStyle(14.sp)
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (cardCount != null) {
+            com.mtgscanner.ui.components.RollingText(cardCount.toDouble(), { "%,d".format(it.toLong()) }, style, Palette.Text)
+        } else Text(cards, style = style, color = Palette.Text, maxLines = 1)
+        Text(" cards", style = style, color = Palette.Muted, maxLines = 1)
+        if (value != null) {
+            Text("  ·  ", style = style, color = Palette.Muted)
+            if (valueNumber != null && valueFormat != null) {
+                com.mtgscanner.ui.components.RollingText(valueNumber, valueFormat, style, Palette.Text)
+            } else Text(value, style = style, color = Palette.Text, maxLines = 1)
+        }
+        if (week != null) {
+            Text("  ·  ", style = style, color = Palette.Muted)
+            Text(week, style = style, color = Palette.Text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(" 7d", style = style, color = Palette.Muted, maxLines = 1)
         }
     }
 }
