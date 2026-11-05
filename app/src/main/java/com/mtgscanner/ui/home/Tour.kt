@@ -97,7 +97,7 @@ fun FirstRunTour(onDone: () -> Unit) {
             Spacer(Modifier.height(Space.s6))
             val last = pager.currentPage == PAGES.lastIndex
             GradientButton(
-                if (last) "Get started" else "Next",
+                if (last) "Done" else "Next",
                 { if (last) onDone() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
                 Modifier.fillMaxWidth(),
             )
