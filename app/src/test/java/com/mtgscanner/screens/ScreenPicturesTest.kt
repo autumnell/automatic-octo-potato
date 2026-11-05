@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -86,7 +87,7 @@ class ScreenPicturesTest {
         }
     }
 
-    private var content: (@Composable () -> Unit)? = null
+    private var content by mutableStateOf<(@Composable () -> Unit)?>(null)
     private var fontScale by mutableFloatStateOf(1f)
     private var started = false
 
@@ -118,6 +119,10 @@ class ScreenPicturesTest {
             val bmp = capture()
             File(out, "$name-$label.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
+        // Take the screen away so no timer or endless animation is left running: the test rule waits for Compose
+        // to go idle when the test ends, and a running shimmer or ticker would keep it busy until it times out.
+        content = null
+        settle()
     }
 
     @Test fun home() = shoot("01-home") {
