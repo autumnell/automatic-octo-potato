@@ -402,7 +402,16 @@ private fun BoxesTab(
                     }
                 }
                 CollectionSection.BOXES -> {
-                    SectionHeader("Boxes") {
+                    // One row: the search in place of a "Boxes" title, then the box tools menu and New on the right.
+                    // Finds boxes by name, and cards with their box, divider and shelf spot.
+                    val showSearch = searching && (ui.boxes.isNotEmpty() || ui.totalCards > 0)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+                        if (showSearch) {
+                            SearchField(query, { query = it }, Modifier.weight(1f), placeholder = "Find a box or card")
+                            Spacer(Modifier.width(Space.s2))
+                        } else {
+                            Text("Boxes", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                        }
                         val toMove = toSort.sumOf { it.card.quantity }
                         if (toMove > 0) ToSortChip(toMove) { sortingOpen = true }
                         // One menu for the box tools and order, then New.
@@ -439,10 +448,6 @@ private fun BoxesTab(
                     }
                     if (ui.boxes.isEmpty()) {
                         EmptyState(title = "No boxes yet", action = "New box", onAction = { creating = true })
-                    }
-                    // Finds boxes by name, and cards with their box, divider and shelf spot.
-                    if (searching && (ui.boxes.isNotEmpty() || ui.totalCards > 0)) {
-                        SearchField(query, { query = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s1), placeholder = "Find a box or card")
                     }
                     val matching = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
                     // Never checked first, then the longest since a check.

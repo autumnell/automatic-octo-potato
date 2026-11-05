@@ -214,8 +214,14 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                         Icon(Icons.Outlined.DeleteOutline, "Delete folder", tint = Palette.Icon)
                     }
                 } else {
-                    Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { naming = true }) { Icon(Icons.Outlined.CreateNewFolder, "New folder", tint = Palette.AccentText) }
+                    // The search sits in the header row in place of a "Decks" title, with New folder and New on the right.
+                    if (decks?.isEmpty() == true && shelf.folders.isEmpty()) {
+                        Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                    } else {
+                        SearchField(query, { query = it }, Modifier.weight(1f), placeholder = "Search decks")
+                        Spacer(Modifier.width(Space.s2))
+                    }
+                    IconButton(onClick = { naming = true }) { Icon(Icons.Outlined.CreateNewFolder, "New folder", tint = Palette.Icon) }
                     Box {
                         TextButton(onClick = { newMenu = true }) {
                             Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
@@ -238,7 +244,8 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                 EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) }, fullScreen = true)
             }
         } else {
-            item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
+            // Inside a folder the header shows the folder's name, so the search gets its own row.
+            if (folder != null) item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
