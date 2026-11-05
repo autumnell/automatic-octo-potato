@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Motion
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -199,14 +200,14 @@ fun CardZoomHost() {
     val farAway = with(density) { 1600.dp.toPx() }
 
     LaunchedEffect(shown.key) {
-        appear.animateTo(1f, tween(200, easing = FastOutSlowInEasing))
+        appear.animateTo(1f, tween(Motion.base, easing = FastOutSlowInEasing))
     }
 
     fun close() {
         if (closing) return
         closing = true
         scope.launch {
-            appear.animateTo(0f, tween(150))
+            appear.animateTo(0f, tween(Motion.fast))
             CardZoom.hide()
         }
     }
@@ -222,7 +223,7 @@ fun CardZoomHost() {
             closing = true
             val dir = if (speed > throwSpeed) Offset(velocity.x / speed, velocity.y / speed) else Offset(start.x / dist, start.y / dist)
             settling[0] = scope.launch {
-                animate(0f, 1f, animationSpec = tween(220)) { t, _ -> CardZoom.offset = start + dir * (farAway * t) }
+                animate(0f, 1f, animationSpec = tween(Motion.base)) { t, _ -> CardZoom.offset = start + dir * (farAway * t) }
                 CardZoom.hide()
             }
         } else {

@@ -170,14 +170,16 @@ private fun scheme(): ColorScheme {
     val p = Palette
     val common = if (p.dark) darkColorScheme() else lightColorScheme()
     return common.copy(
-        primary = p.Accent,
-        onPrimary = p.OnAccent,
-        primaryContainer = lerp(p.Surface, p.Accent, 0.25f),
-        onPrimaryContainer = p.AccentText,
+        // Material's "primary" colors every text button, switch, checkbox and progress bar. It is ink, not the
+        // accent: red is kept for the main button, Scan and the selected tab, which set it themselves (Design.md).
+        primary = p.Text,
+        onPrimary = p.Background,
+        primaryContainer = p.SurfaceHigh,
+        onPrimaryContainer = p.Text,
         secondary = p.Info,
         onSecondary = Color.White,
-        secondaryContainer = lerp(p.Surface, p.Accent, 0.18f),
-        onSecondaryContainer = p.AccentText,
+        secondaryContainer = p.SurfaceHigh,
+        onSecondaryContainer = p.Text,
         tertiary = p.Gold,
         background = p.Background,
         onBackground = p.Text,
@@ -304,6 +306,13 @@ object Space {
     val s12 = 48.dp
     /** Side margin of every screen. */
     val gutter = s4
+}
+
+/** Animation lengths in ms (design/design-tokens.json "motion"). Longer, choreographed moves (dice, a card flying to its pile) keep their own. */
+object Motion {
+    const val fast = 120
+    const val base = 200
+    const val slow = 320
 }
 
 /** A real Magic card's corner, for card images (about 5% of the card's shorter side). */

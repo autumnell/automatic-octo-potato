@@ -73,7 +73,7 @@ internal fun NotificationsSheet(onOpen: (String) -> Unit, onDismiss: () -> Unit)
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
         Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Text("Notifications", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            if (entries.isNotEmpty()) TextButton(onClick = { NotificationLog.clear(ctx) }) { Text("Clear all", color = Palette.AccentText) }
+            if (entries.isNotEmpty()) TextButton(onClick = { NotificationLog.clear(ctx) }) { Text("Clear all", color = Palette.Text) }
         }
         if (entries.isEmpty()) {
             EmptyState("No notifications", Modifier.padding(bottom = Space.s8))

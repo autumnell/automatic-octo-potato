@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Motion
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -84,7 +85,7 @@ internal fun TrackingFrame(
             flashing = false
         }
     }
-    val fill by animateFloatAsState(if (flashing) 0.25f else 0f, tween(200), label = "flash")
+    val fill by animateFloatAsState(if (flashing) 0.25f else 0f, tween(Motion.base), label = "flash")
 
     var size by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
     val seenNow by rememberUpdatedState(seen)

@@ -1,5 +1,6 @@
 package com.mtgscanner
 
+import com.mtgscanner.ui.theme.Motion
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -320,17 +321,17 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             modifier = Modifier.padding(padding).nestedScroll(tabBar.connection),
             // Tabs crossfade quickly. A page opened on top slides in (set per page below) while the page under
             // it drifts a little to the left, and drifts back on the way back.
-            enterTransition = { fadeIn(tween(220)) },
+            enterTransition = { fadeIn(tween(Motion.base)) },
             exitTransition = {
                 // The card page grows out of a picture on this page, so this page stays put under it.
                 if (targetState.destination.route == "card/{id}") fadeOut()
-                else if (isTab(targetState.destination.route)) fadeOut(tween(160))
-                else slideOutHorizontally(tween(300)) { -it / 8 } + fadeOut(tween(300), targetAlpha = 0.6f)
+                else if (isTab(targetState.destination.route)) fadeOut(tween(Motion.fast))
+                else slideOutHorizontally(tween(Motion.slow)) { -it / 8 } + fadeOut(tween(Motion.slow), targetAlpha = 0.6f)
             },
             popEnterTransition = {
                 if (initialState.destination.route == "card/{id}") fadeIn()
-                else if (isTab(initialState.destination.route)) fadeIn(tween(220))
-                else slideInHorizontally(tween(300)) { -it / 8 } + fadeIn(tween(300), initialAlpha = 0.6f)
+                else if (isTab(initialState.destination.route)) fadeIn(tween(Motion.base))
+                else slideInHorizontally(tween(Motion.slow)) { -it / 8 } + fadeIn(tween(Motion.slow), initialAlpha = 0.6f)
             },
         ) {
             composable("home") {

@@ -327,7 +327,7 @@ private fun Results(
         } else if (moreFailed) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(Space.s4), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.TextButton(onClick = onLoadMore) { Text("Couldn't load more · Retry", color = Palette.AccentText) }
+                    androidx.compose.material3.TextButton(onClick = onLoadMore) { Text("Couldn't load more · Retry", color = Palette.Text) }
                 }
             }
         }

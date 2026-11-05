@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -98,7 +99,7 @@ fun SessionFan(session: List<ScanEntry>, startKey: Long, onClick: () -> Unit, mo
             key(e.key) {
                 val slot by animateFloatAsState(i.toFloat(), tween(if (still) 0 else 220), label = "slot")
                 val enter = remember { Animatable(if (e.key > startKey && !still) 0f else 1f) }
-                LaunchedEffect(Unit) { enter.animateTo(1f, tween(240, easing = FastOutSlowInEasing)) }
+                LaunchedEffect(Unit) { enter.animateTo(1f, tween(Motion.base, easing = FastOutSlowInEasing)) }
                 FanCard(
                     e,
                     Modifier
@@ -182,10 +183,10 @@ private fun FlightOf(f: Flight, origin: Offset) {
     val move = remember { Animatable(if (still) 1f else 0f) }
     val chip = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        if (!still) move.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
-        chip.animateTo(1f, tween(140))
+        if (!still) move.animateTo(1f, tween(Motion.slow, easing = FastOutSlowInEasing))
+        chip.animateTo(1f, tween(Motion.fast))
         kotlinx.coroutines.delay(750)
-        chip.animateTo(0f, tween(220, easing = LinearEasing))
+        chip.animateTo(0f, tween(Motion.base, easing = LinearEasing))
     }
     val from = f.from.translate(-origin.x, -origin.y)
     val to = f.to.translate(-origin.x, -origin.y)

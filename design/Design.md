@@ -41,8 +41,9 @@ Always-dark surfaces (the camera, card art, the game table) use `Stage`, `StageP
 themed; they stay next to the component that draws them.
 
 Rules:
-- The accent is for actions and the selected state only: the main button, the selected tab, links, Scan. It is
-  never used for decoration, headings or borders.
+- The accent is only for the main button on a screen, Scan, the selected tab and badges. Links, text buttons,
+  switches, checkboxes and charts are ink (`Text`/`Muted`): Material's `primary` is set to `Text` so nothing turns
+  red by default. It is never used for decoration, headings or borders.
 - Gains and losses always show a sign (+/−) as well as a color, so they don't rely on red or green alone.
 - No gradients on buttons or backgrounds. Gradients are allowed only as scrims, to keep text readable over card art
   or the camera.
@@ -75,7 +76,7 @@ An 8pt grid: `Space.s2` (8), `s4` (16), `s6` (24), `s8` (32), `s12` (48). The ha
 used only inside a component, for example icon to label or chip padding.
 
 - Screen side margin: `Space.gutter` (16) on every screen.
-- Between sections on a screen: `s6` (24).
+- Between sections on a screen: `s6` (24); on Home `s8` (32), so each section reads on its own.
 - Between rows in a group: 0, with a `Rule` line.
 - Panel padding: `s4` (16).
 - No literal dp in `padding`, `spacedBy`, `PaddingValues` or spacer heights, except 0 and 1 (hairlines) and
@@ -167,4 +168,5 @@ Before changing UI, read this file. After changing it, check the PR's screen pic
 | Date | Change |
 |---|---|
 | 2026-11-04 | Created. Spacing moved onto the 8pt grid in 111 files (1,782 values). Corners 3 → 4dp. `Faint` text level added. Gradient main button removed. Body line height 1.35 → 1.4. Press bounce removed. |
+| 2026-11-05 | Bolder A: Material primary is ink, so text buttons, switches and charts lose the red; charts are a thin ink line with a flat fill; Home sections 32 apart; `Motion` tokens for short animations. |
 | 2026-11-05 | Full pass over both rule sets. Always-dark and domain colors named; hard-coded dark colors replaced with `Stage`, `StagePanel`, `ArtBase`, `OnDarkSuccess` and `OnDarkDanger`. Four 36–40dp icon buttons raised to 48dp. Game setup has one main button. The scanned-card fan drops its border and keeps its shadow (one edge treatment). Em dashes removed from shared text. Token sync and contrast tests added. |

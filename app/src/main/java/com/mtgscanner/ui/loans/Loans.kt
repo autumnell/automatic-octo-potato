@@ -157,7 +157,7 @@ private fun LoanItem(r: LoanRow, first: Boolean, last: Boolean, onOpen: () -> Un
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        TextButton(onClick = onReturned) { Text("Returned", color = Palette.AccentText) }
+        TextButton(onClick = onReturned) { Text("Returned", color = Palette.Text) }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Motion
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -83,13 +84,13 @@ fun RollStage(kind: DieKind?, result: String?, rollKey: Int, modifier: Modifier 
             val flicker = launch { while (true) { face = kind.roll(); delay(70) } }
             launch { spinY.animateTo(720f, tween(850, easing = FastOutSlowInEasing)) }
             launch {
-                lift.animateTo(1.25f, tween(300))
+                lift.animateTo(1.25f, tween(Motion.slow))
                 lift.animateTo(1f, tween(550, easing = FastOutSlowInEasing))
             }
             spinX.animateTo(1080f, tween(850, easing = FastOutSlowInEasing))
             flicker.cancel()
             face = result
-            lift.animateTo(1.12f, tween(80))
+            lift.animateTo(1.12f, tween(Motion.fast))
             lift.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
         }
         settled = true
