@@ -56,8 +56,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -76,6 +74,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -114,7 +113,6 @@ import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.ui.AppViewModels
-import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.collection.ShareDialog
 import com.mtgscanner.ui.collection.shareLine
 import com.mtgscanner.data.wantAllWithUndo
@@ -152,14 +150,21 @@ import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderRows
 import com.mtgscanner.ui.components.panelRow
 
-/** The Decks tab on the Collection screen: folders and decks as art tiles. */
+/**
+ * The Decks tab on the Collection screen: folders and decks as art tiles. [query] comes from the page search above the
+ * tabs; [cards] draws the cards it finds, under the decks.
+ */
 @Composable
-fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory = AppViewModels.Factory)) {
+fun DecksTab(
+    onOpenDeck: (Long) -> Unit,
+    query: String = "",
+    cards: @Composable () -> Unit = {},
+    vm: DecksViewModel = viewModel(factory = AppViewModels.Factory),
+) {
     val decks by vm.decks.collectAsStateWithLifecycle()
     val shelf by vm.shelf.collectAsStateWithLifecycle()
     val lentTo by vm.lentTo.collectAsStateWithLifecycle()
     var folderId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var query by rememberSaveable { mutableStateOf("") }
     var naming by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var moving by remember { mutableStateOf<DeckRow?>(null) }
@@ -214,13 +219,10 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                         Icon(Icons.Outlined.DeleteOutline, "Delete folder", tint = Palette.Icon)
                     }
                 } else {
-                    // The search sits in the header row in place of a "Decks" title, with New folder and New on the right.
-                    if (decks?.isEmpty() == true && shelf.folders.isEmpty()) {
-                        Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                    } else {
-                        SearchField(query, { query = it }, Modifier.weight(1f), placeholder = "Search decks")
-                        Spacer(Modifier.width(Space.s2))
-                    }
+                    // No title: New folder and New sit on the right. The page search above the tabs finds decks, and
+                    // while it does "Decks" heads them, apart from the cards below.
+                    if (q.isNotEmpty()) Text("Decks", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                    else Spacer(Modifier.weight(1f))
                     IconButton(onClick = { naming = true }) { Icon(Icons.Outlined.CreateNewFolder, "New folder", tint = Palette.Icon) }
                     Box {
                         TextButton(onClick = { newMenu = true }) {
@@ -244,24 +246,6 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                 EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) }, fullScreen = true)
             }
         } else {
-            // Inside a folder the header shows the folder's name, so the search gets its own row.
-            if (folder != null) item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("Search decks") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Icon) },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Close, "Clear") }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(Corners.Medium),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
             if (tagsShown.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "tags") {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
@@ -272,7 +256,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
             }
             items(folderTiles, key = { "f" + it.id }) { f ->
                 val inside = all.filter { it.folderId == f.id }
-                FolderTile(f, inside, Modifier.animateItem()) { query = ""; folderId = f.id }
+                FolderTile(f, inside, Modifier.animateItem()) { folderId = f.id }
             }
             items(shown, key = { "d" + it.deck.id }) { row ->
                 DeckTile(
@@ -294,6 +278,10 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                         EmptyState("No decks here", action = "New deck", onAction = { onOpenDeck(0L) })
                     }
                 }
+            }
+            // Cards the page search finds, under the decks, edge to edge like the rest of the page's lists.
+            if (q.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "cards") {
+                Box(Modifier.edgeToEdge(Space.s4)) { cards() }
             }
         }
     }
@@ -468,4 +456,13 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, modifier: Modif
             }
         }
     }
+}
+
+/** Lets a grid item reach past the grid's side padding of [inset], so a list row lines up with the page. */
+private fun Modifier.edgeToEdge(inset: androidx.compose.ui.unit.Dp): Modifier = layout { measurable, constraints ->
+    val extra = inset.roundToPx() * 2
+    val placeable = measurable.measure(
+        constraints.copy(minWidth = constraints.minWidth + extra, maxWidth = constraints.maxWidth + extra),
+    )
+    layout(placeable.width - extra, placeable.height) { placeable.place(-extra / 2, 0) }
 }

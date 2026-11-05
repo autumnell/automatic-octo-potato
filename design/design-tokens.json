@@ -31,15 +31,15 @@
       "info": "#5B9BE0"
     },
     "light": {
-      "bg": "#E7E2D5",
-      "surface": "#FDFCF8",
-      "surface2": "#DCD6C8",
-      "surfaceOffset": "#FAF7F0",
+      "bg": "#ECEBE8",
+      "surface": "#FFFFFF",
+      "surface2": "#E0DFDB",
+      "surfaceOffset": "#F9F9F7",
       "text": "#1C1B19",
-      "textMuted": "#5E5A52",
-      "textFaint": "#8A8478",
-      "rule": "#CAC4B5",
-      "outline": "#B0A999",
+      "textMuted": "#5B5955",
+      "textFaint": "#868480",
+      "rule": "#D2D1CC",
+      "outline": "#B3B1AC",
       "primary": "#8A2F29",
       "primaryText": "computed: primary darkened to 4.6:1 on bg",
       "onPrimary": "computed: white when it reaches 4.5:1 on primary, else near-black",
@@ -57,7 +57,7 @@
     "domain": {
       "_why": "Colors that mean something in Magic and are not themed: mana symbols (ManaFont), rarity (RarityMark, SetSymbolFont), foil shimmer, player colors, dice and coins, label tape. They live next to the component that draws them."
     },
-    "_why": "Ink-brown darks and paper lights read as an old binder, not a tech dashboard. One accent (oxblood) is kept for actions and the selected state only. Each panel step is clearly lighter than the one below it, because Rae asked for clear contrast between panels and background."
+    "_why": "Ink-brown darks read as an old binder, not a tech dashboard. Lights are near-grey with only a trace of warmth, as unslop asks for app screens, so the background never reads as cream. One accent (oxblood) is kept for actions and the selected state only. Each panel step is clearly lighter than the one below it, because Rae asked for clear contrast between panels and background."
   },
   "typography": {
     "fontDisplay": "Fraunces (fixed)",

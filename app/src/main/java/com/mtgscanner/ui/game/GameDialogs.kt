@@ -114,7 +114,7 @@ internal fun ArtPicker(current: String?, vm: GameViewModel, onPick: (String?) ->
     if (open) {
         OutlinedTextField(
             query, { query = it; vm.searchArt(it) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search your collection") },
+            placeholder = { Text("Search") },
         )
         Spacer(Modifier.height(Space.s2))
         if (choices.isEmpty()) Text("No cards with art found. Scan some cards first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

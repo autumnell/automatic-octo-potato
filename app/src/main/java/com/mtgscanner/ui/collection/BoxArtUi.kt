@@ -68,11 +68,14 @@ fun boxStripeColors(boxes: List<BoxSummary>): Map<Long, Color> {
 /** Box value changes come from dollar price history, so they're hidden when prices show in euros. */
 fun boxChangeShown(): Boolean = AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR
 
-/** "+$61.66 (+36.7%)"; the percent is left out when unknown. */
+/**
+ * "+$61.66 (+36.7%) since added"; the percent is left out when unknown. The change is measured from the prices when
+ * the cards were added, and unslop asks every change to say what it's against.
+ */
 fun boxChangeLabel(change: Double, percent: Double?): String {
     val sign = if (change < 0) "−" else "+"
     val pct = percent?.let { " ($sign${String.format(Locale.US, "%.1f", abs(it))}%)" }.orEmpty()
-    return "$sign${formatUsd(abs(change))}$pct"
+    return "$sign${formatUsd(abs(change))}$pct since added"
 }
 
 /** Green for gains, red for losses; [onDark] uses the bright shades that read on card art. */
@@ -135,7 +138,7 @@ fun ValueRing(
                     Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge.merge(TabularNums), fontWeight = FontWeight.Medium, maxLines = 1)
                     if (then > 0 && boxChangeShown()) {
                         Text(
-                            boxChangeLabel(change, change / then * 100),
+                            boxChangeLabel(change, null),
                             style = MaterialTheme.typography.labelSmall.merge(TabularNums),
                             color = boxChangeColor(change),
                             maxLines = 1,

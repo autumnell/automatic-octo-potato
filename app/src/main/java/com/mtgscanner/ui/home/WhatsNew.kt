@@ -74,6 +74,7 @@ object WhatsNew {
         252 to "A calmer, bolder look: engraved Cinzel headings, a bigger collection value, more room between sections, red only on Scan and the main button, lighter type, plainer wording and smoother motion. The font picker is gone.",
         260 to "Headings are now in Fraunces, a softer book serif, in place of the engraved capitals",
         263 to "Boxes and Decks: the search moved up into the heading row, next to the menu and New",
+        267 to "Collection has one search again: it finds boxes or decks first, then the cards. Light mode is a soft grey instead of cream, and box value changes say since added",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

@@ -42,13 +42,13 @@ background.
 
 | Token | Dark | Light | Use |
 |---|---|---|---|
-| `Background` | #100F0E | #E7E2D5 | Screen |
-| `Surface` | #1E1C19 | #FDFCF8 | Panels, sheets, dialogs |
-| `SurfaceHigh` | #2B2824 | #DCD6C8 | Chips, inputs, pressed rows |
+| `Background` | #100F0E | #ECEBE8 | Screen |
+| `Surface` | #1E1C19 | #FFFFFF | Panels, sheets, dialogs |
+| `SurfaceHigh` | #2B2824 | #E0DFDB | Chips, inputs, pressed rows |
 | `Text` | #ECE8E1 | #1C1B19 | Primary text |
-| `Muted` | #A29C92 | #5E5A52 | Secondary text (4.6:1 or better) |
-| `Faint` | #77716A | #8A8478 | Disabled labels only. It is under 4.5:1, so never for text you must read |
-| `Rule` | #332F2A | #CAC4B5 | 1dp lines under rows and tabs |
+| `Muted` | #A29C92 | #5B5955 | Secondary text (4.6:1 or better) |
+| `Faint` | #77716A | #868480 | Disabled labels only. It is under 4.5:1, so never for text you must read |
+| `Rule` | #332F2A | #D2D1CC | 1dp lines under rows and tabs |
 | `Accent` | #9E3A33 | #8A2F29 | Oxblood. The user can change it |
 | `AccentText` | computed | computed | Accent moved to 4.6:1 on the background, for text |
 | `Success` / `Danger` / `Gold` / `Info` | | | Price up / down, foil and warnings, links in help |
@@ -217,8 +217,9 @@ Each of these is a choice Rae made for this app. unslop's own rule is to keep a 
 
 - **Corners stay 4dp.** unslop suggests 8–10 for controls and 12–16 for cards. Rae asked for no big rounded cards, and
   card images already carry a real card's corner.
-- **Warm neutrals.** unslop wants app surfaces near-grey. Ours are tinted toward ink brown, but at very low saturation
-  (#100F0E, #1E1C19), close to unslop's own "warm" ramp, so no screen reads as brown.
+- **Warm darks.** unslop wants app surfaces near-grey. Our dark ones are tinted toward ink brown, but at very low
+  saturation (#100F0E, #1E1C19), close to unslop's own "warm" ramp, so no screen reads as brown. Light mode follows
+  unslop: near-grey (#ECEBE8 under white panels) with only a trace of warmth. It was cream until Rae dropped it.
 - **Charts are ink, not accent.** unslop gives the tracked line the accent. Rae chose less red (Bolder A), so the line
   is `Text` and the accent stays on actions.
 - **A small chart under the Home value.** unslop keeps stat cards to numbers. The value card is Home's one moment,
