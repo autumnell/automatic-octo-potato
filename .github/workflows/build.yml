@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -15,9 +16,45 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Actions minutes are limited, so each job runs only when it can tell us something new:
+# - a pull request that only changes docs (design/, *.md) runs nothing;
+# - the release APK (R8, several minutes) is built for main and for pull requests marked ready, not for drafts;
+# - screen pictures run when a pull request changes the UI; the accuracy test when it changes scanning;
+# - a push to main only builds and publishes: its pull request already ran the rest.
+# Lint and the model comparison only report, so they live in checks.yml (weekly and by hand).
 jobs:
-  build:
+  changes:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.f.outputs.code }}
+      ui: ${{ steps.f.outputs.ui }}
+      scan: ${{ steps.f.outputs.scan }}
+    steps:
+      - id: f
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$PR" ]; then
+            printf 'code=true\nui=true\nscan=true\n' >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/$PR/files" --paginate -q '.[].filename' > files.txt
+          cat files.txt
+          shared='^(\.github/workflows/build\.yml|app/build\.gradle\.kts|build\.gradle\.kts|settings\.gradle\.kts|gradle/)'
+          has() { grep -qE "$1" files.txt && echo true || echo false; }
+          echo "code=$(grep -qvE '^design/|\.md$' files.txt && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "ui=$(has "$shared|^app/src/main/res/|^app/src/main/java/com/mtgscanner/(ui/|MainActivity)|^app/src/test/java/com/mtgscanner/screens/")" >> "$GITHUB_OUTPUT"
+          echo "scan=$(has "$shared|^app/src/main/java/com/mtgscanner/scan/|^app/src/main/assets/|^app/src/test/java/com/mtgscanner/scan/|^app/src/test/resources/scan-photos/|^\.github/scripts/")" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    env:
+      # Drafts get tests only; main, ready pull requests and manual runs also build the release APK.
+      FULL: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,6 +86,7 @@ jobs:
       # RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD); otherwise the build uses the
       # committed key in keystore/ as before. Switching keys means one uninstall on the phone.
       - name: Release signing key
+        if: env.FULL == 'true'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
@@ -63,6 +101,7 @@ jobs:
       # The optional YOLO card finder goes in the APK (Settings › Data › Card finder): the repository is private,
       # so the phone can't download it from the "models" release. A build without it still works.
       - name: YOLO card finder
+        if: env.FULL == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -73,6 +112,7 @@ jobs:
       # Every printing's picture fingerprint (built daily by gallery.yml), so the scanner knows every card from the
       # first open. Without it the phone downloads the published gallery and fills the gaps itself.
       - name: Card gallery
+        if: env.FULL == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -82,6 +122,7 @@ jobs:
       # A release build (R8, no debugging): much faster on the phone. Same app id as the old debug
       # builds, and the same committed key unless the private key above is set.
       - name: Build APK
+        if: env.FULL == 'true'
         env:
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
@@ -93,6 +134,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/release.keystore"
 
       - name: Upload APK
+        if: env.FULL == 'true'
         # A full artifact store (GitHub's storage quota) mustn't fail the build or stop the release.
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -104,6 +146,7 @@ jobs:
       # R8 renames classes in release builds; this file turns a crash report's stack trace back into
       # readable names (retrace). Each build's own copy is also attached to its release below.
       - name: Upload R8 mapping
+        if: env.FULL == 'true'
         # A full artifact store (GitHub's storage quota) mustn't fail the build or stop the release.
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -141,55 +184,11 @@ jobs:
             --title "$TITLE" \
             --notes "Build ${GITHUB_RUN_NUMBER} from ${GITHUB_SHA::7}, ${BUILD_DATE}. Download mtg-scanner.apk on your phone and open it to install."
 
-  # Lint compiles its own debug build, so it runs as a job of its own, beside the build instead of after it.
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      # Android lint, mainly for calls to APIs newer than Android 8 (minSdk 26). It reports but doesn't
-      # fail the build yet (abortOnError = false in app/build.gradle.kts).
-      - name: Android lint
-        continue-on-error: true
-        run: |
-          ./gradlew --no-daemon lintDebug
-          REPORT=app/build/reports/lint-results-debug.xml
-          if [ -f "$REPORT" ]; then
-            ERRORS=$(grep -c 'severity="Error"' "$REPORT" || true)
-            WARNINGS=$(grep -c 'severity="Warning"' "$REPORT" || true)
-            NEWAPI=$(grep -c 'id="NewApi"' "$REPORT" || true)
-            {
-              echo "### Android lint"
-              echo "- Errors: ${ERRORS}"
-              echo "- Warnings: ${WARNINGS}"
-              echo "- NewApi (newer than Android 8): ${NEWAPI}"
-              echo "Full report: the lint-report artifact."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload lint report
-        # A full artifact store (GitHub's storage quota) mustn't fail the build or stop the release.
-        continue-on-error: true
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-report
-          retention-days: 7
-          path: |
-            app/build/reports/lint-results-debug.html
-            app/build/reports/lint-results-debug.xml
-          if-no-files-found: ignore
-
   # Pictures of the main screens with a sample collection (ScreenPicturesTest), in dark, light and large text. They go
   # on the "screens" branch, one folder per branch, and a pull request gets a comment showing them.
   screens:
+    needs: changes
+    if: github.event_name != 'push' && needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -259,6 +258,8 @@ jobs:
   # How well cards are known by their picture (ScanAccuracyTest), with the real models and gallery of every printing
   # and Scryfall pictures of 60 random cards. The models and gallery are kept in the cache between runs.
   scan-accuracy:
+    needs: changes
+    if: github.event_name != 'push' && needs.changes.outputs.scan == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -342,51 +343,3 @@ jobs:
             app/build/card-adapter.bin
             app/build/scan-accuracy.md
           if-no-files-found: ignore
-
-  # Grimoire's card picture model and corner model against open-card-collector's DINOv3 Small embedder and
-  # YOLO11n OBB detector, on the same sample pictures. Only reports; it never fails the build. Pull requests and
-  # manual runs only, as it installs PyTorch.
-  model-compare:
-    if: github.event_name != 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Cache models and gallery
-        uses: actions/cache@v4
-        with:
-          path: |
-            scan-models/*.onnx
-            scan-models/*.bin
-            scan-models/*.json
-          key: scan-models-v1
-
-      - name: Install
-        continue-on-error: true
-        run: |
-          pip install -q pillow numpy onnxruntime huggingface_hub
-          pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install -q "transformers>=4.56" ultralytics
-
-      - name: Download models and sample cards
-        continue-on-error: true
-        run: |
-          mkdir -p scan-models
-          HF=https://huggingface.co
-          get() { [ -s "scan-models/$2" ] || curl -fsSL --retry 4 -o "scan-models/$2" "$1"; }
-          get "$HF/dhvazquez/mtg_card_identification_embeddings/resolve/main/20260521-044732/onnx/mtg_embed_fp16.onnx" card.onnx
-          get "$HF/dhvazquez/mtg_card_pose_estimation/resolve/main/exports/mtg_4kp_s_r4b_fp16.onnx" corners.onnx
-          get "$HF/maxhille/mtg-gallery-creator/resolve/main/gallery/gallery_ids.json" gallery_ids.json
-          python3 .github/scripts/scan_samples.py scan-models 30 app/src/test/resources/scan-photos
-
-      - name: Compare
-        continue-on-error: true
-        run: python3 .github/scripts/compare_models.py scan-models 300 model-compare.md
-
-      - name: Report
-        if: always()
-        run: cat model-compare.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report" >> "$GITHUB_STEP_SUMMARY"
