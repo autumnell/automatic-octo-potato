@@ -399,7 +399,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                     }
                 }
                 Box {
-                    IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { menu = true }, modifier = Modifier.size(Space.s12)) {
                         Icon(Icons.Outlined.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

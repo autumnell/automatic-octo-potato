@@ -30,11 +30,15 @@ background.
 | `SurfaceHigh` | #2B2824 | #DCD6C8 | Chips, inputs, pressed rows |
 | `Text` | #ECE8E1 | #1C1B19 | Primary text |
 | `Muted` | #A29C92 | #5E5A52 | Secondary text (4.6:1 or better) |
-| `Faint` | #77716A | #8A8478 | Hints, timestamps, disabled. Never for anything you must read |
+| `Faint` | #77716A | #8A8478 | Disabled labels only. It is under 4.5:1, so never for text you must read |
 | `Rule` | #332F2A | #CAC4B5 | 1dp lines under rows and tabs |
 | `Accent` | #9E3A33 | #8A2F29 | Oxblood. The user can change it |
 | `AccentText` | computed | computed | Accent moved to 4.6:1 on the background, for text |
 | `Success` / `Danger` / `Gold` / `Info` | | | Price up / down, foil and warnings, links in help |
+
+Always-dark surfaces (the camera, card art, the game table) use `Stage`, `StagePanel`, `ArtBase` and the
+`OnDark*` colors in both modes. Colors with a meaning in Magic (mana, rarity, foil, player colors, dice) are not
+themed; they stay next to the component that draws them.
 
 Rules:
 - The accent is for actions and the selected state only: the main button, the selected tab, links, Scan. It is
@@ -99,8 +103,11 @@ other organisms. Every value comes from the tokens.
 ## Hierarchy
 
 - One main action per screen, filled with the accent. Every other action is quiet: text, an outline or an icon.
+  Where a screen has states (scan result: add, count, remove, price check), each state has its own one.
+  Game setup: Start is the main action; Resume for a saved game is an outline button.
 - At most two buttons side by side.
-- Text has three levels: `Text`, then `Muted`, then `Faint`.
+- Text has three levels: `Text`, then `Muted`, then `Faint`. `Faint` is for disabled labels only: the readable
+  levels are two, because a third readable grey would fall under 4.5:1 on the darker panels.
 - Body text is left-aligned. Center only numbers in stat tiles and the empty-state line.
 
 ## Navigation
@@ -141,8 +148,23 @@ The [anti-slop design rules](https://github.com/febbhav/signs-of-ai-design/blob/
 ## Audit
 
 Before changing UI, read this file. After changing it, check the PR's screen pictures against it.
-`DesignRulesTest` fails the build on off-grid spacing and gradient buttons.
+`DesignRulesTest` fails the build on:
+- off-grid spacing;
+- a gradient accent;
+- a color in `design-tokens.json` that the code doesn't use (the token file stays the source of truth);
+- `Text` or `Muted` under 4.5:1 on any surface, in either mode.
+
+### What was not taken from the skill, and why
+
+- **Fluid `clamp()` type and rem units:** these are for the web. Android uses sp, which already follows the phone's
+  text size.
+- **Local preview server and Tailwind or Flutter exports:** the app is Compose. The preview is the screen pictures
+  CI draws on every PR, plus the "Grimoire redesign directions" canvas.
+- **Cursor and Antigravity rule files:** nobody uses those tools here. `AGENTS.md` and `CLAUDE.md` load this file
+  for coding agents.
+- **Website-only checklist items** (hero, pricing, footer, testimonials, logo walls): the app has none of them.
 
 | Date | Change |
 |---|---|
 | 2026-11-04 | Created. Spacing moved onto the 8pt grid in 111 files (1,782 values). Corners 3 → 4dp. `Faint` text level added. Gradient main button removed. Body line height 1.35 → 1.4. Press bounce removed. |
+| 2026-11-05 | Full pass over both rule sets. Always-dark and domain colors named; hard-coded dark colors replaced with `Stage`, `StagePanel`, `ArtBase`, `OnDarkSuccess` and `OnDarkDanger`. Four 36–40dp icon buttons raised to 48dp. Game setup has one main button. The scanned-card fan drops its border and keeps its shadow (one edge treatment). Em dashes removed from shared text. Token sync and contrast tests added. |

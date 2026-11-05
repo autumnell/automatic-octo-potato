@@ -124,8 +124,7 @@ private fun FanCard(e: ScanEntry, modifier: Modifier) {
             .size(Fan.cardWidth.dp, (Fan.cardWidth * 88f / 63f).dp)
             .shadow(4.dp, shape)
             .clip(shape)
-            .background(Color(0xFF1C1C1F))
-            .border(0.5.dp, Color.Black.copy(alpha = 0.7f), shape),
+            .background(Palette.ArtBase),
     ) {
         // Drawn name bar, seen while the picture loads or when it can't.
         Text(

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -126,7 +127,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                         )
                         Spacer(Modifier.height(Space.s2))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            GradientButton("Resume", onPlay, Modifier.weight(1f))
+                            com.mtgscanner.ui.components.QuietButton(onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Resume") }
                             Spacer(Modifier.width(Space.s2))
                             TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
                         }

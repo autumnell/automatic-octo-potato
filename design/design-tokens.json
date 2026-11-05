@@ -23,7 +23,7 @@
       "outline": "#423D36",
       "primary": "#9E3A33",
       "primaryText": "computed: primary lightened to 4.6:1 on bg",
-      "onPrimary": "#FFFFFF",
+      "onPrimary": "computed: white when it reaches 4.5:1 on primary, else near-black",
       "error": "#E5534B",
       "warning": "#F2C14E",
       "success": "#4CC38A",
@@ -41,13 +41,21 @@
       "outline": "#B0A999",
       "primary": "#8A2F29",
       "primaryText": "computed: primary darkened to 4.6:1 on bg",
-      "onPrimary": "#FFFFFF",
+      "onPrimary": "computed: white when it reaches 4.5:1 on primary, else near-black",
       "error": "#C62F28",
       "warning": "#A87610",
       "success": "#1E8E5A",
       "info": "#2F6FB8"
     },
     "trueBlack": { "bg": "#000000", "surface": "#151412", "surface2": "#221F1C" },
+    "alwaysDark": {
+      "stage": "#07080A", "stagePanel": "#22242B", "artBase": "#15130F",
+      "onDarkMuted": "#B4B5BB", "onDarkSuccess": "#4CC38A", "onDarkDanger": "#E5534B",
+      "_why": "The camera, card art and the game table stay dark in light mode too: art and a shared table read best dark."
+    },
+    "domain": {
+      "_why": "Colors that mean something in Magic and are not themed: mana symbols (ManaFont), rarity (RarityMark, SetSymbolFont), foil shimmer, player colors, dice and coins, label tape. They live next to the component that draws them."
+    },
     "_why": "Ink-brown darks and paper lights read as an old binder, not a tech dashboard. One accent (oxblood) is kept for actions and the selected state only. Each panel step is clearly lighter than the one below it, because Rae asked for clear contrast between panels and background."
   },
   "typography": {

@@ -124,7 +124,7 @@ fun sellText(cards: List<CollectionCard>): String = buildString {
         append("${c.quantity}× ${c.name} (${c.setCode.uppercase()})")
         if (c.foil) append(" foil")
         if (c.condition != "NM") append(" ${c.condition}")
-        if (AppSettings.showPrices) c.salePrice()?.let { append(" — ${formatUsd(it)}") }
+        if (AppSettings.showPrices) c.salePrice()?.let { append(" · ${formatUsd(it)}") }
         appendLine()
     }
     if (AppSettings.showPrices) {

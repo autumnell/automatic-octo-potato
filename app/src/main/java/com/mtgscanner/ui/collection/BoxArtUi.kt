@@ -77,8 +77,8 @@ fun boxChangeLabel(change: Double, percent: Double?): String {
 
 /** Green for gains, red for losses; [onDark] uses the bright shades that read on card art. */
 fun boxChangeColor(change: Double, onDark: Boolean = false): Color = when {
-    change > 0.005 -> if (onDark) Color(0xFF4CC38A) else Palette.Success
-    change < -0.005 -> if (onDark) Color(0xFFE5534B) else Palette.Danger
+    change > 0.005 -> if (onDark) Palette.OnDarkSuccess else Palette.Success
+    change < -0.005 -> if (onDark) Palette.OnDarkDanger else Palette.Danger
     else -> if (onDark) Palette.OnDarkMuted else Palette.Muted
 }
 

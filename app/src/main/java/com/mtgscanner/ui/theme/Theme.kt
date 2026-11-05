@@ -92,6 +92,14 @@ object Palette {
     val Icon: Color get() = if (dark) Color(0xFF99938A) else Color(0xFF67625A)
     /** Secondary text and icons on always-dark surfaces (camera, scrims over art, game screen), in both modes. */
     val OnDarkMuted: Color get() = Color(0xFFB4B5BB)
+    /** Gains and losses on always-dark surfaces (card art, the game table), in both modes. */
+    val OnDarkSuccess: Color get() = Color(0xFF4CC38A)
+    val OnDarkDanger: Color get() = Color(0xFFE5534B)
+    /** The game screens' always-dark table and its panels (players face the phone from all sides, so no light mode). */
+    val Stage: Color get() = Color(0xFF07080A)
+    val StagePanel: Color get() = Color(0xFF22242B)
+    /** Under card art while it loads, and the back of a scanned card in the fan. */
+    val ArtBase: Color get() = Color(0xFF15130F)
     /** Borders of inputs, outlined buttons and chips. */
     val Outline: Color get() = when { black -> Color(0xFF34302A); dark -> Color(0xFF423D36); else -> Color(0xFFB0A999) }
     /** The 1dp line under list rows, tab rows and the bottom bar's top edge. */

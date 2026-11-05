@@ -118,7 +118,7 @@ private fun TableOverlay(
 ) {
     var turn by remember { mutableIntStateOf(rotation) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color(0xFF07080A)).systemBarsPadding()) {
+        Box(Modifier.fillMaxSize().background(Palette.Stage).systemBarsPadding()) {
             Column(Modifier.fillMaxSize().rotateLayout(turn).padding(horizontal = Space.s4, vertical = Space.s3)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -219,7 +219,7 @@ private fun CounterTile(
     icon: ImageVector? = null,
 ) {
     Surface(
-        modifier, shape = RoundedCornerShape(Corners.Medium), color = Color(0xFF22242B),
+        modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.StagePanel,
         border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
     ) {
         Column(Modifier.padding(vertical = Space.s3, horizontal = Space.s2), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -261,7 +261,7 @@ private fun ActionTile(
 ) {
     Surface(
         onClick = onClick, enabled = enabled, modifier = modifier.height(124.dp).alpha(if (enabled) 1f else 0.4f),
-        shape = RoundedCornerShape(Corners.Medium), color = Color(0xFF22242B),
+        shape = RoundedCornerShape(Corners.Medium), color = Palette.StagePanel,
         border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
     ) {
         Column(Modifier.padding(Space.s3), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {

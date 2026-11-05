@@ -203,7 +203,7 @@ fun GradientButton(
             Icon(icon, null, tint = if (enabled) Palette.OnAccent else Palette.Icon, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(Space.s2))
         }
-        Text(text, color = if (enabled) Palette.OnAccent else Palette.Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Text(text, color = if (enabled) Palette.OnAccent else Palette.Faint, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
     }
 }
 

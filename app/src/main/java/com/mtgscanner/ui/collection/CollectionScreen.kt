@@ -574,7 +574,7 @@ private fun BoxCard(
     // The ⋮ sits inside the card's top line, so the card uses the full width.
     val menuButton: @Composable (Boolean) -> Unit = { onArt ->
         Box {
-            IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = { menu = true }, modifier = Modifier.size(Space.s12)) {
                 Icon(Icons.Outlined.MoreVert, "Box options", tint = if (onArt) Color.White else Palette.Icon, modifier = Modifier.size(20.dp))
             }
             // The everyday actions first; sharing, decks and NFC wait under More, and Delete sits apart at the end.
@@ -633,7 +633,7 @@ private fun boxCountText(b: BoxSummary, fill: BoxFill): String = when {
 @Composable
 private fun BoxArtBackground(art: String?, content: @Composable (onArt: Boolean) -> Unit) {
     if (art == null) { content(false); return }
-    Box(Modifier.fillMaxWidth().background(Color(0xFF15130F))) {
+    Box(Modifier.fillMaxWidth().background(Palette.ArtBase)) {
         AsyncImage(
             model = art,
             contentDescription = null,

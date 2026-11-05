@@ -366,7 +366,7 @@ internal fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = M
             modifier = Modifier.widthIn(max = 170.dp),
         )
         TextButton(onClick = vm::saveUnknown) { Text("Save for later", color = Palette.Gold) }
-        IconButton(onClick = vm::dismissUnknown, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = vm::dismissUnknown, modifier = Modifier.size(Space.s12)) {
             Icon(Icons.Outlined.Close, "Dismiss", tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
         }
     }
