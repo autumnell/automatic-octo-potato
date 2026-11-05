@@ -55,7 +55,7 @@ private data class TourPage(val icon: ImageVector, val title: String, val body: 
 private val PAGES = listOf(
     TourPage(Icons.Outlined.Inventory2, "Make a box", "One for each real box or binder. Add rules, or let it take anything."),
     TourPage(Icons.Outlined.CameraAlt, "Scan", "Hold a card up. The app says which box it goes in."),
-    TourPage(Icons.Outlined.Search, "Find a card", "Search your collection to see which box it's in."),
+    TourPage(Icons.Outlined.Search, "Find a card", "Search your collection to see which box it's in"),
 )
 
 /** Three swipeable pages shown on first launch. Can be shown again from Settings. */

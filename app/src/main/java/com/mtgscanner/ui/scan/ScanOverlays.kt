@@ -153,7 +153,7 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
-                    Icon(if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.OnDarkMuted, modifier = Modifier.size(14.dp))
+                    Icon(if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(Space.s1))
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Just checking · not adding"
@@ -170,7 +170,7 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Icon(Icons.Outlined.ExpandMore, null, tint = Palette.OnDarkMuted, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.ExpandMore, null, tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
                 }
                 DropdownMenu(expanded = boxMenu, onDismissRequest = { boxMenu = false }) {
                     DropdownMenuItem(
@@ -272,7 +272,7 @@ internal fun RoundIconButton(
     Box(
         modifier.size(44.dp).glass(CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
+    ) { Icon(icon, label, tint = tint, modifier = Modifier.size(24.dp)) }
 }
 
 @Composable

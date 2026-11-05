@@ -237,7 +237,7 @@ fun BoxCheckSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> U
         onDismissRequest = { ending = false },
         containerColor = Palette.Surface,
         title = { Text("End the box check?") },
-        text = { Text("The scanned list is cleared.", color = Palette.Muted) },
+        text = { Text("The scanned list is cleared", color = Palette.Muted) },
         confirmButton = { TextButton(onClick = { ending = false; vm.endBoxCheck() }) { Text("End") } },
         dismissButton = { TextButton(onClick = { ending = false }) { Text("Keep") } },
     )

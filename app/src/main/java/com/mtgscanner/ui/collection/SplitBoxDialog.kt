@@ -50,7 +50,7 @@ internal fun SplitBoxDialog(box: BoxSummary, cards: List<CollectionCard>?, onSpl
         text = {
             Column {
                 if (at == null) {
-                    Text("This box can't split further.")
+                    Text("This box can't split further")
                 } else {
                     Text("Second box starts at", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                     Spacer(Modifier.height(Space.s2))

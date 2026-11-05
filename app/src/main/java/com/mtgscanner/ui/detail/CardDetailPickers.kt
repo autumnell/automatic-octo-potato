@@ -329,7 +329,7 @@ internal fun BoxPicker(boxes: List<CardBox>, decks: List<Deck>, places: List<Car
         DropChip(
             here?.placeName() ?: "Box",
             onClick = { open = true },
-            leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = Palette.Icon) },
+            leading = { Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(18.dp), tint = Palette.Icon) },
         )
         BoxPickMenu(open, { open = false }, boxes, decks, places, current, onPick)
     }

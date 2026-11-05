@@ -11,14 +11,15 @@ import com.mtgscanner.R
  * against the heading sizes in Theme.kt; [spacing] is the letter spacing headings get.
  */
 enum class AppFont(val label: String, val scale: Float, val spacing: Double, val family: () -> FontFamily) {
-    CINZEL("Cinzel", 0.8f, 1.0, { Cinzel }),
+    CINZEL("Cinzel", 0.8f, 0.5, { Cinzel }),
     LEXEND("Lexend", 0.86f, 0.0, { Lexend }),
 }
 
 val Cinzel = FontFamily(
-    Font(R.font.cinzel_semibold, FontWeight.Medium),
+    Font(R.font.cinzel_medium, FontWeight.Medium),
     Font(R.font.cinzel_semibold, FontWeight.SemiBold),
-    Font(R.font.cinzel_bold, FontWeight.Bold),
+    // No 700: weights stop at 600 (design/Design.md). Anything asking for Bold gets SemiBold, not a faked bold.
+    Font(R.font.cinzel_semibold, FontWeight.Bold),
 )
 
 /** Which font goes where. */

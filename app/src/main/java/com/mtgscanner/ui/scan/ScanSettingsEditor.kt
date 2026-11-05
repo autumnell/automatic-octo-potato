@@ -42,7 +42,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
     val update = ScanPrefs::update
 
     Column(modifier) {
-        Toggle("Auto-add", "Add each card as it's read.", s.autoAdd) { on ->
+        Toggle("Auto-add", "Add each card as it's read", s.autoAdd) { on ->
             update { it.copy(autoAdd = on) }
         }
         if (s.autoAdd) {
@@ -56,7 +56,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
             }
             Text(
                 when (s.unsure) {
-                    UnsureAction.PAUSE -> "Stop so you can check it."
+                    UnsureAction.PAUSE -> "Stop so you can check it"
                     UnsureAction.ASIDE -> "Scanning keeps going. Check the set-aside cards at the end."
                     UnsureAction.SKIP -> "The card isn't added. Scan it again or add it by hand."
                 },
@@ -66,7 +66,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
             )
 
             Heading("Skip")
-            Text("Skipped cards are counted but not added.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Text("Skipped cards are counted but not added", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Toggle("Basic lands", null, s.skipBasics) { on -> update { it.copy(skipBasics = on) } }
             Toggle("Tokens and emblems", null, s.skipTokens) { on -> update { it.copy(skipTokens = on) } }
             if (AppSettings.showPrices) {
@@ -88,17 +88,17 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
             SoundPills(s.asideSound) { v -> update { it.copy(asideSound = v) } }
         }
         Toggle("Vibrate", null, s.vibrate) { on -> update { it.copy(vibrate = on) } }
-        Toggle("Flash the frame", "In the box's color.", s.flash) { on -> update { it.copy(flash = on) } }
-        Toggle("Say the box", "Stack mode reads out where each card goes.", s.speakBox) { on -> update { it.copy(speakBox = on) } }
-        Toggle("Auto flashlight", "On when it's too dark.", s.autoTorch) { on -> update { it.copy(autoTorch = on) } }
+        Toggle("Flash the frame", "In the box's color", s.flash) { on -> update { it.copy(flash = on) } }
+        Toggle("Say the box", "Stack mode reads out where each card goes", s.speakBox) { on -> update { it.copy(speakBox = on) } }
+        Toggle("Auto flashlight", "On when it's too dark", s.autoTorch) { on -> update { it.copy(autoTorch = on) } }
 
         Heading("Camera")
         Toggle("Sharper frames", "Reads small print better. Uses a bit more battery.", s.sharperFrames) { on -> update { it.copy(sharperFrames = on) } }
         Toggle("Centering check", "Shows how evenly each card's border is printed, like 55/45.", s.centering) { on -> update { it.copy(centering = on) } }
-        Toggle("Spot proxies", "Says when a card doesn't look like its real printing.", s.proxyCheck) { on -> update { it.copy(proxyCheck = on) } }
-        Toggle("Voice commands", "Say foil, not foil, undo, set aside, skip, or a number of copies.", s.voice) { on -> update { it.copy(voice = on) } }
+        Toggle("Spot proxies", "Says when a card doesn't look like its real printing", s.proxyCheck) { on -> update { it.copy(proxyCheck = on) } }
+        Toggle("Voice commands", "Say foil, not foil, undo, set aside, skip, or a number of copies", s.voice) { on -> update { it.copy(voice = on) } }
         Text("Zoom", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = Space.s1))
-        Text("Hold the phone farther back for less blur and glare.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        Text("Hold the phone farther back for less blur and glare", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         Row(Modifier.padding(top = Space.s2, bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf(1f, 1.5f, 2f).forEach { z ->
                 val label = if (z == 1f) "1×" else if (z == 2f) "2×" else "1.5×"

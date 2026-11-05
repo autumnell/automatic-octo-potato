@@ -186,7 +186,7 @@ fun StatsScreen(
             SectionHeader("By color")
             Breakdown(
                 s.byColor.filter { it.cards > 0 }, prices,
-                note = "Multicolor cards count in each color.",
+                note = "Multicolor cards count in each color",
                 lead = { ColorPip(it.key[0]) },
                 bar = { colorOf(it.key) },
                 onRow = { browse(Filters(colors = setOf(it.key), sort = SortBy.PRICE)) },
@@ -219,7 +219,7 @@ fun StatsScreen(
                         if (prices && ch != null && kotlin.math.abs(ch) >= 0.5) r.copy(label = "${r.label} · ${if (ch >= 0) "up" else "down"} ${formatUsd(kotlin.math.abs(ch))}") else r
                     },
                     prices,
-                    note = if (prices && s.yearChange.isNotEmpty()) "Up or down from what you paid, or the price when added." else null,
+                    note = if (prices && s.yearChange.isNotEmpty()) "Up or down from what you paid, or the price when added" else null,
                     lead = null,
                     bar = { Palette.Accent },
                     onRow = {},

@@ -1147,7 +1147,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             // A box that was deleted falls back to auto-sort.
             val chosen = chooseBox(card, facts, s.boxId)
             if (chosen == null) {
-                _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card.") }
+                _state.update { it.copy(status = "No box fits ${card.name}", error = "Pick a box above, or add a box that takes any card") }
                 return null
             }
             val (boxId, decision) = chosen

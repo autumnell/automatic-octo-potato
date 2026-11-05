@@ -227,19 +227,8 @@ fun BrowseScreen(
         }
     }
 
-    // A box's page picks up a soft tint from its cover card's art.
-    val coverArt = remember(ui.all, boxId) {
-        if (boxId < 0) null
-        else {
-            val cover = com.mtgscanner.data.BoxCovers(ctx).covers.value[boxId]
-            com.mtgscanner.data.BoxArt.coverCard(ui.all.filter { it.boxId == boxId }, cover)?.imageUrl
-        }
-    }
-    val tint = com.mtgscanner.ui.components.rememberArtTint(com.mtgscanner.data.db.artCropUrl(coverArt))
-    val top = com.mtgscanner.ui.components.tintedBackground(tint)
     Row(
-        Modifier.fillMaxSize().background(Palette.Background)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, Palette.Background), endY = 900f)),
+        Modifier.fillMaxSize().background(Palette.Background),
     ) {
     val collapse = com.mtgscanner.ui.components.rememberCollapseState()
     // A new search or sort starts from the top, with the header showing.
@@ -396,12 +385,12 @@ fun BrowseScreen(
                     if (!picking) ToolChip("Recent cards", Icons.Outlined.History, { recentCards = !recentCards }, active = recentCards)
                     saved.forEach { sv ->
                         SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
-                            Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(18.dp))
                         })
                     }
                     recent.forEach { q ->
                         SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
-                            Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                         })
                     }
                     if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }

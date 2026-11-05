@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -13,6 +12,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.mtgscanner.ui.components.animationsOff
+import com.mtgscanner.ui.theme.Motion
 
 /** How long a card picture takes to grow into the card page. */
 const val CARD_GROW_MS = 280
@@ -31,7 +31,7 @@ fun ScreenAnimation(scope: AnimatedVisibilityScope, content: @Composable () -> U
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
-private val CardBounds = BoundsTransform { _, _ -> tween(CARD_GROW_MS, easing = FastOutSlowInEasing) }
+private val CardBounds = BoundsTransform { _, _ -> tween(CARD_GROW_MS, easing = Motion.ease) }
 
 /**
  * Marks a card picture for collection row [rowId]. Opening that card's page grows this picture into

@@ -224,7 +224,7 @@ fun rangeWarnings(r: BoxRules): List<String> = buildList {
     // Price: at least is inclusive and under is exclusive, so equal values match nothing too.
     if (r.minPrice != null && r.maxPrice != null && r.minPrice >= r.maxPrice) add("Price: \"At least\" must be below \"Under\".")
     fun stat(name: String, min: Int?, max: Int?) {
-        if (min != null && max != null && min > max) add("$name: From is above To.")
+        if (min != null && max != null && min > max) add("$name: From is above To")
     }
     stat("Mana value", r.minCmc, r.maxCmc)
     stat("Power", r.minPower, r.maxPower)

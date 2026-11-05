@@ -107,7 +107,6 @@ import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
 import com.mtgscanner.data.db.Deck
-import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.collection.ShareDialog
@@ -173,12 +172,9 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
         vm.changes.updateFromLink(ui.id, vm.savedText, url)
     }
 
-    // The header picks up a soft tint from the commander's (or lead card's) art.
-    val tint = com.mtgscanner.ui.components.rememberArtTint(ui.leadArt.firstOrNull()?.let { artCropUrl(it) })
-    val top = com.mtgscanner.ui.components.tintedBackground(tint)
+    // Neutral page: no color wash from the art (design/Design.md, unslop). The art itself carries the color.
     Box(
-        Modifier.fillMaxSize().background(Palette.Background)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, Palette.Background), endY = 1100f)),
+        Modifier.fillMaxSize().background(Palette.Background),
     ) {
         // The commander header slides away while the card list scrolls.
         val collapse = com.mtgscanner.ui.components.rememberCollapseState()
@@ -307,7 +303,7 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
         title = { Text("Delete deck?") },
         text = {
             Column {
-                Text(if (copies == 1) "1 card is in this deck." else "$copies cards are in this deck.", color = Palette.Muted)
+                Text(if (copies == 1) "1 card is in this deck" else "$copies cards are in this deck", color = Palette.Muted)
                 Spacer(Modifier.height(Space.s3))
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     SelectPill("Move to boxes", !remove, { remove = false })
@@ -344,7 +340,7 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
             shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("One card per line.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+            Text("One card per line", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
             // A photo of a printed list: its lines join what's here, to check before saving.
             FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
         }

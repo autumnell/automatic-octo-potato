@@ -217,10 +217,10 @@ internal fun PlayerPanel(
                         if (shownRun > 0) "+$shownRun" else "−${-shownRun}",
                         color = if (shownRun > 0) Color(0xFFB9F6CA) else Color(0xFFFFCDD2),
                         fontSize = (lifeSize.value * 0.55f).sp,
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
-                Text("${p.life}", color = Color.White, fontSize = lifeSize, fontWeight = FontWeight.Bold)
+                Text("${p.life}", color = Color.White, fontSize = lifeSize, fontWeight = FontWeight.SemiBold)
                 Text(p.name, color = Color.White, style = MaterialTheme.typography.titleSmall)
                 if (out != null) Text(out, color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
@@ -301,7 +301,7 @@ private fun CommanderDot(color: Color, damage: Int, name: String, onAdd: () -> U
             "$damage",
             color = if (lethal) Color(0xFFFF5252) else Color.White,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }

@@ -64,7 +64,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
 
     Column(Modifier.fillMaxWidth().padding(bottom = Space.s2)) {
         Text("Art match", style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.padding(top = Space.s4, bottom = Space.s1))
-        Text("Finds cards by their art when no text reads.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        Text("Finds cards by their art when no text reads", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
 
         download?.let { d ->
             Spacer(Modifier.height(Space.s3))
@@ -120,7 +120,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
 
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = Space.s3), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             SelectPill("Add set", false, { vm.loadSets(); picking = true }, leading = {
-                Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
             })
             SelectPill("Sets I own", false, {
                 vm.loadSets()
@@ -143,7 +143,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
             title = { Text(if (missing.isEmpty()) "All set" else "Get ${missing.size} sets?") },
             text = {
                 Text(
-                    if (missing.isEmpty()) "Every set you own is here."
+                    if (missing.isEmpty()) "Every set you own is here"
                     else (if (cards > 0) "About $cards pictures. " else "") + "Best on Wi-Fi.",
                     color = Palette.Muted,
                 )
@@ -181,7 +181,7 @@ private fun ArtSetPicker(vm: ScanViewModel, onDismiss: () -> Unit) {
                         PickRow(s.code, s.name, s.code.uppercase() + " · ${s.cardCount} cards") { pick(s.code) }
                     }
                     if (sets.isEmpty() && typed == null) item(key = "empty") {
-                        Text("Type a set code.", color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s4))
+                        Text("Type a set code", color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s4))
                     }
                 }
             }

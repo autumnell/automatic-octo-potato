@@ -308,7 +308,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
             SelectPill("Include variants", variants, { vm.setIncludeVariants(!variants) })
         }
         if (failed) Text(
-            "Offline: set sizes missing.",
+            "Offline: set sizes missing",
             style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(horizontal = Space.s4),
         )
         val q = filter.trim().lowercase()
@@ -527,7 +527,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         title = { Text("Wishlist ${toWish.size} missing cards?") },
         text = {
             val cost = toWish.sumOf { it.prices.usd?.toDoubleOrNull() ?: 0.0 }
-            Text("Any printing counts." + if (AppSettings.showPrices) " About ${formatUsd(cost)} total." else "")
+            Text("Any printing counts" + if (AppSettings.showPrices) " · about ${formatUsd(cost)} total" else "")
         },
         confirmButton = { TextButton(onClick = { vm.wishlistMissing(toWish); confirmWish = false }) { Text("Add") } },
         dismissButton = { TextButton(onClick = { confirmWish = false }) { Text("Cancel") } },
@@ -688,7 +688,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
             QuantityStepper(keep, onChange = vm::setKeep)
         }
         Text(
-            "Not counted: basic lands, trade binders, decks.",
+            "Not counted: basic lands, trade binders, decks",
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4),
         )
         if (groups.isEmpty()) {
@@ -714,13 +714,13 @@ fun ExtrasScreen(onBack: () -> Unit) {
         Surface(color = Palette.Surface) {
             Column(Modifier.fillMaxWidth().padding(Space.s4).navigationBarsPadding()) {
                 if (trade.isEmpty()) {
-                    Text("Make a trade binder to move extras into.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text("Make a trade binder to move extras into", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     Spacer(Modifier.height(Space.s2))
                     GradientButton("Create a trade binder", { vm.createTradeBinder() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Add)
                 } else {
                     if (trade.size > 1) Row(Modifier.padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         trade.forEach { b ->
-                            SelectPill(b.name, dest == b.id, { target = b.id }, leading = { Icon(boxIcon(b.kind), null, Modifier.size(14.dp), tint = boxColor(b.color)) })
+                            SelectPill(b.name, dest == b.id, { target = b.id }, leading = { Icon(boxIcon(b.kind), null, Modifier.size(18.dp), tint = boxColor(b.color)) })
                         }
                     }
                     val n = chosen.sumOf { it.extra }

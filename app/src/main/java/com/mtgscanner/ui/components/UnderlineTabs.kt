@@ -67,7 +67,7 @@ private fun UnderlineTab(label: String, selected: Boolean, modifier: Modifier, o
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
             color = if (selected) Palette.Text else Palette.Muted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

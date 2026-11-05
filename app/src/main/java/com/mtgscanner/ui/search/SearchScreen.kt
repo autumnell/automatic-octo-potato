@@ -187,7 +187,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.weight(1f)) {
-                            if (ui.query.isEmpty()) Text("Search for card…", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
+                            if (ui.query.isEmpty()) Text("Search", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
                             BasicTextField(
                                 value = ui.query,
                                 onValueChange = vm::setQuery,
@@ -200,7 +200,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                             )
                         }
                         if (ui.query.isNotEmpty()) {
-                            IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+                            IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
                         } else {
                             Spacer(Modifier.width(Space.s4))
                         }
@@ -221,7 +221,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     val n = ui.filters.activeCount
                     SelectPill(
                         if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
-                        leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
+                        leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(18.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
                     )
                     Spacer(Modifier.width(Space.s2))
                     SelectPill("Price a list", false, { pricing = true })

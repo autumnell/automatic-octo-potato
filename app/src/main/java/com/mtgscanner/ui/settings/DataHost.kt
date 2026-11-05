@@ -69,7 +69,7 @@ private fun RestoreOffer(vm: SettingsViewModel) {
         onDismissRequest = { DriveBackup.dismissRestoreOffer(app) },
         containerColor = Palette.Surface,
         title = { Text("Restore your backup?") },
-        text = { Text("Pick your Grimoire backup on Drive.") },
+        text = { Text("Pick your Grimoire backup on Drive") },
         confirmButton = {
             TextButton(onClick = { pick.launch(arrayOf("application/zip", "application/json", "application/octet-stream")) }) { Text("Pick file") }
         },

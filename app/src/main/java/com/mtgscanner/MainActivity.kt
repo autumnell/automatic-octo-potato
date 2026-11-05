@@ -321,17 +321,17 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             modifier = Modifier.padding(padding).nestedScroll(tabBar.connection),
             // Tabs crossfade quickly. A page opened on top slides in (set per page below) while the page under
             // it drifts a little to the left, and drifts back on the way back.
-            enterTransition = { fadeIn(tween(Motion.base)) },
+            enterTransition = { fadeIn(tween(Motion.base, easing = Motion.ease)) },
             exitTransition = {
                 // The card page grows out of a picture on this page, so this page stays put under it.
                 if (targetState.destination.route == "card/{id}") fadeOut()
-                else if (isTab(targetState.destination.route)) fadeOut(tween(Motion.fast))
-                else slideOutHorizontally(tween(Motion.slow)) { -it / 8 } + fadeOut(tween(Motion.slow), targetAlpha = 0.6f)
+                else if (isTab(targetState.destination.route)) fadeOut(tween(Motion.fast, easing = Motion.ease))
+                else slideOutHorizontally(tween(Motion.slow, easing = Motion.ease)) { -it / 8 } + fadeOut(tween(Motion.slow, easing = Motion.ease), targetAlpha = 0.6f)
             },
             popEnterTransition = {
                 if (initialState.destination.route == "card/{id}") fadeIn()
-                else if (isTab(initialState.destination.route)) fadeIn(tween(Motion.base))
-                else slideInHorizontally(tween(Motion.slow)) { -it / 8 } + fadeIn(tween(Motion.slow), initialAlpha = 0.6f)
+                else if (isTab(initialState.destination.route)) fadeIn(tween(Motion.base, easing = Motion.ease))
+                else slideInHorizontally(tween(Motion.slow, easing = Motion.ease)) { -it / 8 } + fadeIn(tween(Motion.slow, easing = Motion.ease), initialAlpha = 0.6f)
             },
         ) {
             composable("home") {
@@ -574,8 +574,9 @@ private fun RowScope.ScanTab(selected: Boolean, waiting: Int, onHold: () -> Unit
         Box(
             Modifier
                 .offset(y = (-14).dp)
-                .size(58.dp)
-                .shadow(10.dp, CircleShape, ambientColor = Palette.Accent, spotColor = Palette.Accent)
+                .size(56.dp)
+                // A small neutral shadow lifts it off the bar; no colored glow.
+                .shadow(4.dp, CircleShape)
                 .clip(CircleShape)
                 .background(Palette.Accent)
                 // A ring in the bar's color sets it into the bar.

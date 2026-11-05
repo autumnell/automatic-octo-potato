@@ -200,7 +200,7 @@ fun GradientButton(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
-            Icon(icon, null, tint = if (enabled) Palette.OnAccent else Palette.Icon, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = if (enabled) Palette.OnAccent else Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s2))
         }
         Text(text, color = if (enabled) Palette.OnAccent else Palette.Faint, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
@@ -214,7 +214,7 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: S
         Column(Modifier.padding(Space.s4), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
-                    Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                    Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(Space.s2))
                 }
                 Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
@@ -290,7 +290,7 @@ fun FoilTag(modifier: Modifier = Modifier) {
             .border(1.dp, silver, RoundedCornerShape(Corners.Small))
             .padding(horizontal = Space.s2, vertical = 1.dp),
     ) {
-        Text("Foil", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = silver)
+        Text("Foil", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = silver)
     }
 }
 
@@ -331,7 +331,7 @@ fun CardTile(
                 Box(
                     Modifier.align(Alignment.TopStart).padding(Space.s2).size(24.dp).clip(CircleShape).background(Palette.Accent),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Outlined.Check, "Selected", tint = Palette.OnAccent, modifier = Modifier.size(16.dp)) }
+                ) { Icon(Icons.Outlined.Check, "Selected", tint = Palette.OnAccent, modifier = Modifier.size(18.dp)) }
             }
             if (quantity != null && quantity > 1) {
                 Box(

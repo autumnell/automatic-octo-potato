@@ -122,7 +122,7 @@ private fun TableOverlay(
             Column(Modifier.fillMaxSize().rotateLayout(turn).padding(horizontal = Space.s4, vertical = Space.s3)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                        title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
                     IconButton(onClick = { turn = (turn + 90) % 360 }, modifier = Modifier.size(56.dp)) {
@@ -153,7 +153,7 @@ private fun TabPill(text: String, selected: Boolean, modifier: Modifier = Modifi
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text, color = if (selected) Palette.OnAccent else Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+            text, color = if (selected) Palette.OnAccent else Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = Space.s2),
         )
     }
@@ -233,7 +233,7 @@ private fun CounterTile(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 listOf(-1, 1).forEach { sign ->
                     if (sign > 0) Text(
-                        "$value", color = if (warn) Palette.Danger else Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold,
+                        "$value", color = if (warn) Palette.Danger else Color.White, fontSize = 36.sp, fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center, modifier = Modifier.width(56.dp),
                     )
                     Box(
@@ -329,7 +329,7 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
                 ScrollPage(scroll) { Column(Modifier.verticalScroll(scroll)) { TileGrid(tiles.size) { k, m -> tiles[k](m) } } }
             }
             "Damage" -> {
-                Text("21 from one commander and you're out.",
+                Text("21 from one commander and you're out",
                     color = Palette.OnDarkMuted, fontSize = 16.sp)
                 Spacer(Modifier.height(Space.s2))
                 val sources = g.players.indices.filter { it != i }.flatMap { from -> listOf(from to false) + if (g.partners) listOf(from to true) else emptyList() }

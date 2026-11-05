@@ -3,10 +3,7 @@ package com.mtgscanner.ui.components
 import com.mtgscanner.ui.theme.Motion
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -200,19 +197,19 @@ fun CardZoomHost() {
     val farAway = with(density) { 1600.dp.toPx() }
 
     LaunchedEffect(shown.key) {
-        appear.animateTo(1f, tween(Motion.base, easing = FastOutSlowInEasing))
+        appear.animateTo(1f, tween(Motion.base, easing = Motion.ease))
     }
 
     fun close() {
         if (closing) return
         closing = true
         scope.launch {
-            appear.animateTo(0f, tween(Motion.fast))
+            appear.animateTo(0f, tween(Motion.fast, easing = Motion.ease))
             CardZoom.hide()
         }
     }
 
-    // Past a short distance (or a quick flick) the card flies off and closes; otherwise it springs back.
+    // Past a short distance (or a quick flick) the card flies off and closes; otherwise it eases back.
     fun settle(velocity: Velocity) {
         if (closing) return
         val start = CardZoom.offset
@@ -223,12 +220,12 @@ fun CardZoomHost() {
             closing = true
             val dir = if (speed > throwSpeed) Offset(velocity.x / speed, velocity.y / speed) else Offset(start.x / dist, start.y / dist)
             settling[0] = scope.launch {
-                animate(0f, 1f, animationSpec = tween(Motion.base)) { t, _ -> CardZoom.offset = start + dir * (farAway * t) }
+                animate(0f, 1f, animationSpec = tween(Motion.base, easing = Motion.ease)) { t, _ -> CardZoom.offset = start + dir * (farAway * t) }
                 CardZoom.hide()
             }
         } else {
             settling[0] = scope.launch {
-                animate(0f, 1f, animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium)) { t, _ ->
+                animate(0f, 1f, animationSpec = tween(Motion.base, easing = Motion.ease)) { t, _ ->
                     CardZoom.offset = start * (1f - t)
                 }
             }

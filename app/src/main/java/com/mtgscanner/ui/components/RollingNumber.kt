@@ -1,7 +1,6 @@
 package com.mtgscanner.ui.components
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -13,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import com.mtgscanner.ui.theme.Motion
 
 /**
  * A number that counts to its new value instead of jumping: from 0 the first time it shows, then from
@@ -35,7 +35,7 @@ fun RollingText(value: Double, format: (Double) -> String, style: TextStyle, col
         from = now
         to = value
         progress.snapTo(0f)
-        progress.animateTo(1f, tween(durationMillis = RollingMath.durationMillis(now, value), easing = FastOutSlowInEasing))
+        progress.animateTo(1f, tween(durationMillis = RollingMath.durationMillis(now, value), easing = Motion.ease))
         settled = value
     }
 

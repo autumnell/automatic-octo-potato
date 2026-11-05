@@ -156,7 +156,7 @@ internal fun EditTilesDialog(lists: List<String>, onDismiss: () -> Unit) {
                 }
                 if (TileMetric.CUSTOM in chosen) {
                     if (lists.isEmpty()) {
-                        Text("Save a search in Browse first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s3))
+                        Text("Save a search in Browse first", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s3))
                     } else {
                         FlowRow(
                             Modifier.padding(start = Space.s3, top = Space.s1, bottom = Space.s2),

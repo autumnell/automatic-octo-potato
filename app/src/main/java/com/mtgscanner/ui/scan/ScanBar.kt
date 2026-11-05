@@ -239,14 +239,14 @@ fun SetPickSheet(vm: ScanViewModel) {
                 item(key = "auto") {
                     SetRowItem(
                         title = "Auto", sub = "Any set", selected = lock == null,
-                        icon = { Icon(Icons.Outlined.LockOpen, null, tint = if (lock == null) Palette.AccentText else Palette.Icon, modifier = Modifier.size(22.dp)) },
+                        icon = { Icon(Icons.Outlined.LockOpen, null, tint = if (lock == null) Palette.AccentText else Palette.Icon, modifier = Modifier.size(24.dp)) },
                         onClick = { vm.setLock(null) },
                     )
                 }
                 if (typed != null) item(key = "typed") {
                     SetRowItem(
                         title = "Lock to ${typed.uppercase()}", sub = "Set code", selected = false,
-                        icon = { Icon(Icons.Outlined.Lock, null, tint = Palette.Icon, modifier = Modifier.size(22.dp)) },
+                        icon = { Icon(Icons.Outlined.Lock, null, tint = Palette.Icon, modifier = Modifier.size(24.dp)) },
                         onClick = { vm.setLock(typed) },
                     )
                 }

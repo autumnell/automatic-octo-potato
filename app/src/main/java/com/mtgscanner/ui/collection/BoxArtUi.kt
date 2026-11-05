@@ -132,7 +132,7 @@ fun ValueRing(
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = Space.s6)) {
                 if (prices) {
-                    Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge.merge(TabularNums), fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge.merge(TabularNums), fontWeight = FontWeight.Medium, maxLines = 1)
                     if (then > 0 && boxChangeShown()) {
                         Text(
                             boxChangeLabel(change, change / then * 100),
@@ -143,7 +143,7 @@ fun ValueRing(
                     }
                     Text("$totalCards cards", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted)
                 } else {
-                    Text("$totalCards", style = MaterialTheme.typography.headlineMedium.merge(TabularNums), fontWeight = FontWeight.SemiBold)
+                    Text("$totalCards", style = MaterialTheme.typography.headlineMedium.merge(TabularNums), fontWeight = FontWeight.Medium)
                     Text("cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                 }
             }

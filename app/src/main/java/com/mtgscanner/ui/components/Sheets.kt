@@ -206,7 +206,7 @@ fun AddCardSheet(
                         .padding(horizontal = Space.s3, vertical = Space.s2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Outlined.Check, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.Check, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(Space.s2))
                     Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.weight(1f))
                     if (onOwned != null) Text("Open", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
@@ -250,13 +250,13 @@ fun AddCardSheet(
                     if (boxes.isNotEmpty()) {
                         val auto = deckId == 0L && boxId == CardBox.AUTO_SORT
                         SelectPill("Auto-sort", auto, onClick = { boxId = CardBox.AUTO_SORT; deckId = 0L }, leading = {
-                            Icon(Icons.AutoMirrored.Outlined.Sort, null, modifier = Modifier.size(14.dp), tint = if (auto) Palette.AccentText else Palette.Icon)
+                            Icon(Icons.AutoMirrored.Outlined.Sort, null, modifier = Modifier.size(18.dp), tint = if (auto) Palette.AccentText else Palette.Icon)
                         })
                     }
                     boxes.forEach { b ->
                         val on = deckId == 0L && b.id == boxId
                         SelectPill(b.name, on, onClick = { boxId = b.id; deckId = 0L }, leading = {
-                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(14.dp), tint = if (on) Palette.AccentText else Palette.Icon)
+                            Icon(boxIcon(b.kind), null, modifier = Modifier.size(18.dp), tint = if (on) Palette.AccentText else Palette.Icon)
                         })
                     }
                     NewPill("New box", onCreateBox)
@@ -269,7 +269,7 @@ fun AddCardSheet(
                         decks.forEach { d ->
                             val on = d.id == deckId
                             SelectPill(d.name, on, onClick = { deckId = if (on) 0L else d.id }, leading = {
-                                Icon(boxIcon("deck"), null, modifier = Modifier.size(14.dp), tint = if (on) Palette.AccentText else Palette.Icon)
+                                Icon(boxIcon("deck"), null, modifier = Modifier.size(18.dp), tint = if (on) Palette.AccentText else Palette.Icon)
                             })
                         }
                         if (onCreateDeck != null) NewPill("New deck") { namingDeck = true }
@@ -305,7 +305,7 @@ data class AddPick(val boxId: Long = 0L, val deckId: Long = 0L)
 @Composable
 private fun NewPill(label: String, onClick: () -> Unit) {
     SelectPill(label, false, onClick = onClick, leading = {
-        Icon(Icons.Outlined.Add, null, modifier = Modifier.size(14.dp), tint = Palette.Icon)
+        Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp), tint = Palette.Icon)
     })
 }
 

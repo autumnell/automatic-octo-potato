@@ -122,7 +122,7 @@ fun FilterSheet(
                 Spacer(Modifier.width(Space.s2))
                 SelectPill("Add", false, {
                     if (otherType.isNotBlank()) { onChange(f.copy(types = f.types + TypeTerm(otherType.trim()))); otherType = "" }
-                }, leading = { Icon(Icons.Outlined.Add, null, Modifier.size(14.dp), tint = Palette.Icon) })
+                }, leading = { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp), tint = Palette.Icon) })
             }
 
             Heading("Stats")

@@ -95,7 +95,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             contentAlignment = Alignment.Center,
         ) {
             val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.batch != null || state.target != ScanTarget.COLLECTION
-            Icon(Icons.Outlined.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(22.dp))
+            Icon(Icons.Outlined.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(24.dp))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             val target = INTO.firstOrNull { it.target == state.target }

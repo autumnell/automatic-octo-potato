@@ -64,6 +64,73 @@ class DesignRulesTest {
         assertTrue("Text below 4.5:1: $bad", bad.isEmpty())
     }
 
+    // unslop rules (design/unslop, the default design philosophy): type, copy, motion and color checks a build can make.
+    private val ui = sources.filter { "/ui/" in it.path.replace('\\', '/') || it.name == "MainActivity.kt" }
+
+    /** Weights stop at 600. Dice faces, label-maker tape and mana symbols draw real objects and keep their bold. */
+    @Test
+    fun noHeavyWeights() {
+        val objects = setOf("DiceRoller.kt", "LabelTape.kt")
+        val heavy = Regex("""FontWeight\.(Bold|ExtraBold|Black|W[789]00)""")
+        val bad = ui.filter { it.name !in objects && it.parentFile.name != "theme" }.flatMap { f ->
+            val lines = f.readLines()
+            lines.mapIndexedNotNull { i, line ->
+                // A mana symbol drawn as a letter in a colored circle, like the printed symbol.
+                val manaSymbol = lines.subList(maxOf(0, i - 3), i + 1).any { "symbolText" in it }
+                if (heavy.containsMatchIn(line) && !manaSymbol) "${f.path}:${i + 1}" else null
+            }
+        }
+        assertTrue("Weights over 600 (use Medium or SemiBold):\n" + bad.joinToString("\n"), bad.isEmpty())
+    }
+
+    /** No interface text under 11sp. */
+    @Test
+    fun noTinyText() {
+        val tiny = Regex("""fontSize = (\d+(?:\.\d+)?)\.sp""")
+        val bad = ui.flatMap { f ->
+            f.readLines().mapIndexedNotNull { i, line ->
+                val small = tiny.findAll(line).map { it.groupValues[1].toDouble() }.filter { it < 11 }.toList()
+                if (small.isEmpty()) null else "${f.path}:${i + 1} ${small.joinToString()}sp"
+            }
+        }
+        assertTrue("Text under 11sp:\n" + bad.joinToString("\n"), bad.isEmpty())
+    }
+
+    /** No exclamation marks, and labels, captions and one-sentence notes end without a period. */
+    @Test
+    fun calmCopy() {
+        val shout = Regex("""Text\("[^"]*!"""")
+        val period = Regex("""Text\("([^"$]*[a-z])\.["]""")
+        val bad = ui.flatMap { f ->
+            f.readLines().mapIndexedNotNull { i, line ->
+                val p = period.find(line)?.groupValues?.get(1)
+                when {
+                    shout.containsMatchIn(line) -> "${f.path}:${i + 1} exclamation mark"
+                    p != null && !Regex("""[.?!] [A-Z]""").containsMatchIn(p) -> "${f.path}:${i + 1} trailing period"
+                    else -> null
+                }
+            }
+        }
+        assertTrue("Copy rules:\n" + bad.joinToString("\n"), bad.isEmpty())
+    }
+
+    /** No colored glows: shadows are neutral. */
+    @Test
+    fun noColoredShadows() {
+        val bad = sources.filter { Regex("""(ambientColor|spotColor) = Palette\.(Accent|Gold|Success|Danger|Info)""").containsMatchIn(it.readText()) }.map { it.path }
+        assertTrue("Colored shadow (glow) in: $bad", bad.isEmpty())
+    }
+
+    /** One easing curve (Motion.ease); bouncy springs only for dice, which really bounce. */
+    @Test
+    fun calmMotion() {
+        val bad = sources.filter { f ->
+            val t = f.readText()
+            "FastOutSlowInEasing" in t || (f.name != "DiceRoller.kt" && Regex("""dampingRatio = (0\.[0-8]|Spring\.DampingRatio(Low|Medium|High)Bouncy)""").containsMatchIn(t))
+        }.map { it.path }
+        assertTrue("Use Motion.ease and no bounce in: $bad", bad.isEmpty())
+    }
+
     private fun lum(hex: String): Double {
         fun ch(i: Int): Double {
             val v = hex.substring(1 + 2 * i, 3 + 2 * i).toInt(16) / 255.0

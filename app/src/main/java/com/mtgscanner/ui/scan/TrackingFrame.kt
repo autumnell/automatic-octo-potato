@@ -85,7 +85,7 @@ internal fun TrackingFrame(
             flashing = false
         }
     }
-    val fill by animateFloatAsState(if (flashing) 0.25f else 0f, tween(Motion.base), label = "flash")
+    val fill by animateFloatAsState(if (flashing) 0.25f else 0f, tween(Motion.base, easing = Motion.ease), label = "flash")
 
     var size by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
     val seenNow by rememberUpdatedState(seen)

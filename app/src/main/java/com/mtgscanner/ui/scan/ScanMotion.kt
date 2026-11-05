@@ -3,7 +3,6 @@ package com.mtgscanner.ui.scan
 import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -78,8 +77,8 @@ fun SessionFan(session: List<ScanEntry>, startKey: Long, onClick: () -> Unit, mo
     val still = remember(ctx) { animationsOff(ctx) }
     val shown = remember(session) { session.take(Fan.max).reversed() }
     val count = session.sumOf { it.count }
-    val height by animateFloatAsState(Fan.height(shown.size), tween(if (still) 0 else 200), label = "fanH")
-    val width by animateFloatAsState(Fan.width(shown.size), tween(if (still) 0 else 200), label = "fanW")
+    val height by animateFloatAsState(Fan.height(shown.size), tween(if (still) 0 else Motion.base, easing = Motion.ease), label = "fanH")
+    val width by animateFloatAsState(Fan.width(shown.size), tween(if (still) 0 else Motion.base, easing = Motion.ease), label = "fanW")
     Box(
         modifier
             .size(width.dp, height.dp)
@@ -97,9 +96,9 @@ fun SessionFan(session: List<ScanEntry>, startKey: Long, onClick: () -> Unit, mo
     ) {
         shown.forEachIndexed { i, e ->
             key(e.key) {
-                val slot by animateFloatAsState(i.toFloat(), tween(if (still) 0 else 220), label = "slot")
+                val slot by animateFloatAsState(i.toFloat(), tween(if (still) 0 else Motion.base, easing = Motion.ease), label = "slot")
                 val enter = remember { Animatable(if (e.key > startKey && !still) 0f else 1f) }
-                LaunchedEffect(Unit) { enter.animateTo(1f, tween(Motion.base, easing = FastOutSlowInEasing)) }
+                LaunchedEffect(Unit) { enter.animateTo(1f, tween(Motion.base, easing = Motion.ease)) }
                 FanCard(
                     e,
                     Modifier
@@ -183,8 +182,8 @@ private fun FlightOf(f: Flight, origin: Offset) {
     val move = remember { Animatable(if (still) 1f else 0f) }
     val chip = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        if (!still) move.animateTo(1f, tween(Motion.slow, easing = FastOutSlowInEasing))
-        chip.animateTo(1f, tween(Motion.fast))
+        if (!still) move.animateTo(1f, tween(Motion.slow, easing = Motion.ease))
+        chip.animateTo(1f, tween(Motion.fast, easing = Motion.ease))
         kotlinx.coroutines.delay(750)
         chip.animateTo(0f, tween(Motion.base, easing = LinearEasing))
     }

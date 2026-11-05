@@ -250,7 +250,7 @@ fun DeckHeader(
             TextButton(onClick = onEdhrec) {
                 Text("EDHREC")
                 Spacer(Modifier.width(Space.s1))
-                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(14.dp))
+                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(18.dp))
             }
         }
     }

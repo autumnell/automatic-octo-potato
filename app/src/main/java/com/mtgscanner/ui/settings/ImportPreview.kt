@@ -90,7 +90,7 @@ internal fun ImportPreviewDialog(
                 }
                 if (offline) {
                     Row(Modifier.padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.CloudOff, null, tint = Palette.Danger, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Outlined.CloudOff, null, tint = Palette.Danger, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(Space.s2))
                         Text("Offline. Retry when back online.", style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                     }
@@ -113,7 +113,7 @@ internal fun ImportPreviewDialog(
                             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Palette.Text)
+                        Text("$n", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = Palette.Text)
                         Icon(if (isOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (isOpen) "Hide cards" else "Show cards", tint = Palette.Icon)
                     }
                     if (isOpen) {

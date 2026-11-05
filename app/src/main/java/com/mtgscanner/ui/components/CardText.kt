@@ -179,7 +179,7 @@ private fun Legality(status: String, format: String, modifier: Modifier) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, textAlign = TextAlign.Center,
+                label, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, textAlign = TextAlign.Center,
                 color = if (status == "legal" || status == "banned" || status == "restricted") Color.White else Palette.Muted,
             )
         }

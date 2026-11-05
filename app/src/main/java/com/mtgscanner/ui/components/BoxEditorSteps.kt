@@ -94,7 +94,7 @@ internal fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (I
                         .background(if (n == step) Palette.Accent else if (done) Palette.Accent.copy(alpha = 0.25f) else Palette.SurfaceHigh),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (done) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(14.dp))
+                    if (done) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(18.dp))
                     else Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = if (n == step) Palette.OnAccent else Palette.Muted)
                 }
                 Spacer(Modifier.width(Space.s2))
@@ -125,7 +125,7 @@ internal fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) ->
         Text("One box", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
         Spacer(Modifier.height(Space.s2))
     } else {
-        Text("Pick a starting point.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        Text("Pick a starting point", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         Spacer(Modifier.height(Space.s3))
     }
     Surface(
@@ -153,7 +153,7 @@ internal fun StartStep(onPick: (BoxDraft) -> Unit, onTemplate: ((BoxTemplate) ->
             ) {
                 Column(Modifier.width(150.dp).padding(Space.s3)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(boxIcon(p.kind), null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
+                        Icon(boxIcon(p.kind), null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(Space.s2))
                         Text(p.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                     }
@@ -182,7 +182,7 @@ internal fun DetailsStep(draft: BoxDraft, onChange: (BoxDraft) -> Unit) {
     Label("Kind")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         CardBox.KINDS.forEach { k ->
-            SelectPill(kindLabel(k), draft.kind == k, { onChange(draft.copy(kind = k)) }, leading = { Icon(boxIcon(k), null, Modifier.size(16.dp)) })
+            SelectPill(kindLabel(k), draft.kind == k, { onChange(draft.copy(kind = k)) }, leading = { Icon(boxIcon(k), null, Modifier.size(18.dp)) })
         }
     }
 
@@ -466,10 +466,10 @@ internal fun LivePreview(rules: BoxRules, editingId: Long?) {
             Spacer(Modifier.height(Space.s2))
             Text(
                 when {
-                    all.isEmpty() -> "Your collection is empty, so nothing to preview yet."
-                    fitCount == 0 -> "None of your cards fit these rules yet."
+                    all.isEmpty() -> "Your collection is empty, so nothing to preview yet"
+                    fitCount == 0 -> "None of your cards fit these rules yet"
                     rules.isCatchAll -> "Takes any card. ${fitCount - takenCount} of your cards don't fit another box."
-                    else -> "$fitCount of your cards fit this box."
+                    else -> "$fitCount of your cards fit this box"
                 },
                 style = MaterialTheme.typography.titleSmall,
             )

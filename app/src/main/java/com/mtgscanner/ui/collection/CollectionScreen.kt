@@ -331,7 +331,7 @@ private fun BrowseAllButton(onClick: () -> Unit) {
             .clickable { BrowseLaunch.focusSearch = true; onClick() }.padding(horizontal = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(Space.s3))
         Text("Search your collection", style = MaterialTheme.typography.bodyLarge, color = Palette.Muted, modifier = Modifier.weight(1f), maxLines = 1)
     }
@@ -575,7 +575,7 @@ private fun BoxCard(
     val menuButton: @Composable (Boolean) -> Unit = { onArt ->
         Box {
             IconButton(onClick = { menu = true }, modifier = Modifier.size(Space.s12)) {
-                Icon(Icons.Outlined.MoreVert, "Box options", tint = if (onArt) Color.White else Palette.Icon, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.MoreVert, "Box options", tint = if (onArt) Color.White else Palette.Icon, modifier = Modifier.size(18.dp))
             }
             // The everyday actions first; sharing, decks and NFC wait under More, and Delete sits apart at the end.
             var more by remember { mutableStateOf(false) }
@@ -751,7 +751,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
 @Composable
 private fun BoxTitle(b: BoxSummary, stripe: Color, onArt: Boolean, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(boxIcon(b.kind), null, tint = stripe, modifier = Modifier.size(22.dp))
+        Icon(boxIcon(b.kind), null, tint = stripe, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(Space.s3))
         LabelTape(b.name, Modifier.weight(1f, fill = false))
         if (b.fallback) {
@@ -793,7 +793,7 @@ private fun ToolsTab(
             if (showTrade) ToolGroup("Trade binders")
             if (showTrade && trade.isEmpty()) {
                 Text(
-                    "Make a Trade binder box to trade.",
+                    "Make a Trade binder box to trade",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                     modifier = Modifier.padding(horizontal = Space.s4),
@@ -1027,7 +1027,7 @@ private fun ToolRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title
         Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(horizontal = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(Space.s4))
         Text(title, style = MaterialTheme.typography.bodyLarge)
     }

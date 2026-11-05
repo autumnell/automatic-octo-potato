@@ -62,7 +62,7 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
     SectionHeader("Lists")
     if (lists.isEmpty()) {
         Text(
-            "Save a search in Browse.",
+            "Save a search in Browse",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = Space.s4),

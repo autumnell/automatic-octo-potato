@@ -353,7 +353,7 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
                 .background(color),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Icon(Icons.Outlined.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(16.dp))
+            if (selected) Icon(Icons.Outlined.Check, null, tint = if (color.luminance() > 0.55f) Color.Black else Color.White, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(Space.s1))
         // Shrinks with large text instead of cutting the name off.
@@ -374,7 +374,7 @@ private fun CustomSwatch(onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Box(Modifier.size(20.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Add, "Pick a custom color", tint = Color.White, modifier = Modifier.size(14.dp))
+                Icon(Icons.Outlined.Add, "Pick a custom color", tint = Color.White, modifier = Modifier.size(18.dp))
             }
         }
         Spacer(Modifier.height(Space.s1))

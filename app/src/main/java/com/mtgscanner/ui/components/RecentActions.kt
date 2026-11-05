@@ -79,7 +79,7 @@ fun RecentActionsSheet(onUndo: (Long) -> Unit, onDismiss: () -> Unit) {
             onDismissRequest = { confirm = null },
             containerColor = Palette.Surface,
             title = { Text("Undo ${newer + 1} actions?") },
-            text = { Text(if (newer == 1) "The newer one goes too." else "The $newer newer ones go too.") },
+            text = { Text(if (newer == 1) "The newer one goes too" else "The $newer newer ones go too") },
             confirmButton = { TextButton(onClick = { confirm = null; onUndo(id) }) { Text("Undo") } },
             dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel") } },
         )

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.theme
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -205,7 +206,7 @@ private fun base(family: FontFamily, size: Int, weight: FontWeight, line: Int = 
     TextStyle(fontFamily = family, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp, fontFeatureSettings = figures)
 
 /** Heading sizes in Theme units; each font comes down by its [AppFont.scale] (Cinzel's capitals run large). */
-private fun heading(font: AppFont, size: Int, weight: FontWeight = FontWeight.Bold): TextStyle {
+private fun heading(font: AppFont, size: Int, weight: FontWeight = FontWeight.SemiBold): TextStyle {
     val s = size * font.scale
     return TextStyle(
         fontFamily = font.family(), fontWeight = weight, fontSize = s.sp, lineHeight = (s * 1.2f).sp,
@@ -219,18 +220,19 @@ private fun typography(headingFont: AppFont, bodyFont: AppFont): Typography {
         displaySmall = heading(headingFont, 56),
         headlineLarge = heading(headingFont, 34),
         headlineMedium = heading(headingFont, 30),
-        // Smaller headings are a step lighter so a title next to a bold price doesn't stack two bolds.
-        headlineSmall = heading(headingFont, 28, FontWeight.SemiBold),
-        titleLarge = heading(headingFont, 25, FontWeight.SemiBold),
+        // Hierarchy comes from size and color, not weight: screen and section titles are Medium (500); only the big
+        // figures above them are SemiBold (600). Nothing is 700 or heavier.
+        headlineSmall = heading(headingFont, 28, FontWeight.Medium),
+        titleLarge = heading(headingFont, 25, FontWeight.Medium),
         titleMedium = base(f, 16, FontWeight.Medium),
         titleSmall = base(f, 14, FontWeight.Medium),
         bodyLarge = base(f, 16, FontWeight.Normal),
         bodyMedium = base(f, 14, FontWeight.Normal),
         bodySmall = base(f, 12, FontWeight.Normal),
         // Labels carry counts, badges and small prices: tabular figures so they line up in lists.
-        labelLarge = base(f, 14, FontWeight.Medium, spacing = 0.3, figures = TABULAR),
-        labelMedium = base(f, 12, FontWeight.Medium, spacing = 0.4, figures = TABULAR),
-        labelSmall = base(f, 11, FontWeight.Medium, spacing = 0.5, figures = TABULAR),
+        labelLarge = base(f, 14, FontWeight.Medium, spacing = 0.1, figures = TABULAR),
+        labelMedium = base(f, 12, FontWeight.Medium, spacing = 0.1, figures = TABULAR),
+        labelSmall = base(f, 11, FontWeight.Medium, spacing = 0.1, figures = TABULAR),
     )
 }
 
@@ -248,8 +250,8 @@ private fun Typography.scaled(factor: Float): Typography {
 private fun priceStyle(font: AppFont, big: Boolean): TextStyle {
     val k = font.scale * (if (big) 1.2f else 1f)
     return TextStyle(
-        fontFamily = font.family(), fontWeight = FontWeight.Bold, fontSize = (18 * k).sp, lineHeight = (22 * k).sp,
-        letterSpacing = 0.2.sp, fontFeatureSettings = PRICE_FIGURES,
+        fontFamily = font.family(), fontWeight = FontWeight.Medium, fontSize = (18 * k).sp, lineHeight = (22 * k).sp,
+        letterSpacing = 0.sp, fontFeatureSettings = PRICE_FIGURES,
     )
 }
 
@@ -300,6 +302,8 @@ object Space {
 
 /** Animation lengths in ms (design/design-tokens.json "motion"). Longer, choreographed moves (dice, a card flying to its pile) keep their own. */
 object Motion {
+    /** The one easing curve, an ease-out (unslop tokens: cubic-bezier(0.22, 1, 0.36, 1)). */
+    val ease = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
     const val fast = 120
     const val base = 200
     const val slow = 320

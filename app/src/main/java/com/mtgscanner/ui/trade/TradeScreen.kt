@@ -207,7 +207,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
             onDismissRequest = { confirm = false },
             containerColor = Palette.Surface,
             title = { Text("Apply this trade?") },
-            text = { Text("Updates your collection both ways.") },
+            text = { Text("Updates your collection both ways") },
             confirmButton = { TextButton(onClick = { vm.apply(); confirm = false }) { Text("Apply") } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
         )
