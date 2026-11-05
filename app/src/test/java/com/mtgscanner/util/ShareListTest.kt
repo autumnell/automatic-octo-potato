@@ -17,8 +17,8 @@ class ShareListTest {
     @Test fun `text lists every line and the total`() {
         val t = ShareList.text("Trade binder", lines, showPrices = true, money = ::money)
         assertTrue(t.startsWith("Trade binder\n\n"))
-        assertTrue(t.contains("2× Opt (DOM #60) — $0.25\n"))
-        assertTrue(t.contains("1× Atraxa, Grand Unifier (ONE #196) foil — $40.00 LP\n"))
+        assertTrue(t.contains("2× Opt (DOM #60) · $0.25\n"))
+        assertTrue(t.contains("1× Atraxa, Grand Unifier (ONE #196) foil · $40.00 LP\n"))
         assertTrue(t.contains("1× Sol Ring\n"))
         assertTrue(t.contains("Total: 4 cards · $40.50"))
         assertTrue(t.endsWith("Shared from Grimoire"))
