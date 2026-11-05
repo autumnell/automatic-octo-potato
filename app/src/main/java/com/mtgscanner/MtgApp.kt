@@ -14,7 +14,7 @@ import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.ThemeSettings
 import com.mtgscanner.ui.theme.FontSettings
 
-class MtgApp : Application(), ImageLoaderFactory {
+open class MtgApp : Application(), ImageLoaderFactory {
     lateinit var repository: CollectionRepository
         private set
 
@@ -27,10 +27,8 @@ class MtgApp : Application(), ImageLoaderFactory {
         // Card Kingdom's buy list is big: it's fetched only when Trade or Sell opens (CardKingdom.init there).
         com.mtgscanner.scan.ScanPrefs.init(this)
         com.mtgscanner.data.BoxPrefs.load(this)
-        val db = Room.databaseBuilder(this, AppDatabase::class.java, "collection.db")
-            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
-            .build()
-        repository = CollectionRepository(this, db, ScryfallApi())
+        repository = CollectionRepository(this, openDatabase(), ScryfallApi())
+        if (!backgroundJobs) return
         // Price refresh, lookups and the name list only when a screen opens: a background job or the
         // widget waking the app shouldn't spend battery and data on them.
         registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
@@ -56,6 +54,14 @@ class MtgApp : Application(), ImageLoaderFactory {
     }
 
     private var backgroundStarted = false
+
+    /** The collection database. Tests (the screen pictures) use one filled with sample cards. */
+    protected open fun openDatabase(): AppDatabase = Room.databaseBuilder(this, AppDatabase::class.java, "collection.db")
+        .addMigrations(*AppDatabase.ALL_MIGRATIONS)
+        .build()
+
+    /** Price refreshes, downloads and scheduled jobs. Off in tests. */
+    protected open val backgroundJobs: Boolean get() = true
 
     /** Card images fade in, and set symbols (SVG) can be drawn. */
     // Scryfall's image servers expect an app name, like its API does.

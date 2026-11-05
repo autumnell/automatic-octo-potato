@@ -365,13 +365,16 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
             // AccentText: the raw accent is too faint on the light panel. It shrinks to fit in wide fonts.
             if (prices) RollingText(primaryValue(ui.totalValue, ui.totalEur), { formatPrimary(it, ui.totalEur) }, big, Palette.Text)
             else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.Text)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text)
+            // With large text the change moves to its own line whole, rather than squeezing "since added" into a column.
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
+                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text, modifier = Modifier.padding(end = 10.dp))
                 else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
                 if (prices && ui.valueAtAdd > 0) {
-                    Spacer(Modifier.width(10.dp))
-                    ChangeText(ui.valueNowTracked - ui.valueAtAdd, ui.valueAtAdd)
-                    Text(" since added", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ChangeText(ui.valueNowTracked - ui.valueAtAdd, ui.valueAtAdd)
+                        Text(" since added", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, softWrap = false)
+                    }
                 }
             }
             if (prices && ui.history.size >= 2) {

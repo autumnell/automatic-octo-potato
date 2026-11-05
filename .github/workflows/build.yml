@@ -31,6 +31,20 @@ jobs:
       - name: Run unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
+      # Every database version's layout must be in app/schemas, so the upgrade test (UpgradeTest) can start from it.
+      - name: Database layout is saved
+        run: |
+          git add -N app/schemas
+          if [ -n "$(git status --porcelain app/schemas)" ]; then
+            git status --porcelain app/schemas
+            echo "::error::The database layout changed. Commit the new file in app/schemas (it's written by the build)."
+            exit 1
+          fi
+
+      - name: Big-collection timing
+        if: always()
+        run: cat app/build/big-collection.md 2>/dev/null | tee -a "$GITHUB_STEP_SUMMARY" || echo "No timing report"
+
       # Optional private signing key. Only used when the RELEASE_KEYSTORE_BASE64 secret is set (plus
       # RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD); otherwise the build uses the
       # committed key in keystore/ as before. Switching keys means one uninstall on the phone.
@@ -172,6 +186,75 @@ jobs:
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
           if-no-files-found: ignore
+
+  # Pictures of the main screens with a sample collection (ScreenPicturesTest), in dark, light and large text. They go
+  # on the "screens" branch, one folder per branch, and a pull request gets a comment showing them.
+  screens:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Draw the screens
+        env:
+          SCREEN_PICTURES: "1"
+        run: ./gradlew --no-daemon testDebugUnitTest --tests 'com.mtgscanner.screens.ScreenPicturesTest'
+
+      - name: Publish the pictures
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          ls app/build/screens/*.png >/dev/null 2>&1 || { echo "No pictures"; exit 0; }
+          dir="$(echo "$BRANCH" | tr '/' '-')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            rm -rf /tmp/screens
+            if git fetch -q origin screens; then
+              git worktree add -f /tmp/screens FETCH_HEAD
+              (cd /tmp/screens && git checkout -q -B screens)
+            else
+              git worktree add -f --detach /tmp/screens
+              (cd /tmp/screens && git checkout -q --orphan screens && git rm -rfq .)
+            fi
+            rm -rf "/tmp/screens/$dir" && mkdir -p "/tmp/screens/$dir"
+            cp app/build/screens/*.png "/tmp/screens/$dir/"
+            (cd /tmp/screens && git add -A && { git diff --cached --quiet || git commit -qm "Screens for $BRANCH at ${GITHUB_SHA::7}"; } && git push -q origin screens) && break
+            git worktree remove -f /tmp/screens
+            sleep $((attempt * 5))
+          done
+          sha=$(git -C /tmp/screens rev-parse HEAD)
+          [ -n "$PR" ] || exit 0
+          base="https://github.com/${GITHUB_REPOSITORY}/blob/$sha/$dir"
+          {
+            echo "<!-- screen-pictures -->"
+            echo "### Screens at ${GITHUB_SHA::7}"
+            echo
+            echo "| Screen | Dark | Light | Large text |"
+            echo "|---|---|---|---|"
+            for f in app/build/screens/*-dark.png; do
+              n=$(basename "$f" -dark.png)
+              echo "| $n | <img src=\"$base/$n-dark.png?raw=true\" width=\"180\"> | <img src=\"$base/$n-light.png?raw=true\" width=\"180\"> | <img src=\"$base/$n-large.png?raw=true\" width=\"180\"> |"
+            done
+          } > /tmp/comment.md
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/issues/$PR/comments" --paginate -q '.[] | select(.body | startswith("<!-- screen-pictures -->")) | .id' | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/$id" -F body=@/tmp/comment.md >/dev/null
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/$PR/comments" -F body=@/tmp/comment.md >/dev/null
+          fi
 
   # How well cards are known by their picture (ScanAccuracyTest), with the real models and gallery of every printing
   # and Scryfall pictures of 60 random cards. The models and gallery are kept in the cache between runs.

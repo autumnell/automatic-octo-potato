@@ -1,0 +1,7 @@
+# Scans saved under the wrong card, by the number after the underscore in the file name: the card the photo
+# really shows (its name), or ? when it isn't known. Used by ScanAccuracyTest instead of the file's card.
+1793819939101=Web Up
+1793819832435=Agents of S.H.I.E.L.D.
+1793819835845=Take Up the Shield
+1793821653986=Serpent Specialist
+1793820764219=?

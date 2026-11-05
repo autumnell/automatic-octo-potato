@@ -143,9 +143,9 @@ fun GameSetupScreen(onPlay: () -> Unit) {
             val base = MaterialTheme.typography.headlineSmall
             val measurer = rememberTextMeasurer()
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val avail = constraints.maxWidth - with(LocalDensity.current) { (4.dp * words.size).roundToPx() }
+                val avail = constraints.maxWidth - with(LocalDensity.current) { (10.dp * words.size).roundToPx() }
                 val full = remember(words, base) { measurer.measure(words.joinToString(" · "), base, maxLines = 1, softWrap = false).size.width }
-                val style = if (full <= avail || full == 0) base else base.copy(fontSize = base.fontSize * (avail.toFloat() / full) * 0.98f)
+                val style = if (full <= avail || full == 0) base else base.copy(fontSize = base.fontSize * (avail.toFloat() / full) * 0.9f)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Pick(style, format.label, GameFormat.entries.map { it.label }) { i ->
                     val f = GameFormat.entries[i]
