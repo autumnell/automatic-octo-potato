@@ -116,7 +116,7 @@ fun PriceListSheet(owned: Map<String, Owned>, onDismiss: () -> Unit) {
                     placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263") },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 360.dp),
                     shape = RoundedCornerShape(Corners.Medium),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text),
                 )
                 note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.padding(top = Space.s2)) }
                 Spacer(Modifier.height(Space.s3))

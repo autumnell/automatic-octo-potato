@@ -136,14 +136,14 @@ private fun Toggle(title: String, body: String?, checked: Boolean, onChange: (Bo
             if (body != null) Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
         Spacer(Modifier.width(Space.s3))
-        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text))
     }
 }
 
 @Composable
 private fun Choice(title: String, body: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
+        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Text))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

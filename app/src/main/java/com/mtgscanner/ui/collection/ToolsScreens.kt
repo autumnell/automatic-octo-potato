@@ -343,7 +343,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
                                 LinearProgressIndicator(
                                     progress = { s.fraction },
                                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-                                    color = Palette.Accent,
+                                    color = Palette.Text,
                                     trackColor = Palette.SurfaceHigh,
                                     drawStopIndicator = {},
                                 )
@@ -406,7 +406,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                 Icon(
                     if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                     if (isPinned) "Unpin from Home" else "Pin to Home",
-                    tint = if (isPinned) Palette.Accent else Palette.Icon,
+                    tint = if (isPinned) Palette.Text else Palette.Icon,
                 )
             }
             IconButton(onClick = { layout = (layout + 1) % 3 }) {
@@ -558,7 +558,7 @@ private fun SetHeader(
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {
-                if (iconUrl != null) AsyncImage(iconUrl, null, Modifier.size(32.dp), colorFilter = ColorFilter.tint(Palette.Accent))
+                if (iconUrl != null) AsyncImage(iconUrl, null, Modifier.size(32.dp), colorFilter = ColorFilter.tint(Palette.Icon))
                 else Text(code.uppercase().take(4), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             }
             Spacer(Modifier.width(Space.s4))
@@ -587,7 +587,7 @@ private fun SetHeader(
             LinearProgressIndicator(
                 progress = { (have.toFloat() / total).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-                color = Palette.Accent,
+                color = Palette.Text,
                 trackColor = Palette.SurfaceHigh,
                 drawStopIndicator = {},
             )
@@ -702,7 +702,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
                     Modifier.fillMaxWidth().clickable { skipped = if (on) skipped + g.key else skipped - g.key }.padding(horizontal = Space.s3, vertical = Space.s1),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Checkbox(on, { skipped = if (on) skipped + g.key else skipped - g.key }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+                    Checkbox(on, { skipped = if (on) skipped + g.key else skipped - g.key }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
                     Column(Modifier.weight(1f)) {
                         Text(g.name, style = MaterialTheme.typography.titleSmall)
                         Text("You have ${g.owned} · keep ${g.keep} · ${g.extra} extra", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

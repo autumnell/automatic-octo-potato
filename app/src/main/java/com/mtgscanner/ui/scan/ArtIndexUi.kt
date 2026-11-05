@@ -77,7 +77,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
             LinearProgressIndicator(
                 progress = { if (d.total > 0) d.done.toFloat() / d.total else 0f },
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-                color = Palette.Accent,
+                color = Palette.Text,
             )
         }
         failed?.let { Text("Couldn't get ${it.uppercase()}", style = MaterialTheme.typography.bodySmall, color = Palette.Danger, modifier = Modifier.padding(top = Space.s2)) }

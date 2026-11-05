@@ -93,7 +93,7 @@ internal fun GetCardSheet(
                     checked = item.foil,
                     onCheckedChange = { onChange(it, item.condition, item.lang) },
                     enabled = card.hasFoil && card.hasNonFoil,
-                    colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent),
+                    colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text),
                 )
             }
             Spacer(Modifier.height(Space.s2))

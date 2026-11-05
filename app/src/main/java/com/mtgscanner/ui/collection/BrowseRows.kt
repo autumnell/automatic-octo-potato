@@ -214,7 +214,7 @@ fun SearchField(
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide(); focus.clearFocus() }),
                 textStyle = textStyle.copy(color = Palette.Text),
-                cursorBrush = SolidColor(Palette.Accent),
+                cursorBrush = SolidColor(Palette.Text),
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             )
         }

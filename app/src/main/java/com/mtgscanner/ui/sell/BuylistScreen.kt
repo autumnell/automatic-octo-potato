@@ -154,7 +154,7 @@ private fun PullRow(p: BuyPull, box: String?, on: Boolean, first: Boolean, last:
             .padding(start = 0.dp, end = Space.s3, top = Space.s1, bottom = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(on, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+        Checkbox(on, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
         CardImage(c.smallImageUrl, Modifier.width(36.dp), zoom = true)
         Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {

@@ -300,7 +300,7 @@ private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
                                 )
                             }
                             IconButton(onClick = { if (!added) tools.add(idea) }, enabled = !added) {
-                                if (added) Icon(Icons.Outlined.Check, "Added", tint = Palette.Accent)
+                                if (added) Icon(Icons.Outlined.Check, "Added", tint = Palette.Text)
                                 else Icon(Icons.Outlined.Add, "Add to deck", tint = Palette.Icon)
                             }
                         }

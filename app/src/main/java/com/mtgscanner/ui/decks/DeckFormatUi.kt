@@ -181,7 +181,7 @@ fun CommanderPickerSheet(
                 leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Icon) },
                 trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }) { Icon(Icons.Outlined.Close, "Clear") } },
                 shape = RoundedCornerShape(Corners.Medium),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(Space.s1))

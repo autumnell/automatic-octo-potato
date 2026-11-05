@@ -198,7 +198,7 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
                         Modifier.fillMaxWidth().clickable { MoveList.toggle(i) }.padding(start = Space.s2, end = Space.s4),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(ticked, { MoveList.toggle(i) }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+                        Checkbox(ticked, { MoveList.toggle(i) }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
                         Column(Modifier.weight(1f)) {
                             Text(
                                 (if (l.qty > 1) "${l.qty}× " else "") + l.name,

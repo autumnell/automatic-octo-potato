@@ -94,7 +94,7 @@ internal fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (I
                         .background(if (n == step) Palette.Accent else if (done) Palette.Accent.copy(alpha = 0.25f) else Palette.SurfaceHigh),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (done) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText, modifier = Modifier.size(18.dp))
+                    if (done) Icon(Icons.Outlined.Check, null, tint = Palette.TextText, modifier = Modifier.size(18.dp))
                     else Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = if (n == step) Palette.OnAccent else Palette.Muted)
                 }
                 Spacer(Modifier.width(Space.s2))
@@ -507,9 +507,9 @@ private fun Label(text: String) {
 
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Palette.Accent,
+    focusedBorderColor = Palette.Text,
     unfocusedBorderColor = Palette.Outline,
-    cursorColor = Palette.Accent,
+    cursorColor = Palette.Text,
 )
 
 private fun <T> Set<T>.toggle(v: T): Set<T> = if (v in this) this - v else this + v

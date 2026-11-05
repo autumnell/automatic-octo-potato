@@ -138,7 +138,7 @@ private fun PhotoRow(item: PhotoItem, foil: Boolean, onPrinting: () -> Unit, onR
         Column(Modifier.weight(1f)) {
             if (c != null) {
                 Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (item.unsure) Text("Not sure · check it", style = MaterialTheme.typography.labelSmall, color = Palette.Accent)
+                if (item.unsure) Text("Not sure · check it", style = MaterialTheme.typography.labelSmall, color = Palette.Gold)
                 Text(
                     "${c.set.uppercase()} · #${c.collectorNumber}" + (if (foil) " · Foil" else "") + (item.lang?.let { " · ${it.uppercase()}" } ?: "") +
                         moneySuffix(c.usdPrice(foil), c.eurPrice(foil)),

@@ -207,7 +207,7 @@ fun StatsScreen(
             Breakdown(
                 if (allSets) bySet else bySet.take(10), prices,
                 lead = null,
-                bar = { Palette.Accent },
+                bar = { Palette.Muted },
                 onRow = { browse(Filters(set = it.key, sort = SortBy.PRICE)) },
             )
 
@@ -221,7 +221,7 @@ fun StatsScreen(
                     prices,
                     note = if (prices && s.yearChange.isNotEmpty()) "Up or down from what you paid, or the price when added" else null,
                     lead = null,
-                    bar = { Palette.Accent },
+                    bar = { Palette.Muted },
                     onRow = {},
                 )
             }

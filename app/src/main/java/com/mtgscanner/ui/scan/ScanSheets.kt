@@ -179,7 +179,7 @@ private fun SettingRow(title: String, body: String, checked: Boolean, onChange: 
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
         Spacer(Modifier.width(Space.s3))
-        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text))
     }
 }
 

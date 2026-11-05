@@ -253,7 +253,7 @@ fun CollectionScreen(
                         }
                     }
                 }
-                if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = Space.s4), color = Palette.Accent)
+                if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = Space.s4), color = Palette.Text)
                 if (layout.shows(CollectionPart.STATS)) {
                     val prices = AppSettings.showPrices
                     StatsStrip(
@@ -591,7 +591,7 @@ private fun BoxCard(
                         DropdownMenuItem(
                             text = { Text("To be sorted") },
                             leadingIcon = { Icon(Icons.Outlined.Inbox, null) },
-                            trailingIcon = { if (marked) Icon(Icons.Outlined.Check, null, tint = Palette.AccentText) },
+                            trailingIcon = { if (marked) Icon(Icons.Outlined.Check, null, tint = Palette.TextText) },
                             onClick = { close(); com.mtgscanner.data.BoxPrefs.setToSort(ctx, b.id, !marked) },
                         )
                     }
@@ -955,7 +955,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
                             Icon(
                                 if (isOrdered) Icons.Filled.LocalShipping else Icons.Outlined.LocalShipping,
                                 if (isOrdered) "Ordered, tap for to buy" else "Mark ordered",
-                                tint = if (isOrdered) Palette.Accent else Palette.Icon,
+                                tint = if (isOrdered) Palette.Text else Palette.Icon,
                             )
                         }
                         IconButton(onClick = { vm.startGotIt(w) }) { Icon(Icons.Outlined.Check, if (isOrdered) "Received" else "Got it", tint = Palette.Icon) }

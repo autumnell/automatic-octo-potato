@@ -443,7 +443,7 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onPick: (Co
                             },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
-                            cursorBrush = SolidColor(Palette.Accent),
+                            cursorBrush = SolidColor(Palette.Text),
                         )
                     }
                 }

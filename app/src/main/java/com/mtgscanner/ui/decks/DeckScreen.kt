@@ -318,7 +318,7 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
 
 @Composable
 private fun Editor(ui: DeckUi, vm: DeckViewModel) {
-    val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent)
+    val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text)
     Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Space.s4)) {
         OutlinedTextField(
             value = ui.name, onValueChange = vm::setName, label = { Text("Deck name") },

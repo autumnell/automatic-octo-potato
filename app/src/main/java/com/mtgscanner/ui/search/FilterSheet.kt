@@ -174,7 +174,7 @@ private fun Heading(text: String) {
 private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyLarge, color = if (enabled) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f))
-        Switch(checked, onChange, enabled = enabled, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+        Switch(checked, onChange, enabled = enabled, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text))
     }
 }
 
@@ -235,7 +235,7 @@ private fun SmallField(
             onValueChange = onChange,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = Palette.Text),
-            cursorBrush = SolidColor(Palette.Accent),
+            cursorBrush = SolidColor(Palette.Text),
             keyboardOptions = KeyboardOptions(
                 keyboardType = if (number) KeyboardType.Decimal else KeyboardType.Text,
                 imeAction = ImeAction.Done,

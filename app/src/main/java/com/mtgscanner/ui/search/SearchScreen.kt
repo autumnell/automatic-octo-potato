@@ -193,7 +193,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                                 onValueChange = vm::setQuery,
                                 singleLine = true,
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
-                                cursorBrush = SolidColor(Palette.Accent),
+                                cursorBrush = SolidColor(Palette.Text),
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                                 keyboardActions = KeyboardActions(onSearch = { focus.clearFocus(); vm.submit() }),
                                 modifier = Modifier.fillMaxWidth(),
@@ -466,7 +466,7 @@ private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
             AsyncImage(
                 model = s.iconSvgUri,
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(Palette.Accent),
+                colorFilter = ColorFilter.tint(Palette.Icon),
                 modifier = Modifier.size(24.dp),
             )
         }

@@ -129,7 +129,7 @@ internal fun SpreadCopiesSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
                                 Modifier.fillMaxWidth().clickable(onClick = toggle).padding(start = Space.s2, end = Space.s4, top = Space.s1, bottom = Space.s1),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Checkbox(on, { toggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+                                Checkbox(on, { toggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         g.name + (g.setCode?.let { " · ${it.uppercase()}" } ?: ""),

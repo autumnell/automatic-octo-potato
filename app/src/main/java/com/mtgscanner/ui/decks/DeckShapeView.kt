@@ -51,7 +51,7 @@ fun DeckShapeView(shape: DeckShape, modifier: Modifier = Modifier) {
                     Box(
                         Modifier.fillMaxWidth().height((barMax * n / top).coerceAtLeast(if (n > 0) 3 else 1).dp)
                             .clip(RoundedCornerShape(topStart = Corners.Small, topEnd = Corners.Small))
-                            .background(if (n > 0) Palette.Accent else Palette.Outline),
+                            .background(if (n > 0) Palette.Muted else Palette.Outline),
                     )
                     Spacer(Modifier.height(Space.s1))
                     Text(label(i), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)

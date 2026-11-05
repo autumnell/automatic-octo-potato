@@ -219,7 +219,7 @@ fun AddCardSheet(
                     checked = foil,
                     onCheckedChange = { foil = it },
                     enabled = card.hasFoil && card.hasNonFoil,
-                    colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent),
+                    colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text),
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -250,7 +250,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     singleLine = true,
                     shape = RoundedCornerShape(Corners.Medium),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent,
+                        focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text,
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -412,7 +412,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                                 DropdownMenuItem(
                                     text = { Text(st.label) },
                                     onClick = { menu = false; DeckStatusStore.set(ctx, row.deck.id, if (status == st) null else st) },
-                                    trailingIcon = { if (status == st) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
+                                    trailingIcon = { if (status == st) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                                 )
                             }
                         }
@@ -425,7 +425,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                 LinearProgressIndicator(
                     progress = { if (row.cards == 0) 0f else row.owned.toFloat() / row.cards },
                     modifier = Modifier.fillMaxWidth().height(4.dp),
-                    color = Palette.Accent,
+                    color = Palette.Text,
                     trackColor = Palette.SurfaceHigh,
                 )
                 Spacer(Modifier.height(Space.s1))

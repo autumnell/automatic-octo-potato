@@ -238,7 +238,7 @@ internal fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: ()
 @Composable
 private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
+        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Text))
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }

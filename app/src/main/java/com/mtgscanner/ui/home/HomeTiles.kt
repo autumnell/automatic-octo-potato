@@ -144,7 +144,7 @@ internal fun EditTilesDialog(lists: List<String>, onDismiss: () -> Unit) {
                         Checkbox(
                             checked = true,
                             onCheckedChange = { chosen = chosen - m },
-                            colors = CheckboxDefaults.colors(checkedColor = Palette.Accent),
+                            colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
                         )
                         Text(
                             if (m == TileMetric.CUSTOM && listName != null) "List: $listName" else m.label,
@@ -173,7 +173,7 @@ internal fun EditTilesDialog(lists: List<String>, onDismiss: () -> Unit) {
                             checked = false,
                             enabled = !full,
                             onCheckedChange = { chosen = chosen + m },
-                            colors = CheckboxDefaults.colors(checkedColor = Palette.Accent),
+                            colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
                         )
                         Text(
                             m.label, style = MaterialTheme.typography.bodyMedium,

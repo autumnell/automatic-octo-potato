@@ -83,7 +83,7 @@ internal fun ImportPreviewDialog(
                 }
                 busy?.let {
                     Row(Modifier.padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Palette.Text)
                         Spacer(Modifier.width(Space.s2))
                         Text(it, style = MaterialTheme.typography.bodySmall)
                     }
@@ -165,7 +165,7 @@ internal fun ImportPreviewDialog(
                                 Text("${r.quantity}  ${r.name}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 r.setCode?.let { Text(it.uppercase() + (r.collectorNumber?.let { n -> " #$n" } ?: ""), style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
                             }
-                            IconButton(onClick = { onRetry(i, null) }, enabled = idle) { Icon(Icons.Outlined.Refresh, "Retry", tint = Palette.Accent) }
+                            IconButton(onClick = { onRetry(i, null) }, enabled = idle) { Icon(Icons.Outlined.Refresh, "Retry", tint = Palette.Icon) }
                             IconButton(onClick = { editing = i }, enabled = idle) { Icon(Icons.Outlined.Edit, "Edit name", tint = Palette.Icon) }
                             IconButton(onClick = { onRemove(i) }, enabled = idle) { Icon(Icons.Outlined.Close, "Remove", tint = Palette.Icon) }
                         }
@@ -193,7 +193,7 @@ internal fun ImportPreviewDialog(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text),
                 )
             },
             confirmButton = {

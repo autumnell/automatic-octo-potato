@@ -121,7 +121,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             ) else {
                 DropdownMenuItem(
                     text = { ModeText("Box check result", state.boxCheck.boxName) },
-                    leadingIcon = { Icon(Icons.Outlined.Checklist, null, tint = Palette.Accent) },
+                    leadingIcon = { Icon(Icons.Outlined.Checklist, null, tint = Palette.Icon) },
                     onClick = { open = false; vm.showBoxCheck(true) },
                 )
                 DropdownMenuItem(
@@ -137,7 +137,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             ) else {
                 DropdownMenuItem(
                     text = { ModeText("Sort now", "See stacks by box") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Accent) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Icon) },
                     onClick = { open = false; vm.showSort(true) },
                 )
                 DropdownMenuItem(
@@ -153,7 +153,7 @@ fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
             ) else {
                 DropdownMenuItem(
                     text = { ModeText("Finish pack", "See what you pulled") },
-                    leadingIcon = { Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Accent) },
+                    leadingIcon = { Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Icon) },
                     onClick = { open = false; vm.finishPack() },
                 )
                 DropdownMenuItem(
@@ -262,7 +262,7 @@ fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifie
                     color = Palette.Gold, style = MaterialTheme.typography.labelMedium,
                 )
             }
-            TextButton(onClick = vm::finishPack) { Text("Finish", color = Palette.Accent) }
+            TextButton(onClick = vm::finishPack) { Text("Finish", color = Palette.Text) }
         }
     }
 }

@@ -89,7 +89,7 @@ fun SortChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifie
                 Text("Sorting", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 Text("${s.entries.sumOf { it.count }} cards", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
             }
-            TextButton(onClick = { vm.showSort(true) }) { Text("Sort", color = Palette.Accent) }
+            TextButton(onClick = { vm.showSort(true) }) { Text("Sort", color = Palette.Text) }
         }
     }
 }

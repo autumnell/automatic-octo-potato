@@ -287,12 +287,12 @@ fun BrowseScreen(
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
                         text = { Text("Pages") },
-                        trailingIcon = { if (pagesOn) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
+                        trailingIcon = { if (pagesOn) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                         onClick = { menu = false; vm.togglePages() },
                     )
                     if (ui.binder) DropdownMenuItem(
                         text = { Text("Pocket per copy") },
-                        trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
+                        trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                         onClick = { menu = false; vm.setPocketPerCopy(!ui.pocketPerCopy) },
                     )
                     if (ui.unslotted > 0) DropdownMenuItem(
@@ -357,7 +357,7 @@ fun BrowseScreen(
                     DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                         SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
                             DropdownMenuItem(
-                                text = { Text(s.label, color = if (f.sort == s) Palette.Accent else Palette.Text) },
+                                text = { Text(s.label, color = if (f.sort == s) Palette.Text else Palette.Text) },
                                 onClick = { vm.update { it.copy(sort = s) }; sortMenu = false },
                             )
                         }
@@ -368,7 +368,7 @@ fun BrowseScreen(
                     DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
                         GroupBy.entries.forEach { g ->
                             DropdownMenuItem(
-                                text = { Text(g.label, color = if (f.group == g) Palette.Accent else Palette.Text) },
+                                text = { Text(g.label, color = if (f.group == g) Palette.Text else Palette.Text) },
                                 onClick = { vm.update { it.copy(group = g) }; groupMenu = false },
                             )
                         }

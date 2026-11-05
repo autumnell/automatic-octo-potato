@@ -118,7 +118,7 @@ fun PlaceholderPage(modifier: Modifier = Modifier, color: Color = Palette.Surfac
 
 /** The app's one loading circle: thin, round-ended, in the accent, at a calm size. */
 @Composable
-fun Spinner(modifier: Modifier = Modifier, size: Dp = 28.dp, color: Color = Palette.Accent) {
+fun Spinner(modifier: Modifier = Modifier, size: Dp = 28.dp, color: Color = Palette.Muted) {
     androidx.compose.material3.CircularProgressIndicator(
         modifier.size(size),
         color = color,

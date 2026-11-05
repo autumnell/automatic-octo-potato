@@ -284,7 +284,7 @@ internal fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (state.lookingUp) {
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Palette.Accent)
+            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Palette.Text)
             Spacer(Modifier.width(Space.s3))
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
