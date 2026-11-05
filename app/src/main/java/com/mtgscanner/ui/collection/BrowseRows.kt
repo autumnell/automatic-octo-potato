@@ -203,7 +203,7 @@ fun SearchField(
             Spacer(Modifier.width(Space.s3))
         }
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = textStyle, maxLines = 1)
+            if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = textStyle, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             // Results update as you type: the keyboard's Search key just puts the keyboard away.
             val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
             val focus = androidx.compose.ui.platform.LocalFocusManager.current
