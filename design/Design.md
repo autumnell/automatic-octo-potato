@@ -20,7 +20,7 @@ The five lines unslop asks for, taken from what the app does.
 - **World.** A collector's table: leather binders, sleeves, printed card frames, ink on paper.
 - **Moments.** The card art (the Newest strip, the card page, box covers) and the collection value on Home. The chrome
   around them stays quiet.
-- **Signature.** Cinzel's engraved capitals on headings, like a title tooled into a binder spine. Nowhere else.
+- **Signature.** Fraunces headings, a soft old-style serif like the title page of an old book. Nowhere else.
 
 `design-tokens.json` holds the values. The code reads them from `ui/theme/Theme.kt` (`Palette`, `Space`, `Corners`,
 typography). Change both together. Mockups: the "Grimoire redesign directions" canvas.
@@ -74,25 +74,26 @@ Rules:
 
 | Style | Size | Font | Use |
 |---|---|---|---|
-| displaySmall | 45 | Cinzel, SemiBold | The collection value on Home |
-| headlineSmall | 22 | Cinzel, Medium | Screen titles |
-| titleLarge | 20 | Cinzel, Medium | Section titles (Newest, Goals) |
+| displaySmall | 45 | Fraunces, SemiBold | The collection value on Home |
+| headlineSmall | 22 | Fraunces, Medium | Screen titles |
+| titleLarge | 20 | Fraunces, Medium | Section titles (Newest, Goals) |
 | titleMedium | 16 | Lexend, Medium | Row titles |
 | bodyMedium | 14 | Lexend | Body text |
 | bodySmall | 12 | Lexend | Row subtitles |
 | labelLarge/Medium/Small | 14/12/11 | Lexend, Medium, tabular | Counts, badges, small prices |
 | PriceStyle | 15.5 | Lexend, Medium, tabular lining | Prices |
 
-Sizes are in sp. Headings and prices are scaled by their font (Cinzel ×0.8, Lexend ×0.86) from the units in `Theme.kt`.
+Sizes are in sp. Headings and prices are scaled by their font (Fraunces ×0.8, Lexend ×0.86) from the units in `Theme.kt`.
 
-- Two fonts, fixed (Rae, 2026-11-05: direction "Bolder A1 · Engraved", no font picker). Cinzel's engraved
-  capitals for headings and the big value; Lexend for everything else, prices included.
+- Two fonts, fixed, no font picker. Rae picked Fraunces on 2026-11-05 after trying Cinzel ("Bolder A1"): it keeps
+  the old-book feel in normal upper and lower case. Fraunces for headings and the big value; Lexend for everything
+  else, prices included.
 - Headings and body are different families, so a heading never looks like bold body text.
 - Each heading level is a real step: 45 → 22 → 20 → 16.
 - Weights are 400 and 500, with 600 only for the big figures (the collection value, life totals). Nothing is 700 or
-  heavier: hierarchy comes from size and color, not weight. Cinzel ships in Medium and SemiBold only.
+  heavier: hierarchy comes from size and color, not weight. Fraunces ships in Medium and SemiBold only.
 - Nothing under 11sp.
-- Letter spacing is 0.1sp on labels and 0 on prices; only Cinzel's capitals get 0.5sp so the engraving breathes.
+- Letter spacing is 0.1sp on labels and 0 on prices; headings are 0.
 - No italic for emphasis. Flavor text and reminder text stay italic because that is how a printed card sets them.
 - Line height is 1.2 for headings and 1.4 for body. Most body text is one-line list rows, so 1.4 rather than the
   1.6 used for web paragraphs.
@@ -174,8 +175,8 @@ The [anti-slop design rules](https://github.com/febbhav/signs-of-ai-design/blob/
 
 - **Palette:** ink brown and paper with one oxblood accent, taken from old binders and leather. Not purple, emerald or
   cream-by-default.
-- **Type:** Cinzel, a capitals-only serif cut from Roman inscriptions, for headings, like a title tooled into a
-  binder's spine. Lexend for text because it stays legible small. No Inter, Geist or Space Grotesk, and no font
+- **Type:** Fraunces, a soft old-style serif, for headings, like the title page of an old book; unslop names it as an
+  editorial headline face. Lexend for text because it stays legible small. No Inter, Geist or Space Grotesk, and no font
   picker. Monospace (Plex Mono) only for the numbers strip in Collection, never body text.
 - **Radius varies by element:** 4dp for panels, chips and buttons, a real card's 5% corner for card images, and a
   circle only for Scan.
@@ -186,7 +187,7 @@ The [anti-slop design rules](https://github.com/febbhav/signs-of-ai-design/blob/
   for presses and toggles, `base` 200ms for menus and fades, `slow` 320ms for pages and things that enter. A press
   scales to 0.97 with no bounce. Dice keep their bounce because real dice bounce. The only loops are things that are
   live: loading placeholders and a foil's shimmer.
-- **Case:** sentence case for buttons and labels ("Sort now", "Back up"). Small caps belong to the heading font only.
+- **Case:** sentence case everywhere, headings included ("Sort now", "Back up", "Newest").
 - **No invented content:** no sample counts, testimonials or fake data in the app. Empty states say what to do.
 
 ## Accessibility
@@ -218,9 +219,6 @@ Each of these is a choice Rae made for this app. unslop's own rule is to keep a 
   card images already carry a real card's corner.
 - **Warm neutrals.** unslop wants app surfaces near-grey. Ours are tinted toward ink brown, but at very low saturation
   (#100F0E, #1E1C19), close to unslop's own "warm" ramp, so no screen reads as brown.
-- **Cinzel capitals for headings.** unslop's type list doesn't include it and prefers sentence case. Cinzel is a
-  capitals-only face Rae picked (Bolder A1); text you type stays in sentence case, and Cinzel never sets labels or
-  buttons.
 - **Charts are ink, not accent.** unslop gives the tracked line the accent. Rae chose less red (Bolder A), so the line
   is `Text` and the accent stays on actions.
 - **A small chart under the Home value.** unslop keeps stat cards to numbers. The value card is Home's one moment,
@@ -247,6 +245,7 @@ Each of these is a choice Rae made for this app. unslop's own rule is to keep a 
 | 2026-11-04 | Created. Spacing moved onto the 8pt grid in 111 files (1,782 values). Corners 3 → 4dp. `Faint` text level added. Gradient main button removed. Body line height 1.35 → 1.4. Press bounce removed. |
 | 2026-11-05 | Fonts fixed to Cinzel + Lexend; font picker and six unused fonts removed; value 45sp, screen titles 22, section titles 20. |
 | 2026-11-05 | Bolder A: Material primary is ink, so text buttons, switches and charts lose the red; charts are a thin ink line with a flat fill; Home sections 32 apart; `Motion` tokens for short animations. |
+| 2026-11-05 | Headings Cinzel → Fraunces (Rae wasn't sure about Cinzel). Cinzel files removed, Fraunces Medium and SemiBold added. |
 | 2026-11-05 | Screen-picture review: switches, checkboxes, radio buttons, focused fields, cursors, spinners, progress bars, the deck curve and stats bars moved from the accent to ink or `Muted`; the game setup line uses Lexend instead of shrunken Cinzel. |
 | 2026-11-05 | unslop made the default philosophy. Direction written. Copy: 2 exclamation marks and 89 trailing periods removed, "Search" placeholder. Type: no 700 (Cinzel Medium added, Cinzel Bold removed), prices Medium, label tracking 0.1, nothing under 11sp. One easing curve; press 0.97 without a spring; card zoom settles without bounce. Scan's accent glow and the art color wash on box and deck pages removed. Icons 18/24. Six build checks added. |
 | 2026-11-05 | Full pass over both rule sets. Always-dark and domain colors named; hard-coded dark colors replaced with `Stage`, `StagePanel`, `ArtBase`, `OnDarkSuccess` and `OnDarkDanger`. Four 36–40dp icon buttons raised to 48dp. Game setup has one main button. The scanned-card fan drops its border and keeps its shadow (one edge treatment). Em dashes removed from shared text. Token sync and contrast tests added. |

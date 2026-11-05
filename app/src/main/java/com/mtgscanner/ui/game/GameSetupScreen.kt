@@ -142,7 +142,7 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                 if (format.commanderDamage) add(if (partners) "partners" else "no partners")
             }
             // Shrink the words to keep the setup on one line, whatever the screen width.
-            // Lexend, not the Cinzel heading face: these are tappable choices, and Cinzel sets headings only.
+            // Lexend, not the Fraunces heading face: these are tappable choices, and Fraunces sets headings only.
             val base = MaterialTheme.typography.titleMedium
             val measurer = rememberTextMeasurer()
             BoxWithConstraints(Modifier.fillMaxWidth()) {

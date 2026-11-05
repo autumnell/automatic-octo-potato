@@ -205,7 +205,7 @@ private fun scheme(): ColorScheme {
 private fun base(family: FontFamily, size: Int, weight: FontWeight, line: Int = (size * 1.4f).toInt(), spacing: Double = 0.0, figures: String? = null) =
     TextStyle(fontFamily = family, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp, fontFeatureSettings = figures)
 
-/** Heading sizes in Theme units; each font comes down by its [AppFont.scale] (Cinzel's capitals run large). */
+/** Heading sizes in Theme units; each font comes down by its [AppFont.scale] (Fraunces runs large). */
 private fun heading(font: AppFont, size: Int, weight: FontWeight = FontWeight.SemiBold): TextStyle {
     val s = size * font.scale
     return TextStyle(

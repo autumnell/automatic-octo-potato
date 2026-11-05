@@ -60,14 +60,14 @@
     "_why": "Ink-brown darks and paper lights read as an old binder, not a tech dashboard. One accent (oxblood) is kept for actions and the selected state only. Each panel step is clearly lighter than the one below it, because Rae asked for clear contrast between panels and background."
   },
   "typography": {
-    "fontDisplay": "Cinzel (fixed)",
+    "fontDisplay": "Fraunces (fixed)",
     "fontBody": "Lexend (fixed, also prices)",
     "fontNumbers": "Lexend tabular lining figures; IBM Plex Mono for the Collection numbers strip",
     "scale": { "xs": "11sp", "sm": "12sp", "base": "14sp", "lg": "16sp", "xl": "20sp", "2xl": "22sp", "display": "45sp" },
     "lineHeight": { "heading": 1.2, "body": 1.4 },
     "weights": { "body": 400, "labels": 500, "headings": 500, "bigFigures": 600, "max": 600 },
     "minSize": "11sp",
-    "_why": "Cinzel's engraved Roman capitals give the grimoire feel, like a tooled binder spine; Lexend is wide and very legible at small sizes on a phone held at arm's length. Numbers use tabular figures so prices line up in lists. Body line height is 1.4, not the 1.6 used on web pages, because most text here is one-line list rows, not paragraphs."
+    "_why": "Fraunces, a soft old-style serif in upper and lower case, reads like the title page of an old book; Lexend is wide and very legible at small sizes on a phone held at arm's length. Numbers use tabular figures so prices line up in lists. Body line height is 1.4, not the 1.6 used on web pages, because most text here is one-line list rows, not paragraphs."
   },
   "spacing": {
     "s1": "4dp", "s2": "8dp", "s3": "12dp", "s4": "16dp", "s6": "24dp", "s8": "32dp", "s12": "48dp",
