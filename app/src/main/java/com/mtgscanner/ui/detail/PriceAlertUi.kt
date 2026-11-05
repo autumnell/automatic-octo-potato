@@ -168,7 +168,7 @@ private fun PriceAlertDialog(
                     Text(problem, style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                 } else if (notifyOff) {
                     Spacer(Modifier.height(Space.s2))
-                    Text("Notifications are off for the app.", style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
+                    Text("Notifications are off for the app", style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                 }
             }
         },

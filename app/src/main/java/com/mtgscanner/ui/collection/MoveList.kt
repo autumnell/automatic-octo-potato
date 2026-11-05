@@ -166,7 +166,7 @@ fun MoveListHost(modifier: Modifier = Modifier) {
         color = Palette.BoxCard,
     ) {
         Row(Modifier.padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Outlined.DriveFileMove, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s3))
             Text(if (left == 0) "Move list done" else "Move list · $left to move", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             TextButton(onClick = { MoveList.open = true }) { Text("Open") }
@@ -198,7 +198,7 @@ private fun MoveListSheet(onDismiss: () -> Unit) {
                         Modifier.fillMaxWidth().clickable { MoveList.toggle(i) }.padding(start = Space.s2, end = Space.s4),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(ticked, { MoveList.toggle(i) }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+                        Checkbox(ticked, { MoveList.toggle(i) }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
                         Column(Modifier.weight(1f)) {
                             Text(
                                 (if (l.qty > 1) "${l.qty}× " else "") + l.name,

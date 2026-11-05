@@ -214,7 +214,7 @@ private fun LegalityCell(status: String, format: String, modifier: Modifier) {
         ) {
             // Shrinks to fit the badge with a big font, instead of cutting "RESTRICTED" off.
             AutoSizeText(
-                label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+                label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
                 color = fg, textAlign = TextAlign.Center, minScale = 0.6f,
             )
         }

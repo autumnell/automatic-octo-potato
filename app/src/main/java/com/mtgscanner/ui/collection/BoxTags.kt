@@ -208,10 +208,10 @@ fun NfcWriteDialog(boxId: Long, boxName: String, onDismiss: () -> Unit) {
             Text(
                 when {
                     adapter == null -> "This phone has no NFC."
-                    !on -> "NFC is off."
+                    !on -> "NFC is off"
                     done -> "Done. Tap the tag to open $boxName."
                     problem != null -> problem.orEmpty()
-                    else -> "Hold a tag to the back of the phone."
+                    else -> "Hold a tag to the back of the phone"
                 },
                 color = if (problem != null && !done) Palette.GoldText else Palette.Text,
             )
@@ -236,8 +236,8 @@ private fun writeLink(tag: Tag, link: String): String? {
             ndef.connect()
             try {
                 when {
-                    !ndef.isWritable -> "That tag is locked."
-                    ndef.maxSize < msg.byteArrayLength -> "That tag is too small."
+                    !ndef.isWritable -> "That tag is locked"
+                    ndef.maxSize < msg.byteArrayLength -> "That tag is too small"
                     else -> {
                         ndef.writeNdefMessage(msg)
                         null
@@ -247,7 +247,7 @@ private fun writeLink(tag: Tag, link: String): String? {
                 runCatching { ndef.close() }
             }
         } else {
-            val blank = NdefFormatable.get(tag) ?: return "Can't write to that tag."
+            val blank = NdefFormatable.get(tag) ?: return "Can't write to that tag"
             blank.connect()
             try {
                 blank.format(msg)

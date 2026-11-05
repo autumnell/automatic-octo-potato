@@ -160,6 +160,6 @@ internal fun ToggleRow(title: String, body: String, checked: Boolean, lines: Int
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = lines, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(Space.s3))
-        Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+        Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text))
     }
 }

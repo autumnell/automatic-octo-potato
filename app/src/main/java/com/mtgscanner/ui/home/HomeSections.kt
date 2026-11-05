@@ -86,8 +86,8 @@ private fun GoalRow(p: GoalProgress, rule: Boolean, onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
-                p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
-                !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Text)
                 else -> Text(
                     "${p.have}/${p.total}",
                     style = PriceStyle.copy(fontSize = MaterialTheme.typography.titleSmall.fontSize * 1.15f),
@@ -99,7 +99,7 @@ private fun GoalRow(p: GoalProgress, rule: Boolean, onClick: () -> Unit) {
         LinearProgressIndicator(
             progress = { p.fraction },
             modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
-            color = if (p.done) Palette.Success else Palette.Accent,
+            color = if (p.done) Palette.Success else Palette.Text,
             trackColor = Palette.SurfaceHigh,
             drawStopIndicator = {},
         )
@@ -157,7 +157,7 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                 // Keeps the section changes made so far instead of dropping them.
                 TextButton(onClick = { save(); onTiles() }) { Text("Stat tiles…") }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(colorBar, { colorBar = it }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+                    Checkbox(colorBar, { colorBar = it }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
                     Text("Color bar", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Text("Under the value", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(end = Space.s3))
                 }
@@ -182,7 +182,7 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                         Checkbox(
                             checked = on,
                             onCheckedChange = { v -> rows = rows.toMutableList().also { it[i] = section to v } },
-                            colors = CheckboxDefaults.colors(checkedColor = Palette.Accent),
+                            colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
                         )
                         Text(
                             section.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,

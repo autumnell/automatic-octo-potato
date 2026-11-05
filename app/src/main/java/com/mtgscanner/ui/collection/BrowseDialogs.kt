@@ -333,13 +333,13 @@ fun BoxPickerDialog(
         text = {
             // Long box lists scroll instead of running off the dialog.
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (boxes.isEmpty() && decks.isEmpty()) Text("Make another box first.", color = Palette.Muted)
+                if (boxes.isEmpty() && decks.isEmpty()) Text("Make another box first", color = Palette.Muted)
                 boxes.forEach { b ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPick(b.id) }.padding(vertical = Space.s3, horizontal = Space.s1),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))
+                        Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(Space.s3))
                         Text(b.name, style = MaterialTheme.typography.bodyLarge)
                     }
@@ -351,7 +351,7 @@ fun BoxPickerDialog(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { onPickDeck(d.id) }.padding(vertical = Space.s3, horizontal = Space.s1),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Outlined.Style, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.Style, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(Space.s3))
                             Text(d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }

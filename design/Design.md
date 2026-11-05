@@ -5,6 +5,23 @@ Direction **A · Grimoire**, chosen by Rae on 2026-11-04. Built with the
 atoms → molecules → organisms), and checked against the
 [AI-generated look checklist](https://aitoolpick.org/blog/ai-generated-website-checklist/).
 
+**Default philosophy: [unslop](unslop/SKILL.md)** by Damir Sokolovsky ([@heydamir](https://x.com/heydamir)), CC BY 4.0
+(Rae, 2026-11-05). Quiet chrome, one accent, and the richness kept for one or two moments of real content. Its nine
+passes (spacing, color, icons, copy, type, layout, details, visuals, motion) and its [sign list](unslop/references/signs.md)
+apply to every screen. This file records how they apply here, and the few places Grimoire departs from them on
+purpose ("Where Grimoire departs from unslop" below). Anything this file doesn't settle, unslop does.
+
+## Direction
+
+The five lines unslop asks for, taken from what the app does.
+
+- **Product.** A phone app that scans a Magic collection into the right boxes and keeps track of what it's worth.
+- **Character.** Archival, exact, a little warm.
+- **World.** A collector's table: leather binders, sleeves, printed card frames, ink on paper.
+- **Moments.** The card art (the Newest strip, the card page, box covers) and the collection value on Home. The chrome
+  around them stays quiet.
+- **Signature.** Cinzel's engraved capitals on headings, like a title tooled into a binder spine. Nowhere else.
+
 `design-tokens.json` holds the values. The code reads them from `ui/theme/Theme.kt` (`Palette`, `Space`, `Corners`,
 typography). Change both together. Mockups: the "Grimoire redesign directions" canvas.
 
@@ -41,29 +58,42 @@ Always-dark surfaces (the camera, card art, the game table) use `Stage`, `StageP
 themed; they stay next to the component that draws them.
 
 Rules:
-- The accent is for actions and the selected state only: the main button, the selected tab, links, Scan. It is
-  never used for decoration, headings or borders.
+- The accent is only for the main button on a screen, Scan, the selected tab and badges. Links, text buttons,
+  switches, checkboxes and charts are ink (`Text`/`Muted`): Material's `primary` is set to `Text` so nothing turns
+  red by default. It is never used for decoration, headings or borders.
 - Gains and losses always show a sign (+/−) as well as a color, so they don't rely on red or green alone.
 - No gradients on buttons or backgrounds. Gradients are allowed only as scrims, to keep text readable over card art
   or the camera.
 - No colored side stripes on cards or rows.
+- No color washes: pages don't take a tint from card art. The art itself carries the color.
+- No colored glows. Shadows are neutral and small; Scan's raised circle has a 4dp black shadow, not an accent glow.
+- Borders are quiet hairlines (`Rule`, or white at 10% over the camera), never a colored outline. Selection is the
+  one exception: a selected swatch or art pick gets an accent ring.
 
 ## Typography
 
 | Style | Size | Font | Use |
 |---|---|---|---|
-| displaySmall | 40 | Heading font | The collection value on Home |
-| headlineSmall | 26 | Heading, SemiBold | Screen titles |
-| titleLarge | 23 | Heading, SemiBold | Section titles (Newest, Goals) |
-| titleMedium | 16 | Body, Medium | Row titles |
-| bodyMedium | 14 | Body | Body text |
-| bodySmall | 12 | Body | Row subtitles |
-| labelLarge/Medium/Small | 14/12/11 | Body, Medium, tabular | Counts, badges, small prices |
-| PriceStyle | 18 | Price font, tabular lining | Prices |
+| displaySmall | 45 | Cinzel, SemiBold | The collection value on Home |
+| headlineSmall | 22 | Cinzel, Medium | Screen titles |
+| titleLarge | 20 | Cinzel, Medium | Section titles (Newest, Goals) |
+| titleMedium | 16 | Lexend, Medium | Row titles |
+| bodyMedium | 14 | Lexend | Body text |
+| bodySmall | 12 | Lexend | Row subtitles |
+| labelLarge/Medium/Small | 14/12/11 | Lexend, Medium, tabular | Counts, badges, small prices |
+| PriceStyle | 15.5 | Lexend, Medium, tabular lining | Prices |
 
-- Headings and body use different families (Cormorant SC over Lexend by default), so a heading never looks like
-  bold body text.
-- Each heading level is a real step: 40 → 26 → 23 → 16.
+Sizes are in sp. Headings and prices are scaled by their font (Cinzel ×0.8, Lexend ×0.86) from the units in `Theme.kt`.
+
+- Two fonts, fixed (Rae, 2026-11-05: direction "Bolder A1 · Engraved", no font picker). Cinzel's engraved
+  capitals for headings and the big value; Lexend for everything else, prices included.
+- Headings and body are different families, so a heading never looks like bold body text.
+- Each heading level is a real step: 45 → 22 → 20 → 16.
+- Weights are 400 and 500, with 600 only for the big figures (the collection value, life totals). Nothing is 700 or
+  heavier: hierarchy comes from size and color, not weight. Cinzel ships in Medium and SemiBold only.
+- Nothing under 11sp.
+- Letter spacing is 0.1sp on labels and 0 on prices; only Cinzel's capitals get 0.5sp so the engraving breathes.
+- No italic for emphasis. Flavor text and reminder text stay italic because that is how a printed card sets them.
 - Line height is 1.2 for headings and 1.4 for body. Most body text is one-line list rows, so 1.4 rather than the
   1.6 used for web paragraphs.
 - Numbers in lists use tabular figures so columns line up.
@@ -75,11 +105,33 @@ An 8pt grid: `Space.s2` (8), `s4` (16), `s6` (24), `s8` (32), `s12` (48). The ha
 used only inside a component, for example icon to label or chip padding.
 
 - Screen side margin: `Space.gutter` (16) on every screen.
-- Between sections on a screen: `s6` (24).
+- Between sections on a screen: `s6` (24); on Home `s8` (32), so each section reads on its own.
 - Between rows in a group: 0, with a `Rule` line.
 - Panel padding: `s4` (16).
 - No literal dp in `padding`, `spacedBy`, `PaddingValues` or spacer heights, except 0 and 1 (hairlines) and
   layout sizes of 40dp or more. `DesignRulesTest` checks this on every build.
+
+## Icons
+
+- One set: Material Outlined (filled only for on-states, like a pinned or starred card).
+- Two sizes, for a phone: 18dp next to text and 24dp for an icon on its own (icon buttons, the tab bar). The game
+  table, which is read from across a table, uses bigger ones.
+- Icons take a text color (`Palette.Icon`, `Muted`). A colored icon is a status mark (a gold star for a favorite, red
+  for a deck problem), never decoration.
+- No emoji in the interface. ✦ marks a foil in exported lists, like the symbol on a card.
+
+## Copy
+
+Short, concrete labels, as Rae wants: "Sort now", not "Learn more". No buzzwords (unlock, seamless, elevate,
+leverage, empower, magic). A subtitle is one sentence at most. No emoji as icons.
+
+- No exclamation marks.
+- Labels, buttons, captions, toggle subtitles and one-sentence notes end without a period. Text of two or more
+  sentences keeps its periods.
+- A "…" after a menu item means it opens a picker; after a status ("Counting…") it means work is running.
+- Short placeholders: "Search", not "Search for card…".
+- A change says what it compares to: "+$41.80 (2.1%) since added".
+- No greeting headlines. The title names the place: Home, Collection, a box's name.
 
 ## Shape and depth
 
@@ -115,11 +167,6 @@ other organisms. Every value comes from the tokens.
 Five bottom tabs: Home, Game, Scan, Search, Collection. Scan is the raised accent circle in the middle, because
 scanning is the core action. The tab bar hides on scroll down and comes back on scroll up.
 
-## Copy
-
-Short, concrete labels, as Rae wants: "Sort now", not "Learn more". No buzzwords (unlock, seamless, elevate,
-leverage, empower). A subtitle is one sentence at most. No emoji as icons.
-
 ## Deliberate choices
 
 The [anti-slop design rules](https://github.com/febbhav/signs-of-ai-design/blob/main/design-rules.md) say the
@@ -127,14 +174,18 @@ The [anti-slop design rules](https://github.com/febbhav/signs-of-ai-design/blob/
 
 - **Palette:** ink brown and paper with one oxblood accent, taken from old binders and leather. Not purple, emerald or
   cream-by-default.
-- **Type:** a small-caps serif (Cormorant SC) for headings over Lexend for body. Inter and Space Grotesk are user
-  options, not the default. Monospace is for prices and counts only, never body text.
+- **Type:** Cinzel, a capitals-only serif cut from Roman inscriptions, for headings, like a title tooled into a
+  binder's spine. Lexend for text because it stays legible small. No Inter, Geist or Space Grotesk, and no font
+  picker. Monospace (Plex Mono) only for the numbers strip in Collection, never body text.
 - **Radius varies by element:** 4dp for panels, chips and buttons, a real card's 5% corner for card images, and a
   circle only for Scan.
 - **Edges:** one treatment per element. Panels use a surface step; rows use a rule line. Never border plus shadow.
 - **Glass:** only on the Scan screen, where controls float over a live camera. That's a real layering problem.
 - **Motion:** used where it explains something: a scanned card flying to its pile, a row flashing when it changes,
-  dice tumbling. Press feedback has no bounce. Dice keep their bounce because real dice bounce.
+  dice tumbling. One easing curve, `Motion.ease` (cubic-bezier 0.22, 1, 0.36, 1), and three lengths: `fast` 120ms
+  for presses and toggles, `base` 200ms for menus and fades, `slow` 320ms for pages and things that enter. A press
+  scales to 0.97 with no bounce. Dice keep their bounce because real dice bounce. The only loops are things that are
+  live: loading placeholders and a foil's shimmer.
 - **Case:** sentence case for buttons and labels ("Sort now", "Back up"). Small caps belong to the heading font only.
 - **No invented content:** no sample counts, testimonials or fake data in the app. Empty states say what to do.
 
@@ -152,9 +203,33 @@ Before changing UI, read this file. After changing it, check the PR's screen pic
 - off-grid spacing;
 - a gradient accent;
 - a color in `design-tokens.json` that the code doesn't use (the token file stays the source of truth);
-- `Text` or `Muted` under 4.5:1 on any surface, in either mode.
+- `Text` or `Muted` under 4.5:1 on any surface, in either mode;
+- a weight over 600 outside the dice, label tape and mana symbols;
+- text under 11sp;
+- an exclamation mark, or a trailing period on a one-sentence `Text`;
+- a colored shadow;
+- `FastOutSlowInEasing` or a bouncy spring outside the dice.
 
-### What was not taken from the skill, and why
+### Where Grimoire departs from unslop
+
+Each of these is a choice Rae made for this app. unslop's own rule is to keep a real brand, and these are it.
+
+- **Corners stay 4dp.** unslop suggests 8–10 for controls and 12–16 for cards. Rae asked for no big rounded cards, and
+  card images already carry a real card's corner.
+- **Warm neutrals.** unslop wants app surfaces near-grey. Ours are tinted toward ink brown, but at very low saturation
+  (#100F0E, #1E1C19), close to unslop's own "warm" ramp, so no screen reads as brown.
+- **Cinzel capitals for headings.** unslop's type list doesn't include it and prefers sentence case. Cinzel is a
+  capitals-only face Rae picked (Bolder A1); text you type stays in sentence case, and Cinzel never sets labels or
+  buttons.
+- **Charts are ink, not accent.** unslop gives the tracked line the accent. Rae chose less red (Bolder A), so the line
+  is `Text` and the accent stays on actions.
+- **A small chart under the Home value.** unslop keeps stat cards to numbers. The value card is Home's one moment,
+  and its chart is the main chart there, with dates under it, not a decoration.
+- **Game table and dice** keep their own colors, bold life totals at 600 and the dice bounce: they are objects on a
+  real table, the app's other moment.
+- **Label tape** prints in bold capitals with tracking because it imitates a label maker.
+
+### What was not taken from the skills, and why
 
 - **Fluid `clamp()` type and rem units:** these are for the web. Android uses sp, which already follows the phone's
   text size.
@@ -163,8 +238,15 @@ Before changing UI, read this file. After changing it, check the PR's screen pic
 - **Cursor and Antigravity rule files:** nobody uses those tools here. `AGENTS.md` and `CLAUDE.md` load this file
   for coding agents.
 - **Website-only checklist items** (hero, pricing, footer, testimonials, logo walls): the app has none of them.
+- **unslop's landing-page layout, hero scenes and generated images:** the app has no landing page. Its moments come
+  from card art Scryfall already provides.
+- **unslop's story video:** a presentation piece; nobody asked for one.
 
 | Date | Change |
 |---|---|
 | 2026-11-04 | Created. Spacing moved onto the 8pt grid in 111 files (1,782 values). Corners 3 → 4dp. `Faint` text level added. Gradient main button removed. Body line height 1.35 → 1.4. Press bounce removed. |
+| 2026-11-05 | Fonts fixed to Cinzel + Lexend; font picker and six unused fonts removed; value 45sp, screen titles 22, section titles 20. |
+| 2026-11-05 | Bolder A: Material primary is ink, so text buttons, switches and charts lose the red; charts are a thin ink line with a flat fill; Home sections 32 apart; `Motion` tokens for short animations. |
+| 2026-11-05 | Screen-picture review: switches, checkboxes, radio buttons, focused fields, cursors, spinners, progress bars, the deck curve and stats bars moved from the accent to ink or `Muted`; the game setup line uses Lexend instead of shrunken Cinzel. |
+| 2026-11-05 | unslop made the default philosophy. Direction written. Copy: 2 exclamation marks and 89 trailing periods removed, "Search" placeholder. Type: no 700 (Cinzel Medium added, Cinzel Bold removed), prices Medium, label tracking 0.1, nothing under 11sp. One easing curve; press 0.97 without a spring; card zoom settles without bounce. Scan's accent glow and the art color wash on box and deck pages removed. Icons 18/24. Six build checks added. |
 | 2026-11-05 | Full pass over both rule sets. Always-dark and domain colors named; hard-coded dark colors replaced with `Stage`, `StagePanel`, `ArtBase`, `OnDarkSuccess` and `OnDarkDanger`. Four 36–40dp icon buttons raised to 48dp. Game setup has one main button. The scanned-card fan drops its border and keeps its shadow (one edge treatment). Em dashes removed from shared text. Token sync and contrast tests added. |

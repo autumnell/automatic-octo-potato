@@ -151,7 +151,7 @@ fun BoxCheckChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
                 Text(run.boxName, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${run.scans.sumOf { it.count }} scanned", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
             }
-            TextButton(onClick = { vm.showBoxCheck(true) }) { Text("Result", color = Palette.Accent) }
+            TextButton(onClick = { vm.showBoxCheck(true) }) { Text("Result", color = Palette.Text) }
         }
     }
 }
@@ -166,7 +166,7 @@ fun RemoveChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modif
                 Text("Removing", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 Text("${state.removedCount} out", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
             }
-            TextButton(onClick = vm::stopTarget) { Text("Done", color = Palette.Accent) }
+            TextButton(onClick = vm::stopTarget) { Text("Done", color = Palette.Text) }
         }
     }
 }
@@ -237,7 +237,7 @@ fun BoxCheckSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (Long) -> U
         onDismissRequest = { ending = false },
         containerColor = Palette.Surface,
         title = { Text("End the box check?") },
-        text = { Text("The scanned list is cleared.", color = Palette.Muted) },
+        text = { Text("The scanned list is cleared", color = Palette.Muted) },
         confirmButton = { TextButton(onClick = { ending = false; vm.endBoxCheck() }) { Text("End") } },
         dismissButton = { TextButton(onClick = { ending = false }) { Text("Keep") } },
     )

@@ -72,7 +72,7 @@ fun BoxCheckNudge(onCheck: (Long) -> Unit, modifier: Modifier = Modifier) {
     val box = live.firstOrNull { it.id == due.first } ?: return
 
     Row(modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.DoneAll, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        Icon(Icons.Outlined.DoneAll, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(Space.s3))
         Text(
             BoxReminders.label(box.name, due.second.coerceAtLeast(months)),

@@ -51,10 +51,10 @@ data class ScanHint(val id: String, val title: String, val body: String)
 
 /** In order. A hint whose control isn't on screen is left out. */
 val SCAN_HINTS = listOf(
-    ScanHint("list", "Scan list", "Every card you've scanned."),
-    ScanHint("flash", "Flashlight", "Light for dim rooms."),
-    ScanHint("settings", "Settings", "Foil, set, language, copies and sounds."),
-    ScanHint("last", "Last card", "Tap to open it."),
+    ScanHint("list", "Scan list", "Every card you've scanned"),
+    ScanHint("flash", "Flashlight", "Light for dim rooms"),
+    ScanHint("settings", "Settings", "Foil, set, language, copies and sounds"),
+    ScanHint("last", "Last card", "Tap to open it"),
 )
 
 /** Where each hinted control sits on screen, in window coordinates. */

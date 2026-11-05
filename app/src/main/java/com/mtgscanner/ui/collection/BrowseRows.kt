@@ -199,7 +199,7 @@ fun SearchField(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!mono) {
-            Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+            Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s3))
         }
         Box(Modifier.weight(1f)) {
@@ -214,12 +214,12 @@ fun SearchField(
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { keyboard?.hide(); focus.clearFocus() }),
                 textStyle = textStyle.copy(color = Palette.Text),
-                cursorBrush = SolidColor(Palette.Accent),
+                cursorBrush = SolidColor(Palette.Text),
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             )
         }
         if (value.isNotEmpty()) {
-            IconButton(onClick = { onChange("") }) { Icon(Icons.Outlined.Clear, "Clear", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+            IconButton(onClick = { onChange("") }) { Icon(Icons.Outlined.Clear, "Clear", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
         }
         trailing?.invoke()
     }
@@ -400,7 +400,7 @@ private fun LetterRail(entries: List<Pair<String, Int>>, modifier: Modifier, onL
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         JumpBar.LETTERS.forEach { letter ->
-            Text(letter, fontSize = 10.sp, lineHeight = 11.sp, color = if (letter in present) Palette.Muted else Palette.Muted.copy(alpha = 0.35f))
+            Text(letter, fontSize = 11.sp, lineHeight = 12.sp, color = if (letter in present) Palette.Muted else Palette.Muted.copy(alpha = 0.35f))
         }
     }
 }

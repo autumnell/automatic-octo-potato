@@ -156,7 +156,7 @@ internal fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismis
             onDismissRequest = { confirmForever = false },
             containerColor = Palette.Surface,
             title = { Text("Permanently delete ${box.cards} cards?") },
-            text = { Text("${box.name} and every card in it will be removed from your collection.") },
+            text = { Text("${box.name} and every card in it will be removed from your collection") },
             confirmButton = { TextButton(onClick = { onDelete(null) }) { Text("Delete forever", color = Palette.Danger) } },
             dismissButton = { TextButton(onClick = { confirmForever = false }) { Text("Keep them") } },
         )
@@ -170,7 +170,7 @@ internal fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismis
             // Scrolls with many boxes, so every choice (and "Delete them permanently") can be reached.
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (box.cards == 0) {
-                    Text("It's empty.")
+                    Text("It's empty")
                 } else {
                     Text("What should happen to its ${box.cards} cards?")
                     Spacer(Modifier.height(Space.s2))
@@ -209,7 +209,7 @@ internal fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: ()
         text = {
             Column {
                 Text(
-                    "Cards that fit nothing stay here.",
+                    "Cards that fit nothing stay here",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(Space.s3))
@@ -238,7 +238,7 @@ internal fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: ()
 @Composable
 private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
+        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Text))
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }

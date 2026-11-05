@@ -62,7 +62,7 @@ internal fun EditCollectionDialog(onDismiss: () -> Unit) {
                         Checkbox(
                             checked = on,
                             onCheckedChange = { v -> rows = rows.toMutableList().also { it[i] = section to v } },
-                            colors = CheckboxDefaults.colors(checkedColor = Palette.Accent),
+                            colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
                         )
                         Text(section.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         IconButton(onClick = { move(i, -1) }, enabled = i > 0) { Icon(Icons.Outlined.KeyboardArrowUp, "Move up") }
@@ -124,7 +124,7 @@ private fun Parts(
                 checked = p !in hidden,
                 onCheckedChange = { v -> onToggle(p, v) },
                 enabled = enabled,
-                colors = CheckboxDefaults.colors(checkedColor = Palette.Accent),
+                colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
             )
             Text(
                 p.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,

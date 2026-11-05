@@ -148,7 +148,7 @@ internal fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
             HorizontalDivider(color = Palette.Rule)
             SettingRow("Flashlight", "Helps in dim rooms. Turn it off if foils glare.", state.torch, vm::setTorch)
             HorizontalDivider(color = Palette.Rule)
-            SettingRow("Volume buttons scan", "Up adds, down skips.", VolumeKeys.enabled, VolumeKeys::update)
+            SettingRow("Volume buttons scan", "Up adds, down skips", VolumeKeys.enabled, VolumeKeys::update)
             HorizontalDivider(color = Palette.Rule)
             Text(
                 "Show hints",
@@ -179,7 +179,7 @@ private fun SettingRow(title: String, body: String, checked: Boolean, onChange: 
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
         Spacer(Modifier.width(Space.s3))
-        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
+        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text))
     }
 }
 
@@ -203,7 +203,7 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
             SelectPill("By box", state.listByBox, { vm.setListByBox(true) })
         }
         Text(
-            "Clearing keeps cards in your collection.",
+            "Clearing keeps cards in your collection",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
@@ -271,7 +271,7 @@ internal fun ReviewSheet(state: ScanUiState, vm: ScanViewModel) {
     ModalBottomSheet(onDismissRequest = { vm.showReview(false) }, containerColor = Palette.Surface) {
         Text("Check these", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
         Text(
-            "Auto-add wasn't sure about these.",
+            "Auto-add wasn't sure about these",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
             modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),

@@ -139,7 +139,7 @@ internal fun ToSortSection(
                         style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Palette.Icon, modifier = Modifier.size(14.dp).padding(horizontal = Space.s1))
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Palette.Icon, modifier = Modifier.size(18.dp).padding(horizontal = Space.s1))
                     Text(
                         listOfNotNull(ui.boxNames[item.to], item.spot).joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium, color = Palette.Text, maxLines = 1,

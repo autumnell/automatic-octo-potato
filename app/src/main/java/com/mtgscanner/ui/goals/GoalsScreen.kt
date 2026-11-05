@@ -216,8 +216,8 @@ fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
-                p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(16.dp))
-                !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                p.error -> Icon(Icons.Outlined.CloudOff, "Offline", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+                !p.loaded -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Palette.Text)
                 else -> Text(
                     "${p.have}/${p.total}", style = MaterialTheme.typography.labelLarge,
                     color = if (p.done) Palette.Success else Palette.Muted,
@@ -228,7 +228,7 @@ fun GoalCard(p: GoalProgress, onClick: () -> Unit, modifier: Modifier = Modifier
         LinearProgressIndicator(
             progress = { p.fraction },
             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-            color = if (p.done) Palette.Success else Palette.Accent,
+            color = if (p.done) Palette.Success else Palette.Text,
             trackColor = Palette.SurfaceHigh,
             drawStopIndicator = {},
         )

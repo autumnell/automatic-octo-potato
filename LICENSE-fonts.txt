@@ -1,7 +1,7 @@
-Lexend and Cormorant SC fonts (app/src/main/res/font) are licensed under the SIL Open Font License:
+Lexend and Cinzel fonts (app/src/main/res/font) are licensed under the SIL Open Font License:
 
 Copyright 2018 The Lexend Project Authors (https://github.com/googlefonts/lexend), with Reserved Font Name “RevReading Lexend”.
-Copyright 2015 the Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant). Bundled as a Latin-only subset.
+Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel).
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

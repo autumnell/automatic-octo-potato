@@ -207,9 +207,9 @@ internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewMode
                 state.wish?.let { w ->
                     add {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Favorite, null, tint = Palette.Success, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Filled.Favorite, null, tint = Palette.Success, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(Space.s2))
-                            Note(if (w.wanted > 1) "On your wishlist (want ${w.wanted})" else "On your wishlist!", Palette.Success)
+                            Note(if (w.wanted > 1) "On your wishlist (want ${w.wanted})" else "On your wishlist", Palette.Success)
                         }
                     }
                 }
@@ -327,7 +327,7 @@ internal fun OfflineCard(name: String, vm: ScanViewModel) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface.copy(alpha = 0.97f)) {
         Column(Modifier.padding(Space.s4)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(Space.s2))
                 Text(name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             }
@@ -353,7 +353,7 @@ internal fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = M
             .padding(bottom = Space.s2)
             .clip(RoundedCornerShape(Corners.Medium))
             .background(Color.Black.copy(alpha = 0.8f))
-            .border(1.dp, Palette.Gold.copy(alpha = 0.6f), RoundedCornerShape(Corners.Medium))
+            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(Corners.Medium))
             .padding(start = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {

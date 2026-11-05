@@ -259,7 +259,7 @@ private fun AskDialog(c: CollectionCard, onSave: (Double?) -> Unit, onUnlist: ()
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row {
-                    TextButton(onClick = onSold) { Text("Sold", color = Palette.AccentText) }
+                    TextButton(onClick = onSold) { Text("Sold", color = Palette.Text) }
                     TextButton(onClick = onUnlist) { Text("Not for sale", color = Palette.Danger) }
                 }
             }

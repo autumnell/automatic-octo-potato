@@ -53,7 +53,7 @@ fun DeckIssuesLine(issues: CommanderRules.Issues) {
     if (issues.isEmpty) return
     var open by remember { mutableStateOf(false) }
     Row(Modifier.clickable { open = true }.padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.Warning, null, tint = Palette.Danger, modifier = Modifier.size(14.dp))
+        Icon(Icons.Outlined.Warning, null, tint = Palette.Danger, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(Space.s1))
         Text(DeckIssueText.count(issues.count), style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
     }

@@ -396,7 +396,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
         val card = _ui.value.selected ?: return
         _ui.update { it.copy(selected = null) }
         viewModelScope.launch {
-            val deck = repo.deckById(deckId) ?: run { _ui.update { it.copy(message = "That deck is gone.") }; return@launch }
+            val deck = repo.deckById(deckId) ?: run { _ui.update { it.copy(message = "That deck is gone") }; return@launch }
             val slot = repo.deckSlotId(deckId)
             val inDeck = repo.copiesOf(card.oracleId, card.name).filter { it.boxId == slot }.sumOf { it.quantity }
             val extra = (inDeck + qty - com.mtgscanner.scan.DeckText.count(deck.text, card.name)).coerceAtLeast(0)

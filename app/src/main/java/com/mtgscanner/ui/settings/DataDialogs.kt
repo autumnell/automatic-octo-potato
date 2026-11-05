@@ -178,9 +178,9 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
 @Composable
 internal fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
+        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Text))
         if (icon != null) {
-            Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
+            Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s2))
         }
         Text(label, style = MaterialTheme.typography.bodyMedium)

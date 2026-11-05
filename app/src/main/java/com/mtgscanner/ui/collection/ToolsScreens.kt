@@ -308,7 +308,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
             SelectPill("Include variants", variants, { vm.setIncludeVariants(!variants) })
         }
         if (failed) Text(
-            "Offline: set sizes missing.",
+            "Offline: set sizes missing",
             style = MaterialTheme.typography.bodySmall, color = Palette.Gold, modifier = Modifier.padding(horizontal = Space.s4),
         )
         val q = filter.trim().lowercase()
@@ -343,7 +343,7 @@ fun SetsScreen(onBack: () -> Unit, onOpenSet: (String) -> Unit) {
                                 LinearProgressIndicator(
                                     progress = { s.fraction },
                                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-                                    color = Palette.Accent,
+                                    color = Palette.Text,
                                     trackColor = Palette.SurfaceHigh,
                                     drawStopIndicator = {},
                                 )
@@ -406,7 +406,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
                 Icon(
                     if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                     if (isPinned) "Unpin from Home" else "Pin to Home",
-                    tint = if (isPinned) Palette.Accent else Palette.Icon,
+                    tint = if (isPinned) Palette.Text else Palette.Icon,
                 )
             }
             IconButton(onClick = { layout = (layout + 1) % 3 }) {
@@ -527,7 +527,7 @@ fun SetDetailScreen(code: String, onBack: () -> Unit, onOpenCard: (Long) -> Unit
         title = { Text("Wishlist ${toWish.size} missing cards?") },
         text = {
             val cost = toWish.sumOf { it.prices.usd?.toDoubleOrNull() ?: 0.0 }
-            Text("Any printing counts." + if (AppSettings.showPrices) " About ${formatUsd(cost)} total." else "")
+            Text("Any printing counts" + if (AppSettings.showPrices) " · about ${formatUsd(cost)} total" else "")
         },
         confirmButton = { TextButton(onClick = { vm.wishlistMissing(toWish); confirmWish = false }) { Text("Add") } },
         dismissButton = { TextButton(onClick = { confirmWish = false }) { Text("Cancel") } },
@@ -558,7 +558,7 @@ private fun SetHeader(
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface), contentAlignment = Alignment.Center) {
-                if (iconUrl != null) AsyncImage(iconUrl, null, Modifier.size(32.dp), colorFilter = ColorFilter.tint(Palette.Accent))
+                if (iconUrl != null) AsyncImage(iconUrl, null, Modifier.size(32.dp), colorFilter = ColorFilter.tint(Palette.Icon))
                 else Text(code.uppercase().take(4), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             }
             Spacer(Modifier.width(Space.s4))
@@ -587,7 +587,7 @@ private fun SetHeader(
             LinearProgressIndicator(
                 progress = { (have.toFloat() / total).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-                color = Palette.Accent,
+                color = Palette.Text,
                 trackColor = Palette.SurfaceHigh,
                 drawStopIndicator = {},
             )
@@ -688,7 +688,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
             QuantityStepper(keep, onChange = vm::setKeep)
         }
         Text(
-            "Not counted: basic lands, trade binders, decks.",
+            "Not counted: basic lands, trade binders, decks",
             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4),
         )
         if (groups.isEmpty()) {
@@ -702,7 +702,7 @@ fun ExtrasScreen(onBack: () -> Unit) {
                     Modifier.fillMaxWidth().clickable { skipped = if (on) skipped + g.key else skipped - g.key }.padding(horizontal = Space.s3, vertical = Space.s1),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Checkbox(on, { skipped = if (on) skipped + g.key else skipped - g.key }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
+                    Checkbox(on, { skipped = if (on) skipped + g.key else skipped - g.key }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
                     Column(Modifier.weight(1f)) {
                         Text(g.name, style = MaterialTheme.typography.titleSmall)
                         Text("You have ${g.owned} · keep ${g.keep} · ${g.extra} extra", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -714,13 +714,13 @@ fun ExtrasScreen(onBack: () -> Unit) {
         Surface(color = Palette.Surface) {
             Column(Modifier.fillMaxWidth().padding(Space.s4).navigationBarsPadding()) {
                 if (trade.isEmpty()) {
-                    Text("Make a trade binder to move extras into.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text("Make a trade binder to move extras into", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     Spacer(Modifier.height(Space.s2))
                     GradientButton("Create a trade binder", { vm.createTradeBinder() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Add)
                 } else {
                     if (trade.size > 1) Row(Modifier.padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         trade.forEach { b ->
-                            SelectPill(b.name, dest == b.id, { target = b.id }, leading = { Icon(boxIcon(b.kind), null, Modifier.size(14.dp), tint = boxColor(b.color)) })
+                            SelectPill(b.name, dest == b.id, { target = b.id }, leading = { Icon(boxIcon(b.kind), null, Modifier.size(18.dp), tint = boxColor(b.color)) })
                         }
                     }
                     val n = chosen.sumOf { it.extra }

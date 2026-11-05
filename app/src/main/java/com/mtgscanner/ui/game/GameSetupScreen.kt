@@ -142,7 +142,8 @@ fun GameSetupScreen(onPlay: () -> Unit) {
                 if (format.commanderDamage) add(if (partners) "partners" else "no partners")
             }
             // Shrink the words to keep the setup on one line, whatever the screen width.
-            val base = MaterialTheme.typography.headlineSmall
+            // Lexend, not the Cinzel heading face: these are tappable choices, and Cinzel sets headings only.
+            val base = MaterialTheme.typography.titleMedium
             val measurer = rememberTextMeasurer()
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val avail = constraints.maxWidth - with(LocalDensity.current) { (10.dp * words.size).roundToPx() }
@@ -325,7 +326,7 @@ private fun SameAsLast(last: LastSetup, names: List<String>, onStart: () -> Unit
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        Text("Start", style = MaterialTheme.typography.labelLarge, color = Palette.Accent)
+        Text("Start", style = MaterialTheme.typography.labelLarge, color = Palette.Text)
     }
 }
 
@@ -341,7 +342,7 @@ private fun StyleMenu(style: TableStyle, onPick: (TableStyle) -> Unit) {
                 DropdownMenuItem(
                     text = { Text(t.label) },
                     onClick = { open = false; onPick(t) },
-                    trailingIcon = { if (t == style) Icon(Icons.Outlined.Check, contentDescription = null, tint = Palette.Accent) },
+                    trailingIcon = { if (t == style) Icon(Icons.Outlined.Check, contentDescription = null, tint = Palette.Text) },
                 )
             }
         }

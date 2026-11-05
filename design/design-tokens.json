@@ -8,7 +8,8 @@
     "coreAction": "Scan cards into the right box",
     "vibeWords": "warm, archival, precise",
     "direction": "A · Grimoire (chosen by Rae 2026-11-04)",
-    "source": "Code mirror: app/src/main/java/com/mtgscanner/ui/theme/Theme.kt (Palette, Space, Corners, typography). Change both together."
+    "source": "Code mirror: app/src/main/java/com/mtgscanner/ui/theme/Theme.kt (Palette, Space, Corners, typography). Change both together.",
+    "philosophy": "unslop (design/unslop, CC BY 4.0, Damir Sokolovsky) is the default; design/Design.md lists where Grimoire departs from it"
   },
   "color": {
     "dark": {
@@ -59,12 +60,14 @@
     "_why": "Ink-brown darks and paper lights read as an old binder, not a tech dashboard. One accent (oxblood) is kept for actions and the selected state only. Each panel step is clearly lighter than the one below it, because Rae asked for clear contrast between panels and background."
   },
   "typography": {
-    "fontDisplay": "Cormorant SC (user can switch: Cinzel, Fraunces, Lexend)",
-    "fontBody": "Lexend (user can switch: Inter, Manrope, Space Grotesk)",
-    "fontNumbers": "IBM Plex Mono / chosen price font, tabular lining figures",
-    "scale": { "xs": "11sp", "sm": "12sp", "base": "14sp", "lg": "16sp", "xl": "23sp", "2xl": "26sp", "3xl": "30sp", "display": "40sp" },
+    "fontDisplay": "Cinzel (fixed)",
+    "fontBody": "Lexend (fixed, also prices)",
+    "fontNumbers": "Lexend tabular lining figures; IBM Plex Mono for the Collection numbers strip",
+    "scale": { "xs": "11sp", "sm": "12sp", "base": "14sp", "lg": "16sp", "xl": "20sp", "2xl": "22sp", "display": "45sp" },
     "lineHeight": { "heading": 1.2, "body": 1.4 },
-    "_why": "A small-caps serif for headings gives the grimoire feel; Lexend is wide and very legible at small sizes on a phone held at arm's length. Numbers use tabular figures so prices line up in lists. Body line height is 1.4, not the 1.6 used on web pages, because most text here is one-line list rows, not paragraphs."
+    "weights": { "body": 400, "labels": 500, "headings": 500, "bigFigures": 600, "max": 600 },
+    "minSize": "11sp",
+    "_why": "Cinzel's engraved Roman capitals give the grimoire feel, like a tooled binder spine; Lexend is wide and very legible at small sizes on a phone held at arm's length. Numbers use tabular figures so prices line up in lists. Body line height is 1.4, not the 1.6 used on web pages, because most text here is one-line list rows, not paragraphs."
   },
   "spacing": {
     "s1": "4dp", "s2": "8dp", "s3": "12dp", "s4": "16dp", "s6": "24dp", "s8": "32dp", "s12": "48dp",
@@ -73,6 +76,6 @@
   },
   "radius": { "sm": "4dp", "md": "4dp", "card": "5% (a real card's corner)", "pill": "50%" , "_why": "Near-square corners. Rae asked for no big rounded cards." },
   "shadow": { "sm": "none", "md": "none", "lg": "2dp, sheets and menus only", "_why": "Panels are separated by a surface step, not shadows." },
-  "motion": { "fast": "120ms", "base": "200ms", "slow": "320ms", "easing": "FastOutSlowIn" },
+  "motion": { "fast": "120ms", "base": "200ms", "slow": "320ms", "easing": "cubic-bezier(0.22, 1, 0.36, 1)", "pressScale": 0.97, "_why": "One ease-out curve for everything (unslop). Short for feedback, longer for things that enter. No bounce outside the dice." },
   "touch": { "minTarget": "48dp" }
 }

@@ -114,7 +114,7 @@ internal fun ArtPicker(current: String?, vm: GameViewModel, onPick: (String?) ->
     if (open) {
         OutlinedTextField(
             query, { query = it; vm.searchArt(it) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search your collection, like your commander") },
+            placeholder = { Text("Search your collection") },
         )
         Spacer(Modifier.height(Space.s2))
         if (choices.isEmpty()) Text("No cards with art found. Scan some cards first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -140,9 +140,9 @@ fun EndGameDialog(g: GameState, onDismiss: () -> Unit, onEnd: (save: Boolean, wi
         title = { Text(if (g.recorded) "End this game?" else "Who won?") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (g.recorded) Text("It's already in your game stats.")
+                if (g.recorded) Text("It's already in your game stats")
                 else {
-                    Text("Pick the winner to save the game to your stats.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text("Pick the winner to save the game to your stats", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     g.players.forEachIndexed { i, p ->
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { winner = i }, verticalAlignment = Alignment.CenterVertically) {
                             androidx.compose.material3.RadioButton(winner == i, { winner = i })

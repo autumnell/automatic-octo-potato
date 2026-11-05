@@ -1,7 +1,7 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Motion
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -74,22 +74,22 @@ fun RollStage(kind: DieKind?, result: String?, rollKey: Int, modifier: Modifier 
             // Several half turns, ending on the side that came up; it rises and falls like a real toss.
             val target = 180f * (12 + if (result == "Tails") 1 else 0)
             launch {
-                lift.animateTo(1.45f, tween(500, easing = FastOutSlowInEasing))
-                lift.animateTo(1f, tween(500, easing = FastOutSlowInEasing))
+                lift.animateTo(1.45f, tween(500, easing = Motion.ease))
+                lift.animateTo(1f, tween(500, easing = Motion.ease))
             }
-            spinX.animateTo(target, tween(1000, easing = FastOutSlowInEasing))
+            spinX.animateTo(target, tween(1000, easing = Motion.ease))
         } else {
             // Tumble with the faces flicking past, then land.
             val flicker = launch { while (true) { face = kind.roll(); delay(70) } }
-            launch { spinY.animateTo(720f, tween(850, easing = FastOutSlowInEasing)) }
+            launch { spinY.animateTo(720f, tween(850, easing = Motion.ease)) }
             launch {
-                lift.animateTo(1.25f, tween(300))
-                lift.animateTo(1f, tween(550, easing = FastOutSlowInEasing))
+                lift.animateTo(1.25f, tween(Motion.slow, easing = Motion.ease))
+                lift.animateTo(1f, tween(550, easing = Motion.ease))
             }
-            spinX.animateTo(1080f, tween(850, easing = FastOutSlowInEasing))
+            spinX.animateTo(1080f, tween(850, easing = Motion.ease))
             flicker.cancel()
             face = result
-            lift.animateTo(1.12f, tween(80))
+            lift.animateTo(1.12f, tween(Motion.fast, easing = Motion.ease))
             lift.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
         }
         settled = true

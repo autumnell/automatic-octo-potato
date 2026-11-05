@@ -67,7 +67,7 @@ fun AlmostDecksSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
             val r = run
             when {
                 r == null || r.loading -> Column(Modifier.fillMaxWidth().padding(vertical = Space.s6), horizontalAlignment = Alignment.CenterHorizontally) {
-                    if ((r?.progress ?: 0f) > 0f) LinearProgressIndicator(progress = { r?.progress ?: 0f }, color = Palette.Accent, modifier = Modifier.fillMaxWidth(0.6f))
+                    if ((r?.progress ?: 0f) > 0f) LinearProgressIndicator(progress = { r?.progress ?: 0f }, color = Palette.Text, modifier = Modifier.fillMaxWidth(0.6f))
                     else com.mtgscanner.ui.components.Spinner()
                     Spacer(Modifier.height(Space.s2))
                     Text("Reading EDHREC…", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

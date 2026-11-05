@@ -113,14 +113,14 @@ fun FirstSetupScreen(onDone: () -> Unit) {
         Spacer(Modifier.height(Space.s2))
         Text(
             "Every card, its pictures and the scanning models, so cards are found fast and offline. A few hundred MB, once. " +
-                "Best on Wi-Fi.",
+                "Best on Wi-Fi",
             style = MaterialTheme.typography.bodyMedium, color = Palette.Muted,
         )
         Spacer(Modifier.height(Space.s6))
         LinearProgressIndicator(
             progress = { if (steps.isEmpty()) 0f else finished.toFloat() / steps.size },
             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)),
-            color = Palette.Accent,
+            color = Palette.Text,
         )
         Spacer(Modifier.height(Space.s4))
         steps.forEach { s -> StepRow(s) }
@@ -140,9 +140,9 @@ private fun StepRow(s: SetupStep) {
     Column(Modifier.fillMaxWidth().padding(vertical = Space.s2)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             when {
-                s.done -> Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Success, modifier = Modifier.size(20.dp))
-                s.failed -> Icon(Icons.Outlined.ErrorOutline, null, tint = Palette.Danger, modifier = Modifier.size(20.dp))
-                else -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                s.done -> Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Success, modifier = Modifier.size(18.dp))
+                s.failed -> Icon(Icons.Outlined.ErrorOutline, null, tint = Palette.Danger, modifier = Modifier.size(18.dp))
+                else -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Text)
             }
             Spacer(Modifier.width(Space.s3))
             Text(s.label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
@@ -161,7 +161,7 @@ private fun StepRow(s: SetupStep) {
             LinearProgressIndicator(
                 progress = { s.progress.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth().padding(start = Space.s8, top = Space.s2).height(4.dp).clip(RoundedCornerShape(Corners.Small)),
-                color = Palette.Accent,
+                color = Palette.Text,
             )
         }
     }

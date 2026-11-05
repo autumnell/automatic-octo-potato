@@ -107,7 +107,7 @@ fun WhereIsSheet(onOpenCard: (Long) -> Unit, onDismiss: () -> Unit) {
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(Corners.Small),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2).focusRequester(focus),
             )
             // Keyboard up as the sheet opens.

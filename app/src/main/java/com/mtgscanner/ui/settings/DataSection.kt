@@ -149,7 +149,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         Group {
             busy?.let {
                 Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Text)
                     Spacer(Modifier.width(Space.s3))
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }

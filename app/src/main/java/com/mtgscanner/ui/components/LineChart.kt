@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -28,7 +27,7 @@ import com.mtgscanner.ui.theme.Palette
  * point and reports its index (null when the finger lifts), so the caller can show that day's value.
  */
 @Composable
-fun LineChart(values: List<Double>, modifier: Modifier, line: Color = Palette.Accent, onScrub: ((Int?) -> Unit)? = null) {
+fun LineChart(values: List<Double>, modifier: Modifier, line: Color = Palette.Text, onScrub: ((Int?) -> Unit)? = null) {
     if (values.size < 2) return
     var at by remember(values) { mutableStateOf<Int?>(null) }
     val report by rememberUpdatedState(onScrub)
@@ -70,8 +69,8 @@ fun LineChart(values: List<Double>, modifier: Modifier, line: Color = Palette.Ac
         }
         fill.lineTo(size.width, size.height)
         fill.close()
-        drawPath(fill, Brush.verticalGradient(listOf(line.copy(alpha = 0.35f), Color.Transparent)))
-        drawPath(path, line, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(fill, line.copy(alpha = 0.06f))
+        drawPath(path, line, style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         at?.let { i ->
             val x = i * stepX
             drawLine(Palette.Muted, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())

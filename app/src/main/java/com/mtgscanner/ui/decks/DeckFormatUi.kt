@@ -181,7 +181,7 @@ fun CommanderPickerSheet(
                 leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Palette.Icon) },
                 trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onQuery("") }) { Icon(Icons.Outlined.Close, "Clear") } },
                 shape = RoundedCornerShape(Corners.Medium),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(Space.s1))
@@ -250,7 +250,7 @@ fun DeckHeader(
             TextButton(onClick = onEdhrec) {
                 Text("EDHREC")
                 Spacer(Modifier.width(Space.s1))
-                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(14.dp))
+                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(18.dp))
             }
         }
     }

@@ -187,20 +187,20 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.weight(1f)) {
-                            if (ui.query.isEmpty()) Text("Search for card…", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
+                            if (ui.query.isEmpty()) Text("Search", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
                             BasicTextField(
                                 value = ui.query,
                                 onValueChange = vm::setQuery,
                                 singleLine = true,
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Text),
-                                cursorBrush = SolidColor(Palette.Accent),
+                                cursorBrush = SolidColor(Palette.Text),
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                                 keyboardActions = KeyboardActions(onSearch = { focus.clearFocus(); vm.submit() }),
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
                         if (ui.query.isNotEmpty()) {
-                            IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+                            IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
                         } else {
                             Spacer(Modifier.width(Space.s4))
                         }
@@ -221,7 +221,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     val n = ui.filters.activeCount
                     SelectPill(
                         if (n > 0) "Filters · $n" else "Filters", n > 0, { showFilters = true },
-                        leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(16.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
+                        leading = { Icon(Icons.Outlined.Tune, null, Modifier.size(18.dp), tint = if (n > 0) Palette.AccentText else Palette.Icon) },
                     )
                     Spacer(Modifier.width(Space.s2))
                     SelectPill("Price a list", false, { pricing = true })
@@ -327,7 +327,7 @@ private fun Results(
         } else if (moreFailed) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(Space.s4), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.TextButton(onClick = onLoadMore) { Text("Couldn't load more · Retry", color = Palette.AccentText) }
+                    androidx.compose.material3.TextButton(onClick = onLoadMore) { Text("Couldn't load more · Retry", color = Palette.Text) }
                 }
             }
         }
@@ -466,7 +466,7 @@ private fun SetRow(s: ScryfallSet, owned: Int, onClick: () -> Unit) {
             AsyncImage(
                 model = s.iconSvgUri,
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(Palette.Accent),
+                colorFilter = ColorFilter.tint(Palette.Icon),
                 modifier = Modifier.size(24.dp),
             )
         }

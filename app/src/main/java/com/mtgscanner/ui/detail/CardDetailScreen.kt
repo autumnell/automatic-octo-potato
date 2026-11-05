@@ -430,13 +430,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                                 DropChip(
                                     if (c.notes.isBlank()) "Notes" else c.notes.lineSequence().first().take(18),
                                     onClick = { editingNotes = true },
-                                    leading = { Icon(Icons.Outlined.Edit, null, Modifier.size(16.dp), tint = Palette.Icon) },
+                                    leading = { Icon(Icons.Outlined.Edit, null, Modifier.size(18.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                                 DropChip(
                                     "Tag",
                                     onClick = { addingTag = true },
-                                    leading = { Icon(Icons.Outlined.Add, null, Modifier.size(16.dp), tint = Palette.Icon) },
+                                    leading = { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp), tint = Palette.Icon) },
                                     trailing = false,
                                 )
                             }
@@ -451,7 +451,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                                         ) {
                                             Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.Text)
                                             IconButton(onClick = { vm.removeTag(t) }) {
-                                                Icon(Icons.Outlined.Close, "Remove tag $t", Modifier.size(16.dp), tint = Palette.Icon)
+                                                Icon(Icons.Outlined.Close, "Remove tag $t", Modifier.size(18.dp), tint = Palette.Icon)
                                             }
                                         }
                                     }
@@ -547,7 +547,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         }
                     } else if (AppSettings.showPrices) {
                         Text(
-                            "Price chart appears after a few days.",
+                            "Price chart appears after a few days",
                             style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s2),
                         )
                     }
@@ -595,7 +595,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
                         links.forEach { link ->
                             TextButton(onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url))) } }) {
-                                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(Space.s1))
                                 Text(link.label)
                             }
@@ -691,7 +691,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             onDismissRequest = { askingStack = false },
             containerColor = Palette.Surface,
             title = { Text("Count a stack") },
-            text = { Text("Photograph the side of a stack of this card, close enough that the stack fills the picture.", color = Palette.Muted) },
+            text = { Text("Photograph the side of a stack of this card, close enough that the stack fills the picture", color = Palette.Muted) },
             confirmButton = {
                 if (CardPhotos.canUseCamera) TextButton(onClick = {
                     askingStack = false
@@ -737,7 +737,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             onDismissRequest = { vm.stackFailed.value = false },
             containerColor = Palette.Surface,
             title = { Text("Couldn't count the edges") },
-            text = { Text("Try closer, with the stack filling the picture and light from the side.", color = Palette.Muted) },
+            text = { Text("Try closer, with the stack filling the picture and light from the side", color = Palette.Muted) },
             confirmButton = { TextButton(onClick = { vm.stackFailed.value = false }) { Text("OK") } },
         )
     }
@@ -923,7 +923,7 @@ private fun BarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
         modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(vertical = Space.s2),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, null, tint = if (on) Palette.AccentText else Palette.Icon, modifier = Modifier.size(22.dp))
+        Icon(icon, null, tint = if (on) Palette.AccentText else Palette.Icon, modifier = Modifier.size(24.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = tint, maxLines = 1)
     }
 }

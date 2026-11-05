@@ -250,7 +250,7 @@ fun DecksTab(onOpenDeck: (Long) -> Unit, vm: DecksViewModel = viewModel(factory 
                     singleLine = true,
                     shape = RoundedCornerShape(Corners.Medium),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent,
+                        focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text,
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -375,7 +375,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                     Text(
                         tag,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         color = Color.White,
                         maxLines = 1,
                         modifier = Modifier.align(Alignment.TopStart).padding(Space.s2)
@@ -387,7 +387,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
             Row(Modifier.padding(start = Space.s3, top = Space.s2), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        row.deck.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                        row.deck.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
@@ -400,7 +400,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                 }
                 Box {
                     IconButton(onClick = { menu = true }, modifier = Modifier.size(Space.s12)) {
-                        Icon(Icons.Outlined.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.MoreVert, "Deck options", tint = Palette.Icon, modifier = Modifier.size(18.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
@@ -412,7 +412,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                                 DropdownMenuItem(
                                     text = { Text(st.label) },
                                     onClick = { menu = false; DeckStatusStore.set(ctx, row.deck.id, if (status == st) null else st) },
-                                    trailingIcon = { if (status == st) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
+                                    trailingIcon = { if (status == st) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                                 )
                             }
                         }
@@ -425,7 +425,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                 LinearProgressIndicator(
                     progress = { if (row.cards == 0) 0f else row.owned.toFloat() / row.cards },
                     modifier = Modifier.fillMaxWidth().height(4.dp),
-                    color = Palette.Accent,
+                    color = Palette.Text,
                     trackColor = Palette.SurfaceHigh,
                 )
                 Spacer(Modifier.height(Space.s1))
@@ -454,7 +454,7 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, modifier: Modif
             }
             Column(Modifier.padding(Space.s3)) {
                 Text(
-                    folder.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    folder.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(if (decks.size == 1) "1 deck" else "${decks.size} decks", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

@@ -308,14 +308,14 @@ private fun Header(onSettings: () -> Unit, onBell: () -> Unit, onEdit: () -> Uni
  */
 @Composable
 internal fun HomeHeading(title: String, action: String? = null, onAction: () -> Unit = {}) {
-    Column(Modifier.fillMaxWidth().padding(top = Space.s4)) {
+    Column(Modifier.fillMaxWidth().padding(top = Space.s8)) {
         HorizontalDivider(Modifier.padding(horizontal = Space.s4), thickness = 1.dp, color = Palette.Hairline)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = Space.s4, end = Space.s1),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge, color = Palette.Text, modifier = Modifier.weight(1f))
-            if (action != null) TextButton(onClick = onAction) { Text(action, color = Palette.AccentText) }
+            if (action != null) TextButton(onClick = onAction) { Text(action, color = Palette.Muted) }
         }
     }
 }

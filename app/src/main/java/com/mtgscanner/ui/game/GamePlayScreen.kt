@@ -237,7 +237,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.Bold)
+                    if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.SemiBold)
                     else Icon(Icons.Outlined.MoreHoriz, "Game menu", tint = Palette.Accent)
                 }
                 QuickButton(Icons.AutoMirrored.Outlined.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
@@ -294,8 +294,8 @@ private fun QuickButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit, onDone: () -> Unit) {
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.85f)) {
         Column(Modifier.padding(horizontal = Space.s6, vertical = Space.s4), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
-            Text("Tap Done or Rematch to save.",
+            Text("$name wins", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
+            Text("Tap Done or Rematch to save",
                 color = Palette.OnDarkMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
             Row {
                 TextButton(onClick = onRestart) { Text("Rematch") }

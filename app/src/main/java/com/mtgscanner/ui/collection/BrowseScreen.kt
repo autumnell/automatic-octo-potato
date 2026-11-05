@@ -227,19 +227,8 @@ fun BrowseScreen(
         }
     }
 
-    // A box's page picks up a soft tint from its cover card's art.
-    val coverArt = remember(ui.all, boxId) {
-        if (boxId < 0) null
-        else {
-            val cover = com.mtgscanner.data.BoxCovers(ctx).covers.value[boxId]
-            com.mtgscanner.data.BoxArt.coverCard(ui.all.filter { it.boxId == boxId }, cover)?.imageUrl
-        }
-    }
-    val tint = com.mtgscanner.ui.components.rememberArtTint(com.mtgscanner.data.db.artCropUrl(coverArt))
-    val top = com.mtgscanner.ui.components.tintedBackground(tint)
     Row(
-        Modifier.fillMaxSize().background(Palette.Background)
-            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, Palette.Background), endY = 900f)),
+        Modifier.fillMaxSize().background(Palette.Background),
     ) {
     val collapse = com.mtgscanner.ui.components.rememberCollapseState()
     // A new search or sort starts from the top, with the header showing.
@@ -298,12 +287,12 @@ fun BrowseScreen(
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
                         text = { Text("Pages") },
-                        trailingIcon = { if (pagesOn) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
+                        trailingIcon = { if (pagesOn) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                         onClick = { menu = false; vm.togglePages() },
                     )
                     if (ui.binder) DropdownMenuItem(
                         text = { Text("Pocket per copy") },
-                        trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Outlined.Check, null, tint = Palette.Accent) },
+                        trailingIcon = { if (ui.pocketPerCopy) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                         onClick = { menu = false; vm.setPocketPerCopy(!ui.pocketPerCopy) },
                     )
                     if (ui.unslotted > 0) DropdownMenuItem(
@@ -368,7 +357,7 @@ fun BrowseScreen(
                     DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                         SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
                             DropdownMenuItem(
-                                text = { Text(s.label, color = if (f.sort == s) Palette.Accent else Palette.Text) },
+                                text = { Text(s.label, color = if (f.sort == s) Palette.Text else Palette.Text) },
                                 onClick = { vm.update { it.copy(sort = s) }; sortMenu = false },
                             )
                         }
@@ -379,7 +368,7 @@ fun BrowseScreen(
                     DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
                         GroupBy.entries.forEach { g ->
                             DropdownMenuItem(
-                                text = { Text(g.label, color = if (f.group == g) Palette.Accent else Palette.Text) },
+                                text = { Text(g.label, color = if (f.group == g) Palette.Text else Palette.Text) },
                                 onClick = { vm.update { it.copy(group = g) }; groupMenu = false },
                             )
                         }
@@ -396,12 +385,12 @@ fun BrowseScreen(
                     if (!picking) ToolChip("Recent cards", Icons.Outlined.History, { recentCards = !recentCards }, active = recentCards)
                     saved.forEach { sv ->
                         SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
-                            Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(18.dp))
                         })
                     }
                     recent.forEach { q ->
                         SelectPill(q, false, { vm.update { it.copy(query = q) } }, leading = {
-                            Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Outlined.History, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                         })
                     }
                     if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
