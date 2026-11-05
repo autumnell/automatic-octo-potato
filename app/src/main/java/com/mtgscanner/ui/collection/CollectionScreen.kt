@@ -188,6 +188,8 @@ fun CollectionScreen(
     var editingLayout by remember { mutableStateOf(false) }
     var tabName by rememberSaveable { mutableStateOf(CollectionTab.BOXES.name) }
     val tab = CollectionTab.entries.firstOrNull { it.name == tabName } ?: CollectionTab.BOXES
+    // One search for the page: Boxes and Decks each show their own matches, then the cards found.
+    var search by rememberSaveable { mutableStateOf("") }
     var scanningLabel by remember { mutableStateOf(false) }
     var sharingAll by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -270,8 +272,17 @@ fun CollectionScreen(
                         },
                     )
                 }
-                // Above the tabs, so it's there on every one.
-                if (layout.shows(CollectionPart.BROWSE)) BrowseAllButton { onBrowse(-1L) }
+                // Above the tabs, so it's there on every one. Wishlist and Tools have nothing to match, so typing there
+                // moves to Boxes.
+                if (layout.shows(CollectionPart.BROWSE)) SearchField(
+                    search,
+                    { q ->
+                        search = q
+                        if (q.isNotBlank() && tab != CollectionTab.BOXES && tab != CollectionTab.DECKS) tabName = CollectionTab.BOXES.name
+                    },
+                    Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
+                    placeholder = "Search",
+                )
             }
             // A hidden tab still shows while it's open (Home's wishlist link lands on it).
             val tabs = CollectionTab.shown(layout).let { if (tab in it) it else it + tab }
@@ -285,8 +296,8 @@ fun CollectionScreen(
             // Pull down to refresh prices, same as the refresh button.
             com.mtgscanner.ui.components.PriceRefreshBox(refreshing, vm::refreshPrices, Modifier.fillMaxSize()) {
             when (tab) {
-                CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true })
-                CollectionTab.DECKS -> DecksTab(onOpenDeck)
+                CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true }, query = search, onQuery = { search = it })
+                CollectionTab.DECKS -> DecksTab(onOpenDeck, query = search, cards = { CardsFound(search, vm, onBrowse, onOpenCard) })
                 CollectionTab.WISHLIST -> WishlistTab(vm)
                 CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE), onOpenCard = onOpenCard)
             }
@@ -323,24 +334,10 @@ private fun ToSortChip(count: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun BrowseAllButton(onClick: () -> Unit) {
-    // A slim search bar: tapping it opens every card with the cursor already in the search field.
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1).heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh)
-            .clickable { BrowseLaunch.focusSearch = true; onClick() }.padding(horizontal = Space.s3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(Space.s3))
-        Text("Search your collection", style = MaterialTheme.typography.bodyLarge, color = Palette.Muted, modifier = Modifier.weight(1f), maxLines = 1)
-    }
-}
-
-@Composable
 private fun BoxesTab(
     ui: OverviewUi, vm: CollectionViewModel, layout: CollectionLayout,
     onBrowse: (Long) -> Unit, onTrade: (Long) -> Unit, onOpenCard: (Long) -> Unit, onEditPage: () -> Unit,
+    query: String, onQuery: (String) -> Unit,
 ) {
     val lists by vm.lists.collectAsStateWithLifecycle()
     val toSort by vm.toSort.collectAsStateWithLifecycle()
@@ -366,24 +363,14 @@ private fun BoxesTab(
     val checkedAt = LastChecked.times
     val now = remember(checkedAt) { System.currentTimeMillis() }
     var orderMenu by remember { mutableStateOf(false) }
-    var query by rememberSaveable { mutableStateOf("") }
-    // Cards found for which query: worked out off the main thread once typing pauses.
-    var found by remember { mutableStateOf("" to emptyList<Found>()) }
-    LaunchedEffect(query) {
-        val q = query.trim()
-        if (q.length < 2) { found = query to emptyList<Found>(); return@LaunchedEffect }
-        delay(150)
-        found = query to vm.findCards(q)
-    }
+    val found = rememberCardsFound(query, vm)
     val colors = remember(ui.boxes) { boxStripeColors(ui.boxes) }
     // Boxes whose rules never get a card because an earlier box takes them all.
     val dead = remember(ui.boxes) { deadBoxNotes(ui.boxes) }
 
-    // Search hidden: nothing typed earlier keeps filtering the boxes.
-    val searching = layout.shows(CollectionPart.SEARCH)
     var ringOpen by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        val q = if (searching) query.trim() else ""
+        val q = query.trim()
         if (layout.sections.isEmpty()) EmptyState("All hidden", action = "Edit page", onAction = onEditPage)
         for (section in layout.sections) {
             when (section) {
@@ -402,16 +389,12 @@ private fun BoxesTab(
                     }
                 }
                 CollectionSection.BOXES -> {
-                    // One row: the search in place of a "Boxes" title, then the box tools menu and New on the right.
-                    // Finds boxes by name, and cards with their box, divider and shelf spot.
-                    val showSearch = searching && (ui.boxes.isNotEmpty() || ui.totalCards > 0)
+                    // One row with no title: the box tools menu and New on the right. The page search above the tabs
+                    // finds boxes by name here, then cards with their box, divider and shelf spot.
                     Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-                        if (showSearch) {
-                            SearchField(query, { query = it }, Modifier.weight(1f), placeholder = "Find a box or card")
-                            Spacer(Modifier.width(Space.s2))
-                        } else {
-                            Text("Boxes", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                        }
+                        // While searching, "Boxes" heads the boxes found, to set them apart from the cards below.
+                        if (q.isNotEmpty()) Text("Boxes", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                        else Spacer(Modifier.weight(1f))
                         val toMove = toSort.sumOf { it.card.quantity }
                         if (toMove > 0) ToSortChip(toMove) { sortingOpen = true }
                         // One menu for the box tools and order, then New.
@@ -452,9 +435,9 @@ private fun BoxesTab(
                     val matching = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
                     // Never checked first, then the longest since a check.
                     val shown = if (LastChecked.oldestFirst) LastCheckedMath.oldestFirst(matching, { it.id }, checkedAt) else matching
-                    val cardsFound = if (searching) found.second else emptyList()
+                    val cardsFound = found.second
                     if (q.isNotEmpty() && shown.isEmpty() && cardsFound.isEmpty() && found.first == query && q.length >= 2) {
-                        EmptyState("No matches", action = "Clear", onAction = { query = "" })
+                        EmptyState("No matches", action = "Clear", onAction = { onQuery("") })
                     }
                     shown.forEach { b ->
                         BoxCard(
@@ -469,10 +452,10 @@ private fun BoxesTab(
                         )
                     }
                     if (q.length >= 2 && cardsFound.isNotEmpty()) {
-                        SectionHeader("Cards")
-                        // Where it is on the shelf, when the boxes are laid out there.
-                        ShelfSpot(boxRows, cardsFound.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
-                        cardsFound.forEach { f -> FoundRow(f.card, f.where) { onOpenCard(f.card.id) } }
+                        CardsFoundList(q, cardsFound, onBrowse, onOpenCard) {
+                            // Where it is on the shelf, when the boxes are laid out there.
+                            ShelfSpot(boxRows, cardsFound.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
+                        }
                     }
                 }
                 CollectionSection.LISTS -> if (q.isEmpty()) {
@@ -1043,4 +1026,49 @@ internal fun deadBoxNotes(boxes: List<BoxSummary>): Map<Long, String> {
     val names = boxes.associate { it.id to it.name }
     return RuleCheck.deadBoxes(boxes.map { Triple(it.id, BoxRules.fromJson(it.rules), it.capacity > 0) })
         .mapValues { (_, by) -> if (by != null) "Never gets cards · ${names[by]} first" else "Never gets cards" }
+}
+
+/** Cards matching [query], worked out off the main thread once typing pauses; paired with the query they're for. */
+@Composable
+internal fun rememberCardsFound(query: String, vm: CollectionViewModel): Pair<String, List<Found>> {
+    var found by remember { mutableStateOf("" to emptyList<Found>()) }
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.length < 2) { found = query to emptyList<Found>(); return@LaunchedEffect }
+        delay(150)
+        found = query to vm.findCards(q)
+    }
+    return found
+}
+
+/**
+ * The cards part of the page search, under a "Cards" heading with space above it so it reads apart from the boxes
+ * or decks found. "All cards" opens Browse with the same search.
+ */
+@Composable
+internal fun CardsFoundList(
+    query: String, cards: List<Found>, onBrowse: (Long) -> Unit, onOpenCard: (Long) -> Unit,
+    extra: @Composable () -> Unit = {},
+) {
+    Spacer(Modifier.height(Space.s3))
+    SectionHeader("Cards") {
+        TextButton(onClick = {
+            BrowseLaunch.filters = Filters(query = query)
+            BrowseLaunch.title = null
+            BrowseLaunch.boxId = null
+            onBrowse(-1L)
+        }) { Text("All cards") }
+    }
+    extra()
+    cards.forEach { f -> FoundRow(f.card, f.where) { onOpenCard(f.card.id) } }
+}
+
+/** The cards part of the page search for tabs that don't hold cards themselves, like Decks. */
+@Composable
+internal fun CardsFound(query: String, vm: CollectionViewModel, onBrowse: (Long) -> Unit, onOpenCard: (Long) -> Unit) {
+    val found = rememberCardsFound(query, vm)
+    val q = query.trim()
+    if (q.length >= 2 && found.second.isNotEmpty()) {
+        Column { CardsFoundList(q, found.second, onBrowse, onOpenCard) }
+    }
 }

@@ -317,7 +317,7 @@ internal fun SectionLabel(text: String) {
 private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val (bg, fg, icon) = when (mode) {
         ThemeMode.DARK -> Triple(Color(0xFF161513), Color(0xFFECE8E1), Icons.Outlined.DarkMode)
-        ThemeMode.LIGHT -> Triple(Color(0xFFF3F0E8), Color(0xFF1C1B19), Icons.Outlined.LightMode)
+        ThemeMode.LIGHT -> Triple(Color(0xFFF4F4F2), Color(0xFF1C1B19), Icons.Outlined.LightMode)
         ThemeMode.SYSTEM -> Triple(Palette.SurfaceHigh, Palette.Text, Icons.Outlined.PhoneAndroid)
     }
     Row(

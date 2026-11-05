@@ -18,12 +18,11 @@ enum class CollectionSection(val key: String, val label: String) {
 
 /** A smaller part of the Collection tab that can be turned off. Saved as the hidden ones, so new parts start shown. */
 enum class CollectionPart(val key: String, val label: String, val group: Group) {
-    /** "Browse entire collection", above the tabs on every tab. */
-    BROWSE("browseAll", "Browse all", Group.TOP),
+    /** The page search above the tabs: boxes, decks and cards. Its key stays "browseAll" so saved layouts keep it. */
+    BROWSE("browseAll", "Search", Group.TOP),
     /** Cards, value and 7-day change in a strip under the title. */
     STATS("stats", "Stats", Group.TOP),
     LEGEND("legend", "Ring legend", Group.PAGE),
-    SEARCH("search", "Search", Group.PAGE),
     BOX_TOOLS("boxTools", "Shelf & order", Group.PAGE),
     ART("art", "Cover art", Group.BOX),
     RULES("rules", "Rules", Group.BOX),
