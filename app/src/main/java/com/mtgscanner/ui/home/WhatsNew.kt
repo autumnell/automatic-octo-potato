@@ -71,6 +71,7 @@ object WhatsNew {
         226 to "Quicker, surer scans: the picture is checked while the text is read, the picture search is several times faster, the card model runs the quickest way your phone allows, \"Looks like…\" shows the likely card early, a half-read name can pick between near look-alikes, a crooked outline gets a second look, and the picture model now allows for how phone photos look, which got 97% of the test scans right (was 79%).",
         238 to "Steadier app: every update is now checked against collections from every older version, so no cards go missing; clear cards are taken on their first frame more often; a half-read name confirms a clear picture; and screen readers say mana costs and price charts in words.",
         239 to "Tidier look: every screen now uses the same spacing steps, slightly squarer corners and calmer buttons, following one written design system.",
+        252 to "Bolder look: engraved Cinzel headings, a bigger collection value, more room between sections, and red kept for Scan and the main button only. The font picker is gone.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

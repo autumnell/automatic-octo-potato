@@ -53,18 +53,21 @@ Rules:
 
 | Style | Size | Font | Use |
 |---|---|---|---|
-| displaySmall | 40 | Heading font | The collection value on Home |
-| headlineSmall | 26 | Heading, SemiBold | Screen titles |
-| titleLarge | 23 | Heading, SemiBold | Section titles (Newest, Goals) |
-| titleMedium | 16 | Body, Medium | Row titles |
-| bodyMedium | 14 | Body | Body text |
-| bodySmall | 12 | Body | Row subtitles |
-| labelLarge/Medium/Small | 14/12/11 | Body, Medium, tabular | Counts, badges, small prices |
-| PriceStyle | 18 | Price font, tabular lining | Prices |
+| displaySmall | 45 | Cinzel, Bold | The collection value on Home |
+| headlineSmall | 22 | Cinzel, SemiBold | Screen titles |
+| titleLarge | 20 | Cinzel, SemiBold | Section titles (Newest, Goals) |
+| titleMedium | 16 | Lexend, Medium | Row titles |
+| bodyMedium | 14 | Lexend | Body text |
+| bodySmall | 12 | Lexend | Row subtitles |
+| labelLarge/Medium/Small | 14/12/11 | Lexend, Medium, tabular | Counts, badges, small prices |
+| PriceStyle | 15.5 | Lexend, Bold, tabular lining | Prices |
 
-- Headings and body use different families (Cormorant SC over Lexend by default), so a heading never looks like
-  bold body text.
-- Each heading level is a real step: 40 → 26 → 23 → 16.
+Sizes are in sp. Headings and prices are scaled by their font (Cinzel ×0.8, Lexend ×0.86) from the units in `Theme.kt`.
+
+- Two fonts, fixed (Rae, 2026-11-05: direction "Bolder A1 · Engraved", no font picker). Cinzel's engraved
+  capitals for headings and the big value; Lexend for everything else, prices included.
+- Headings and body are different families, so a heading never looks like bold body text.
+- Each heading level is a real step: 45 → 22 → 20 → 16.
 - Line height is 1.2 for headings and 1.4 for body. Most body text is one-line list rows, so 1.4 rather than the
   1.6 used for web paragraphs.
 - Numbers in lists use tabular figures so columns line up.
@@ -128,8 +131,9 @@ The [anti-slop design rules](https://github.com/febbhav/signs-of-ai-design/blob/
 
 - **Palette:** ink brown and paper with one oxblood accent, taken from old binders and leather. Not purple, emerald or
   cream-by-default.
-- **Type:** a small-caps serif (Cormorant SC) for headings over Lexend for body. Inter and Space Grotesk are user
-  options, not the default. Monospace is for prices and counts only, never body text.
+- **Type:** Cinzel, a capitals-only serif cut from Roman inscriptions, for headings, like a title tooled into a
+  binder's spine. Lexend for text because it stays legible small. No Inter, Geist or Space Grotesk, and no font
+  picker. Monospace (Plex Mono) only for the numbers strip in Collection, never body text.
 - **Radius varies by element:** 4dp for panels, chips and buttons, a real card's 5% corner for card images, and a
   circle only for Scan.
 - **Edges:** one treatment per element. Panels use a surface step; rows use a rule line. Never border plus shadow.
@@ -168,5 +172,6 @@ Before changing UI, read this file. After changing it, check the PR's screen pic
 | Date | Change |
 |---|---|
 | 2026-11-04 | Created. Spacing moved onto the 8pt grid in 111 files (1,782 values). Corners 3 → 4dp. `Faint` text level added. Gradient main button removed. Body line height 1.35 → 1.4. Press bounce removed. |
+| 2026-11-05 | Fonts fixed to Cinzel + Lexend; font picker and six unused fonts removed; value 45sp, screen titles 22, section titles 20. |
 | 2026-11-05 | Bolder A: Material primary is ink, so text buttons, switches and charts lose the red; charts are a thin ink line with a flat fill; Home sections 32 apart; `Motion` tokens for short animations. |
 | 2026-11-05 | Full pass over both rule sets. Always-dark and domain colors named; hard-coded dark colors replaced with `Stage`, `StagePanel`, `ArtBase`, `OnDarkSuccess` and `OnDarkDanger`. Four 36–40dp icon buttons raised to 48dp. Game setup has one main button. The scanned-card fan drops its border and keeps its shadow (one edge treatment). Em dashes removed from shared text. Token sync and contrast tests added. |

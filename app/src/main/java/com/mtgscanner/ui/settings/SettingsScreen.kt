@@ -87,7 +87,6 @@ import com.mtgscanner.ui.theme.AppSettings
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
-import com.mtgscanner.ui.theme.FontSettings
 import com.mtgscanner.ui.theme.AppFont
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.ThemeMode
@@ -229,24 +228,6 @@ private fun LookTab() {
                 }
                 CustomSwatch(onClick = { picking = true })
             }
-        }
-    }
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        SectionLabel("Fonts")
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = { FontSettings.reset() }, modifier = Modifier.padding(end = Space.s2, top = Space.s2)) {
-            Text("Reset", color = Palette.Muted)
-        }
-    }
-    // One panel for the three font rows, split by hairlines.
-    PlainGroup(Modifier.padding(horizontal = Space.s1)) {
-        Column(Modifier.padding(bottom = Space.s3)) {
-            FontRow("Headings", AppFont.headings, FontSettings.heading) { FontSettings.updateHeading(it) }
-            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = Space.s3))
-            FontRow("Text", AppFont.body, FontSettings.body) { FontSettings.updateBody(it) }
-            HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(top = Space.s3))
-            FontRow("Prices", AppFont.prices, FontSettings.price) { FontSettings.updatePrice(it) }
         }
     }
 
@@ -401,38 +382,7 @@ private fun CustomSwatch(onClick: () -> Unit) {
     }
 }
 
-/** One font slot: a sideways row of samples, each drawn in its own font. */
-@Composable
-private fun FontRow(title: String, fonts: List<AppFont>, selected: AppFont, onPick: (AppFont) -> Unit) {
-    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(start = Space.s4, top = Space.s2, bottom = Space.s1))
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s3),
-        horizontalArrangement = Arrangement.spacedBy(Space.s2),
-    ) {
-        fonts.forEach { f ->
-            val on = f == selected
-            Column(
-                Modifier
-                    .clip(RoundedCornerShape(Corners.Medium))
-                    .border(if (on) 2.dp else 1.dp, if (on) Palette.Accent else Palette.Outline, RoundedCornerShape(Corners.Medium))
-                    .background(if (on) Palette.SurfaceHigh else Palette.Surface)
-                    .clickable { onPick(f) }
-                    .padding(horizontal = Space.s4, vertical = Space.s2),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    "Aa 12",
-                    style = TextStyle(fontFamily = f.family(), fontWeight = FontWeight.SemiBold, fontSize = (24 * f.scale / 0.86f).sp),
-                    color = if (on) Palette.AccentText else Palette.Text,
-                    maxLines = 1,
-                )
-                Text(f.label, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, maxLines = 1)
-            }
-        }
-    }
-}
-
-/** A one-line mock-up so the chosen colors and fonts can be judged at a glance. */
+/** A one-line mock-up so the chosen colors can be judged at a glance. */
 @Composable
 private fun Preview() {
     Surface(Modifier.fillMaxWidth().padding(horizontal = Space.s4), shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard) {

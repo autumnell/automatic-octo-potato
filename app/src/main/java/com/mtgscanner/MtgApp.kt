@@ -12,7 +12,6 @@ import com.mtgscanner.data.ScryfallApi
 import com.mtgscanner.data.db.AppDatabase
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.ThemeSettings
-import com.mtgscanner.ui.theme.FontSettings
 
 open class MtgApp : Application(), ImageLoaderFactory {
     lateinit var repository: CollectionRepository
@@ -21,7 +20,6 @@ open class MtgApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         ThemeSettings.init(this)
-        FontSettings.init(this)
         AppSettings.init(this)
         com.mtgscanner.data.SortPrefs.init(this)
         // Card Kingdom's buy list is big: it's fetched only when Trade or Sell opens (CardKingdom.init there).
