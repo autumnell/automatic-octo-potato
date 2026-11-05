@@ -591,7 +591,7 @@ private fun BoxCard(
                         DropdownMenuItem(
                             text = { Text("To be sorted") },
                             leadingIcon = { Icon(Icons.Outlined.Inbox, null) },
-                            trailingIcon = { if (marked) Icon(Icons.Outlined.Check, null, tint = Palette.TextText) },
+                            trailingIcon = { if (marked) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                             onClick = { close(); com.mtgscanner.data.BoxPrefs.setToSort(ctx, b.id, !marked) },
                         )
                     }

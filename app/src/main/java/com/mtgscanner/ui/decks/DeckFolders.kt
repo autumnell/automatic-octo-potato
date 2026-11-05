@@ -222,6 +222,6 @@ private fun PickRow(icon: ImageVector?, label: String, selected: Boolean, onClic
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (selected) Icon(Icons.Outlined.Check, null, tint = Palette.TextText, modifier = Modifier.size(18.dp))
+        if (selected) Icon(Icons.Outlined.Check, null, tint = Palette.Text, modifier = Modifier.size(18.dp))
     }
 }

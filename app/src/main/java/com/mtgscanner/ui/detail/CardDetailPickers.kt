@@ -271,12 +271,12 @@ internal fun SpecialPicker(
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text("Signed", color = if (c.signed) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.signed) Icon(Icons.Outlined.Check, null, tint = Palette.TextText) },
+                trailingIcon = { if (c.signed) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                 onClick = { open = false; onSigned(!c.signed) },
             )
             DropdownMenuItem(
                 text = { Text("Altered", color = if (c.altered) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.altered) Icon(Icons.Outlined.Check, null, tint = Palette.TextText) },
+                trailingIcon = { if (c.altered) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                 onClick = { open = false; onAltered(!c.altered) },
             )
             DropdownMenuItem(
@@ -285,12 +285,12 @@ internal fun SpecialPicker(
             )
             DropdownMenuItem(
                 text = { Text("Proxy", color = if (c.proxy) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.proxy) Icon(Icons.Outlined.Check, null, tint = Palette.TextText) },
+                trailingIcon = { if (c.proxy) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                 onClick = { open = false; onProxy(!c.proxy) },
             )
             DropdownMenuItem(
                 text = { Text("For sale", color = if (c.forSale) Palette.AccentText else Palette.Text) },
-                trailingIcon = { if (c.forSale) Icon(Icons.Outlined.Check, null, tint = Palette.TextText) },
+                trailingIcon = { if (c.forSale) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                 onClick = { open = false; onForSale(!c.forSale) },
             )
             DropdownMenuItem(
