@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -183,7 +184,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
         val collapse = com.mtgscanner.ui.components.rememberCollapseState()
         LaunchedEffect(view, ui.editing) { collapse.show() }
         Column(Modifier.fillMaxSize().statusBarsPadding().nestedScroll(collapse.connection)) {
-            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { if (dirty) vm.changes.askDiscard = true else onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text(
                     if (ui.editing) (if (ui.id == 0L) "New deck" else "Edit deck") else ui.name,
@@ -214,7 +215,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
             if (!ui.editing) lentTo?.let {
                 Text(
                     "Lent to $it", style = MaterialTheme.typography.bodySmall, color = Palette.AccentText,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s4, bottom = Space.s1),
                 )
             }
             if (!ui.loaded) return@Column
@@ -232,7 +233,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                         salt = salt,
                     )
                 }
-                UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = 4.dp), horizontalPadding = 16.dp)
+                UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
                 when (view) {
                     1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
@@ -307,8 +308,8 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
         text = {
             Column {
                 Text(if (copies == 1) "1 card is in this deck." else "$copies cards are in this deck.", color = Palette.Muted)
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(Space.s3))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     SelectPill("Move to boxes", !remove, { remove = false })
                     SelectPill("Remove cards", remove, { remove = true })
                 }
@@ -322,20 +323,20 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
 @Composable
 private fun Editor(ui: DeckUi, vm: DeckViewModel) {
     val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent)
-    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Space.s4)) {
         OutlinedTextField(
             value = ui.name, onValueChange = vm::setName, label = { Text("Deck name") },
             singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = colors,
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.s3))
         Text("Format", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.s2))
         FormatPicker(ui.format, vm::setFormat)
         if (DeckFormats.isCommander(ui.format)) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             CommanderSlots(ui.format, ui.commanders, ui.leadInfo, vm::openPicker, vm::clearSlot)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.s3))
         OutlinedTextField(
             value = ui.text, onValueChange = vm::setText,
             placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
@@ -347,9 +348,9 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
             // A photo of a printed list: its lines join what's here, to check before saving.
             FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
         GradientButton("Check my collection", vm::save, Modifier.fillMaxWidth(), enabled = ui.text.isNotBlank())
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Space.s6))
     }
 }
 
@@ -362,7 +363,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     val shared by vm.shared.collectAsStateWithLifecycle()
     val check = ui.check
     if (ui.checking || check == null) {
-        PlaceholderRows(6, Modifier.padding(16.dp))
+        PlaceholderRows(6, Modifier.padding(Space.s4))
         return
     }
     // Totals count played cards only, the same as the deck tiles.
@@ -389,7 +390,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             ui.shape?.let { DeckShapeView(it) }
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
                 Stat("Owned", "$have / $needed", Modifier.weight(1f))
                 if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
@@ -405,21 +406,21 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 Text(
                     small.joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
-                    modifier = Modifier.padding(start = 20.dp, end = 16.dp, bottom = 6.dp),
+                    modifier = Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2),
                 )
             }
             if (shared.isNotEmpty()) {
                 Text(
                     "${shared.size} ${if (shared.size == 1) "card" else "cards"} also in other decks " + if (showShared) "▴" else "▾",
                     style = MaterialTheme.typography.bodySmall, color = Palette.AccentText,
-                    modifier = Modifier.clickable { showShared = !showShared }.padding(start = 20.dp, end = 16.dp, top = 2.dp, bottom = 8.dp),
+                    modifier = Modifier.clickable { showShared = !showShared }.padding(start = Space.s4, end = Space.s4, top = Space.s1, bottom = Space.s2),
                 )
                 if (showShared) {
-                    Column(Modifier.padding(start = 20.dp, end = 16.dp, bottom = 8.dp)) {
+                    Column(Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2)) {
                         shared.forEach { c ->
-                            Row(Modifier.padding(vertical = 3.dp)) {
+                            Row(Modifier.padding(vertical = Space.s1)) {
                                 Text(c.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(Space.s2))
                                 Text(
                                     c.decks.joinToString(", "), style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
                                     modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -430,20 +431,20 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 }
             }
             if (played.any { it.missing > 0 }) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     com.mtgscanner.ui.components.QuietButton(
                         onClick = vm::wishlistMissing,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(Corners.Medium),
                     ) {
                         Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text("Wishlist missing")
                     }
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share missing cards", tint = Palette.Icon) }
                 }
             }
-            SearchField(find, { find = it }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), placeholder = "Find in deck")
+            SearchField(find, { find = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), placeholder = "Find in deck")
         }
         if (leads.isEmpty() && missing.isEmpty() && otherMissing.isEmpty() && owned.isEmpty() && find.isNotBlank()) {
             item { EmptyState("No matches") }
@@ -465,7 +466,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             item { SectionHeader("In your collection") }
             itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Spacer(Modifier.height(Space.s6)) }
     }
     if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {
         played.filter { it.missing > 0 }.map { it.shareLine() }
@@ -481,7 +482,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
 @Composable
 private fun Stat(label: String, value: String, modifier: Modifier) {
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(Space.s4)) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
             Text(value, style = MaterialTheme.typography.titleLarge)
         }
@@ -494,11 +495,11 @@ private fun DeckLineRow(
 ) {
     // Tap to pick the printing. Each section's rows share one panel.
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first, last).clickable(onClick = onClick).padding(horizontal = Space.s3, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(l.imageUrl, Modifier.width(40.dp), zoom = true)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(
                 (if (missingView) "${l.missing}× " else "${minOf(l.owned, l.needed)}/${l.needed} ") + l.name,
@@ -526,13 +527,13 @@ private fun DeckLineRow(
             // The set symbol sits next to the printing: before the link, or at the start when the printing is plain text.
             val symbolCode = l.setCode?.takeIf { !l.otherPrinting && l.printing != null && (missingView || !l.ownedOtherPrinting) }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (symbolCode != null && link == null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
+                if (symbolCode != null && link == null) SetSymbol(symbolCode, modifier = Modifier.padding(end = Space.s1))
                 if (where.isNotEmpty()) Text(
                     if (link != null) "$where · " else where,
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (symbolCode != null && link != null) SetSymbol(symbolCode, modifier = Modifier.padding(end = 4.dp))
+                if (symbolCode != null && link != null) SetSymbol(symbolCode, modifier = Modifier.padding(end = Space.s1))
                 if (link != null && set != null && onOpenSet != null) Text(
                     link, style = MaterialTheme.typography.bodySmall, color = Palette.AccentText, maxLines = 1,
                     modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { onOpenSet(set.lowercase()) },
@@ -543,7 +544,7 @@ private fun DeckLineRow(
             // A fixed right-aligned slot so prices line up down the list.
             if (AppSettings.showPrices) Text(
                 formatMoneyShort(l.price?.times(l.missing), l.priceEur?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text,
-                textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = 8.dp).widthIn(min = 64.dp),
+                textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = Space.s2).widthIn(min = 64.dp),
             )
         }
         else Icon(Icons.Outlined.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))

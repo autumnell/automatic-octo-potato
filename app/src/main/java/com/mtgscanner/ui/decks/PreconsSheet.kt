@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -56,22 +57,22 @@ fun PreconsSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
         list.orEmpty().filter { (!onlyCommander || it.isCommander) && (q.isEmpty() || it.name.contains(q, true) || it.code.equals(q, true)) }
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Precon decks", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             SearchField(query, { query = it }, placeholder = "Search precons")
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Commander", onlyCommander, { onlyCommander = true })
                 SelectPill("All kinds", !onlyCommander, { onlyCommander = false })
             }
             val l = list
             when {
-                l == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = 12.dp))
-                l.isEmpty() -> EmptyState("Couldn't get the precon list", Modifier.padding(vertical = 24.dp), action = "Try again", onAction = { vm.loadPrecons(fresh = true) })
-                shown.isEmpty() -> EmptyState("No precons found", Modifier.padding(vertical = 24.dp))
+                l == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
+                l.isEmpty() -> EmptyState("Couldn't get the precon list", Modifier.padding(vertical = Space.s6), action = "Try again", onAction = { vm.loadPrecons(fresh = true) })
+                shown.isEmpty() -> EmptyState("No precons found", Modifier.padding(vertical = Space.s6))
                 else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
                     items(shown, key = { it.fileName }) { e ->
-                        Column(Modifier.fillMaxWidth().clickable { vm.openPrecon(e) }.padding(vertical = 10.dp)) {
+                        Column(Modifier.fillMaxWidth().clickable { vm.openPrecon(e) }.padding(vertical = Space.s3)) {
                             Text(e.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 listOf(e.code, e.releaseDate.take(4), e.type.takeIf { !onlyCommander }).filterNot { it.isNullOrBlank() }.joinToString(" · "),
@@ -82,7 +83,7 @@ fun PreconsSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
     open?.let { (entry, deck, failed) ->
@@ -97,11 +98,11 @@ private fun PreconDeckSheet(name: String, deck: PreconDeck?, failed: Boolean, vm
     val owned by vm.ownedByName.collectAsStateWithLifecycle()
     val clip = LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text(name, style = MaterialTheme.typography.titleLarge)
             when {
-                failed -> EmptyState("Couldn't get this deck", Modifier.padding(vertical = 24.dp))
-                deck == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = 12.dp))
+                failed -> EmptyState("Couldn't get this deck", Modifier.padding(vertical = Space.s6))
+                deck == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
                 else -> {
                     val have = deck.ownedCopies(owned)
                     val missing = remember(deck, owned) { deck.missing(owned) }
@@ -109,7 +110,7 @@ private fun PreconDeckSheet(name: String, deck: PreconDeck?, failed: Boolean, vm
                         "You own $have of ${deck.total}" + if (deck.total > 0) " (${have * 100 / deck.total}%)" else "",
                         style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Row {
                         TextButton(onClick = { vm.savePrecon(deck); onDismiss() }) { Text("Save as deck") }
                         if (missing.isNotEmpty()) TextButton(onClick = { vm.wishPrecon(deck) }) { Text("Wish for missing") }
@@ -121,25 +122,25 @@ private fun PreconDeckSheet(name: String, deck: PreconDeck?, failed: Boolean, vm
                     LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.6f)) {
                         if (missing.isNotEmpty()) item(key = "m") { Label("Missing · ${missing.sumOf { it.second }}") }
                         items(missing, key = { "m" + it.first }) { (n, c) ->
-                            Text(if (c > 1) "$c $n" else n, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 3.dp))
+                            Text(if (c > 1) "$c $n" else n, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = Space.s1))
                         }
                         val all = deck.cards.filter { it.section != "Sideboard" }
                         item(key = "a") { Label("The deck · ${deck.total}") }
                         items(all, key = { "a" + it.section + it.name + it.set + it.number }) { c ->
                             Text(
                                 (if (c.count > 1) "${c.count} " else "") + c.name + if (c.section == "Commander") " · commander" else "",
-                                style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = 3.dp),
+                                style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s1),
                             )
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }
 
 @Composable
 private fun Label(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s1))
 }

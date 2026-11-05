@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -73,36 +74,36 @@ fun FirstRunTour(onDone: () -> Unit) {
         HorizontalPager(pager, Modifier.fillMaxSize()) { i ->
             val page = PAGES[i]
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 32.dp),
+                Modifier.fillMaxSize().padding(horizontal = Space.s8),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(Modifier.size(110.dp).clip(CircleShape).background(Palette.Surface), contentAlignment = Alignment.Center) {
                     Icon(page.icon, null, tint = Palette.Icon, modifier = Modifier.size(52.dp))
                 }
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(Space.s6))
                 Text(page.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Text(page.body, style = MaterialTheme.typography.bodyLarge, color = Palette.Muted, textAlign = TextAlign.Center)
             }
         }
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(Space.s6), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 PAGES.indices.forEach { i ->
                     Box(Modifier.size(if (pager.currentPage == i) 10.dp else 8.dp).clip(CircleShape)
                         .background(if (pager.currentPage == i) Palette.Accent else Palette.Outline))
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Space.s6))
             val last = pager.currentPage == PAGES.lastIndex
             GradientButton(
-                if (last) "Get started" else "Next",
+                if (last) "Done" else "Next",
                 { if (last) onDone() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
                 Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.width(1.dp))
         }
         // Drawn last so it sits above the pager and gets the tap.
-        TextButton(onClick = onDone, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) { Text("Skip", color = Palette.Muted) }
+        TextButton(onClick = onDone, modifier = Modifier.align(Alignment.TopEnd).padding(Space.s2)) { Text("Skip", color = Palette.Muted) }
     }
 }

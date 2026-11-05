@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -120,11 +121,11 @@ internal fun ToSortSection(
             Text(
                 if (copies == 1) "1 card to move" else "$copies cards to move",
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
             )
-            PlainGroup(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { ui.items.take(4).forEach { item ->
+            PlainGroup(Modifier.padding(horizontal = Space.s4, vertical = Space.s1)) { ui.items.take(4).forEach { item ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                    Modifier.fillMaxWidth().clickable { onOpenCard(item.card.id) }.padding(horizontal = Space.s3, vertical = Space.s2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CardImage(
@@ -132,45 +133,45 @@ internal fun ToSortSection(
                         Modifier.width(28.dp).then(if (item.card.id in shared) Modifier.sharedCard(item.card.id) else Modifier),
                         zoom = true,
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Text(
                         (if (item.card.quantity > 1) "${item.card.quantity}× " else "") + item.card.name,
                         style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Palette.Icon, modifier = Modifier.size(14.dp).padding(horizontal = 2.dp))
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Palette.Icon, modifier = Modifier.size(14.dp).padding(horizontal = Space.s1))
                     Text(
                         listOfNotNull(ui.boxNames[item.to], item.spot).joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium, color = Palette.Text, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.8f).padding(start = 4.dp),
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.8f).padding(start = Space.s1),
                     )
                 }
             } }
             if (ui.items.size > 4) {
-                Text("+ ${ui.items.size - 4} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp))
+                Text("+ ${ui.items.size - 4} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4))
             }
-            GradientButton("Sort", onSort, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+            GradientButton("Sort", onSort, Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2))
         }
         if (ui.items.isNotEmpty() && ui.unknown.isNotEmpty()) HorizontalDivider(color = Palette.Rule)
         if (ui.unknown.isNotEmpty()) {
             Text(
                 if (ui.unknown.size == 1) "1 unknown scan" else "${ui.unknown.size} unknown scans",
                 style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
             )
-            PlainGroup(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { ui.unknown.take(5).forEach { p ->
+            PlainGroup(Modifier.padding(horizontal = Space.s4, vertical = Space.s1)) { ui.unknown.take(5).forEach { p ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = 12.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = Space.s3, vertical = Space.s2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.QuestionMark, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Text("\"${p.name}\"", style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Icon(Icons.Outlined.Search, "Find", tint = Palette.Icon, modifier = Modifier.size(18.dp))
                 }
             } }
             if (ui.unknown.size > 5) {
-                Text("+ ${ui.unknown.size - 5} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                Text("+ ${ui.unknown.size - 5} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1))
             }
         }
     }
@@ -216,10 +217,10 @@ internal fun UnknownScanDialog(
                         f, "Your scan",
                         Modifier.align(Alignment.CenterHorizontally).width(120.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(com.mtgscanner.ui.theme.Corners.Small)),
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                 }
                 OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
                     val r = results
                     when {
@@ -231,9 +232,9 @@ internal fun UnknownScanDialog(
                         r != null && r.isEmpty() && !loading -> Text("No match", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
                         r != null -> r.forEach { c ->
                             Row(
-                                Modifier.fillMaxWidth().clickable { onPick(c) }.padding(vertical = 6.dp),
+                                Modifier.fillMaxWidth().clickable { onPick(c) }.padding(vertical = Space.s2),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(Space.s3),
                             ) {
                                 CardImage(c.smallImageUrl, Modifier.width(32.dp))
                                 Column(Modifier.weight(1f)) {

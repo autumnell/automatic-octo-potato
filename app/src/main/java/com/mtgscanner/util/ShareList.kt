@@ -40,7 +40,7 @@ object ShareList {
             val extras = mutableListOf<String>()
             if (showPrices && c.price != null) extras += money(c.price)
             if (c.condition.isNotBlank() && c.condition != "NM") extras += c.condition
-            if (extras.isNotEmpty()) append(" — ${extras.joinToString(" ")}")
+            if (extras.isNotEmpty()) append(" · ${extras.joinToString(" ")}")
             appendLine()
         }
         appendLine()

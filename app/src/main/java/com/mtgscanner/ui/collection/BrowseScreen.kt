@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.focusRequester
@@ -260,7 +261,7 @@ fun BrowseScreen(
                 com.mtgscanner.util.CopyText.copy(ctx, names.joinToString("\n"), if (names.size == 1) "Card name" else "Card names")
             },
         )
-        else Row(Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        else Row(Modifier.fillMaxWidth().padding(end = Space.s2, top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             // Tap a box's name to jump to another box.
             val others = remember(ui.boxes, boxId) { if (boxId < 0 || onOpenBox == null) emptyList() else ui.boxes.filter { it.id != boxId } }
@@ -319,7 +320,7 @@ fun BrowseScreen(
             var syntaxHelp by remember { mutableStateOf(false) }
             var recentCards by rememberSaveable { mutableStateOf(false) }
             SearchField(
-                f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
                 placeholder = "r:rare t:creature",
                 mono = true,
                 focusOnOpen = remember { BrowseLaunch.takeFocus() },
@@ -328,14 +329,14 @@ fun BrowseScreen(
                         "?",
                         color = if (syntaxHelp) Palette.Text else Palette.Muted,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable { syntaxHelp = !syntaxHelp }.padding(horizontal = 8.dp),
+                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable { syntaxHelp = !syntaxHelp }.padding(horizontal = Space.s2),
                     )
                 },
             )
             ui.searchNote?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 24.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s6))
             }
-            if (syntaxHelp) SyntaxHelp(Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            if (syntaxHelp) SyntaxHelp(Modifier.padding(horizontal = Space.s4, vertical = Space.s1))
             // The tip shows on one visit only: it goes by itself after a few seconds, or when closed.
             if (showTip && ui.totalCards > 0 && !picking) LaunchedEffect(Unit) {
                 kotlinx.coroutines.delay(8_000)
@@ -343,8 +344,8 @@ fun BrowseScreen(
             }
             if (showTip && ui.totalCards > 0 && !picking) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
-                        .clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(start = 14.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1)
+                        .clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(start = Space.s4),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
@@ -357,8 +358,8 @@ fun BrowseScreen(
                 }
             }
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s4, vertical = Space.s2),
+                horizontalArrangement = Arrangement.spacedBy(Space.s2),
             ) {
                 var sortMenu by remember { mutableStateOf(false) }
                 var groupMenu by remember { mutableStateOf(false) }
@@ -412,9 +413,9 @@ fun BrowseScreen(
 
         when {
             !ui.loaded -> Unit
-            ui.totalCards == 0 -> EmptyState(if (boxId < 0) "No cards yet" else "Empty box", Modifier.padding(top = 24.dp), fullScreen = boxId < 0)
+            ui.totalCards == 0 -> EmptyState(if (boxId < 0) "No cards yet" else "Empty box", Modifier.padding(top = Space.s6), fullScreen = boxId < 0)
             ui.groups.isEmpty() -> EmptyState(
-                "No matches", Modifier.padding(top = 24.dp),
+                "No matches", Modifier.padding(top = Space.s6),
                 action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },
             )
             ui.pagesView && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.binder && ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })

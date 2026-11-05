@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -80,18 +81,18 @@ fun PricesSection() {
                 }
             }
             if (AppSettings.priceAlerts) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+                Column(Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s3)) {
                     Text("Moves at least", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    Spacer(Modifier.padding(top = 6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.padding(top = Space.s2))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         listOf(10.0, 20.0, 50.0).forEach { p ->
                             SelectPill("${p.toInt()}%", AppSettings.alertPercent == p, { AppSettings.updateAlertPercent(p) })
                         }
                     }
-                    Spacer(Modifier.padding(top = 6.dp))
+                    Spacer(Modifier.padding(top = Space.s2))
                     Text("and at least", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    Spacer(Modifier.padding(top = 6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.padding(top = Space.s2))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         listOf(0.5, 1.0, 5.0, 20.0).forEach { d ->
                             SelectPill(if (d < 1) "$0.50" else "$${d.toInt()}", AppSettings.alertDollars == d, { AppSettings.updateAlertDollars(d) })
                         }
@@ -106,9 +107,9 @@ fun PricesSection() {
 @Composable
 private fun CurrencyRow() {
     val ctx = LocalContext.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
         Text("Currency", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             com.mtgscanner.util.PriceCurrency.entries.forEach { c ->
                 SelectPill(c.label, AppSettings.currency == c, {
                     AppSettings.updateCurrency(c)
@@ -142,7 +143,7 @@ private fun openNotificationSettings(ctx: android.content.Context) {
 @Composable
 internal fun Card(content: @Composable () -> Unit) {
     // Plain rows on the background, closed by a rule; rows keep their own 16dp inset.
-    PlainGroup(Modifier.padding(horizontal = 4.dp)) { content() }
+    PlainGroup(Modifier.padding(horizontal = Space.s1)) { content() }
 }
 
 @Composable
@@ -151,14 +152,14 @@ internal fun ToggleRow(title: String, body: String, checked: Boolean, lines: Int
     Row(
         Modifier.fillMaxWidth()
             .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = Space.s4, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = lines, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
     }
 }

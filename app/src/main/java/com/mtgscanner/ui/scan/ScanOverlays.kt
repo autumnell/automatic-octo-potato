@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Size
@@ -141,19 +142,19 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
     Row(
         Modifier.fillMaxWidth()
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.78f), Color.Black.copy(alpha = 0.45f), Color.Transparent)))
-            .statusBarsPadding().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 20.dp),
+            .statusBarsPadding().padding(start = Space.s4, end = Space.s4, top = Space.s3, bottom = Space.s6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text("Scan", style = MaterialTheme.typography.titleLarge, color = Color.White)
             Box {
                 Row(
-                    Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { boxMenu = true }.padding(vertical = 2.dp),
+                    Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { boxMenu = true }.padding(vertical = Space.s1),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
                     Icon(if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.OnDarkMuted, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(Space.s1))
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Just checking · not adding"
                         ScanTarget.DECK -> "Deck: ${state.deck?.name.orEmpty()}"
@@ -204,7 +205,7 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                 }
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         val count = state.sessionCount
         Text(
             (if (count == 1) "1 card" else "$count cards") + moneySuffix(state.sessionValue, state.sessionEur),
@@ -222,7 +223,7 @@ internal fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
         // Extra room at the bottom for the raised Scan tab under it.
         Modifier.fillMaxWidth()
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.8f))))
-            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 16.dp),
+            .padding(start = Space.s6, end = Space.s6, top = Space.s6, bottom = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
@@ -258,7 +259,7 @@ internal fun ControlsRow(state: ScanUiState, vm: ScanViewModel) {
                 color = Color.Black,
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(Corners.Small)).background(Palette.Gold)
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                    .padding(horizontal = Space.s1, vertical = 1.dp),
             )
         }
     }
@@ -279,12 +280,12 @@ internal fun StatusPill(state: ScanUiState, modifier: Modifier = Modifier) {
     Row(
         modifier
             .glass(RoundedCornerShape(Corners.Medium))
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = Space.s4, vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (state.lookingUp) {
             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Palette.Accent)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(state.status, color = Color.White, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
@@ -332,7 +333,7 @@ internal fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
             Modifier
                 .clip(RoundedCornerShape(Corners.Medium))
                 .background(Color.Black.copy(alpha = 0.78f))
-                .padding(horizontal = 22.dp, vertical = 14.dp),
+                .padding(horizontal = Space.s6, vertical = Space.s4),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -348,7 +349,7 @@ internal fun BoxCallout(state: ScanUiState, pulse: Int, modifier: Modifier) {
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 if (state.lastFull) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     FullTag()
                 }
             }

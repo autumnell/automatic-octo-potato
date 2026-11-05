@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -69,6 +70,7 @@ object WhatsNew {
         225 to "Search counts the printing you're looking at, not every printing of the card, says how many are in other printings, and shows foils apart (\"2 · 1 foil\"), as do the card page's Versions.",
         226 to "Quicker, surer scans: the picture is checked while the text is read, the picture search is several times faster, the card model runs the quickest way your phone allows, \"Looks like…\" shows the likely card early, a half-read name can pick between near look-alikes, a crooked outline gets a second look, and the picture model now allows for how phone photos look, which got 97% of the test scans right (was 79%).",
         238 to "Steadier app: every update is now checked against collections from every older version, so no cards go missing; clear cards are taken on their first frame more often; a half-read name confirms a clear picture; and screen readers say mana costs and price charts in words.",
+        239 to "Tidier look: every screen now uses the same spacing steps, slightly squarer corners and calmer buttons, following one written design system.",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
@@ -96,7 +98,7 @@ fun WhatsNewLine(modifier: Modifier = Modifier) {
         )
     }
     val text = line ?: return
-    Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("New in ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             Text(text, style = MaterialTheme.typography.bodyMedium)

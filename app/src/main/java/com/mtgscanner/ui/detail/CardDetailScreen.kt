@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.ruleAbove
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Sell
@@ -268,7 +269,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             if (showMissing) {
                 EmptyState("Card not found", Modifier.align(Alignment.Center), action = "Back", onAction = onBack)
             } else {
-                PlaceholderPage(Modifier.statusBarsPadding().padding(16.dp))
+                PlaceholderPage(Modifier.statusBarsPadding().padding(Space.s4))
             }
         }
         if (c != null) {
@@ -327,11 +328,11 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         .heightIn(min = screenH)
                         .clip(RoundedCornerShape(topStart = Corners.Medium, topEnd = Corners.Medium))
                         .background(Brush.verticalGradient(listOf(sheetColor, Palette.Background), endY = 900f))
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = Space.s4),
                 ) {
                     // The sheet's handle: scroll up for everything else.
                     Box(
-                        Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp, bottom = 10.dp)
+                        Modifier.align(Alignment.CenterHorizontally).padding(top = Space.s2, bottom = Space.s3)
                             .size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Palette.Outline),
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -360,8 +361,8 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     copiesLine?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(Modifier.height(Space.s2))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         // Special-copy badges first, so they're seen next to the name.
                         if (c.lang.isNotBlank() && !c.lang.equals("en", ignoreCase = true)) Badge(c.lang.uppercase())
                         if (c.signed) Badge("Signed")
@@ -370,10 +371,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         if (c.proxy) InfoChip { Text("Proxy", style = MaterialTheme.typography.labelMedium, color = Palette.Danger) }
                         com.mtgscanner.ui.loans.loanLabel(c)?.let { Badge(it) }
                         if (c.forSale) Badge(if (c.askPrice != null && AppSettings.showPrices) "For sale ${formatUsd(c.askPrice)}" else "For sale")
-                        InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(6.dp)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
+                        InfoChip { RarityDot(c.rarity, 8.dp); Spacer(Modifier.width(Space.s2)); Text(c.rarity.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.labelMedium) }
                         // Tap the set to open it in the set tracker.
                         InfoChip(onClick = onOpenSet?.let { open -> { open(c.setCode.lowercase()) } }) {
-                            SetSymbol(c.setCode, c.rarity, modifier = Modifier.padding(end = 6.dp))
+                            SetSymbol(c.setCode, c.rarity, modifier = Modifier.padding(end = Space.s2))
                             Text(
                                 "${c.setName} · #${c.collectorNumber}", style = MaterialTheme.typography.labelMedium,
                                 color = if (onOpenSet != null) Palette.AccentText else Palette.Text,
@@ -390,17 +391,17 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     }
 
                     // Compact editing block: quantity, foil, condition, box, notes and tags.
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(Space.s3))
                     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-                        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.padding(horizontal = Space.s3, vertical = Space.s2)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                                 QuantityStepper(c.quantity, onChange = { vm.changeQuantity(it - c.quantity) })
                                 Spacer(Modifier.weight(1f))
                                 SelectPill("Foil", c.foil, onClick = { vm.setFoil(!c.foil) })
                                 ConditionPicker(c.condition) { vm.setCondition(it) }
                             }
-                            Spacer(Modifier.height(6.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Spacer(Modifier.height(Space.s2))
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                                 val inDeck = places.any { it.id == c.boxId && it.isDeckSlot }
                                 if (boxes.size > 1 || decks.isNotEmpty() || inDeck) BoxPicker(boxes, decks, places, c.boxId) { d ->
                                     if (c.quantity > 1) moveTarget = d else vm.moveToDest(d)
@@ -441,11 +442,11 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                             }
                             val userTags = c.userTagList()
                             if (userTags.isNotEmpty()) {
-                                Spacer(Modifier.height(6.dp))
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Spacer(Modifier.height(Space.s2))
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                                     userTags.forEach { t ->
                                         Row(
-                                            Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(start = 12.dp),
+                                            Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(start = Space.s3),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
                                             Text(t, style = MaterialTheme.typography.labelMedium, color = Palette.Text)
@@ -460,16 +461,16 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     }
 
                     // Where its box sits on the shelf, when the shelf is laid out.
-                    com.mtgscanner.ui.collection.ShelfSpot(boxes, setOf(c.boxId), Modifier.padding(top = 10.dp))
-                    Spacer(Modifier.height(10.dp))
+                    com.mtgscanner.ui.collection.ShelfSpot(boxes, setOf(c.boxId), Modifier.padding(top = Space.s3))
+                    Spacer(Modifier.height(Space.s3))
                     // Legality lives in the Rules tab below, with every format.
                     CardTextBlock((live?.textInfo() ?: c.textInfo()).copy(legalities = emptyMap()))
 
                     // Rules (legality and rulings) and versions come before the price, so the card's own text stays together.
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(Space.s4))
                     CardInfoTabs(c, live, vm)
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Space.s3))
                     if (AppSettings.showPrices) Panel {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Column(Modifier.weight(1f)) {
@@ -499,7 +500,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     com.mtgscanner.data.SaltScores.of(c.name)?.let { salt ->
                         Text(
                             "Salt %.1f on EDHREC".format(salt), style = MaterialTheme.typography.labelMedium.merge(TabularNums),
-                            color = Palette.Muted, modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                            color = Palette.Muted, modifier = Modifier.padding(top = Space.s2, start = Space.s1),
                         )
                     }
 
@@ -515,7 +516,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         }
                     }
                     if (AppSettings.showPrices && points.size >= 2) {
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(Space.s3))
                         Panel {
                             // Drag along the chart to read one day's price in place of the title.
                             var scrub by remember(points) { mutableStateOf<Int?>(null) }
@@ -530,9 +531,9 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                                     ChangeText(points.last().second - points.first().second, points.first().second, MaterialTheme.typography.labelMedium)
                                 }
                             }
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(Space.s2))
                             LineChart(points.map { it.second }, Modifier.fillMaxWidth().height(56.dp), onScrub = { scrub = it })
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(Space.s2))
                             Row {
                                 Text(shortDay(points.first().first), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
                                 Text(
@@ -547,13 +548,13 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                     } else if (AppSettings.showPrices) {
                         Text(
                             "Price chart appears after a few days.",
-                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = 8.dp),
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s2),
                         )
                     }
 
 
-                    Spacer(Modifier.height(12.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(Modifier.height(Space.s3))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                         InfoChip {
                             Text("Identity ", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                             ManaCost(identityCost(c.colorIdentity), size = 18.dp)
@@ -562,17 +563,17 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
 
                     val tags = c.tagList()
                     if (tags.any { !it.startsWith("legal:") }) {
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(Space.s3))
                         Text("Tags", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                        Spacer(Modifier.height(8.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Spacer(Modifier.height(Space.s2))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                             tags.filterNot { it.startsWith("legal:") }.forEach { InfoChip { Text(it, style = MaterialTheme.typography.labelMedium) } }
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Space.s3))
                     Text("History", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.s2))
                     if (events.isEmpty()) {
                         Text("Nothing yet", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     } else {
@@ -585,17 +586,17 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(Space.s4))
                     // Scryfall, then EDHREC and the two stores (Scryfall's own links once it has answered).
                     val links = remember(c.name, c.scryfallUri, live) {
                         listOf(com.mtgscanner.data.CardLinks.Link("Scryfall", c.scryfallUri)).filter { it.url.isNotBlank() } +
                             com.mtgscanner.data.CardLinks.of(c.name, live?.relatedUris.orEmpty(), live?.purchaseUris.orEmpty())
                     }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
                         links.forEach { link ->
                             TextButton(onClick = { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link.url))) } }) {
                                 Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(Space.s1))
                                 Text(link.label)
                             }
                         }
@@ -622,7 +623,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
         }
 
         // Floating top buttons over the artwork.
-        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp)) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(Space.s2)) {
             val btn = IconButtonDefaults.iconButtonColors(containerColor = Color.Black.copy(alpha = 0.45f), contentColor = Color.White)
             IconButton(onClick = onBack, colors = btn) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Spacer(Modifier.weight(1f))
@@ -634,7 +635,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         .align(Alignment.CenterVertically)
                         .clip(RoundedCornerShape(Corners.Small))
                         .background(Color.Black.copy(alpha = 0.45f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(horizontal = Space.s3, vertical = Space.s1),
                 )
                 Spacer(Modifier.weight(1f))
             }
@@ -652,10 +653,10 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             text = {
                 Column {
                     Text("To ${target.name}", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Space.s3))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         QuantityStepper(count, onChange = { count = it.coerceIn(1, have) })
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Text("of $have", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                     }
                 }
@@ -789,7 +790,7 @@ private fun Hero(c: CollectionCard, sharedId: Long, height: Dp, onPhoto: () -> U
         if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
         CardImage(
             c.imageUrl,
-            Modifier.align(BiasAlignment(bias, 1f)).padding(start = 16.dp, end = 16.dp, bottom = 12.dp).height(cardH)
+            Modifier.align(BiasAlignment(bias, 1f)).padding(start = Space.s4, end = Space.s4, bottom = Space.s3).height(cardH)
                 .sharedCard(sharedId)
                 .foilShimmer(c.foil)
                 .semantics { onClick(if (big) "Make the card small" else "Make the card big") { big = !big; true } },
@@ -804,7 +805,7 @@ private fun Hero(c: CollectionCard, sharedId: Long, height: Dp, onPhoto: () -> U
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 24.dp)
+                    .padding(end = Space.s4, bottom = Space.s6)
                     .size(width = 48.dp, height = 64.dp)
                     .clip(RoundedCornerShape(Corners.Small))
                     .background(Palette.SurfaceHigh)
@@ -816,7 +817,7 @@ private fun Hero(c: CollectionCard, sharedId: Long, height: Dp, onPhoto: () -> U
 
 @Composable
 private fun EventRow(e: CardEvent) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Text(
             e.kind.replaceFirstChar(Char::uppercase),
             style = MaterialTheme.typography.labelMedium, color = Palette.Text,
@@ -836,7 +837,7 @@ internal fun shortDate(millis: Long): String = runCatching {
 @Composable
 private fun Panel(content: @Composable () -> Unit) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(16.dp)) { content() }
+        Column(Modifier.padding(Space.s4)) { content() }
     }
 }
 
@@ -845,7 +846,7 @@ private fun InfoChip(onClick: (() -> Unit)? = null, content: @Composable () -> U
     Row(
         Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s3, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) { content() }
 }
@@ -865,7 +866,7 @@ internal fun identityCost(identity: String): String {
 @Composable
 private fun RangeSegments(selected: Int, onPick: (Int) -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(2.dp),
+        Modifier.clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh).padding(Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         listOf("All", "7d", "30d").forEachIndexed { i, label ->
@@ -874,7 +875,7 @@ private fun RangeSegments(selected: Int, onPick: (Int) -> Unit) {
                 Modifier.clip(RoundedCornerShape(Corners.Small))
                     .background(if (on) Palette.Surface else androidx.compose.ui.graphics.Color.Transparent)
                     .clickable { onPick(i) }
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .padding(horizontal = Space.s3, vertical = Space.s1),
             ) {
                 Text(label, style = MaterialTheme.typography.labelMedium, color = if (on) Palette.Text else Palette.Muted)
             }
@@ -901,7 +902,7 @@ private fun ActionBar(
     var moving by remember { mutableStateOf(false) }
     Surface(modifier.fillMaxWidth(), color = Palette.Surface) {
         Row(
-            Modifier.fillMaxWidth().ruleAbove().navigationBarsPadding().height(ACTION_BAR).padding(horizontal = 8.dp),
+            Modifier.fillMaxWidth().ruleAbove().navigationBarsPadding().height(ACTION_BAR).padding(horizontal = Space.s2),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (move != null) Box(Modifier.weight(1f)) {
@@ -919,7 +920,7 @@ private fun ActionBar(
 private fun BarButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit, on: Boolean = false) {
     val tint = if (on) Palette.AccentText else Palette.Text
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(vertical = 6.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onClick).padding(vertical = Space.s2),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, null, tint = if (on) Palette.AccentText else Palette.Icon, modifier = Modifier.size(22.dp))

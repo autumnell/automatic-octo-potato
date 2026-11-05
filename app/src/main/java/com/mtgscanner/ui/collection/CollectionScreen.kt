@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.pressScale
 import com.mtgscanner.ui.components.PrintingsSheet
 import com.mtgscanner.util.CardNames
@@ -218,11 +219,11 @@ fun CollectionScreen(
             ) {
                 Text(
                     "Collection", style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.fillMaxWidth().clickable { collapse.show() }.padding(horizontal = 20.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { collapse.show() }.padding(horizontal = Space.s4, vertical = Space.s2),
                 )
             }
             com.mtgscanner.ui.components.CollapsingHeader(collapse) {
-                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1, top = Space.s3, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                     Text("Collection", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
                     if (ui.boxes.isNotEmpty()) IconButton(onClick = { scanningLabel = true }) { Icon(Icons.Outlined.QrCodeScanner, "Scan a box label", tint = Palette.Icon) }
                     IconButton(onClick = vm::refreshPrices) { Icon(Icons.Outlined.Refresh, "Refresh prices", tint = Palette.Icon) }
@@ -252,7 +253,7 @@ fun CollectionScreen(
                         }
                     }
                 }
-                if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp), color = Palette.Accent)
+                if (refreshing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = Space.s4), color = Palette.Accent)
                 if (layout.shows(CollectionPart.STATS)) {
                     val prices = AppSettings.showPrices
                     StatsStrip(
@@ -260,7 +261,7 @@ fun CollectionScreen(
                         value = if (prices) formatMoneyShort(ui.totalValue, ui.totalEur) else null,
                         // History is in dollars, so there's no week change to show in euros.
                         week = if (prices) WeekChange.label(weekChange.takeIf { AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR }) else null,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
                         cardCount = ui.totalCards,
                         valueNumber = if (prices) com.mtgscanner.ui.components.primaryValue(ui.totalValue, ui.totalEur) else null,
                         valueFormat = { v ->
@@ -313,7 +314,7 @@ fun CollectionScreen(
 private fun ToSortChip(count: Int, onClick: () -> Unit) {
     Row(
         Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).clickable(onClick = onClick)
-            .heightIn(min = 32.dp).padding(start = 10.dp, end = 4.dp),
+            .heightIn(min = 32.dp).padding(start = Space.s3, end = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("$count to sort", style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Text)
@@ -325,13 +326,13 @@ private fun ToSortChip(count: Int, onClick: () -> Unit) {
 private fun BrowseAllButton(onClick: () -> Unit) {
     // A slim search bar: tapping it opens every card with the cursor already in the search field.
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).heightIn(min = 44.dp)
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1).heightIn(min = 44.dp)
             .clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh)
-            .clickable { BrowseLaunch.focusSearch = true; onClick() }.padding(horizontal = 12.dp),
+            .clickable { BrowseLaunch.focusSearch = true; onClick() }.padding(horizontal = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         Text("Search your collection", style = MaterialTheme.typography.bodyLarge, color = Palette.Muted, modifier = Modifier.weight(1f), maxLines = 1)
     }
 }
@@ -397,7 +398,7 @@ private fun BoxesTab(
                 CollectionSection.TO_SORT -> {
                     val toMove = toSort.sumOf { it.card.quantity }
                     if (toMove > 0 && CollectionSection.BOXES !in layout.sections) {
-                        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { ToSortChip(toMove) { sortingOpen = true } }
+                        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s1)) { ToSortChip(toMove) { sortingOpen = true } }
                     }
                 }
                 CollectionSection.BOXES -> {
@@ -416,7 +417,7 @@ private fun BoxesTab(
                                 }
                                 if (ui.boxes.size > 1) {
                                     HorizontalDivider(color = Palette.Outline)
-                                    Text("Show boxes by", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                                    Text("Show boxes by", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s3, vertical = Space.s2))
                                     DropdownMenuItem(
                                         text = { Text("Auto-sort order") },
                                         trailingIcon = { if (!LastChecked.oldestFirst) Icon(Icons.Outlined.Check, null) },
@@ -432,7 +433,7 @@ private fun BoxesTab(
                         }
                         TextButton(onClick = { creating = true }) {
                             Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(Space.s1))
                             Text("New")
                         }
                     }
@@ -441,7 +442,7 @@ private fun BoxesTab(
                     }
                     // Finds boxes by name, and cards with their box, divider and shelf spot.
                     if (searching && (ui.boxes.isNotEmpty() || ui.totalCards > 0)) {
-                        SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Find a box or card")
+                        SearchField(query, { query = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s1), placeholder = "Find a box or card")
                     }
                     val matching = if (q.isNotEmpty()) ui.boxes.filter { it.name.contains(q, ignoreCase = true) } else ui.boxes
                     // Never checked first, then the longest since a check.
@@ -465,7 +466,7 @@ private fun BoxesTab(
                     if (q.length >= 2 && cardsFound.isNotEmpty()) {
                         SectionHeader("Cards")
                         // Where it is on the shelf, when the boxes are laid out there.
-                        ShelfSpot(boxRows, cardsFound.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                        ShelfSpot(boxRows, cardsFound.map { it.card.boxId }.toSet(), Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
                         cardsFound.forEach { f -> FoundRow(f.card, f.where) { onOpenCard(f.card.id) } }
                     }
                 }
@@ -477,7 +478,7 @@ private fun BoxesTab(
                 }
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Space.s6))
     }
 
     if (creating) {
@@ -573,7 +574,7 @@ private fun BoxCard(
     // The ⋮ sits inside the card's top line, so the card uses the full width.
     val menuButton: @Composable (Boolean) -> Unit = { onArt ->
         Box {
-            IconButton(onClick = { menu = true }, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = { menu = true }, modifier = Modifier.size(Space.s12)) {
                 Icon(Icons.Outlined.MoreVert, "Box options", tint = if (onArt) Color.White else Palette.Icon, modifier = Modifier.size(20.dp))
             }
             // The everyday actions first; sharing, decks and NFC wait under More, and Delete sits apart at the end.
@@ -610,7 +611,7 @@ private fun BoxCard(
         }
     }
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).pressScale(press, pressed = 0.98f).clip(shape)
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1).pressScale(press, pressed = 0.98f).clip(shape)
             .background(Palette.BoxCard)
             .combinedClickable(
                 interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current,
@@ -632,7 +633,7 @@ private fun boxCountText(b: BoxSummary, fill: BoxFill): String = when {
 @Composable
 private fun BoxArtBackground(art: String?, content: @Composable (onArt: Boolean) -> Unit) {
     if (art == null) { content(false); return }
-    Box(Modifier.fillMaxWidth().background(Color(0xFF15130F))) {
+    Box(Modifier.fillMaxWidth().background(Palette.ArtBase)) {
         AsyncImage(
             model = art,
             contentDescription = null,
@@ -654,14 +655,14 @@ private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warni
         val text = if (onArt) Color.White else Palette.Text
         val muted = if (onArt) Palette.OnDarkMuted else Palette.Muted
         Column {
-            Row(Modifier.padding(start = 18.dp, end = 2.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = Space.s4, end = Space.s1, top = Space.s2, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 BoxTitle(b, stripe, onArt = onArt, modifier = Modifier.weight(1f))
                 if (layout.shows(CollectionPart.COUNT)) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text(boxCountText(b, fill), style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = fillColor(fill, muted), maxLines = 1)
                 }
                 if (AppSettings.showPrices && layout.shows(CollectionPart.VALUE)) {
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.s3))
                     com.mtgscanner.ui.components.RollingMoney(b.value, b.valueEur, MaterialTheme.typography.titleMedium.merge(TabularNums), text)
                 }
                 menu(onArt)
@@ -669,14 +670,14 @@ private fun BoxCardCompact(b: BoxSummary, stats: BoxStats?, stripe: Color, warni
             if (warning != null) {
                 Text(
                     warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
+                    modifier = Modifier.padding(start = Space.s6, end = Space.s4, bottom = Space.s3),
                 )
             }
             // Only while ordering by it, so the compact row stays one line otherwise.
             if (checked != null && LastChecked.oldestFirst) {
                 Text(
                     checked, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1,
-                    modifier = Modifier.padding(start = 22.dp, end = 14.dp, bottom = 10.dp),
+                    modifier = Modifier.padding(start = Space.s6, end = Space.s4, bottom = Space.s3),
                 )
             }
         }
@@ -698,22 +699,22 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
         // Slimmer than before: tighter padding, where-and-status on one line, one line of rules, a title-size
         // value, and the fill meter as a thin line along the bottom edge.
         Column {
-        Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)) {
+        Column(Modifier.padding(start = Space.s4, end = Space.s1, top = Space.s2, bottom = Space.s3)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BoxTitle(b, stripe, onArt = onArt, modifier = Modifier.weight(1f))
                 menu(onArt)
             }
             val where = com.mtgscanner.data.BoxPrefs.places[b.id]?.location?.takeIf { it.isNotBlank() }
             val note = listOfNotNull(where, "To be sorted".takeIf { b.id in com.mtgscanner.data.BoxPrefs.toSort }).joinToString(" · ")
-            if (note.isNotEmpty()) Text(note, style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 12.dp))
+            if (note.isNotEmpty()) Text(note, style = MaterialTheme.typography.labelMedium, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = Space.s3))
             if (layout.shows(CollectionPart.RULES)) {
-                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 12.dp))
+                Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = Space.s3))
             }
             if (warning != null) Text(warning, style = MaterialTheme.typography.labelMedium, color = Palette.Danger, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (checked != null) Text(checked, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
             if (showCount || showValue || showChange) {
-                Spacer(Modifier.height(4.dp))
-                Row(Modifier.padding(end = 12.dp), verticalAlignment = Alignment.Bottom) {
+                Spacer(Modifier.height(Space.s1))
+                Row(Modifier.padding(end = Space.s3), verticalAlignment = Alignment.Bottom) {
                     // Keeps the value on the right when the count is off.
                     Box(Modifier.weight(1f)) {
                         if (showCount) {
@@ -721,7 +722,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
                                 boxCountText(b, fill),
                                 style = MaterialTheme.typography.bodyMedium.merge(TabularNums),
                                 color = fillColor(fill, text),
-                                modifier = Modifier.padding(bottom = 2.dp),
+                                modifier = Modifier.padding(bottom = Space.s1),
                             )
                         }
                     }
@@ -740,7 +741,7 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
             }
         }
         if (b.capacity > 0 && layout.shows(CollectionPart.FILL)) {
-            BoxFillMeter(b.cards, b.capacity, stripe, Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), thickness = 3.dp)
+            BoxFillMeter(b.cards, b.capacity, stripe, Modifier.padding(horizontal = Space.s4).padding(bottom = Space.s2), thickness = 3.dp)
         }
         }
     }
@@ -751,10 +752,10 @@ private fun BoxCardFull(b: BoxSummary, stats: BoxStats?, stripe: Color, warning:
 private fun BoxTitle(b: BoxSummary, stripe: Color, onArt: Boolean, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Icon(boxIcon(b.kind), null, tint = stripe, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         LabelTape(b.name, Modifier.weight(1f, fill = false))
         if (b.fallback) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Text("Fallback", style = MaterialTheme.typography.labelSmall, color = if (onArt) Palette.OnDarkMuted else Palette.Muted)
         }
     }
@@ -795,20 +796,20 @@ private fun ToolsTab(
                     "Make a Trade binder box to trade.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = Space.s4),
                 )
             }
         }
         items(trade, key = { "t${it.id}" }) { b ->
             Surface(
                 onClick = { onBrowse(b.id) },
-                modifier = Modifier.animateItem().fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.animateItem().fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1),
                 shape = RoundedCornerShape(Corners.Medium),
                 color = Palette.Surface,
             ) {
-                Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(start = Space.s4, top = Space.s2, bottom = Space.s2, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.SwapHoriz, null, tint = Palette.Icon)
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Column(Modifier.weight(1f)) {
                         Text(b.name, style = MaterialTheme.typography.titleMedium)
                         Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
@@ -818,7 +819,7 @@ private fun ToolsTab(
                 }
             }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Spacer(Modifier.height(Space.s6)) }
     }
 }
 
@@ -869,7 +870,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
         item {
             if (wishlist.isEmpty()) {
                 EmptyState(title = "Wishlist is empty")
-                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Add a card")
+                SearchField(query, { query = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s1), placeholder = "Add a card")
             } else {
                 SectionHeader("${wishlist.sumOf { it.wanted }} wanted") {
                     if (AppSettings.showPrices) {
@@ -877,20 +878,20 @@ private fun WishlistTab(vm: CollectionViewModel) {
                             formatUsd(wishlist.sumOf { (it.priceUsd ?: 0.0) * it.wanted }),
                             style = MaterialTheme.typography.titleSmall.merge(TabularNums),
                             color = Palette.Gold,
-                            modifier = Modifier.padding(end = 4.dp),
+                            modifier = Modifier.padding(end = Space.s1),
                         )
                     }
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share wishlist", tint = Palette.Icon) }
                 }
-                SearchField(query, { query = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), placeholder = "Search or add a card")
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SearchField(query, { query = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s1), placeholder = "Search or add a card")
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     val nOrdered = wishlist.count { it.oracleId in ordered }
                     if (nOrdered > 0) SelectPill("Ordered · $nOrdered", onlyOrdered, { onlyOrdered = !onlyOrdered })
                     WishlistSort.entries.filter { AppSettings.showPrices || it != WishlistSort.PRICE }.forEach { s ->
                         SelectPill(s.label, sort == s, { sortName = s.name })
                     }
                 }
-                if (shown.isEmpty() && toAdd.isEmpty()) EmptyState("No matches", Modifier.padding(top = 16.dp))
+                if (shown.isEmpty() && toAdd.isEmpty()) EmptyState("No matches", Modifier.padding(top = Space.s4))
             }
         }
         if (toAdd.isNotEmpty()) {
@@ -900,13 +901,13 @@ private fun WishlistTab(vm: CollectionViewModel) {
                 var counts by remember { mutableStateOf(false) }
                 Box {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first = name == toAdd.first(), last = name == toAdd.last())
+                        Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first = name == toAdd.first(), last = name == toAdd.last())
                             .combinedClickable(onClick = { vm.wishByName(name); query = "" }, onLongClick = { counts = true })
-                            .padding(start = 14.dp, end = 4.dp).heightIn(min = 48.dp),
+                            .padding(start = Space.s4, end = Space.s1).heightIn(min = 48.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        Icon(Icons.Outlined.Add, "Add $name", tint = Palette.Icon, modifier = Modifier.padding(12.dp))
+                        Icon(Icons.Outlined.Add, "Add $name", tint = Palette.Icon, modifier = Modifier.padding(Space.s3))
                     }
                     DropdownMenu(expanded = counts, onDismissRequest = { counts = false }) {
                         (1..4).forEach { n ->
@@ -915,7 +916,7 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     }
                 }
             }
-            item { Spacer(Modifier.height(12.dp)) }
+            item { Spacer(Modifier.height(Space.s3)) }
         }
         groups.forEach { (group, rows) ->
             if (group != null) item(key = "g:$group") { SectionHeader(group) }
@@ -924,15 +925,15 @@ private fun WishlistTab(vm: CollectionViewModel) {
                 com.mtgscanner.ui.components.SwipeActions(
                     start = com.mtgscanner.ui.components.SwipeAction("Got it", Icons.Outlined.Check, Palette.Accent) { vm.startGotIt(w) },
                     end = com.mtgscanner.ui.components.SwipeAction("Remove", Icons.Outlined.DeleteOutline, Palette.Danger) { vm.removeWish(w) },
-                    modifier = Modifier.animateItem().padding(horizontal = 16.dp),
+                    modifier = Modifier.animateItem().padding(horizontal = Space.s4),
                 ) {
                     Row(
                         Modifier.fillMaxWidth().panelRow(first = w === rows.first(), last = w === rows.last())
-                            .clickable { editing = w }.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
+                            .clickable { editing = w }.padding(start = Space.s3, top = Space.s2, bottom = Space.s2),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Column(Modifier.weight(1f)) {
                             Text(w.name, style = MaterialTheme.typography.titleSmall)
                             com.mtgscanner.work.WatchStore.tag(watch, w.oracleId)?.let { tag ->
@@ -962,9 +963,9 @@ private fun WishlistTab(vm: CollectionViewModel) {
                     }
                 }
             }
-            if (group != null) item(key = "s:$group") { Spacer(Modifier.height(8.dp)) }
+            if (group != null) item(key = "s:$group") { Spacer(Modifier.height(Space.s2)) }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Spacer(Modifier.height(Space.s6)) }
     }
     if (sharing) ShareDialog("Wishlist", scope, carts = true, onDismiss = { sharing = false }) { wishlist.map { it.shareLine() } }
     gotIt?.let { (w, printings) ->
@@ -991,13 +992,13 @@ private fun ReceivedDialog(card: com.mtgscanner.data.ScryfallCard, onAdd: (Boole
             Column {
                 Text("${card.set.uppercase()} · #${card.collectorNumber}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 if (card.hasFoil && card.hasNonFoil) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.height(Space.s2))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         SelectPill("Normal", !foil, { foil = false })
                         SelectPill("Foil", foil, { foil = true })
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 OutlinedTextField(
                     value = paid, onValueChange = { paid = it }, singleLine = true,
                     label = { Text("Paid (optional)") }, isError = bad,
@@ -1015,7 +1016,7 @@ private fun ReceivedDialog(card: com.mtgscanner.data.ScryfallCard, onAdd: (Boole
 private fun ToolGroup(title: String) {
     Text(
         title, style = MaterialTheme.typography.labelLarge, color = Palette.Muted,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 2.dp),
+        modifier = Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s4, bottom = Space.s1),
     )
 }
 
@@ -1023,11 +1024,11 @@ private fun ToolGroup(title: String) {
 @Composable
 private fun ToolRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(horizontal = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(Space.s4))
         Text(title, style = MaterialTheme.typography.bodyLarge)
     }
 }

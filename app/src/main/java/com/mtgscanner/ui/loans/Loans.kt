@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.loans
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -112,16 +113,16 @@ fun LoansScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
     Haptics.Attach()
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(Space.s1), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text("Loans", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         }
         val list = people ?: return@Column
         if (list.isEmpty()) {
-            EmptyState("Nothing lent out", Modifier.padding(top = 24.dp), body = "Lend a card from its page")
+            EmptyState("Nothing lent out", Modifier.padding(top = Space.s6), body = "Lend a card from its page")
             return@Column
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = Space.s6)) {
             list.forEach { (who, rows) ->
                 item(key = "who-$who") {
                     val n = rows.sumOf { it.loan.quantity }
@@ -139,12 +140,12 @@ fun LoansScreen(onBack: () -> Unit, onOpenCard: (Long) -> Unit) {
 private fun LoanItem(r: LoanRow, first: Boolean, last: Boolean, onOpen: () -> Unit, onReturned: () -> Unit) {
     val c = r.card
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(enabled = c != null, onClick = onOpen)
-            .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first, last).clickable(enabled = c != null, onClick = onOpen)
+            .padding(start = Space.s3, end = Space.s1, top = Space.s2, bottom = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c?.smallImageUrl, Modifier.width(40.dp), zoom = c != null)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(r.loan.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val where = when {
@@ -192,7 +193,7 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(card.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.s3))
                 OutlinedTextField(
                     value = who,
                     onValueChange = { who = it.take(30) },
@@ -203,16 +204,16 @@ fun LendDialog(card: CollectionCard, onDismiss: () -> Unit) {
                 )
                 val recent = LoanMath.recentNames(loans)
                 if (recent.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(Modifier.height(Space.s2))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         recent.forEach { n -> SelectPill(n, n.equals(name, ignoreCase = true), { who = n }) }
                     }
                 }
                 if (left <= 0) {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(Space.s3))
                     Text("All copies are out", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                 } else if (left > 1) {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(Space.s3))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Copies", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         QuantityStepper(lendQty, onChange = { qty = it.coerceIn(1, left) })

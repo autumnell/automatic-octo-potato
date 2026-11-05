@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -79,7 +80,7 @@ fun FormatPicker(format: String, onPick: (String) -> Unit) {
     val current = DeckFormats.of(format)
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         common.forEach { f -> SelectPill(f.label, f.id == current.id, { onPick(f.id) }) }
@@ -121,7 +122,7 @@ fun CommanderSlots(
     val firstName = commanders.commanders.firstOrNull()
     val first = firstName?.let { leadInfo[it.lowercase()] }
     val second = commanders.commanders.getOrNull(1)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         SlotRow(slotLabel(CommanderSlot.COMMANDER, format, null), firstName, { onOpen(CommanderSlot.COMMANDER) }, { onClear(CommanderSlot.COMMANDER) })
         if (second != null || (first != null && CommanderRules.allowsSecond(first))) {
             SlotRow(slotLabel(CommanderSlot.SECOND, format, first), second, { onOpen(CommanderSlot.SECOND) }, { onClear(CommanderSlot.SECOND) })
@@ -137,10 +138,10 @@ fun CommanderSlots(
 private fun SlotRow(label: String, value: String?, onOpen: () -> Unit, onClear: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh)
-            .clickable(onClick = onOpen).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            .clickable(onClick = onOpen).padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
+        Column(Modifier.weight(1f).padding(vertical = Space.s2)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             Text(
                 value ?: "Set", style = MaterialTheme.typography.bodyLarge,
@@ -150,7 +151,7 @@ private fun SlotRow(label: String, value: String?, onOpen: () -> Unit, onClear: 
         if (value != null) {
             IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear", tint = Palette.Icon) }
         } else {
-            Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.padding(12.dp).size(20.dp))
+            Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.padding(Space.s3).size(20.dp))
         }
     }
 }
@@ -172,8 +173,8 @@ fun CommanderPickerSheet(
         containerColor = Palette.Surface,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 8.dp))
+        Column(Modifier.padding(horizontal = Space.s4)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = Space.s2))
             OutlinedTextField(
                 value = query, onValueChange = onQuery, singleLine = true,
                 placeholder = { Text("Search Scryfall") },
@@ -183,12 +184,12 @@ fun CommanderPickerSheet(
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Accent),
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.s1))
             Text(if (query.isBlank()) "From this deck" else "Search results", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
         }
         Box(Modifier.fillMaxWidth().height(420.dp)) {
             when {
-                loading -> PlaceholderRows(6, Modifier.padding(top = 8.dp), rowHeight = 48.dp, color = Palette.SurfaceHigh)
+                loading -> PlaceholderRows(6, Modifier.padding(top = Space.s2), rowHeight = 48.dp, color = Palette.SurfaceHigh)
                 options.isEmpty() -> Text(
                     if (query.isBlank()) "None in this deck" else "No matches",
                     color = Palette.Muted, modifier = Modifier.align(Alignment.Center),
@@ -196,11 +197,11 @@ fun CommanderPickerSheet(
                 else -> LazyColumn(Modifier.fillMaxWidth()) {
                     items(options, key = { it.name }) { o ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { onPick(o) }.padding(horizontal = 16.dp, vertical = 6.dp),
+                            Modifier.fillMaxWidth().clickable { onPick(o) }.padding(horizontal = Space.s4, vertical = Space.s2),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             CardImage(o.imageUrl, Modifier.width(40.dp))
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(Space.s3))
                             Column(Modifier.weight(1f)) {
                                 Text(o.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(o.typeLine, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -226,13 +227,13 @@ fun DeckHeader(
 ) {
     val f = DeckFormats.of(format)
     if (f.id.isEmpty() && commanders.isEmpty) return
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         if (f.commander) art.take(2).forEach { url ->
             AsyncImage(
                 model = url, contentDescription = null, contentScale = ContentScale.Crop,
                 modifier = Modifier.size(width = 64.dp, height = 48.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh),
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
         }
         Column(Modifier.weight(1f)) {
             val who = if (f.commander) commanders.commanders.joinToString(" & ") else ""
@@ -248,7 +249,7 @@ fun DeckHeader(
         if (onEdhrec != null && f.commander) {
             TextButton(onClick = onEdhrec) {
                 Text("EDHREC")
-                Spacer(Modifier.width(2.dp))
+                Spacer(Modifier.width(Space.s1))
                 Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(14.dp))
             }
         }
@@ -271,18 +272,18 @@ fun AddDeckSheet(
         containerColor = Palette.Surface,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Add to collection", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             Text("Cards", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Only missing" + (counts?.let { " (${it.second})" } ?: ""), onlyMissing, { onlyMissing = true })
                 SelectPill("All" + (counts?.let { " (${it.first})" } ?: ""), !onlyMissing, { onlyMissing = false })
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             Text("Kept in this deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Space.s6))
             if (busy) {
                 Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) { com.mtgscanner.ui.components.Spinner() }
             } else {
@@ -294,7 +295,7 @@ fun AddDeckSheet(
                     enabled = n != null && n > 0,
                 )
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -75,7 +76,7 @@ fun FromPhotoButton(onText: (String) -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier,
     ) {
         Icon(Icons.Outlined.PhotoLibrary, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Space.s2))
         Text(if (busy) "Reading…" else "From photo")
     }
 }

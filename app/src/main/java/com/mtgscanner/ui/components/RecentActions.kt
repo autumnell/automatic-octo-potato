@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,15 +48,15 @@ fun RecentActionsSheet(onUndo: (Long) -> Unit, onDismiss: () -> Unit) {
         Text(
             "Recent actions",
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
         )
         if (recent.isEmpty()) {
-            EmptyState("Nothing to undo", Modifier.padding(bottom = 32.dp))
+            EmptyState("Nothing to undo", Modifier.padding(bottom = Space.s8))
         } else {
-            LazyColumn(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().padding(bottom = Space.s4)) {
                 items(recent, key = { it.id }) { e ->
                     Row(
-                        Modifier.animateItem().fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 8.dp),
+                        Modifier.animateItem().fillMaxWidth().heightIn(min = 56.dp).padding(start = Space.s4, end = Space.s2),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
@@ -67,7 +68,7 @@ fun RecentActionsSheet(onUndo: (Long) -> Unit, onDismiss: () -> Unit) {
                             if (newer == 0) onUndo(e.id) else confirm = e.id to newer
                         }) { Text("Undo", color = Palette.AccentText) }
                     }
-                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = Palette.Rule)
+                    HorizontalDivider(Modifier.padding(horizontal = Space.s4), color = Palette.Rule)
                 }
             }
         }

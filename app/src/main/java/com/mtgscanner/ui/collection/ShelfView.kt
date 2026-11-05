@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,7 +70,7 @@ fun ShelfPicture(
 ) {
     Column(modifier.fillMaxWidth()) {
         for (row in 0 until layout.rows) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = Space.s1), horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
                 for (col in 0 until layout.cols) {
                     val spot = row * layout.cols + col
                     val id = layout.boxAt(spot)
@@ -93,7 +94,7 @@ fun ShelfPicture(
                                 shape,
                             )
                             .let { m -> if (onSpot != null) m.clickable { onSpot(spot) } else m }
-                            .padding(horizontal = 4.dp),
+                            .padding(horizontal = Space.s1),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (id != null) {
@@ -110,7 +111,7 @@ fun ShelfPicture(
                 }
             }
             // The shelf board under each row.
-            Box(Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 6.dp).height(3.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Outline))
+            Box(Modifier.fillMaxWidth().padding(top = Space.s1, bottom = Space.s2).height(3.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Outline))
         }
     }
 }
@@ -135,7 +136,7 @@ fun ShelfSheet(onDismiss: () -> Unit) {
         containerColor = Palette.Surface,
     ) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding(),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4).navigationBarsPadding(),
         ) {
             Text("Shelf", style = MaterialTheme.typography.titleLarge)
             if (boxes.isEmpty()) {
@@ -144,10 +145,10 @@ fun ShelfSheet(onDismiss: () -> Unit) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Stepper("Shelves", layout.rows) { save(layout.resize(it, layout.cols)) }
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(Space.s4))
                 Stepper("Per shelf", layout.cols) { save(layout.resize(layout.rows, it)) }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             ShelfPicture(
                 layout, names, selected = selected,
                 onSpot = { spot ->
@@ -167,19 +168,19 @@ fun ShelfSheet(onDismiss: () -> Unit) {
                     else -> "Tap a spot for ${names[sel] ?: "this box"}"
                 },
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-                modifier = Modifier.padding(vertical = 6.dp),
+                modifier = Modifier.padding(vertical = Space.s2),
             )
             if (sel != null && layout.spotOf(sel) != null) {
                 TextButton(onClick = { save(layout.remove(sel)); selected = null }) { Text("Take off shelf", color = Palette.Danger) }
             }
             val off = boxes.filter { layout.spotOf(it.id) == null }
             if (off.isNotEmpty()) {
-                Text("Not on a shelf", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(top = 6.dp, bottom = 6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Not on a shelf", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(top = Space.s2, bottom = Space.s2))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     off.forEach { b -> SelectPill(b.name, selected == b.id, { selected = if (selected == b.id) null else b.id }) }
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Space.s6))
         }
     }
 }
@@ -207,7 +208,7 @@ fun ShelfSpot(boxes: List<CardBox>, boxIds: Set<Long>, modifier: Modifier = Modi
         Text(
             placed.mapNotNull { id -> layout.label(id)?.let { "${names[id] ?: "Box"} · $it" } }.joinToString("\n"),
             style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
-            modifier = Modifier.padding(bottom = 6.dp),
+            modifier = Modifier.padding(bottom = Space.s2),
         )
         ShelfPicture(layout, names, highlight = placed.toSet(), spotHeight = 26.dp)
     }

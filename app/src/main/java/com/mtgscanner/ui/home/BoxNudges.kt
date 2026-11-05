@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -70,9 +71,9 @@ fun BoxCheckNudge(onCheck: (Long) -> Unit, modifier: Modifier = Modifier) {
     val due = BoxReminders.due(ids, checks, now, months).firstOrNull() ?: return
     val box = live.firstOrNull { it.id == due.first } ?: return
 
-    Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.DoneAll, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Text(
             BoxReminders.label(box.name, due.second.coerceAtLeast(months)),
             style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -121,14 +122,14 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
     }
 
     Surface(
-        modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
         shape = RoundedCornerShape(Corners.Medium),
         color = Palette.Surface,
     ) {
-        Column(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 6.dp, end = 4.dp)) {
+        Column(Modifier.padding(start = Space.s4, top = Space.s2, bottom = Space.s2, end = Space.s1)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SetIcon(set.code, size = 20.dp, tint = Palette.Icon)
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(Space.s3))
                 Text(
                     "New set: ${set.name}",
                     style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -137,7 +138,7 @@ fun NewSetOffer(onOpenSet: (String) -> Unit, modifier: Modifier = Modifier) {
                     Icon(Icons.Outlined.Close, "Not now", tint = Palette.Icon)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
                 TextButton(
                     onClick = {
                         if (!made) {

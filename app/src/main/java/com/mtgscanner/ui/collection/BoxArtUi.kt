@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.formatMoneyShort
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -76,8 +77,8 @@ fun boxChangeLabel(change: Double, percent: Double?): String {
 
 /** Green for gains, red for losses; [onDark] uses the bright shades that read on card art. */
 fun boxChangeColor(change: Double, onDark: Boolean = false): Color = when {
-    change > 0.005 -> if (onDark) Color(0xFF4CC38A) else Palette.Success
-    change < -0.005 -> if (onDark) Color(0xFFE5534B) else Palette.Danger
+    change > 0.005 -> if (onDark) Palette.OnDarkSuccess else Palette.Success
+    change < -0.005 -> if (onDark) Palette.OnDarkDanger else Palette.Danger
     else -> if (onDark) Palette.OnDarkMuted else Palette.Muted
 }
 
@@ -105,7 +106,7 @@ fun ValueRing(
     val change = stats.values.sumOf { it.change }
     val track = Palette.SurfaceHigh
     Row(
-        modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
         horizontalArrangement = if (legend) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -129,7 +130,7 @@ fun ValueRing(
                     }
                 }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 22.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = Space.s6)) {
                 if (prices) {
                     Text(formatMoneyShort(totalValue, totalEur), style = MaterialTheme.typography.titleLarge.merge(TabularNums), fontWeight = FontWeight.SemiBold, maxLines = 1)
                     if (then > 0 && boxChangeShown()) {
@@ -147,17 +148,17 @@ fun ValueRing(
                 }
             }
         }
-        if (legend) Spacer(Modifier.width(16.dp))
+        if (legend) Spacer(Modifier.width(Space.s4))
         // The biggest few boxes, as a legend.
-        if (legend) Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (legend) Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             val top = weights.sortedByDescending { it.second }.take(5)
             if (top.isEmpty()) Text("No cards yet", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             top.forEach { (b, w) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(10.dp).clip(CircleShape).background(colors[b.id] ?: Palette.Accent))
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text(b.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text("${(w / sum * 100).toInt()}%", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted)
                 }
             }
@@ -188,16 +189,16 @@ fun CoverPickerDialog(
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small))
                                 .background(if (c.id == currentId) Palette.SurfaceHigh else Color.Transparent)
-                                .clickable { onPick(c.id) }.padding(6.dp),
+                                .clickable { onPick(c.id) }.padding(Space.s2),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(36.dp))
-                            Spacer(Modifier.width(10.dp))
+                            Spacer(Modifier.width(Space.s3))
                             Column(Modifier.weight(1f)) {
                                 Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     SetIcon(c.setCode, size = 12.dp, tint = Palette.Muted)
-                                    Spacer(Modifier.width(4.dp))
+                                    Spacer(Modifier.width(Space.s1))
                                     Text(c.setCode.uppercase(), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                                 }
                             }
@@ -223,9 +224,9 @@ fun ValueBar(boxes: List<BoxSummary>, colors: Map<Long, Color>, onClick: () -> U
     val sum = weights.sumOf { it.second }
     if (sum <= 0) return
     Row(
-        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp)
+        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s4, vertical = Space.s2)
             .height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s1),
     ) {
         weights.forEach { (b, w) ->
             Box(Modifier.weight((w / sum).toFloat().coerceAtLeast(0.002f)).fillMaxHeight().background(colors[b.id] ?: Palette.Accent))

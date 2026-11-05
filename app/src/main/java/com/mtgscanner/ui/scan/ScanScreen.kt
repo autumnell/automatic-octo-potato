@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Size
@@ -335,8 +336,8 @@ fun ScanScreen(
 
                 if (hasPermission && !needsBox) {
                         Column(
-                            Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            Modifier.align(Alignment.TopStart).padding(top = 76.dp, start = Space.s3),
+                            verticalArrangement = Arrangement.spacedBy(Space.s2),
                         ) {
                             NextCardsChip(state, vm)
                             PackChip(state, vm)
@@ -351,17 +352,17 @@ fun ScanScreen(
                             color = Color.White,
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.align(Alignment.Center).glass(RoundedCornerShape(Corners.Medium))
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .padding(horizontal = Space.s4, vertical = Space.s2),
                         )
                         Column(
-                            Modifier.align(Alignment.TopEnd).padding(top = 68.dp, end = 12.dp),
+                            Modifier.align(Alignment.TopEnd).padding(top = 68.dp, end = Space.s3),
                             horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(Space.s2),
                         ) {
                             if (state.review.isNotEmpty()) {
                                 Surface(onClick = { vm.showReview(true) }, shape = RoundedCornerShape(Corners.Medium), color = Palette.Gold) {
                                     Text("Check ${state.review.size}", color = Color.Black, style = MaterialTheme.typography.labelLarge,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                                        modifier = Modifier.padding(horizontal = Space.s3, vertical = Space.s2))
                                 }
                             }
                             if (state.skipped > 0) {
@@ -371,7 +372,7 @@ fun ScanScreen(
                                     style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.glass(RoundedCornerShape(Corners.Medium))
                                         .clickable(onClickLabel = "Show skipped cards") { vm.showSkipped(true) }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        .padding(horizontal = Space.s3, vertical = Space.s3),
                                 )
                             }
                             // Cards saved for later because they couldn't be identified.
@@ -382,7 +383,7 @@ fun ScanScreen(
                                     style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.glass(RoundedCornerShape(Corners.Medium))
                                         .clickable(onClickLabel = "Show unknown scans") { vm.showUnknown(true) }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        .padding(horizontal = Space.s3, vertical = Space.s3),
                                 )
                             }
                         }
@@ -390,15 +391,15 @@ fun ScanScreen(
 
                     // Settings and modes float over the top of the camera.
                     if (!needsBox) Row(
-                        Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                        Modifier.align(Alignment.TopCenter).padding(top = Space.s2),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Space.s3),
                     ) {
                         RoundIconButton(Icons.Outlined.Settings, "Scan settings", { vm.showSettings(true) }, modifier = Modifier.hintTarget("settings"))
                         ModesButton(state, vm)
                     }
 
-                    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp)) {
+                    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(Space.s3)) {
                         state.unknownRead?.let { if (!needsBox) UnknownChip(it, vm, Modifier.align(Alignment.CenterHorizontally)) }
                         AnimatedVisibility(
                             visible = state.current != null,
@@ -414,7 +415,7 @@ fun ScanScreen(
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                                 if (state.session.isNotEmpty()) {
                                     SessionFan(state.session, startKey, onClick = { vm.showList(true) }, modifier = Modifier.hintTarget("fan"))
-                                    Spacer(Modifier.width(10.dp))
+                                    Spacer(Modifier.width(Space.s3))
                                 }
                                 Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) { StatusPill(state) }
                             }
@@ -422,7 +423,7 @@ fun ScanScreen(
                         if (!needsBox) {
                             // The last card hides while a new one is on screen.
                             if (state.current == null && state.offline == null && state.session.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(Space.s2))
                                 // Stack mode drops a copy that looks just like the last one; "+1" adds it.
                                 val sameAgain = if ((state.stack || state.autoAdd) && state.target != ScanTarget.CHECK && state.session.isNotEmpty()) vm::sameAgain else null
                                 LastCardBar(state, onOpenCard, onOpenList = { vm.showList(true) }, Modifier.hintTarget("last"), onSameAgain = sameAgain)

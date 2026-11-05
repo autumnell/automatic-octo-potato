@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,10 +66,10 @@ fun MoneySection(paid: PaidSummary, vm: MoneyViewModel = viewModel(factory = App
     val showMonths = MoneyMath.hasData(months)
     if (!showPaid && !showMonths) return
     SectionHeader("Money")
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = Space.s4), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+        Column(Modifier.padding(horizontal = Space.s4, vertical = Space.s3)) {
             if (showPaid) PaidRow(paid)
-            if (showPaid && showMonths) HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Palette.Hairline)
+            if (showPaid && showMonths) HorizontalDivider(Modifier.padding(vertical = Space.s2), color = Palette.Hairline)
             if (showMonths) {
                 MoneyRow("", "Spent", "Sold", "Worth", header = true)
                 months.asReversed().forEach { m ->
@@ -87,7 +88,7 @@ fun MoneySection(paid: PaidSummary, vm: MoneyViewModel = viewModel(factory = App
 /** What was paid for the copies with a price paid, what they're worth now, and the difference. */
 @Composable
 private fun PaidRow(p: PaidSummary) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
             Text("Paid", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             Text(formatUsd(p.paid), style = MaterialTheme.typography.titleMedium.merge(TabularNums))
@@ -107,7 +108,7 @@ private fun PaidRow(p: PaidSummary) {
 private fun MoneyRow(month: String, spent: String, sold: String, worth: String, header: Boolean = false) {
     val style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium
     val muted = if (header) Palette.Muted else Palette.Text
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Text(month, style = style, color = Palette.Muted, modifier = Modifier.width(44.dp))
         Text(spent, style = style, color = muted, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))
         Text(sold, style = style, color = if (header) Palette.Muted else Palette.Success, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +51,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
                 Choice(level.label, level.detail, s.level == level) { update { it.copy(level = level) } }
             }
             Heading("When it's not sure")
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 UnsureAction.entries.forEach { a -> SelectPill(a.label, s.unsure == a, { update { it.copy(unsure = a) } }) }
             }
             Text(
@@ -61,7 +62,7 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
-                modifier = Modifier.padding(top = 6.dp, bottom = 4.dp),
+                modifier = Modifier.padding(top = Space.s2, bottom = Space.s1),
             )
 
             Heading("Skip")
@@ -69,8 +70,8 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
             Toggle("Basic lands", null, s.skipBasics) { on -> update { it.copy(skipBasics = on) } }
             Toggle("Tokens and emblems", null, s.skipTokens) { on -> update { it.copy(skipTokens = on) } }
             if (AppSettings.showPrices) {
-                Text("Cards worth less than", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Cards worth less than", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = Space.s1, bottom = Space.s2))
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     listOf<Double?>(null, 0.10, 0.25, 0.50, 1.0).forEach { v ->
                         val label = if (v == null) "Off" else if (v < 1) "${(v * 100).toInt()}¢" else "$${v.toInt()}"
                         SelectPill(label, s.skipUnder == v, { update { it.copy(skipUnder = v) } })
@@ -96,9 +97,9 @@ fun ScanSettingsEditor(modifier: Modifier = Modifier) {
         Toggle("Centering check", "Shows how evenly each card's border is printed, like 55/45.", s.centering) { on -> update { it.copy(centering = on) } }
         Toggle("Spot proxies", "Says when a card doesn't look like its real printing.", s.proxyCheck) { on -> update { it.copy(proxyCheck = on) } }
         Toggle("Voice commands", "Say foil, not foil, undo, set aside, skip, or a number of copies.", s.voice) { on -> update { it.copy(voice = on) } }
-        Text("Zoom", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+        Text("Zoom", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = Space.s1))
         Text("Hold the phone farther back for less blur and glare.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-        Row(Modifier.padding(top = 6.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.padding(top = Space.s2, bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf(1f, 1.5f, 2f).forEach { z ->
                 val label = if (z == 1f) "1×" else if (z == 2f) "2×" else "1.5×"
                 SelectPill(label, s.zoom == z, { update { it.copy(zoom = z) } })
@@ -112,7 +113,7 @@ private fun SoundPills(selected: ScanSound, onPick: (ScanSound) -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // Previews made a tone generator; free it when the settings close (the scanner makes its own again).
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { ScanFeedback.release() } }
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = Space.s1), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
         ScanSound.entries.forEach { sound ->
             SelectPill(sound.label, selected == sound, {
                 onPick(sound)
@@ -124,24 +125,24 @@ private fun SoundPills(selected: ScanSound, onPick: (ScanSound) -> Unit) {
 
 @Composable
 private fun Heading(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
+    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.padding(top = Space.s4, bottom = Space.s2))
 }
 
 @Composable
 private fun Toggle(title: String, body: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             if (body != null) Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
     }
 }
 
 @Composable
 private fun Choice(title: String, body: String, selected: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)

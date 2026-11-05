@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -115,15 +116,15 @@ fun ScanHintsOverlay(targets: Map<String, Rect>, onDone: () -> Unit) {
             Modifier.align(Alignment.BottomCenter).padding(bottom = with(density) { (boxHeight - target.top + gap).coerceAtLeast(0f).toDp() })
         }
         Surface(
-            cardModifier.padding(horizontal = 24.dp).widthIn(max = 360.dp).fillMaxWidth(),
+            cardModifier.padding(horizontal = Space.s6).widthIn(max = 360.dp).fillMaxWidth(),
             shape = RoundedCornerShape(Corners.Medium),
             color = Palette.Surface,
         ) {
-            Column(Modifier.padding(16.dp)) {
+            Column(Modifier.padding(Space.s4)) {
                 Text("${i + 1} of ${steps.size}", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                 Text(hint.title, style = MaterialTheme.typography.titleMedium)
                 Text(hint.body, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onDone) { Text("Skip", color = Palette.Muted) }
                     Spacer(Modifier.weight(1f))

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -220,12 +221,12 @@ internal fun DropChip(label: String, onClick: () -> Unit, leading: (@Composable 
             .clip(RoundedCornerShape(Corners.Small))
             .background(Palette.SurfaceHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s3, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
             leading()
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Space.s2))
         }
         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
         if (trailing) Icon(Icons.Outlined.ExpandMore, null, Modifier.size(18.dp), tint = Palette.Icon)
@@ -366,7 +367,7 @@ internal fun BoxPickMenu(
             HorizontalDivider(color = Palette.Rule)
             Text(
                 "Decks", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                modifier = Modifier.padding(start = Space.s4, top = Space.s2, bottom = Space.s1),
             )
             decks.forEach { d ->
                 val mine = inDeck && here?.deckId == d.id

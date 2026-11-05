@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,7 +44,7 @@ private fun SlimSnackbar(data: SnackbarData, onLongPress: (() -> Unit)?) {
         if (it != SwipeToDismissBoxValue.Settled) data.dismiss()
         true
     })
-    SwipeToDismissBox(swipe, backgroundContent = {}, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+    SwipeToDismissBox(swipe, backgroundContent = {}, modifier = Modifier.padding(horizontal = Space.s3, vertical = Space.s2)) {
         Surface(
             shape = RoundedCornerShape(Corners.Medium),
             color = MaterialTheme.colorScheme.inverseSurface,
@@ -52,10 +53,10 @@ private fun SlimSnackbar(data: SnackbarData, onLongPress: (() -> Unit)?) {
             modifier = Modifier.fillMaxWidth().widthIn(max = 560.dp)
                 .then(if (onLongPress != null) Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) } else Modifier),
         ) {
-            Row(Modifier.heightIn(min = 44.dp).padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.heightIn(min = 44.dp).padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     data.visuals.message, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+                    modifier = Modifier.weight(1f).padding(vertical = Space.s2),
                 )
                 data.visuals.actionLabel?.let { label ->
                     TextButton(onClick = { data.performAction() }) {

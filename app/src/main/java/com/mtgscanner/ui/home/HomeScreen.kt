@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import kotlin.math.roundToInt
 import com.mtgscanner.ui.components.formatPrimary
 import com.mtgscanner.ui.components.primaryValue
@@ -210,7 +211,7 @@ fun HomeScreen(
             }
             browseWith(f, ColorSplit.label(key))
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Space.s3))
         com.mtgscanner.ui.settings.BackupReminder(hasCards = ui.loaded && ui.totalCards > 0)
         WhatsNewLine()
         val complete by vm.completeDecks.collectAsStateWithLifecycle()
@@ -237,7 +238,7 @@ fun HomeScreen(
                         NewestStrip(ui.recent, onOpenCard, shared = shared(section))
                     }
                     HomeSection.TILES -> {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(Space.s2))
                         StatTileRow(tiles, onTap = { openTile(it) }, onEdit = { editingTiles = true })
                     }
                     HomeSection.TO_SORT -> if (!toSort.isEmpty) {
@@ -262,7 +263,7 @@ fun HomeScreen(
                 }
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Space.s6))
     }
 
     if (finding) com.mtgscanner.ui.collection.WhereIsSheet(onOpenCard = { finding = false; onOpenCard(it) }, onDismiss = { finding = false })
@@ -291,7 +292,7 @@ fun HomeScreen(
 
 @Composable
 private fun Header(onSettings: () -> Unit, onBell: () -> Unit, onEdit: () -> Unit, onFind: (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, top = Space.s3, bottom = Space.s3), verticalAlignment = Alignment.CenterVertically) {
         Text("Grimoire", style = MaterialTheme.typography.titleLarge)
         NotificationBell(onBell)
         Spacer(Modifier.weight(1f))
@@ -307,10 +308,10 @@ private fun Header(onSettings: () -> Unit, onBell: () -> Unit, onEdit: () -> Uni
  */
 @Composable
 internal fun HomeHeading(title: String, action: String? = null, onAction: () -> Unit = {}) {
-    Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
-        HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = Palette.Hairline)
+    Column(Modifier.fillMaxWidth().padding(top = Space.s4)) {
+        HorizontalDivider(Modifier.padding(horizontal = Space.s4), thickness = 1.dp, color = Palette.Hairline)
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = 16.dp, end = 4.dp),
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = Space.s4, end = Space.s1),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge, color = Palette.Text, modifier = Modifier.weight(1f))
@@ -324,7 +325,7 @@ internal fun HomeHeading(title: String, action: String? = null, onAction: () -> 
 private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
     val shape = RoundedCornerShape(Corners.Medium)
     Box(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4)
             .clip(shape)
             .background(Palette.BoxCard)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
@@ -349,7 +350,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                 ),
             )
         }
-        Column(Modifier.padding(20.dp)) {
+        Column(Modifier.padding(Space.s6)) {
             val prices = AppSettings.showPrices
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -368,7 +369,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
             // With large text the change moves to its own line whole, rather than squeezing "since added" into a column.
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
-                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text, modifier = Modifier.padding(end = 10.dp))
+                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text, modifier = Modifier.padding(end = Space.s3))
                 else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
                 if (prices && ui.valueAtAdd > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -378,7 +379,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
                 }
             }
             if (prices && ui.history.size >= 2) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 ValueChart(ui.history, Modifier.fillMaxWidth().height(72.dp))
                 Row(Modifier.fillMaxWidth()) {
                     Text(shortDay(ui.history.first().day), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
@@ -396,7 +397,7 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
 
 @Composable
 private fun CardCarousel(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit, showGain: Boolean = false, shared: Set<Long> = emptySet()) {
-    LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    LazyRow(contentPadding = PaddingValues(horizontal = Space.s3), horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
         items(cards, key = { it.id }) { c ->
             CardTile(
                 imageUrl = c.imageUrl,
@@ -425,7 +426,7 @@ private fun PriceMovesSection(
     var picked by rememberSaveable { mutableStateOf<Boolean?>(null) }
     val gains = picked ?: movers.isEmpty()
     HomeHeading("Price moves", if (gains && gainers.isNotEmpty()) "See all" else null, onSeeGains)
-    Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
         SelectPill("This week", !gains, { picked = false })
         SelectPill("Since added", gains, { picked = true })
     }
@@ -435,7 +436,7 @@ private fun PriceMovesSection(
         else -> null
     }
     when {
-        empty != null -> Text(empty, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp))
+        empty != null -> Text(empty, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4))
         gains -> CardCarousel(gainers, onOpenCard, showGain = true, shared = shared)
         else -> MoversCarousel(movers, onOpenCard, shared = shared)
     }
@@ -468,7 +469,7 @@ internal fun shortDay(day: String): String = runCatching {
 @Composable
 private fun ColorBar(split: List<Pair<String, Int>>, onPick: (String) -> Unit) {
     val total = split.sumOf { it.second }.coerceAtLeast(1)
-    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp)) {
+    Column(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s4, top = Space.s3)) {
         Row(Modifier.fillMaxWidth().height(28.dp), verticalAlignment = Alignment.CenterVertically) {
             split.forEachIndexed { i, (key, n) ->
                 val color = if (key == "M") com.mtgscanner.ui.theme.MtgColors.Multi else com.mtgscanner.ui.theme.MtgColors.barFor(key[0])

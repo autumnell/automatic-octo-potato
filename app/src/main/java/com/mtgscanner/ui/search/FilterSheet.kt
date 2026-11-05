@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.search
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,7 +74,7 @@ fun FilterSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Palette.Surface,
     ) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4).navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Filters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = { onChange(SearchFilters()) }) { Text("Reset", color = Palette.Muted) }
@@ -83,7 +84,7 @@ fun FilterSheet(
             ToggleRow("Tokens & art cards", f.tokens) { onChange(f.copy(tokens = it)) }
 
             Heading("Format")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 val list = SearchFilters.MAIN_FORMATS + if (moreFormats) SearchFilters.MORE_FORMATS else emptyList()
                 list.forEach { (label, key) ->
                     SelectPill(label, f.format == key, {
@@ -94,16 +95,16 @@ fun FilterSheet(
             }
 
             Heading("Color")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 CardColors.PIPS.forEach { c ->
                     val on = c in f.colors
                     SelectPill(COLOR_NAMES[c] ?: c, on, { onChange(f.copy(colors = if (on) f.colors - c else f.colors + c)) }, leading = { ColorPip(c[0]) })
                 }
             }
-            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.padding(top = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 ColorMatch.entries.forEach { m -> SelectPill(m.label, f.colorMatch == m, { onChange(f.copy(colorMatch = m)) }) }
             }
-            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.padding(top = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Colors", !f.byIdentity, { onChange(f.copy(byIdentity = false)) })
                 SelectPill("Identity", f.byIdentity, { onChange(f.copy(byIdentity = true)) })
             }
@@ -114,11 +115,11 @@ fun FilterSheet(
             TypeGroup("Card type", SearchFilters.CARD_TYPES, f, onChange)
             val known = (SearchFilters.SUPERTYPES + SearchFilters.CARD_TYPES + SearchFilters.SUBTYPES).map { it.lowercase() }.toSet()
             TypeGroup("Subtype", SearchFilters.SUBTYPES + f.types.map { it.word }.filter { it.lowercase() !in known }, f, onChange)
-            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(top = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 SmallField(otherType, { otherType = it }, "Other type", Modifier.weight(1f), onDone = {
                     if (otherType.isNotBlank()) { onChange(f.copy(types = f.types + TypeTerm(otherType.trim()))); otherType = "" }
                 })
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.s2))
                 SelectPill("Add", false, {
                     if (otherType.isNotBlank()) { onChange(f.copy(types = f.types + TypeTerm(otherType.trim()))); otherType = "" }
                 }, leading = { Icon(Icons.Outlined.Add, null, Modifier.size(14.dp), tint = Palette.Icon) })
@@ -127,14 +128,14 @@ fun FilterSheet(
             Heading("Stats")
             SearchFilters.STATS.forEach { stat ->
                 val t = f.stat(stat)
-                Text(SearchFilters.statLabel(stat), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+                Text(SearchFilters.statLabel(stat), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Space.s2, bottom = Space.s1))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         SearchFilters.OPS.forEach { op ->
                             SelectPill(op.replace("<=", "≤").replace(">=", "≥"), t.op == op, { onChange(f.withStat(t.copy(op = op))) })
                         }
                     }
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     // Text keyboard so "-" and "*" can be typed.
                     SmallField(
                         t.value,
@@ -146,7 +147,7 @@ fun FilterSheet(
             }
 
             Heading("Language & sort")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 Dropdown(
                     "Lang: " + (SearchFilters.LANGUAGES.firstOrNull { it.second == f.lang }?.first ?: f.lang),
                     SearchFilters.LANGUAGES,
@@ -166,12 +167,12 @@ fun FilterSheet(
 
 @Composable
 private fun Heading(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Text, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+    Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Text, modifier = Modifier.padding(top = Space.s4, bottom = Space.s2))
 }
 
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyLarge, color = if (enabled) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f))
         Switch(checked, onChange, enabled = enabled, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent))
     }
@@ -180,8 +181,8 @@ private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean = true, 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TypeGroup(title: String, words: List<String>, f: SearchFilters, onChange: (SearchFilters) -> Unit) {
-    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text(title, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s2))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
         words.forEach { w ->
             val term = f.types.firstOrNull { it.word.equals(w, ignoreCase = true) }
             TypeChip(w, term) { onChange(f.cycleType(w)) }
@@ -204,12 +205,12 @@ private fun TypeChip(word: String, term: TypeTerm?, onClick: () -> Unit) {
             .background(if (term == null) Palette.SurfaceHigh else color.copy(alpha = 0.18f))
             .border(1.dp, color, RoundedCornerShape(Corners.Small))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = Space.s4, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (term != null) {
             Text(if (term.not) "NOT" else "IS", style = MaterialTheme.typography.labelSmall, color = color)
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Space.s2))
         }
         Text(word, style = MaterialTheme.typography.labelMedium, color = Palette.Text)
     }
@@ -225,7 +226,7 @@ private fun SmallField(
     onDone: () -> Unit = {},
 ) {
     Box(
-        modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(horizontal = Space.s3, vertical = Space.s3),
         contentAlignment = Alignment.CenterStart,
     ) {
         if (value.isEmpty()) Text(placeholder, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -87,7 +88,7 @@ fun ManaCost(cost: String, size: Dp = 16.dp) {
     val spoken = remember(cost) { "Mana cost " + com.mtgscanner.util.ManaSpeech.of(cost) }
     Row(
         Modifier.clearAndSetSemantics { contentDescription = spoken },
-        horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.s1), verticalAlignment = Alignment.CenterVertically,
     ) {
         symbols.forEach { sym ->
             if (sym == "//") {
@@ -171,8 +172,8 @@ fun scryfallImageFallback(url: String?): String? {
 }
 
 /**
- * The main button on a screen: flat, filled with the accent. [hero] adds the accent gradient; it is kept for
- * one button in the app, the Add after a scan.
+ * The main button on a screen (one per screen, design/Design.md): flat, filled with the accent. [hero] is kept for
+ * old callers and looks the same; the design system bans gradient buttons.
  */
 @Composable
 fun GradientButton(
@@ -190,20 +191,19 @@ fun GradientButton(
             .then(
                 when {
                     !enabled -> Modifier.background(Palette.SurfaceHigh)
-                    hero -> Modifier.background(Palette.AccentGradient)
                     else -> Modifier.background(Palette.Accent)
                 },
             )
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = Space.s4, vertical = Space.s3),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
             Icon(icon, null, tint = if (enabled) Palette.OnAccent else Palette.Icon, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
         }
-        Text(text, color = if (enabled) Palette.OnAccent else Palette.Muted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Text(text, color = if (enabled) Palette.OnAccent else Palette.Faint, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -211,15 +211,15 @@ fun GradientButton(
 @Composable
 fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, icon: ImageVector? = null) {
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(Space.s4), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
                     Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                 }
                 Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.s2))
             Text(value, style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text, maxLines = 1)
             if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
@@ -228,7 +228,7 @@ fun StatTile(label: String, value: String, modifier: Modifier = Modifier, sub: S
 
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Composable RowScope.() -> Unit)? = null) {
-    Row(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
         action?.invoke(this)
     }
@@ -244,9 +244,9 @@ fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
         color = Palette.SurfaceHigh,
         border = if (active) BorderStroke(1.dp, Palette.Text) else null,
     ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = if (active) Palette.Text else Palette.Icon, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
         }
     }
@@ -262,12 +262,12 @@ fun SelectPill(label: String, selected: Boolean, onClick: () -> Unit, leading: (
             .background(Palette.SurfaceHigh)
             .border(1.dp, if (selected) Palette.Text else Color.Transparent, RoundedCornerShape(Corners.Small))
             .selectable(selected = selected, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = Space.s4, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
             leading()
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Space.s2))
         }
         Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Text, fontWeight = if (selected) FontWeight.SemiBold else null)
     }
@@ -288,7 +288,7 @@ fun FoilTag(modifier: Modifier = Modifier) {
     Box(
         modifier
             .border(1.dp, silver, RoundedCornerShape(Corners.Small))
-            .padding(horizontal = 6.dp, vertical = 1.dp),
+            .padding(horizontal = Space.s2, vertical = 1.dp),
     ) {
         Text("Foil", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = silver)
     }
@@ -322,14 +322,14 @@ fun CardTile(
             .clip(RoundedCornerShape(Corners.Small))
             .background(tint)
             .combinedClickable(interactionSource = press, indication = LocalIndication.current, onClick = onClick, onLongClick = onLongClick)
-            .padding(4.dp),
+            .padding(Space.s1),
     ) {
         Box {
             // Holding the picture shows it big; with a tile long press (picking), the rest of the tile keeps it.
             CardImage(imageUrl, Modifier.fillMaxWidth().then(imageModifier), zoom = true, onTap = if (onLongClick != null) onClick else null)
             if (selected) {
                 Box(
-                    Modifier.align(Alignment.TopStart).padding(6.dp).size(24.dp).clip(CircleShape).background(Palette.Accent),
+                    Modifier.align(Alignment.TopStart).padding(Space.s2).size(24.dp).clip(CircleShape).background(Palette.Accent),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Outlined.Check, "Selected", tint = Palette.OnAccent, modifier = Modifier.size(16.dp)) }
             }
@@ -337,16 +337,16 @@ fun CardTile(
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(6.dp)
+                        .padding(Space.s2)
                         .clip(RoundedCornerShape(Corners.Small))
                         .background(Color.Black.copy(alpha = 0.75f))
-                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                        .padding(horizontal = Space.s2, vertical = Space.s1),
                 ) { Text("×$quantity", color = Color.White, style = MaterialTheme.typography.labelMedium) }
             }
-            if (foil) FoilTag(Modifier.align(Alignment.BottomStart).padding(6.dp))
-            if (owned > 0 && !selected) OwnedBadge(owned, Modifier.align(Alignment.TopStart).padding(6.dp))
+            if (foil) FoilTag(Modifier.align(Alignment.BottomStart).padding(Space.s2))
+            if (owned > 0 && !selected) OwnedBadge(owned, Modifier.align(Alignment.TopStart).padding(Space.s2))
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(Space.s1))
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (AppSettings.showPrices) Text(price, style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.Text)
     }
@@ -365,12 +365,12 @@ fun OwnedBadge(count: Int, modifier: Modifier = Modifier, foil: Int = 0) {
         modifier
             .clip(RoundedCornerShape(Corners.Small))
             .background(Palette.Accent)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = Space.s2, vertical = Space.s1)
             .semantics(mergeDescendants = true) { contentDescription = "You own $text" },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Outlined.Check, null, tint = Palette.OnAccent, modifier = Modifier.size(12.dp))
-        Spacer(Modifier.width(2.dp))
+        Spacer(Modifier.width(Space.s1))
         Text(text, color = Palette.OnAccent, style = MaterialTheme.typography.labelSmall)
     }
 }

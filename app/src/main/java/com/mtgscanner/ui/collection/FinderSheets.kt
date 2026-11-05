@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,11 +25,11 @@ import com.mtgscanner.ui.components.ruleBelow
 @Composable
 internal fun FoundRow(c: CollectionCard, where: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s4).ruleBelow().padding(vertical = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(c.smallImageUrl ?: c.imageUrl, Modifier.width(40.dp))
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -36,8 +37,8 @@ internal fun FoundRow(c: CollectionCard, where: String, onClick: () -> Unit) {
                     style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (c.foil) { Spacer(Modifier.width(6.dp)); FoilTag() }
-                Spacer(Modifier.width(6.dp))
+                if (c.foil) { Spacer(Modifier.width(Space.s2)); FoilTag() }
+                Spacer(Modifier.width(Space.s2))
                 Text(c.setCode, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             }
             Text(where, style = MaterialTheme.typography.bodySmall, color = Palette.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)

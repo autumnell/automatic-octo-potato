@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -243,7 +244,7 @@ private fun LendDeckDialog(tools: DeckTools, deckName: String) {
         text = {
             Column {
                 Text(deckName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.s3))
                 OutlinedTextField(
                     value = who,
                     onValueChange = { who = it.take(30) },
@@ -253,12 +254,12 @@ private fun LendDeckDialog(tools: DeckTools, deckName: String) {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (recent.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(Modifier.height(Space.s2))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                         recent.forEach { n -> SelectPill(n, n.equals(name, ignoreCase = true), { who = n }) }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 Text("Every card kept in the deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             }
         },
@@ -275,20 +276,20 @@ private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Palette.Surface,
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("From your cards", style = MaterialTheme.typography.titleLarge)
             Text("Cards you own that decks with this commander play", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             when {
-                state.loading -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = 12.dp))
-                state.failed -> EmptyState("Couldn't reach EDHREC or Scryfall", Modifier.padding(vertical = 24.dp))
-                state.ideas.isEmpty() -> EmptyState("Nothing new in your boxes", Modifier.padding(vertical = 24.dp))
+                state.loading -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
+                state.failed -> EmptyState("Couldn't reach EDHREC or Scryfall", Modifier.padding(vertical = Space.s6))
+                state.ideas.isEmpty() -> EmptyState("Nothing new in your boxes", Modifier.padding(vertical = Space.s6))
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
                     items(state.ideas, key = { it.name }) { idea ->
                         val added = idea.name in state.added
-                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                             CardImage(idea.imageUrl, Modifier.width(40.dp), zoom = true)
-                            Spacer(Modifier.width(10.dp))
+                            Spacer(Modifier.width(Space.s3))
                             Column(Modifier.weight(1f)) {
                                 Text(idea.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 val share = idea.share?.let { "In ${(it * 100).toInt()}% of decks · " }.orEmpty()
@@ -306,7 +307,7 @@ private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }
@@ -326,7 +327,7 @@ private fun PickOtherDeck(tools: DeckTools, repo: CollectionRepository, selfId: 
                 items(others, key = { it.id }) { d ->
                     Text(
                         d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth().clickable { tools.pickingOther = false; tools.other = d }.padding(vertical = 12.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { tools.pickingOther = false; tools.other = d }.padding(vertical = Space.s3),
                     )
                 }
             }
@@ -349,7 +350,7 @@ private fun BothSheet(other: Deck, ui: DeckUi, repo: CollectionRepository, onDis
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Palette.Surface,
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("With ${other.name}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 when {
@@ -359,10 +360,10 @@ private fun BothSheet(other: Deck, ui: DeckUi, repo: CollectionRepository, onDis
                 },
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
                 items(rows, key = { it.name }) { r ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                         Text(r.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         Text(
                             if (r.short > 0) "Short ${r.short}" else "${r.owned} owned",
@@ -372,7 +373,7 @@ private fun BothSheet(other: Deck, ui: DeckUi, repo: CollectionRepository, onDis
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

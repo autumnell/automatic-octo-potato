@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -150,7 +151,7 @@ fun BoxEditorSheet(
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = Space.s4)
                 .imePadding()
                 .navigationBarsPadding(),
         ) {
@@ -159,7 +160,7 @@ fun BoxEditorSheet(
                 TextButton(onClick = onDismiss) { Text("Cancel") }
             }
             StepBar(step, showStart = isNew, canJump = draft.name.isNotBlank() || !isNew) { step = it }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
 
             when (step) {
                 1 -> StartStep(onPick = ::startFrom, onTemplate = onTemplate)
@@ -184,18 +185,18 @@ fun BoxEditorSheet(
             }
 
             if (step == 3) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(Space.s4))
                 LivePreview(rules(), editingId)
             }
 
             if (step == 3) {
                 // A range whose low end is above its high end lets no card in.
                 rangeWarnings(rules()).forEach { w ->
-                    Text(w, style = MaterialTheme.typography.bodySmall, color = Palette.GoldText, modifier = Modifier.padding(top = 8.dp))
+                    Text(w, style = MaterialTheme.typography.bodySmall, color = Palette.GoldText, modifier = Modifier.padding(top = Space.s2))
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
             when (step) {
                 1 -> Unit
                 2 -> GradientButton("Next: what goes in it", { step = 3 }, Modifier.fillMaxWidth(), enabled = draft.name.isNotBlank())
@@ -213,7 +214,7 @@ fun BoxEditorSheet(
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Try it first") }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Space.s6))
         }
     }
 }

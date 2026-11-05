@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,20 +54,20 @@ fun DeckShortagesSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
         SharedCards.shortages(counted.map { it.deck.name to com.mtgscanner.data.ParsedDecks.of(it.deck) }, owned)
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Palette.Surface) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Shortages across decks", style = MaterialTheme.typography.titleLarge)
             Text(
                 if (rows.isEmpty()) "Enough copies to keep all ${counted.size} decks built at once"
                 else "Short ${rows.sumOf { it.short }} copies to keep all ${counted.size} decks built at once",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Include Want and Maybe", withUnbuilt, { withUnbuilt = !withUnbuilt })
                 if (rows.isNotEmpty()) TextButton(onClick = { vm.wishShort(rows) }) { Text("Wish for them") }
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
                 items(rows, key = { it.name }) { r ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(r.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
@@ -82,7 +83,7 @@ fun DeckShortagesSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
                     HorizontalDivider(color = Palette.Rule)
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

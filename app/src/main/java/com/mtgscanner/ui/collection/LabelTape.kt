@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -49,7 +50,7 @@ fun LabelTape(text: String, modifier: Modifier = Modifier, size: TextUnit = 15.s
                 val y = 1.dp.toPx()
                 drawLine(Color.White.copy(alpha = 0.7f), Offset(0f, y), Offset(this.size.width, y), y)
             }
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = Space.s2, vertical = Space.s1),
     ) {
         Text(text.uppercase(), style = Tape.style(size), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

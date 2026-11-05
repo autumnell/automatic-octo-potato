@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.sell
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -101,7 +102,7 @@ internal fun ColumnScope.BuylistContent(onOpenCard: (Long) -> Unit) {
     var skipped by remember { mutableStateOf(setOf<Long>()) }
 
     run {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Space.s4, vertical = Space.s1), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             MINIMUMS.forEach { m -> SelectPill("${minLabel(m)}+", min == m, { min = m; skipped = emptySet() }) }
         }
         val data = input ?: return@run
@@ -119,20 +120,20 @@ internal fun ColumnScope.BuylistContent(onOpenCard: (Long) -> Unit) {
         if (pulls.isEmpty()) {
             EmptyState(
                 if (listVersion == 0) "No buylist yet" else "Nothing at ${minLabel(min)}+",
-                Modifier.padding(top = 24.dp),
+                Modifier.padding(top = Space.s6),
                 body = if (listVersion == 0) "It downloads once a day" else null,
             )
             return@run
         }
         val chosen = pulls.filter { it.card.id !in skipped }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = Space.s2)) {
             items(pulls, key = { it.card.id }) { p ->
                 val on = p.card.id !in skipped
                 PullRow(p, boxNames[p.card.boxId], on, first = p === pulls.first(), last = p === pulls.last(), onToggle = { skipped = if (on) skipped + p.card.id else skipped - p.card.id }, onOpen = { onOpenCard(p.card.id) })
             }
         }
         Surface(color = Palette.Surface) {
-            Column(Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth().padding(Space.s4).navigationBarsPadding()) {
                 val n = chosen.sumOf { it.copies }
                 GradientButton(
                     "Mark $n sold · ${formatUsd(chosen.sumOf { it.total })}",
@@ -149,13 +150,13 @@ internal fun ColumnScope.BuylistContent(onOpenCard: (Long) -> Unit) {
 private fun PullRow(p: BuyPull, box: String?, on: Boolean, first: Boolean, last: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
     val c = p.card
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).panelRow(first, last).clickable(onClick = onOpen)
-            .padding(start = 0.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first, last).clickable(onClick = onOpen)
+            .padding(start = 0.dp, end = Space.s3, top = Space.s1, bottom = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(on, { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
         CardImage(c.smallImageUrl, Modifier.width(36.dp), zoom = true)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val where = listOfNotNull(box, BuylistMath.pageOf(c.binderSlot)).joinToString(" · ")
@@ -164,7 +165,7 @@ private fun PullRow(p: BuyPull, box: String?, on: Boolean, first: Boolean, last:
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.s2))
         Column(horizontalAlignment = Alignment.End) {
             Text(formatUsd(p.total), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
             if (p.copies > 1) Text("${formatUsd(p.each)} each", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)

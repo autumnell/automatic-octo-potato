@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -45,7 +46,7 @@ fun ScanViewModel.reviewBatch() = _state.update {
 fun BatchChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val list = state.batch ?: return
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Batch", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 Text(if (list.size == 1) "1 card" else "${list.size} cards", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)

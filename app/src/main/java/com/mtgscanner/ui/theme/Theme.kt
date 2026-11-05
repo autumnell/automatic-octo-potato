@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -87,10 +86,20 @@ object Palette {
     val Text: Color get() = if (dark) Color(0xFFECE8E1) else Color(0xFF1C1B19)
     /** Secondary text: 4.6:1 or better on [Background], [Surface] and [SurfaceHigh] in both modes. */
     val Muted: Color get() = if (dark) Color(0xFFA29C92) else Color(0xFF5E5A52)
+    /** Third text level: hints, timestamps, disabled labels. 3:1 or better (for large or non-essential text only). */
+    val Faint: Color get() = if (dark) Color(0xFF77716A) else Color(0xFF8A8478)
     /** Default icon tint: a quiet warm gray, a touch softer than [Muted]. */
     val Icon: Color get() = if (dark) Color(0xFF99938A) else Color(0xFF67625A)
     /** Secondary text and icons on always-dark surfaces (camera, scrims over art, game screen), in both modes. */
     val OnDarkMuted: Color get() = Color(0xFFB4B5BB)
+    /** Gains and losses on always-dark surfaces (card art, the game table), in both modes. */
+    val OnDarkSuccess: Color get() = Color(0xFF4CC38A)
+    val OnDarkDanger: Color get() = Color(0xFFE5534B)
+    /** The game screens' always-dark table and its panels (players face the phone from all sides, so no light mode). */
+    val Stage: Color get() = Color(0xFF07080A)
+    val StagePanel: Color get() = Color(0xFF22242B)
+    /** Under card art while it loads, and the back of a scanned card in the fan. */
+    val ArtBase: Color get() = Color(0xFF15130F)
     /** Borders of inputs, outlined buttons and chips. */
     val Outline: Color get() = when { black -> Color(0xFF34302A); dark -> Color(0xFF423D36); else -> Color(0xFFB0A999) }
     /** The 1dp line under list rows, tab rows and the bottom bar's top edge. */
@@ -100,7 +109,6 @@ object Palette {
     val Danger: Color get() = if (dark) Color(0xFFE5534B) else Color(0xFFC62F28)
     val Success: Color get() = if (dark) Color(0xFF4CC38A) else Color(0xFF1E8E5A)
 
-    val AccentGradient: Brush get() = Brush.horizontalGradient(listOf(Accent, AccentDeep))
 }
 
 /** WCAG contrast ratio between two colors (1..21). */
@@ -201,7 +209,7 @@ private fun scheme(): ColorScheme {
     )
 }
 
-private fun base(family: FontFamily, size: Int, weight: FontWeight, line: Int = (size * 1.35f).toInt(), spacing: Double = 0.0, figures: String? = null) =
+private fun base(family: FontFamily, size: Int, weight: FontWeight, line: Int = (size * 1.4f).toInt(), spacing: Double = 0.0, figures: String? = null) =
     TextStyle(fontFamily = family, fontWeight = weight, fontSize = size.sp, lineHeight = line.sp, letterSpacing = spacing.sp, fontFeatureSettings = figures)
 
 /** Heading sizes are set for Cormorant, which runs small; other fonts come down by their [AppFont.scale]. */
@@ -274,11 +282,28 @@ val PriceStyle: TextStyle
 
 /**
  * The two corner sizes: [Small] for chips and small controls; [Medium] for panels, sheets and dialogs.
- * Both are a near-square 3dp in the "Small step" look; card images keep [CardShape].
+ * Both are a near-square 4dp (on the 4pt grid); card images keep [CardShape].
  */
+/** Corner radius (design/design-tokens.json "radius"). One small radius everywhere: Grimoire is square-ish, not rounded. */
 object Corners {
-    val Small = 3.dp
-    val Medium = 3.dp
+    val Small = 4.dp
+    val Medium = 4.dp
+}
+
+/**
+ * Spacing steps (design/design-tokens.json "spacing"). Every padding, gap and spacer uses one of these: an 8pt grid,
+ * with 4 and 12 as half steps for tight inline gaps. See design/Design.md.
+ */
+object Space {
+    val s1 = 4.dp
+    val s2 = 8.dp
+    val s3 = 12.dp
+    val s4 = 16.dp
+    val s6 = 24.dp
+    val s8 = 32.dp
+    val s12 = 48.dp
+    /** Side margin of every screen. */
+    val gutter = s4
 }
 
 /** A real Magic card's corner, for card images (about 5% of the card's shorter side). */

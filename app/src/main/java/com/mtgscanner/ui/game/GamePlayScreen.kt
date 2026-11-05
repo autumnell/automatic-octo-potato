@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -222,7 +223,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
 
         // The middle: the game menu and undo. Day or night shows as a small chip once it's in play.
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 Box(
                     Modifier
                         .size(52.dp)
@@ -242,16 +243,16 @@ fun GamePlayScreen(onExit: () -> Unit) {
                 QuickButton(Icons.AutoMirrored.Outlined.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
             }
             if (g.dayNight != null) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.s2))
                 Row(
                     Modifier.clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.85f))
                         .border(1.dp, Palette.Gold, RoundedCornerShape(Corners.Small))
                         .clickable { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(horizontal = Space.s3, vertical = Space.s1),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(dayNightIcon(g.dayNight), null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(Space.s1))
                     Text(dayNightLabel(g.dayNight), color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
                 }
             }
@@ -292,7 +293,7 @@ private fun QuickButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 @Composable
 private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit, onDone: () -> Unit) {
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.85f)) {
-        Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(horizontal = Space.s6, vertical = Space.s4), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins!", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
             Text("Tap Done or Rematch to save.",
                 color = Palette.OnDarkMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)

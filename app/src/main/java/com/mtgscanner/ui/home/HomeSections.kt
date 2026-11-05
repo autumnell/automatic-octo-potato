@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.theme.Corners
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.mutableFloatStateOf
@@ -70,8 +71,8 @@ internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
         return
     }
     // On a panel, like Stats. Tapping a goal opens that goal, not just the list.
-    PlainGroup(Modifier.padding(horizontal = 16.dp)) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+    PlainGroup(Modifier.padding(horizontal = Space.s4)) {
+        Column(Modifier.padding(horizontal = Space.s3, vertical = Space.s1)) {
             val shown = goals.sortedBy { if (it.done) 1 else 0 }.take(3)
             shown.forEachIndexed { i, g -> GoalRow(g, rule = i < shown.lastIndex) { GoalsLaunch.open(g.goal.id); onGoals() } }
         }
@@ -81,7 +82,7 @@ internal fun GoalsPreview(goals: List<GoalProgress>, onGoals: () -> Unit) {
 /** A goal as a plain row: name and count, with a thin progress line under it. */
 @Composable
 private fun GoalRow(p: GoalProgress, rule: Boolean, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).then(if (rule) Modifier.ruleBelow() else Modifier).padding(horizontal = 4.dp, vertical = 10.dp)) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).then(if (rule) Modifier.ruleBelow() else Modifier).padding(horizontal = Space.s1, vertical = Space.s3)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.goal.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when {
@@ -94,7 +95,7 @@ private fun GoalRow(p: GoalProgress, rule: Boolean, onClick: () -> Unit) {
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.s2))
         LinearProgressIndicator(
             progress = { p.fraction },
             modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
@@ -108,7 +109,7 @@ private fun GoalRow(p: GoalProgress, rule: Boolean, onClick: () -> Unit) {
 /** Cards whose price moved most this week; the label is the change per copy. */
 @Composable
 internal fun MoversCarousel(movers: List<PriceMover>, onOpenCard: (Long) -> Unit, shared: Set<Long> = emptySet()) {
-    LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    LazyRow(contentPadding = PaddingValues(horizontal = Space.s3), horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
         items(movers, key = { it.card.id }) { m ->
             val diff = m.now - m.then
             CardTile(
@@ -158,7 +159,7 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(colorBar, { colorBar = it }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
                     Text("Color bar", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Text("Under the value", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(end = 12.dp))
+                    Text("Under the value", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(end = Space.s3))
                 }
                 HorizontalDivider(color = Palette.Rule)
                 rows.forEachIndexed { i, (section, on) ->
@@ -191,7 +192,7 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                             Icons.Outlined.DragHandle, "Drag to reorder", tint = Palette.Icon,
                             modifier = Modifier
                                 .size(48.dp)
-                                .padding(12.dp)
+                                .padding(Space.s3)
                                 .pointerInput(section) {
                                     detectVerticalDragGestures(
                                         onDragStart = { dragging = rows.indexOfFirst { it.first == section }; dragY = 0f; com.mtgscanner.util.Haptics.hold() },

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,16 +47,16 @@ fun alertLines(a: CardPriceAlert): String = listOfNotNull(
 @androidx.compose.runtime.Composable
 internal fun AlertsList(rows: List<AlertRow>, onOpenCard: (Long) -> Unit) {
     val ctx = LocalContext.current
-    PlainGroup(Modifier.padding(horizontal = 16.dp)) {
+    PlainGroup(Modifier.padding(horizontal = Space.s4)) {
         rows.forEachIndexed { i, r ->
             Row(
                 Modifier.fillMaxWidth()
                     .clickable(enabled = r.cardId != null) { r.cardId?.let(onOpenCard) }
                     .then(if (i < rows.lastIndex) Modifier.ruleBelow() else Modifier)
-                    .padding(start = 12.dp, end = 0.dp),
+                    .padding(start = Space.s3, end = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Column(Modifier.weight(1f).padding(vertical = Space.s2)) {
                     Text(
                         r.alert.name + if (r.alert.foil) " · foil" else "",
                         style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,

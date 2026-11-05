@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -81,16 +82,16 @@ internal fun ImportPreviewDialog(
                     TextButton(onClick = onChangeBox, enabled = idle) { Text("Change") }
                 }
                 busy?.let {
-                    Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Palette.Accent)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text(it, style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (offline) {
-                    Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.CloudOff, null, tint = Palette.Danger, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text("Offline. Retry when back online.", style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
                     }
                 }
@@ -99,14 +100,14 @@ internal fun ImportPreviewDialog(
                     val box = boxes[id]
                     val isOpen = open == id
                     Row(
-                        Modifier.fillMaxWidth().clickable { open = if (isOpen) null else id }.padding(vertical = 8.dp),
+                        Modifier.fillMaxWidth().clickable { open = if (isOpen) null else id }.padding(vertical = Space.s2),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             if (box == null) Icons.Outlined.AddBox else boxIcon(box.kind), null,
                             tint = Palette.Icon, modifier = Modifier.size(18.dp),
                         )
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Text(
                             box?.name ?: "New box \"Imported\"",
                             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
@@ -122,19 +123,19 @@ internal fun ImportPreviewDialog(
                             Text(
                                 "${plan.rows[i].quantity}  $name" + if (plan.rows[i].foil) " ✦" else "",
                                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-                                modifier = Modifier.padding(start = 28.dp, bottom = 2.dp),
+                                modifier = Modifier.padding(start = Space.s6, bottom = Space.s1),
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                         }
                         if (inBox.size > SHOWN_PER_BOX) {
-                            Text("and ${inBox.size - SHOWN_PER_BOX} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 28.dp, bottom = 4.dp))
+                            Text("and ${inBox.size - SHOWN_PER_BOX} more", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s6, bottom = Space.s1))
                         }
                     }
                 }
 
                 val other = plan.otherPrinting
                 if (other.isNotEmpty()) {
-                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = 6.dp))
+                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = Space.s2))
                     Text("Other printing (${other.sumOf { plan.rows[it].quantity }})", style = MaterialTheme.typography.titleSmall, color = Palette.GoldText)
                     other.forEach { i ->
                         val r = plan.rows[i]
@@ -149,7 +150,7 @@ internal fun ImportPreviewDialog(
                 }
 
                 if (missing.isNotEmpty()) {
-                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = 6.dp))
+                    HorizontalDivider(color = Palette.Rule, modifier = Modifier.padding(vertical = Space.s2))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "Not found (${missing.sumOf { plan.rows[it].quantity }})",

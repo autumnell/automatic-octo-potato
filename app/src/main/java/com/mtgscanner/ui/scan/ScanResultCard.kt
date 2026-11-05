@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Size
@@ -142,10 +143,10 @@ internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewMode
         shape = RoundedCornerShape(Corners.Medium),
         color = Palette.Surface.copy(alpha = 0.96f),
     ) {
-        Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 12.dp)) {
+        Column(Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s4, bottom = Space.s3)) {
             Row {
                 CardImage(card.imageUrl, Modifier.width(84.dp).foilShimmer(foil))
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(Space.s4))
                 Column(Modifier.weight(1f)) {
                     // Name, with its cost at the right as on the card.
                     Row(verticalAlignment = Alignment.Top) {
@@ -153,39 +154,39 @@ internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewMode
                             card.name, style = MaterialTheme.typography.titleMedium, color = Palette.Text,
                             maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Box(Modifier.padding(top = 3.dp)) { ManaCost(card.effectiveManaCost, size = 14.dp) }
+                        Spacer(Modifier.width(Space.s2))
+                        Box(Modifier.padding(top = Space.s1)) { ManaCost(card.effectiveManaCost, size = 14.dp) }
                     }
                     Text(card.effectiveTypeLine, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SetIcon(card.set, size = 14.dp, tint = Palette.Muted)
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text(
                             "${card.set.uppercase()} · #${card.collectorNumber}" + (state.currentLang?.let { " · ${it.uppercase()}" } ?: ""),
                             style = MaterialTheme.typography.labelMedium.merge(TabularNums),
                             color = Palette.Muted,
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         RarityDot(card.rarity, 7.dp)
                         if (foil && !(card.hasFoil && card.hasNonFoil)) {
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Space.s2))
                             FoilTag()
                         }
                     }
                     // Set lock on, and this card is from another set (it said so in its footer).
                     val lock = com.mtgscanner.data.SortPrefs.setLock
                     if (lock != null && !card.set.equals(lock, ignoreCase = true)) {
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(Space.s1))
                         Note("Not in ${lock.uppercase()}", Palette.Gold)
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (AppSettings.showPrices) {
                             Text(scryfallPrice(card, foil), style = MaterialTheme.typography.headlineSmall.merge(TabularNums), color = Palette.Text)
                             // Price check fetches today's price; say so once it's in.
                             if (state.target == ScanTarget.CHECK && state.priceFresh) {
-                                Spacer(Modifier.width(6.dp))
+                                Spacer(Modifier.width(Space.s2))
                                 Text("today", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
                             }
                         }
@@ -207,42 +208,42 @@ internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewMode
                     add {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Favorite, null, tint = Palette.Success, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(Space.s2))
                             Note(if (w.wanted > 1) "On your wishlist (want ${w.wanted})" else "On your wishlist!", Palette.Success)
                         }
                     }
                 }
             }
             if (notes.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) { notes.forEach { it() } }
+                Spacer(Modifier.height(Space.s3))
+                Column(verticalArrangement = Arrangement.spacedBy(Space.s1)) { notes.forEach { it() } }
             }
             // Foil for this card only, when it comes both ways.
             if (card.hasFoil && card.hasNonFoil && state.target != ScanTarget.CHECK) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FinishToggle(foil, onPick = { if (it != foil) vm.toggleCardFoil() })
                     // Glare changed between frames like a foil's does. Only a hint: tap to accept.
                     if (state.foilHint && !foil) {
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Text(
                             "Looks foil?",
                             color = Palette.Gold,
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.clip(RoundedCornerShape(Corners.Small))
                                 .clickable(onClickLabel = "Mark foil", onClick = vm::acceptFoilHint)
-                                .heightIn(min = 40.dp).padding(horizontal = 8.dp).wrapContentHeight(),
+                                .heightIn(min = 40.dp).padding(horizontal = Space.s2).wrapContentHeight(),
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             // Price check: look, then move on. Nothing is added.
-            if (state.target == ScanTarget.CHECK) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (state.target == ScanTarget.CHECK) Row(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 Ghost("Printing", vm::openPrintings)
                 GradientButton("Next", vm::skip, Modifier.weight(1f).heightIn(min = 48.dp))
             } else if (state.target == ScanTarget.REMOVE || state.target == ScanTarget.BOX) Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalAlignment = Alignment.CenterVertically,
             ) {
                 Ghost("Skip", vm::skip)
                 Ghost("Printing", vm::openPrintings)
@@ -251,7 +252,7 @@ internal fun ResultCard(card: ScryfallCard, state: ScanUiState, vm: ScanViewMode
                 } else {
                     GradientButton("Count", { vm.add(1) }, Modifier.weight(1f).heightIn(min = 48.dp))
                 }
-            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            } else Row(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 Ghost("Skip", vm::skip)
                 Ghost("Printing", vm::openPrintings)
                 // Copies come from Scan settings; +4 stays as a shortcut while it's at one.
@@ -282,7 +283,7 @@ private fun OwnedPill(n: Int) {
         color = if (own) Palette.Success else Palette.Muted,
         modifier = Modifier.clip(RoundedCornerShape(50))
             .background((if (own) Palette.Success else Color.White).copy(alpha = if (own) 0.14f else 0.06f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = Space.s3, vertical = Space.s1),
     )
 }
 
@@ -291,7 +292,7 @@ private fun OwnedPill(n: Int) {
 private fun Ghost(text: String, onClick: () -> Unit) {
     Box(
         Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(Corners.Medium)).background(Color.White.copy(alpha = 0.07f))
-            .clickable(onClick = onClick).padding(horizontal = 14.dp),
+            .clickable(onClick = onClick).padding(horizontal = Space.s4),
         contentAlignment = Alignment.Center,
     ) { Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Text, maxLines = 1) }
 }
@@ -300,7 +301,7 @@ private fun Ghost(text: String, onClick: () -> Unit) {
 @Composable
 private fun FinishToggle(foil: Boolean, onPick: (Boolean) -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.07f)).padding(3.dp),
+        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.07f)).padding(Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         listOf(false to "Normal", true to "Foil").forEach { (isFoil, label) ->
@@ -309,7 +310,7 @@ private fun FinishToggle(foil: Boolean, onPick: (Boolean) -> Unit) {
                 Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(50))
                     .then(if (on) Modifier.background(if (isFoil) Palette.Gold else Color.White.copy(alpha = 0.16f)) else Modifier)
                     .clickable(onClickLabel = if (isFoil) "Foil" else "Not foil") { onPick(isFoil) }
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = Space.s4),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -324,10 +325,10 @@ private fun FinishToggle(foil: Boolean, onPick: (Boolean) -> Unit) {
 @Composable
 internal fun OfflineCard(name: String, vm: ScanViewModel) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface.copy(alpha = 0.97f)) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(Space.s4)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.CloudOff, null, tint = Palette.Gold, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.s2))
                 Text(name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             }
             Text(
@@ -335,8 +336,8 @@ internal fun OfflineCard(name: String, vm: ScanViewModel) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.height(Space.s3))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 com.mtgscanner.ui.components.QuietButton(onClick = vm::skip, shape = RoundedCornerShape(Corners.Medium), modifier = Modifier.heightIn(min = 48.dp)) { Text("Skip") }
                 GradientButton("Save for later", { vm.saveOffline() }, Modifier.weight(1f).heightIn(min = 48.dp), icon = Icons.Outlined.Schedule)
             }
@@ -349,11 +350,11 @@ internal fun OfflineCard(name: String, vm: ScanViewModel) {
 internal fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .padding(bottom = 8.dp)
+            .padding(bottom = Space.s2)
             .clip(RoundedCornerShape(Corners.Medium))
             .background(Color.Black.copy(alpha = 0.8f))
             .border(1.dp, Palette.Gold.copy(alpha = 0.6f), RoundedCornerShape(Corners.Medium))
-            .padding(start = 12.dp),
+            .padding(start = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -365,7 +366,7 @@ internal fun UnknownChip(text: String, vm: ScanViewModel, modifier: Modifier = M
             modifier = Modifier.widthIn(max = 170.dp),
         )
         TextButton(onClick = vm::saveUnknown) { Text("Save for later", color = Palette.Gold) }
-        IconButton(onClick = vm::dismissUnknown, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = vm::dismissUnknown, modifier = Modifier.size(Space.s12)) {
             Icon(Icons.Outlined.Close, "Dismiss", tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
         }
     }

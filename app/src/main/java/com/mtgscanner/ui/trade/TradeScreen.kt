@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.trade
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.formatMoney
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -112,7 +113,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
 
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                 Text(
                     if (binderName.isEmpty()) "Trade" else "Trade · $binderName",
@@ -123,8 +124,8 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                 if (ui.give.isNotEmpty() || ui.get.isNotEmpty()) TextButton(onClick = vm::clear) { Text("Clear") }
             }
             if (AppSettings.showPrices && (ui.give.isNotEmpty() || ui.get.isNotEmpty())) {
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-                    Column(Modifier.padding(14.dp)) {
+                Surface(Modifier.fillMaxWidth().padding(horizontal = Space.s4), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+                    Column(Modifier.padding(Space.s4)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("You give ${formatMoney(ui.giveValue, ui.giveEur)}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
@@ -133,7 +134,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                             ChangeText(ui.getValue - ui.giveValue, ui.giveValue, MaterialTheme.typography.titleMedium)
                         }
                         if (ui.giveValue + ui.getValue > 0) {
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(Space.s3))
                             FairnessMeter(ui.giveValue, ui.getValue)
                         }
                     }
@@ -159,7 +160,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
             GradientButton(
                 "Apply to my collection",
                 { confirm = true },
-                Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding(),
+                Modifier.fillMaxWidth().padding(Space.s4).navigationBarsPadding(),
                 enabled = !ui.busy && (ui.give.isNotEmpty() || ui.get.isNotEmpty()),
             )
         }
@@ -169,18 +170,18 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
     if (picking != null) {
         ModalBottomSheet(onDismissRequest = { picking = null }, containerColor = Palette.Surface) {
             var q by remember { mutableStateOf("") }
-            Column(Modifier.padding(horizontal = 20.dp)) {
+            Column(Modifier.padding(horizontal = Space.s4)) {
                 SearchField(q, { q = it; if (picking == "get") vm.suggest(it) }, placeholder = if (picking == "give") "Search binder" else "Search any card")
             }
             LazyColumn(Modifier.fillMaxWidth().height(420.dp)) {
                 if (picking == "give") {
                     val matches = collection.filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }.take(60)
-                    if (matches.isEmpty()) item { Text(if (collection.isEmpty()) "Binder is empty" else "No match", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
+                    if (matches.isEmpty()) item { Text(if (collection.isEmpty()) "Binder is empty" else "No match", color = Palette.Muted, modifier = Modifier.padding(Space.s6)) }
                     items(matches, key = { it.id }) { c ->
                         PickRow(c.name, "${c.setCode} · ×${c.quantity}", c.smallImageUrl) { vm.give(c); picking = null }
                     }
                 } else {
-                    if (ui.suggestions.isEmpty()) item { Text("Type a card name", color = Palette.Muted, modifier = Modifier.padding(20.dp)) }
+                    if (ui.suggestions.isEmpty()) item { Text("Type a card name", color = Palette.Muted, modifier = Modifier.padding(Space.s6)) }
                     items(ui.suggestions) { name -> PickRow(name, null, null) { vm.get(name); picking = null } }
                 }
             }
@@ -224,11 +225,11 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
 
 @Composable
 private fun SideHeader(title: String, onAdd: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, top = Space.s3), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
         TextButton(onClick = onAdd) {
             Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(Space.s1))
             Text("Add card")
         }
     }
@@ -240,15 +241,15 @@ private fun TradeRow(item: TradeItem, vm: TradeViewModel, first: Boolean, last: 
     com.mtgscanner.ui.components.SwipeActions(
         start = null,
         end = com.mtgscanner.ui.components.SwipeAction("Remove", Icons.Outlined.Close, Palette.Danger) { vm.setQty(item, 0) },
-        modifier = modifier.padding(horizontal = 16.dp),
+        modifier = modifier.padding(horizontal = Space.s4),
     ) {
         Row(
             Modifier.fillMaxWidth().panelRow(first, last)
-                .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier).padding(start = Space.s3, end = Space.s1, top = Space.s2, bottom = Space.s2),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CardImage(item.imageUrl, Modifier.width(40.dp), zoom = true, onTap = onEdit)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
             Column(Modifier.weight(1f)) {
                 Text(item.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val prices = if (AppSettings.showPrices) " · ${formatMoney(item.price, item.eur)}" + item.buyPrice?.let { " · CK buys ${formatUsd(it)}" }.orEmpty() else ""
@@ -279,7 +280,7 @@ private fun FairnessMeter(give: Double, get: Double) {
             // The middle mark: an even trade splits the bar here.
             Box(Modifier.align(Alignment.Center).width(2.dp).fillMaxHeight().background(Palette.Text))
         }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = Space.s1)) {
             Text("Give", style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
             // Gold is too faint for text in light mode; the bar keeps it.
             Text(label, style = MaterialTheme.typography.labelMedium, color = if (color == Palette.Gold) Palette.Text else color, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
@@ -290,8 +291,8 @@ private fun FairnessMeter(give: Double, get: Double) {
 
 @Composable
 internal fun PickRow(title: String, sub: String?, image: String?, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp).ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (image != null) { CardImage(image, Modifier.width(36.dp)); Spacer(Modifier.width(10.dp)) }
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s4).ruleBelow().padding(vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
+        if (image != null) { CardImage(image, Modifier.width(36.dp)); Spacer(Modifier.width(Space.s3)) }
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall)
             sub?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }

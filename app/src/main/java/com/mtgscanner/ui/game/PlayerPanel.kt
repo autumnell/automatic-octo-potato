@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -195,7 +196,7 @@ internal fun PlayerPanel(
                         contentAlignment = if (sign < 0) Alignment.CenterStart else Alignment.CenterEnd,
                     ) {
                         Text(if (sign < 0) "−" else "+", color = Color.White.copy(alpha = 0.45f), fontSize = (lifeSize.value * 0.45f).sp,
-                            modifier = Modifier.padding(horizontal = 20.dp))
+                            modifier = Modifier.padding(horizontal = Space.s4))
                     }
                 }
             }
@@ -210,7 +211,7 @@ internal fun PlayerPanel(
                         .graphicsLayer { alpha = runAlpha }
                         .clip(RoundedCornerShape(Corners.Medium))
                         .background(Color.Black.copy(alpha = 0.45f))
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = Space.s3),
                 ) {
                     Text(
                         if (shownRun > 0) "+$shownRun" else "−${-shownRun}",
@@ -226,9 +227,9 @@ internal fun PlayerPanel(
             // Other counters along the top, shown only when they matter. Not scrollable, so taps and
             // swipes on them still change life.
             FlowRow(
-                Modifier.align(Alignment.TopCenter).padding(top = 10.dp, start = 8.dp, end = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                Modifier.align(Alignment.TopCenter).padding(top = Space.s3, start = Space.s2, end = Space.s2),
+                horizontalArrangement = Arrangement.spacedBy(Space.s2, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(Space.s1),
             ) {
                 if (g.monarch == i) Badge("Monarch", com.mtgscanner.ui.components.ManaIcons.Monarch, gold = true)
                 if (g.initiative == i) Badge("Initiative", com.mtgscanner.ui.components.ManaIcons.Initiative, gold = true)
@@ -244,9 +245,9 @@ internal fun PlayerPanel(
             }
             // Commander damage: one dot per opponent, in their color. Tap +1, hold −1.
             Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
+                Modifier.align(Alignment.BottomCenter).padding(bottom = Space.s1),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s2),
             ) {
                 if (g.format.commanderDamage && g.players.size > 1) {
                     g.players.forEachIndexed { from, o ->
@@ -309,12 +310,12 @@ private fun CommanderDot(color: Color, damage: Int, name: String, onAdd: () -> U
 private fun Badge(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, gold: Boolean = false) {
     Row(
         Modifier.clip(RoundedCornerShape(Corners.Small)).background(if (gold) Palette.Gold.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.35f))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = Space.s2, vertical = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
             Icon(icon, null, tint = Color.White, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(Space.s1))
         }
         Text(text, color = Color.White, style = MaterialTheme.typography.labelMedium)
     }

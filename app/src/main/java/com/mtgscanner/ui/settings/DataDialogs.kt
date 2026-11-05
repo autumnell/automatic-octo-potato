@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -159,7 +160,7 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
                     Text("They'll go into a new box called \"Imported\".")
                 } else {
                     Text("Where should they go?")
-                    Spacer(Modifier.padding(top = 4.dp))
+                    Spacer(Modifier.padding(top = Space.s1))
                     Choice("Auto-sort by box rules", choice == Box.AUTO_SORT, Icons.AutoMirrored.Outlined.Sort) { choice = Box.AUTO_SORT }
                     boxes.forEach { b -> Choice(b.name, choice == b.id, null) { choice = b.id } }
                     Choice("A new box called \"Imported\"", choice == 0L, null) { choice = 0L }
@@ -180,7 +181,7 @@ internal fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClic
         RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Accent))
         if (icon != null) {
             Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Space.s2))
         }
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }

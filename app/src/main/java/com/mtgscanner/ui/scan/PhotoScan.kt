@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,19 +59,19 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
     var printings by remember { mutableStateOf<List<ScryfallCard>?>(null) }
     val scope = rememberCoroutineScope()
     ModalBottomSheet(onDismissRequest = vm::closePhoto, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             val found = run.items.filter { it.card != null }
             Text(run.title, style = MaterialTheme.typography.titleLarge)
             if (!run.loading && !run.failed && run.items.isNotEmpty()) Text(
                 "Found ${found.size} of ${run.items.size}",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             when {
                 run.loading -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         com.mtgscanner.ui.components.Spinner()
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(Space.s3))
                         Text(
                             run.progress?.let { "Reading cards… ${(it * 100).toInt()}%" } ?: "Reading cards…",
                             style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
@@ -95,10 +96,10 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = vm::closePhoto) { Text("Cancel") }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.s2))
                 if (!run.loading && found.isNotEmpty()) {
                     val worth = addWorth(state, found.mapNotNull { it.card }, ScanBarPrefs.quantity)
                     val verb = when (state.target) {
@@ -110,7 +111,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                     GradientButton(verb + worth, vm::addPhoto, Modifier.weight(1f))
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
     picking?.let { item ->
@@ -125,7 +126,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
 @Composable
 private fun PhotoRow(item: PhotoItem, foil: Boolean, onPrinting: () -> Unit, onRemove: () -> Unit) {
     val c = item.card
-    Row(Modifier.fillMaxWidth().ruleBelow().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().ruleBelow().padding(vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
         val thumb = item.thumb
         val mod = Modifier.width(52.dp).aspectRatio(63f / 88f).clip(CardShape)
         if (c != null) CardImage(c.smallImageUrl, Modifier.width(52.dp))
@@ -133,7 +134,7 @@ private fun PhotoRow(item: PhotoItem, foil: Boolean, onPrinting: () -> Unit, onR
             val img = remember(thumb) { thumb.asImageBitmap() }
             Image(img, null, mod, contentScale = ContentScale.Crop)
         } else Box(mod)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             if (c != null) {
                 Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -149,7 +150,7 @@ private fun PhotoRow(item: PhotoItem, foil: Boolean, onPrinting: () -> Unit, onR
             }
         }
         if (c != null) TextButton(onClick = onPrinting) { Text("Printing") }
-        IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = onRemove, modifier = Modifier.size(Space.s12)) {
             Icon(Icons.Outlined.Close, "Remove", tint = Palette.Icon, modifier = Modifier.size(18.dp))
         }
     }

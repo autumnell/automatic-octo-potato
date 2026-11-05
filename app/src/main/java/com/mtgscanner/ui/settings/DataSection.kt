@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import android.net.Uri
@@ -144,12 +145,12 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
 
     // Work in progress and scans waiting to be added come first: they need attention.
     if (busy != null || pending.isNotEmpty()) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s2))
         Group {
             busy?.let {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -224,7 +225,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                     if (list.isEmpty()) Text("None yet", color = Palette.Muted)
                     list.forEach { a ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { autos = null; vm.previewRestoreFile(ctx, a.file) }.padding(vertical = 10.dp),
+                            Modifier.fillMaxWidth().clickable { autos = null; vm.previewRestoreFile(ctx, a.file) }.padding(vertical = Space.s3),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -281,10 +282,10 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ReportMin(min: Double, onMin: (Double) -> Unit) {
-    Column(Modifier.padding(start = 12.dp, top = 4.dp)) {
+    Column(Modifier.padding(start = Space.s3, top = Space.s1)) {
         Text("Cards worth at least", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
-        Spacer(Modifier.padding(top = 6.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.padding(top = Space.s2))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             listOf(1.0, 5.0, 10.0, 25.0, 100.0).forEach { v ->
                 SelectPill("$${v.toInt()}", min == v, { onMin(v) })
             }
@@ -302,20 +303,20 @@ internal fun backupDay(millis: Long, withYear: Boolean = false): String =
 /** One panel of rows, with the screen's side margin. */
 @Composable
 private fun Group(content: @Composable () -> Unit) {
-    PlainGroup(Modifier.padding(horizontal = 4.dp)) { Column { content() } }
+    PlainGroup(Modifier.padding(horizontal = Space.s1)) { Column { content() } }
 }
 
 /** A text button under the row above, lined up with its title. */
 @Composable
 private fun RowButton(label: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 4.dp)) { TextButton(onClick = onClick) { Text(label) } }
+    Row(Modifier.fillMaxWidth().padding(start = Space.s1, bottom = Space.s1)) { TextButton(onClick = onClick) { Text(label) } }
 }
 
 @Composable
 private fun Action(icon: ImageVector, title: String, body: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = Palette.Icon)
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(Space.s4))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -347,7 +348,7 @@ private fun TestPhotosRows() {
         }
     }
     HorizontalDivider(color = Palette.Rule)
-    FlowRow(Modifier.fillMaxWidth().padding(start = 4.dp, top = 4.dp, bottom = 4.dp)) {
+    FlowRow(Modifier.fillMaxWidth().padding(start = Space.s1, top = Space.s1, bottom = Space.s1)) {
         TextButton(onClick = {
             kept = com.mtgscanner.scan.TestPhotos.count(ctx)
             result = "Checking…"
@@ -374,5 +375,5 @@ private fun TestPhotosRows() {
         TextButton(onClick = { saveLauncher.launch("grimoire-test-photos.zip") }) { Text("Save as zip") }
         TextButton(onClick = { com.mtgscanner.scan.TestPhotos.clear(ctx); kept = 0; result = null }) { Text("Clear") }
     }
-    result?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) }
+    result?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(start = Space.s4, bottom = Space.s2)) }
 }

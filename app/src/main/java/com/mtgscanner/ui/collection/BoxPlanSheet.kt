@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,11 +63,11 @@ fun BoxPlanSheet(plan: PlanUi, onApply: () -> Unit, onDiscard: () -> Unit) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Palette.Surface,
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Try: ${plan.title}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val r = plan.result
             if (r == null) {
-                PlaceholderRows(3, Modifier.padding(vertical = 12.dp), rowHeight = 44.dp, color = Palette.SurfaceHigh)
+                PlaceholderRows(3, Modifier.padding(vertical = Space.s3), rowHeight = 44.dp, color = Palette.SurfaceHigh)
                 return@Column
             }
             Text(
@@ -77,16 +78,16 @@ fun BoxPlanSheet(plan: PlanUi, onApply: () -> Unit, onDiscard: () -> Unit) {
                 },
                 style = MaterialTheme.typography.bodyMedium, color = Palette.Muted,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             Row(
                 Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Space.s2),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Box holds", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
                 BOX_SIZES.forEach { n -> SelectPill("$n", boxSize == n, { boxSize = n }) }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             val (touched, same) = r.rows.partition { it.isNew || it.changed || it.change != 0 }
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 touched.forEach { PlanLine(it, boxSize) }
@@ -94,21 +95,21 @@ fun BoxPlanSheet(plan: PlanUi, onApply: () -> Unit, onDiscard: () -> Unit) {
                     Text(
                         if (same.size == 1) "1 other box stays the same" else "${same.size} other boxes stay the same",
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-                        modifier = Modifier.padding(vertical = 10.dp),
+                        modifier = Modifier.padding(vertical = Space.s3),
                     )
                 }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             GradientButton("Apply", onApply, Modifier.fillMaxWidth())
             TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) { Text("Discard", color = Palette.Muted) }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
         }
     }
 }
 
 @Composable
 private fun PlanLine(row: PlanRow, boxSize: Int) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(row.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))

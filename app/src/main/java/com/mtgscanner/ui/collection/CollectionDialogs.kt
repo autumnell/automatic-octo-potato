@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.components.formatMoneyShort
 import com.mtgscanner.data.db.totalEur
@@ -172,7 +173,7 @@ internal fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismis
                     Text("It's empty.")
                 } else {
                     Text("What should happen to its ${box.cards} cards?")
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Choice(
                         if (anything != null) "Move them to ${anything.name} (takes any card)" else "Move them to a new Anything box",
                         choice == CollectionViewModel.TO_ANYTHING,
@@ -211,17 +212,17 @@ internal fun SortBoxDialog(box: BoxSummary, hasOtherRules: Boolean, onOthers: ()
                     "Cards that fit nothing stay here.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Surface(onClick = onNew, shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
+                    Column(Modifier.padding(Space.s4)) {
                         Text("Into a new box", style = MaterialTheme.typography.titleSmall)
                         Text("Set up a box with rules, and the cards that fit move into it", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
                 }
                 if (hasOtherRules) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Surface(onClick = onOthers, shape = RoundedCornerShape(Corners.Medium), color = Palette.SurfaceHigh, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(14.dp)) {
+                        Column(Modifier.padding(Space.s4)) {
                             Text("Into my other boxes", style = MaterialTheme.typography.titleSmall)
                             Text("Each card goes to the first box whose rules fit, in Auto-sort order", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                         }
@@ -253,7 +254,7 @@ internal fun WantedDialog(item: WishlistItem, onSave: (Int) -> Unit, onDismiss: 
         text = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 com.mtgscanner.ui.components.RepeatIconButton(onClick = { if (n > 1) n-- }, enabled = n > 1, repeat = n > 1) { Icon(Icons.Outlined.Remove, "Fewer") }
-                Text("Want $n", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 16.dp))
+                Text("Want $n", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
                 com.mtgscanner.ui.components.RepeatIconButton(onClick = { n++ }) { Icon(Icons.Outlined.Add, "More") }
             }
         },

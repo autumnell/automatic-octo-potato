@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
@@ -73,17 +74,17 @@ fun ClipboardOffer(modifier: Modifier = Modifier) {
     val at = clipAt ?: return
     fun done() { ClipboardWatch.markSeen(ctx, at); clipAt = null }
     Surface(
-        modifier.padding(horizontal = 16.dp).widthIn(max = 480.dp).fillMaxWidth(),
+        modifier.padding(horizontal = Space.s4).widthIn(max = 480.dp).fillMaxWidth(),
         shape = RoundedCornerShape(Corners.Medium),
         color = Palette.SurfaceHigh,
         shadowElevation = 6.dp,
     ) {
-        Row(Modifier.padding(start = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.ContentPaste, null, tint = Palette.Icon)
             Text(
                 "Add cards from your clipboard?",
                 style = MaterialTheme.typography.bodyMedium, color = Palette.Text,
-                modifier = Modifier.weight(1f).padding(start = 10.dp),
+                modifier = Modifier.weight(1f).padding(start = Space.s3),
             )
             TextButton(onClick = {
                 val text = ClipboardWatch.read(ctx)

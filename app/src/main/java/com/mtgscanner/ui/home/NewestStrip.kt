@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +37,7 @@ import com.mtgscanner.ui.theme.Palette
 /** The newest cards as a strip of their art, newest first: name and set symbol over each. Tap opens the card. */
 @Composable
 internal fun NewestStrip(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit, shared: Set<Long> = emptySet()) {
-    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyRow(contentPadding = PaddingValues(horizontal = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
         items(cards, key = { it.id }) { c ->
             Box(
                 Modifier.width(164.dp).height(120.dp)
@@ -56,22 +57,22 @@ internal fun NewestStrip(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)))),
                 )
                 Row(
-                    Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 10.dp, end = 8.dp, bottom = 7.dp),
+                    Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = Space.s3, end = Space.s2, bottom = Space.s2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         c.name, style = MaterialTheme.typography.labelLarge, color = Color.White,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     SetIcon(c.setCode, size = 14.dp, tint = Color.White)
                 }
                 if (c.quantity > 1) {
                     Text(
                         "×${c.quantity}", style = MaterialTheme.typography.labelMedium, color = Color.White,
-                        modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                        modifier = Modifier.align(Alignment.TopEnd).padding(Space.s2)
                             .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                            .padding(horizontal = Space.s2, vertical = 1.dp),
                     )
                 }
             }

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,7 @@ fun DividerTabHead(title: String, count: Int, index: Int, modifier: Modifier = M
                 Modifier.weight(1f, fill = false).widthIn(min = 44.dp)
                     .clip(RoundedCornerShape(topStart = Corners.Small, topEnd = Corners.Small))
                     .background(fill)
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                    .padding(horizontal = Space.s3, vertical = Space.s1),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(title, style = MaterialTheme.typography.titleSmall, color = Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -45,7 +46,7 @@ fun DividerTabHead(title: String, count: Int, index: Int, modifier: Modifier = M
             Spacer(Modifier.weight(1f))
             Text(
                 "$count", style = MaterialTheme.typography.labelMedium.merge(TabularNums), color = Palette.Muted,
-                modifier = Modifier.padding(end = 8.dp, bottom = 4.dp),
+                modifier = Modifier.padding(end = Space.s2, bottom = Space.s1),
             )
         }
         // The divider's top edge, as wide as the row of cards behind it.

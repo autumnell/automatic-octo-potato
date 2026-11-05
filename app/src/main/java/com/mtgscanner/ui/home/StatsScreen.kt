@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.data.db.unitEur
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.foundation.background
@@ -138,7 +139,7 @@ fun StatsScreen(
     }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = Space.s1, end = Space.s2), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text("Stats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             stats?.takeIf { it.cards > 0 }?.let { st ->
@@ -157,9 +158,9 @@ fun StatsScreen(
         }
         val s = stats
         if (s == null) {
-            Column(Modifier.padding(16.dp)) {
+            Column(Modifier.padding(Space.s4)) {
                 PlaceholderBlock(140.dp)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 PlaceholderRows(4)
             }
             return@Column
@@ -172,7 +173,7 @@ fun StatsScreen(
             Text(
                 if (prices) "${formatMoney(s.value, s.valueEur)} · ${s.cards} cards" else "${s.cards} cards",
                 style = MaterialTheme.typography.titleLarge, color = Palette.Text,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
             )
 
             if (prices) MoneySection(s.paid)
@@ -227,16 +228,16 @@ fun StatsScreen(
 
             if (prices && s.top.isNotEmpty()) {
                 SectionHeader("Most valuable")
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = Space.s3, vertical = Space.s1)) {
                     Column {
                         s.top.forEachIndexed { i, c ->
                             Row(
-                                Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.ruleBelow().padding(horizontal = 4.dp, vertical = 8.dp),
+                                Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.ruleBelow().padding(horizontal = Space.s1, vertical = Space.s2),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.width(24.dp))
                                 CardImage(c.smallImageUrl, Modifier.width(32.dp).sharedCard(c.id))
-                                Spacer(Modifier.width(10.dp))
+                                Spacer(Modifier.width(Space.s3))
                                 Column(Modifier.weight(1f)) {
                                     Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(
@@ -254,7 +255,7 @@ fun StatsScreen(
                 SectionHeader("Bulk estimate")
                 Panel { BulkCard(s.bulkCards) }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Space.s6))
         }
     }
 }
@@ -262,8 +263,8 @@ fun StatsScreen(
 /** A plain rounded panel like the other Stats blocks; [content] brings its own side padding. */
 @Composable
 private fun Panel(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(vertical = 12.dp)) { content() }
+    Surface(Modifier.fillMaxWidth().padding(horizontal = Space.s4), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
+        Column(Modifier.padding(vertical = Space.s3)) { content() }
     }
 }
 
@@ -280,23 +281,23 @@ private fun Breakdown(
     // Values in the currency Settings › Prices picks (dollars with Both: rows are narrow).
     fun money(r: StatRow) = primaryValue(r.value, r.eur)
     val max = rows.maxOfOrNull { if (prices) money(it) else it.cards.toDouble() }?.takeIf { it > 0 } ?: 1.0
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = 10.dp, vertical = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = Space.s3, vertical = Space.s1)) {
         Column {
             rows.forEach { r ->
-                Column(Modifier.fillMaxWidth().clickable { onRow(r) }.ruleBelow().padding(horizontal = 4.dp, vertical = 8.dp)) {
+                Column(Modifier.fillMaxWidth().clickable { onRow(r) }.ruleBelow().padding(horizontal = Space.s1, vertical = Space.s2)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (lead != null) {
                             lead(r)
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(Space.s2))
                         }
                         Text(r.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         Text("${r.cards}", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                         if (prices) {
-                            Spacer(Modifier.width(10.dp))
+                            Spacer(Modifier.width(Space.s3))
                             Text(formatMoneyShort(r.value, r.eur), style = MaterialTheme.typography.labelLarge, color = Palette.Text)
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Space.s1))
                     val frac = ((if (prices) money(r) else r.cards.toDouble()) / max).toFloat().coerceIn(0f, 1f)
                     Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)) {
                         if (frac > 0f) {
@@ -311,7 +312,7 @@ private fun Breakdown(
                 }
             }
             if (note != null) {
-                Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1))
             }
         }
     }
@@ -328,20 +329,20 @@ internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
     var selected by remember { mutableLongStateOf(ranked.first().id) }
     val box = ranked.firstOrNull { it.id == selected } ?: ranked.first()
     val values = data.values[box.id].orEmpty()
-    Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s1)) {
         Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Space.s4),
+            horizontalArrangement = Arrangement.spacedBy(Space.s2),
         ) {
             ranked.forEach { b -> SelectPill(b.name, b.id == box.id, { selected = b.id }) }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.s3))
         // Drag along the chart to read the box's value on one day.
         var scrub by remember(values) { mutableStateOf<Int?>(null) }
-        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             val s = scrub?.takeIf { it in values.indices }
             Text(formatUsd(s?.let { values[it] } ?: values.lastOrNull()), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(Space.s3))
             if (s != null) {
                 Text(data.days.getOrNull(s)?.let { shortDay(it) }.orEmpty(), style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
             } else {
@@ -349,9 +350,9 @@ internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
                 ChangeText((values.lastOrNull() ?: 0.0) - first, first, MaterialTheme.typography.labelMedium)
             }
         }
-        Spacer(Modifier.height(8.dp))
-        LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = 16.dp), onScrub = { scrub = it })
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Spacer(Modifier.height(Space.s2))
+        LineChart(values, Modifier.fillMaxWidth().height(80.dp).padding(horizontal = Space.s4), onScrub = { scrub = it })
+        Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4)) {
             Text(shortDay(data.days.first()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
             Text(shortDay(data.days.last()), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
         }
@@ -363,7 +364,7 @@ internal fun BoxValueChart(data: BoxValues, boxes: List<CardBox>) {
 internal fun BulkCard(cards: Int) {
     var editing by remember { mutableStateOf(false) }
     val rate = HomePrefs.bulkRate
-    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("≈ ${formatUsd(cards / 1000.0 * rate)}", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             Text(

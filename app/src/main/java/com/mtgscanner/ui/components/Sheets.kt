@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,10 +70,10 @@ fun PrintingsSheet(
         Text(
             "Choose the printing",
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
         )
         if (printings == null) {
-            PlaceholderRows(5, Modifier.padding(horizontal = 20.dp, vertical = 8.dp), rowHeight = 72.dp, color = Palette.SurfaceHigh)
+            PlaceholderRows(5, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), rowHeight = 72.dp, color = Palette.SurfaceHigh)
         } else {
             LazyColumn(Modifier.fillMaxWidth().height(520.dp)) {
                 items(printings, key = { it.id }) { p ->
@@ -82,18 +83,18 @@ fun PrintingsSheet(
                             .fillMaxWidth()
                             .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
                             .clickable { onPick(p) }
-                            .padding(horizontal = 20.dp)
+                            .padding(horizontal = Space.s4)
                             .ruleBelow()
-                            .padding(vertical = 10.dp),
+                            .padding(vertical = Space.s3),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         CardImage(p.smallImageUrl, Modifier.width(52.dp))
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Column(Modifier.weight(1f)) {
                             Text(p.setName, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 SetMark(p.set, p.rarity)
-                                Spacer(Modifier.width(6.dp))
+                                Spacer(Modifier.width(Space.s2))
                                 Text(
                                     "${p.set.uppercase()} · #${p.collectorNumber} · ${p.releasedAt.orEmpty().take(4)}",
                                     style = MaterialTheme.typography.bodySmall,
@@ -168,23 +169,23 @@ fun AddCardSheet(
         containerColor = Palette.Surface,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Space.s4).navigationBarsPadding()) {
             Row {
                 CardImage(card.imageUrl, Modifier.width(130.dp))
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(Space.s4))
                 Column(Modifier.weight(1f)) {
                     Text(card.name, style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Space.s1))
                     ManaCost(card.effectiveManaCost)
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Space.s1))
                     Text(card.effectiveTypeLine, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RarityDot(card.rarity, 8.dp)
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text("${card.setName} · #${card.collectorNumber}", style = MaterialTheme.typography.bodySmall)
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     if (AppSettings.showPrices) Text(
                         scryfallPrice(card, foil),
                         style = MaterialTheme.typography.headlineSmall,
@@ -192,26 +193,26 @@ fun AddCardSheet(
                     )
                     TextButton(onClick = onChangePrinting, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                         Icon(Icons.Outlined.SwapHoriz, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(Space.s1))
                         Text("Other printings")
                     }
                 }
             }
             if (owned != null) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh)
                         .then(if (onOwned != null) Modifier.clickable(onClickLabel = "Open your copy", onClick = onOwned) else Modifier)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = Space.s3, vertical = Space.s2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.Check, null, tint = Palette.Icon, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text(owned, style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.weight(1f))
                     if (onOwned != null) Text("Open", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Foil", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 Switch(
@@ -226,26 +227,26 @@ fun AddCardSheet(
                 QuantityStepper(qty, onChange = { qty = it.coerceIn(1, 99) })
             }
             if (boxes.isEmpty() && (!showDecks || decks.isEmpty())) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.s3))
                 Text("Cards go into boxes. Create one to add this card.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(Space.s2))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     QuietButton(onClick = onCreateBox, shape = RoundedCornerShape(Corners.Medium)) {
                         Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text("Create a box")
                     }
                     if (showDecks && onCreateDeck != null) QuietButton(onClick = { namingDeck = true }, shape = RoundedCornerShape(Corners.Medium)) {
                         Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Space.s2))
                         Text("New deck")
                     }
                 }
             } else {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 Text("Add to", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(Space.s2))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     if (boxes.isNotEmpty()) {
                         val auto = deckId == 0L && boxId == CardBox.AUTO_SORT
                         SelectPill("Auto-sort", auto, onClick = { boxId = CardBox.AUTO_SORT; deckId = 0L }, leading = {
@@ -261,10 +262,10 @@ fun AddCardSheet(
                     NewPill("New box", onCreateBox)
                 }
                 if (showDecks) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Space.s3))
                     Text("Or into a deck", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(6.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.height(Space.s2))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                         decks.forEach { d ->
                             val on = d.id == deckId
                             SelectPill(d.name, on, onClick = { deckId = if (on) 0L else d.id }, leading = {
@@ -275,7 +276,7 @@ fun AddCardSheet(
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(Space.s6))
             val toDeck = deckId != 0L && onAddToDeck != null
             GradientButton(
                 text = if (toDeck) "Add to ${decks.firstOrNull { it.id == deckId }?.name ?: "deck"}" else "Add to collection",
@@ -285,14 +286,14 @@ fun AddCardSheet(
                 enabled = toDeck || boxes.isNotEmpty(),
             )
             if (onWishlist != null) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 QuietButton(onClick = onWishlist, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium)) {
                     Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(Space.s2))
                     Text("Add to wishlist")
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

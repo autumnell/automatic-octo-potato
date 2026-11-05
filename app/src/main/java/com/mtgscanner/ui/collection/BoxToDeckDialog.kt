@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,7 +37,7 @@ internal fun BoxToDeckDialog(box: BoxSummary, decksFlow: Flow<List<Deck>>, onDis
                 Text(
                     "New deck: ${box.name}", style = MaterialTheme.typography.bodyLarge, color = Palette.AccentText,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().clickable { onPick(0L, box.name) }.padding(vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { onPick(0L, box.name) }.padding(vertical = Space.s3),
                 )
                 if (decks.isNotEmpty()) {
                     HorizontalDivider(color = Palette.Rule)
@@ -44,7 +45,7 @@ internal fun BoxToDeckDialog(box: BoxSummary, decksFlow: Flow<List<Deck>>, onDis
                         items(decks.sortedBy { it.name.lowercase() }, key = { it.id }) { d ->
                             Text(
                                 d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.fillMaxWidth().clickable { onPick(d.id, d.name) }.padding(vertical = 12.dp),
+                                modifier = Modifier.fillMaxWidth().clickable { onPick(d.id, d.name) }.padding(vertical = Space.s3),
                             )
                         }
                     }

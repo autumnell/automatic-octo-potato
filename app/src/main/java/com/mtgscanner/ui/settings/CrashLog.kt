@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.layout.Row
@@ -111,7 +112,7 @@ fun CrashReportRow() {
     val report = CrashLog.current(ctx) ?: return
     HorizontalDivider(color = Palette.Rule)
     Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2, top = Space.s1, bottom = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Crash report", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))

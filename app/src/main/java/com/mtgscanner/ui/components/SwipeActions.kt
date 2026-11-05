@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -63,12 +64,12 @@ fun SwipeActions(start: SwipeAction?, end: SwipeAction?, modifier: Modifier = Mo
             val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
             val a = if (toEnd) start else end
             if (a != null) Row(
-                Modifier.fillMaxSize().clip(RoundedCornerShape(Corners.Medium)).background(a.color.copy(alpha = 0.25f)).padding(horizontal = 18.dp),
+                Modifier.fillMaxSize().clip(RoundedCornerShape(Corners.Medium)).background(a.color.copy(alpha = 0.25f)).padding(horizontal = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = if (toEnd) Arrangement.Start else Arrangement.End,
             ) {
                 Icon(a.icon, null, tint = Palette.Text)
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.s2))
                 Text(a.label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
             }
         },

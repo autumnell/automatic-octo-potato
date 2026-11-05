@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -84,23 +85,23 @@ fun AutoSortOrderSheet(
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text("Auto-sort order", style = MaterialTheme.typography.titleLarge)
             Text(
                 "Cards go to the first box that fits.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s3))
             order.forEachIndexed { i, id ->
                 val b = byId[id] ?: return@forEachIndexed
                 val rules = remember(b.rules) { BoxRules.fromJson(b.rules) }
-                Surface(Modifier.fillMaxWidth().padding(vertical = 3.dp), shape = RoundedCornerShape(Corners.Small), color = Palette.SurfaceHigh) {
-                    Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(Modifier.fillMaxWidth().padding(vertical = Space.s1), shape = RoundedCornerShape(Corners.Small), color = Palette.SurfaceHigh) {
+                    Row(Modifier.padding(start = Space.s3), verticalAlignment = Alignment.CenterVertically) {
                         Text("${i + 1}", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.width(22.dp))
                         Icon(boxIcon(b.kind), null, tint = boxColor(b.color), modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
+                        Spacer(Modifier.width(Space.s3))
+                        Column(Modifier.weight(1f).padding(vertical = Space.s3)) {
                             Text(b.name, style = MaterialTheme.typography.titleSmall)
                             Text(rules.describe(), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
                             warnings[id]?.let {
@@ -113,15 +114,15 @@ fun AutoSortOrderSheet(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             HorizontalDivider(color = Palette.Rule)
-            Text("When nothing fits", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
+            Text("When nothing fits", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s4))
             Text(
                 "Box for cards that fit nothing.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.s2))
             FallbackChoice("No fallback box", fallback == null) { fallback = null; onFallback(null) }
             order.forEach { id ->
                 val b = byId[id] ?: return@forEach
@@ -130,27 +131,27 @@ fun AutoSortOrderSheet(
                 FallbackChoice(b.name, fallback == id) { fallback = id; onFallback(id) }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             HorizontalDivider(color = Palette.Rule)
-            Text("Keep a playset", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
+            Text("Keep a playset", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s4))
             Text("Extras go to another box.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 listOf(0 to "Off", 1 to "1", 4 to "4").forEach { (n, label) ->
                     SelectPill(label, SortPrefs.playsetLimit == n, { SortPrefs.updatePlayset(n, SortPrefs.extrasBoxId) })
                 }
             }
             if (SortPrefs.playsetLimit > 0) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 BoxChoice("Extras", boxes, SortPrefs.extrasBoxId) { SortPrefs.updatePlayset(SortPrefs.playsetLimit, it) }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             HorizontalDivider(color = Palette.Rule)
-            Text("Bulk floor", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
+            Text("Bulk floor", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s4))
             Text("Cheaper cards go to bulk.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Off", SortPrefs.bulkFloor == null, { SortPrefs.updateBulk(null, SortPrefs.bulkBoxId) })
                 BULK_FLOORS.forEach { f ->
                     SelectPill(
@@ -161,39 +162,39 @@ fun AutoSortOrderSheet(
                 }
             }
             if (SortPrefs.bulkFloor != null) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 BoxChoice("Bulk", boxes, SortPrefs.bulkBoxId) { SortPrefs.updateBulk(SortPrefs.bulkFloor, it) }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             HorizontalDivider(color = Palette.Rule)
-            Text("Price buffer", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
+            Text("Price buffer", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s4))
             Text(
                 "Re-sort leaves cards near a price line where they are.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Palette.Muted,
             )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(Space.s2))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 listOf(0, 5, 10, 20).forEach { pct ->
                     SelectPill(if (pct == 0) "Off" else "±$pct%", SortPrefs.priceBuffer == pct, { SortPrefs.updatePriceBuffer(pct) })
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             HorizontalDivider(color = Palette.Rule)
             ColorOrderSection()
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.s4))
             HorizontalDivider(color = Palette.Rule)
-            Text("Box check reminder", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 14.dp))
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Box check reminder", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s4))
+            Spacer(Modifier.height(Space.s2))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 BoxReminders.CHOICES.forEach { m ->
                     SelectPill(if (m == 0) "Off" else "$m mo", BoxPrefs.reminderMonths == m, { BoxPrefs.setReminder(ctx, m) })
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Space.s6))
         }
     }
 }
@@ -220,11 +221,11 @@ private fun BoxChoice(label: String, boxes: List<BoxSummary>, current: Long?, on
                 .clip(RoundedCornerShape(Corners.Small))
                 .background(Palette.SurfaceHigh)
                 .clickable { open = true }
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = Space.s3, vertical = Space.s2),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(boxIcon(here?.kind ?: "box"), null, Modifier.size(16.dp), tint = if (here != null) Palette.AccentText else Palette.Icon)
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(Space.s2))
             Text(
                 "$label → ${here?.name ?: "pick a box"}",
                 style = MaterialTheme.typography.labelLarge,
@@ -250,7 +251,7 @@ private fun BoxChoice(label: String, boxes: List<BoxSummary>, current: Long?, on
 @Composable
 private fun ColorOrderSection() {
     val order = SortPrefs.colorOrder
-    Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(top = Space.s4), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("Color order", style = MaterialTheme.typography.titleMedium)
             Text("Front to back, for color dividers.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -259,7 +260,7 @@ private fun ColorOrderSection() {
             androidx.compose.material3.TextButton(onClick = { SortPrefs.updateColorOrder(com.mtgscanner.data.Sorting.DEFAULT_COLOR_ORDER) }) { Text("Reset") }
         }
     }
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(Space.s1))
     order.forEachIndexed { i, name ->
         Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${i + 1}.", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.width(28.dp))

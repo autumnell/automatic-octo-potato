@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,8 +71,8 @@ internal fun EditCollectionDialog(onDismiss: () -> Unit) {
                 }
                 Parts(CollectionPart.Group.PAGE, hidden, onToggle = { p, v -> toggle(p, v) })
                 Heading("Box cards")
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s2))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     SelectPill("Full", !compact, { compact = false })
                     SelectPill("Compact", compact, { compact = true })
                 }
@@ -104,7 +105,7 @@ internal fun EditCollectionDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun Heading(text: String) {
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(Space.s3))
     Text(text, style = MaterialTheme.typography.titleSmall, color = Palette.Muted)
 }
 

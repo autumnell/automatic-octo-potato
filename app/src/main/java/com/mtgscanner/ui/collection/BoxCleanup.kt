@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -111,13 +112,13 @@ internal fun SpreadCopiesSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
         containerColor = Palette.Surface,
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
-            Text("Spread-out copies", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text("Spread-out copies", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
+            Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2)) {
                 SelectPill("Same printing", byPrinting, { byPrinting = !byPrinting })
             }
             when {
-                list == null -> PlaceholderRows(5, Modifier.padding(16.dp), color = Palette.SurfaceHigh)
-                list.isEmpty() -> EmptyState("Nothing spread out", Modifier.padding(vertical = 24.dp))
+                list == null -> PlaceholderRows(5, Modifier.padding(Space.s4), color = Palette.SurfaceHigh)
+                list.isEmpty() -> EmptyState("Nothing spread out", Modifier.padding(vertical = Space.s6))
                 else -> {
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
                         items(list, key = { it.group.key }) { r ->
@@ -125,7 +126,7 @@ internal fun SpreadCopiesSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
                             val on = g.key !in skipped
                             val toggle = { skipped = if (on) skipped + g.key else skipped - g.key }
                             Row(
-                                Modifier.fillMaxWidth().clickable(onClick = toggle).padding(start = 8.dp, end = 16.dp, top = 2.dp, bottom = 2.dp),
+                                Modifier.fillMaxWidth().clickable(onClick = toggle).padding(start = Space.s2, end = Space.s4, top = Space.s1, bottom = Space.s1),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Checkbox(on, { toggle() }, colors = CheckboxDefaults.colors(checkedColor = Palette.Accent))
@@ -136,7 +137,7 @@ internal fun SpreadCopiesSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
                                     )
                                     Text(perBoxText(g, names), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 }
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(Space.s2))
                                 Text("→ ${names[g.target] ?: "?"}", style = MaterialTheme.typography.labelLarge, color = Palette.Text, maxLines = 1)
                             }
                         }
@@ -146,7 +147,7 @@ internal fun SpreadCopiesSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
                     GradientButton(
                         if (n == 0) "Make move list" else "Make move list · $n",
                         { vm.sortCards(chosen.flatMap { it.items }); onDismiss() },
-                        Modifier.fillMaxWidth().padding(16.dp),
+                        Modifier.fillMaxWidth().padding(Space.s4),
                         enabled = n > 0,
                     )
                 }
@@ -169,21 +170,21 @@ internal fun CheapInValueSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
         containerColor = Palette.Surface,
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
-            Text("Cheap in value boxes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp))
+            Text("Cheap in value boxes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
             if (floor != null) Text(
                 "Under ${formatUsd(floor)}",
-                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = 20.dp),
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4),
             )
             when {
-                floor == null || SortPrefs.bulkBoxId == null -> EmptyState("No bulk floor set", Modifier.padding(vertical = 24.dp), body = "Set one in Auto-sort order")
-                list == null -> PlaceholderRows(5, Modifier.padding(16.dp), color = Palette.SurfaceHigh)
-                list.isEmpty() -> EmptyState("None found", Modifier.padding(vertical = 24.dp))
+                floor == null || SortPrefs.bulkBoxId == null -> EmptyState("No bulk floor set", Modifier.padding(vertical = Space.s6), body = "Set one in Auto-sort order")
+                list == null -> PlaceholderRows(5, Modifier.padding(Space.s4), color = Palette.SurfaceHigh)
+                list.isEmpty() -> EmptyState("None found", Modifier.padding(vertical = Space.s6))
                 else -> {
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
                         items(list, key = { it.card.id }) { s ->
                             val c = s.card
                             Row(
-                                Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.padding(horizontal = 20.dp, vertical = 8.dp),
+                                Modifier.fillMaxWidth().clickable { onOpenCard(c.id) }.padding(horizontal = Space.s4, vertical = Space.s2),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
@@ -197,7 +198,7 @@ internal fun CheapInValueSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
                                     )
                                 }
                                 if (AppSettings.showPrices) {
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(Space.s2))
                                     Text(formatUsd(c.unitPrice()), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text)
                                 }
                             }
@@ -207,7 +208,7 @@ internal fun CheapInValueSheet(vm: CollectionViewModel, boxes: List<BoxSummary>,
                     GradientButton(
                         "Make move list · $n",
                         { vm.sortCards(list); onDismiss() },
-                        Modifier.fillMaxWidth().padding(16.dp),
+                        Modifier.fillMaxWidth().padding(Space.s4),
                     )
                 }
             }

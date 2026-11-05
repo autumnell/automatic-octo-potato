@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
@@ -100,7 +101,7 @@ fun DeckCompleteNotes(complete: List<Pair<Long, String>>, onOpen: (Long) -> Unit
     val ctx = LocalContext.current
     complete.filter { DeckStatusStore.get(ctx, it.first) != null }.forEach { (id, name) ->
         Row(
-            Modifier.fillMaxWidth().clickable { onOpen(id) }.padding(start = 20.dp, end = 4.dp),
+            Modifier.fillMaxWidth().clickable { onOpen(id) }.padding(start = Space.s4, end = Space.s1),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

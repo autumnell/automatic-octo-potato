@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.ui.theme.Space
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.Manifest
 import android.content.pm.PackageManager
@@ -72,11 +73,11 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
     val days = DriveBackupReminder.daysSince(now, last)
     // A plain strip under the value card, not another card: icon, one line, two text buttons.
     Row(
-        modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp),
+        modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Outlined.CloudUpload, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(Space.s3))
         Text(
             if (days == null) "No backup yet" else "Last backup ${days}d ago",
             style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
@@ -87,7 +88,7 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
             enabled = busy == null,
         ) { Text("Back up") }
     }
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(Space.s1))
 }
 
 /**

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -150,7 +151,7 @@ import com.mtgscanner.ui.components.PlaceholderPage
 internal fun PhotoViewer(path: String, onRemove: () -> Unit, onReplace: () -> Unit, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-            Column(Modifier.padding(8.dp)) {
+            Column(Modifier.padding(Space.s2)) {
                 AsyncImage(
                     model = java.io.File(path),
                     contentDescription = "Your photo",
@@ -185,16 +186,16 @@ internal fun SplitDialog(c: CollectionCard, onSplit: (SplitChange) -> Unit, onDi
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     QuantityStepper(qty, onChange = { qty = it.coerceIn(1, c.quantity - 1) })
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.s3))
                     Text("of ${c.quantity}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Muted)
                 }
-                Spacer(Modifier.height(12.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s3))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     CONDITIONS.forEach { (code, _) -> SelectPill(code, condition == code, onClick = { condition = code }) }
                     SelectPill("Foil", foil, onClick = { foil = !foil })
                 }
-                Spacer(Modifier.height(10.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spacer(Modifier.height(Space.s3))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     LANGUAGES.forEach { (code, _) -> SelectPill(code.uppercase(), lang == code, onClick = { lang = code }) }
                 }
             }
@@ -247,10 +248,10 @@ internal fun FromDialog(initial: String, onSave: (String) -> Unit, onDismiss: ()
         title = { Text("From") },
         text = {
             Column {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     SOURCES.forEach { s -> SelectPill(s, text.equals(s, ignoreCase = true), onClick = { text = if (text.equals(s, ignoreCase = true)) "" else s }) }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.s3))
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it.take(30) },

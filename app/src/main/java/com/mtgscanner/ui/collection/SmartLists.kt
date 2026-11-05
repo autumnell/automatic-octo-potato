@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,20 +65,20 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
             "Save a search in Browse.",
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
-            modifier = Modifier.padding(horizontal = 20.dp),
+            modifier = Modifier.padding(horizontal = Space.s4),
         )
         return
     }
     lists.forEach { l ->
         Surface(
             onClick = { onOpen(l.search) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1),
             shape = RoundedCornerShape(Corners.Medium),
             color = Palette.Surface,
         ) {
-            Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = Space.s4, top = Space.s2, bottom = Space.s2, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Star, null, tint = Palette.Gold)
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(Space.s3))
                 Column(Modifier.weight(1f)) {
                     Text(l.search.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${l.cards} cards${priceSuffix(l.value)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
@@ -106,7 +107,7 @@ fun ToSortSheet(
         containerColor = Palette.Surface,
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                 Text("To sort · ${list.sumOf { it.card.quantity }}", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text("Later") }
             }
@@ -117,11 +118,11 @@ fun ToSortSheet(
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
                 items(list, key = { it.card.id }) { m ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { onOpenCard(m.card.id) }.padding(start = 16.dp, end = 8.dp, top = 5.dp, bottom = 5.dp),
+                        Modifier.fillMaxWidth().clickable { onOpenCard(m.card.id) }.padding(start = Space.s4, end = Space.s2, top = Space.s1, bottom = Space.s1),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         CardImage(m.card.smallImageUrl, Modifier.width(40.dp))
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Column(Modifier.weight(1f)) {
                             Text(
                                 (if (m.card.quantity > 1) "${m.card.quantity}× " else "") + m.card.name,
@@ -136,7 +137,7 @@ fun ToSortSheet(
                     }
                 }
             }
-            GradientButton("Move all", onMoveAll, Modifier.fillMaxWidth().padding(16.dp))
+            GradientButton("Move all", onMoveAll, Modifier.fillMaxWidth().padding(Space.s4))
         }
     }
 }

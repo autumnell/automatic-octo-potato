@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,9 +52,9 @@ object DeckIssueText {
 fun DeckIssuesLine(issues: CommanderRules.Issues) {
     if (issues.isEmpty) return
     var open by remember { mutableStateOf(false) }
-    Row(Modifier.clickable { open = true }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.clickable { open = true }.padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.Warning, null, tint = Palette.Danger, modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(Space.s1))
         Text(DeckIssueText.count(issues.count), style = MaterialTheme.typography.bodySmall, color = Palette.Danger)
     }
     if (open) DeckIssuesSheet(issues, onDismiss = { open = false })
@@ -71,18 +72,18 @@ private fun DeckIssuesSheet(issues: CommanderRules.Issues, onDismiss: () -> Unit
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Text(
                 DeckIssueText.count(rows.size), style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
             )
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
                 itemsIndexed(rows, key = { i, _ -> i }) { _, (name, what) ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
                         Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Text(what, style = MaterialTheme.typography.labelLarge, color = Palette.Danger)
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

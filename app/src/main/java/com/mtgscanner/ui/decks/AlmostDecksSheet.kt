@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,22 +57,22 @@ fun AlmostDecksSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
     val run by vm.almost.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf<AlmostDeck?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Decks you can almost build", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (run?.loading == false) TextButton(onClick = { vm.loadAlmost(fresh = true) }) { Text("Refresh") }
             }
             Text("Commanders you own and this week's popular ones, by EDHREC's most played cards", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             val r = run
             when {
-                r == null || r.loading -> Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                r == null || r.loading -> Column(Modifier.fillMaxWidth().padding(vertical = Space.s6), horizontalAlignment = Alignment.CenterHorizontally) {
                     if ((r?.progress ?: 0f) > 0f) LinearProgressIndicator(progress = { r?.progress ?: 0f }, color = Palette.Accent, modifier = Modifier.fillMaxWidth(0.6f))
                     else com.mtgscanner.ui.components.Spinner()
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                     Text("Reading EDHREC…", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
-                r.decks.isEmpty() -> EmptyState("Couldn't reach EDHREC", Modifier.padding(vertical = 24.dp), action = "Try again", onAction = { vm.loadAlmost(fresh = true) })
+                r.decks.isEmpty() -> EmptyState("Couldn't reach EDHREC", Modifier.padding(vertical = Space.s6), action = "Try again", onAction = { vm.loadAlmost(fresh = true) })
                 else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
                     items(r.decks, key = { it.commander }) { d ->
                         AlmostRow(d, onClick = { open = d })
@@ -79,7 +80,7 @@ fun AlmostDecksSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
     open?.let { d -> AlmostDeckSheet(d, onSave = { vm.saveAlmost(d); open = null }, onWish = { vm.wishAlmost(d) }, onDismiss = { open = null }) }
@@ -87,7 +88,7 @@ fun AlmostDecksSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
 
 @Composable
 private fun AlmostRow(d: AlmostDeck, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(d.commander, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
@@ -105,13 +106,13 @@ private fun AlmostRow(d: AlmostDeck, onClick: () -> Unit) {
 private fun AlmostDeckSheet(d: AlmostDeck, onSave: () -> Unit, onWish: () -> Unit, onDismiss: () -> Unit) {
     val clip = LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text(d.commander, style = MaterialTheme.typography.titleLarge)
             Text(
                 "You own ${d.cards.size - d.missing.size} of ${d.cards.size} (${(d.share * 100).toInt()}%)" + if (d.ownCommander) " and the commander" else "",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s2))
             Row {
                 TextButton(onClick = onSave) { Text("Save as deck") }
                 if (d.missing.isNotEmpty()) TextButton(onClick = onWish) { Text("Wish for missing") }
@@ -122,18 +123,18 @@ private fun AlmostDeckSheet(d: AlmostDeck, onSave: () -> Unit, onWish: () -> Uni
             }
             LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.6f)) {
                 if (d.missing.isNotEmpty()) item(key = "m") { Label("Missing · ${d.missing.size}") }
-                items(d.missing, key = { "m$it" }) { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 3.dp)) }
+                items(d.missing, key = { "m$it" }) { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = Space.s1)) }
                 val have = d.cards.filterNot { it in d.missing }
                 if (have.isNotEmpty()) item(key = "h") { Label("You have · ${have.size}") }
-                items(have, key = { "h$it" }) { Text(it, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = 3.dp)) }
+                items(have, key = { "h$it" }) { Text(it, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s1)) }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }
 
 @Composable
 private fun Label(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s1))
 }
 

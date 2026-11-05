@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -227,11 +228,11 @@ fun DeckPickDialog(vm: ScanViewModel) {
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { vm.scanToDeck(d) }
-                                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                                    .padding(vertical = Space.s3, horizontal = Space.s1),
                             )
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.s2))
                 }
                 OutlinedTextField(name, { name = it }, singleLine = true, placeholder = { Text("New deck") })
             }
@@ -252,7 +253,7 @@ private fun ModeText(title: String, body: String) = Column {
 fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val p = state.pack ?: return
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text(p.name, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -277,7 +278,7 @@ fun PackStartDialog(vm: ScanViewModel) {
         text = {
             Column {
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Pack") }, placeholder = { Text("e.g. Bloomburrow play booster") })
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.s2))
                 OutlinedTextField(
                     cost, { cost = it.filter { c -> c.isDigit() || c == '.' || c == ',' } }, singleLine = true,
                     label = { Text("Paid (optional)") }, prefix = { Text("$") },
@@ -322,37 +323,37 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             state.status, color = Color.White, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center,
-            modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = Space.s3, vertical = Space.s2),
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.s3))
         if (state.wantPage || state.wantSpread || state.pageLoading) Row(verticalAlignment = Alignment.CenterVertically) {
             com.mtgscanner.ui.components.Spinner()
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Space.s3))
             TextButton(onClick = vm::cancelCapture) { Text("Cancel", color = Color.White) }
         }
         else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             GradientButton("Capture page", vm::capturePage, Modifier.weight(1f), icon = Icons.Outlined.GridOn)
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             // Two to four loose cards side by side: each one is found and read.
             Row(
                 Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
                     .clickable { vm.captureSpread() }
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                    .padding(horizontal = Space.s4, vertical = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Outlined.ViewModule, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Space.s2))
                 Text("Loose", color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Space.s2))
             Row(
                 Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
                     .clickable { runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) } }
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                    .padding(horizontal = Space.s4, vertical = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Outlined.PhotoLibrary, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Space.s2))
                 Text("Photo · video", color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
         }
@@ -365,15 +366,15 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
 fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
     val slots = state.page ?: return
     ModalBottomSheet(onDismissRequest = vm::closePage, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             val picked = slots.filter { it.selected }
             Text("Binder page", style = MaterialTheme.typography.titleLarge)
             Text(
                 "Found ${slots.count { it.card != null }} of ${slots.size}",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
-            Spacer(Modifier.height(10.dp))
-            LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxHeight(0.75f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.height(Space.s3))
+            LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxHeight(0.75f), horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 items(slots, key = { it.index }) { s ->
                     Box(
                         Modifier.clip(CardShape).background(Palette.SurfaceHigh)
@@ -384,19 +385,19 @@ fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
                         val card = s.card
                         if (card != null) {
                             CardImage(card.smallImageUrl ?: card.imageUrl, Modifier.fillMaxWidth().alpha(if (s.selected) 1f else 0.35f))
-                            if (s.selected) Icon(Icons.Filled.CheckCircle, null, tint = Palette.Accent, modifier = Modifier.align(Alignment.TopEnd).padding(4.dp))
+                            if (s.selected) Icon(Icons.Filled.CheckCircle, null, tint = Palette.Accent, modifier = Modifier.align(Alignment.TopEnd).padding(Space.s1))
                         } else Text(
                             s.read?.let { "Couldn't find\n$it" } ?: "Empty or unreadable",
                             style = MaterialTheme.typography.labelSmall, color = Palette.Muted, textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(6.dp),
+                            modifier = Modifier.padding(Space.s2),
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.s3))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = vm::closePage) { Text("Try again") }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(Space.s2))
                 val worth = addWorth(state, picked.mapNotNull { it.card }, ScanBarPrefs.quantity)
                 // Price check adds nothing: the button just closes the page.
                 if (state.target == ScanTarget.CHECK) GradientButton("Done$worth", vm::addPage, Modifier.weight(1f))
@@ -406,7 +407,7 @@ fun PageSheet(state: ScanUiState, vm: ScanViewModel) {
                     vm::addPage, Modifier.weight(1f), enabled = picked.isNotEmpty(),
                 )
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(Space.s4))
         }
     }
 }

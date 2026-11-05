@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.clickable
@@ -88,9 +89,9 @@ fun RecentCardsStrip(refreshKey: Any?, onOpen: (CollectionCard) -> Unit, modifie
     Column(modifier) {
         Text(
             "Recently opened", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
-            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
+            modifier = Modifier.padding(start = Space.s4, top = Space.s1, bottom = Space.s1),
         )
-        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyRow(contentPadding = PaddingValues(horizontal = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             items(cards, key = { it.id }) { c ->
                 CardImage(
                     c.smallImageUrl ?: c.imageUrl,

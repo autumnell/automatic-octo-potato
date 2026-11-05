@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Size
@@ -290,7 +291,7 @@ internal fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             Text(
                 z, color = Color.White, style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 210.dp).clip(RoundedCornerShape(Corners.Medium))
-                    .background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 4.dp),
+                    .background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = Space.s3, vertical = Space.s1),
             )
         }
     }

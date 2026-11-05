@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.focusRequester
@@ -164,7 +165,7 @@ import com.mtgscanner.ui.theme.TabularNums
 @Composable
 internal fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: List<SavedSearch>, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).navigationBarsPadding()) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Space.s4).navigationBarsPadding()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Filters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (f.activeCount > 0) TextButton(onClick = vm::clearFilters) { Text("Clear all") }
@@ -181,12 +182,12 @@ internal fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: L
                     SelectPill(label, col in f.colors, onClick = { vm.update { it.copy(colors = it.colors.toggle(col)) } }, leading = pip)
                 }
             }
-            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.padding(top = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 ColorMatch.entries.forEach { m ->
                     SelectPill(m.label, f.colorMatch == m, onClick = { vm.update { it.copy(colorMatch = m) } })
                 }
             }
-            FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(Modifier.padding(top = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Colors", !f.byIdentity, onClick = { vm.update { it.copy(byIdentity = false) } })
                 SelectPill("Identity", f.byIdentity, onClick = { vm.update { it.copy(byIdentity = true) } })
             }
@@ -233,15 +234,15 @@ internal fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: L
                 }
             }
             if (saved.isNotEmpty()) {
-                Text("Saved searches", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+                Text("Saved searches", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s4, bottom = Space.s1))
                 saved.forEach { sv ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(sv.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).clickable { vm.applySaved(sv); onDismiss() }.padding(vertical = 8.dp))
+                        Text(sv.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).clickable { vm.applySaved(sv); onDismiss() }.padding(vertical = Space.s2))
                         IconButton(onClick = { vm.deleteSaved(sv.name) }) { Icon(Icons.Outlined.DeleteOutline, "Delete saved search", tint = Palette.Icon) }
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Space.s6))
         }
     }
 }
@@ -249,8 +250,8 @@ internal fun FilterSheet(f: Filters, ui: BrowseUi, vm: BrowseViewModel, saved: L
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilterGroup(title: String, content: @Composable () -> Unit) {
-    Text(title, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    Text(title, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s4, bottom = Space.s2))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) { content() }
 }
 
 private fun <T> Set<T>.toggle(v: T): Set<T> = if (v in this) this - v else this + v
