@@ -72,6 +72,7 @@ object WhatsNew {
         238 to "Steadier app: every update is now checked against collections from every older version, so no cards go missing; clear cards are taken on their first frame more often; a half-read name confirms a clear picture; and screen readers say mana costs and price charts in words",
         239 to "Tidier look: every screen now uses the same spacing steps, slightly squarer corners and calmer buttons, following one written design system",
         252 to "A calmer, bolder look: engraved Cinzel headings, a bigger collection value, more room between sections, red only on Scan and the main button, lighter type, plainer wording and smoother motion. The font picker is gone.",
+        260 to "Headings are now in Fraunces, a softer book serif, in place of the engraved capitals",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
