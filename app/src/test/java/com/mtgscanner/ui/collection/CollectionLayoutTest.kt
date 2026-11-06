@@ -60,9 +60,9 @@ class CollectionLayoutTest {
         assertEquals(emptyList<CollectionSection>(), CollectionLayout.sections("", CollectionLayout.knownKey()))
     }
 
-    @Test fun boxesTabAlwaysShows() {
+    @Test fun boxesAndAllTabsAlwaysShow() {
         val l = CollectionLayout(hidden = setOf(CollectionPart.DECKS, CollectionPart.WISHLIST, CollectionPart.TOOLS))
-        assertEquals(listOf(CollectionTab.BOXES), CollectionTab.shown(l))
+        assertEquals(listOf(CollectionTab.BOXES, CollectionTab.ALL), CollectionTab.shown(l))
         assertEquals(CollectionTab.entries, CollectionTab.shown(CollectionLayout.DEFAULT))
     }
 }
