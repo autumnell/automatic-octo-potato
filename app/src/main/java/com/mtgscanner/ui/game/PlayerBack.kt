@@ -149,7 +149,8 @@ private fun DamageGrid(
                 row.forEach { s ->
                     val o = g.players[s.from]
                     DamageTile(
-                        name = o.name + if (s.partner) " · partner" else "",
+                        name = o.name,
+                        partner = s.partner,
                         color = PLAYER_COLORS[o.color % PLAYER_COLORS.size],
                         damage = p.damageFrom(s.from, s.partner),
                         modifier = Modifier.weight(1f).then(if (fill) Modifier.fillMaxHeight() else Modifier),
@@ -165,24 +166,26 @@ private fun DamageGrid(
 /** Commander damage from one opponent: their color, their name, the number. Tap +1, hold −1. Red at 21. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DamageTile(name: String, color: Color, damage: Int, modifier: Modifier, onChange: (Int) -> Unit) {
+private fun DamageTile(name: String, partner: Boolean, color: Color, damage: Int, modifier: Modifier, onChange: (Int) -> Unit) {
     val haptics = LocalHapticFeedback.current
     val lethal = damage >= GameState.COMMANDER_LIMIT
     val shape = RoundedCornerShape(Corners.Small)
     Column(
         modifier.heightIn(min = 56.dp).clip(shape).background(color)
             .border(if (lethal) 3.dp else 0.dp, if (lethal) Palette.Danger else Color.Transparent, shape)
-            .semantics(mergeDescendants = true) { contentDescription = "Commander damage from $name: $damage" }
+            .semantics(mergeDescendants = true) { contentDescription = "Commander damage from $name${if (partner) " (partner)" else ""}: $damage" }
             .combinedClickable(
                 onClickLabel = "+1 from $name", onLongClickLabel = "−1 from $name",
                 onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onChange(1) },
                 onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onChange(-1) },
             )
-            .padding(horizontal = Space.s2, vertical = Space.s1),
+            .padding(horizontal = Space.s1, vertical = Space.s1),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(name, color = Color.White, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Small type and two lines, so a name like "Player 2" fits a narrow tile instead of being cut off.
+        Text(name, color = Color.White, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        if (partner) Text("Partner", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
         Text("$damage", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
     }
 }
