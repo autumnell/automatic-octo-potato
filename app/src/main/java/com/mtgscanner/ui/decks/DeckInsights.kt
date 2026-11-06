@@ -171,7 +171,7 @@ data class Goldfish(
     /** The first commander castable on the turn equal to its mana value, from lands alone; null without one. */
     val commanderOnCurve: Double?,
     val commanderCost: Int?,
-    /** The turn by which half the games have played every card of mana value 3 or less drawn by then; average lands in play on turn 5. */
+    /** Lands in play on turn 5, on average. */
     val landsTurn5: Double,
 )
 

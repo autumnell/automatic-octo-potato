@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
@@ -176,6 +177,7 @@ fun DeckScreen(
     var addingAll by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var odds by remember { mutableStateOf(false) }
+    var comparing by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     LaunchedEffect(ui.loaded) { if (startEditTab != null && ui.loaded && ui.id != 0L) vm.edit() }
@@ -281,11 +283,13 @@ fun DeckScreen(
         }
         DrawOddsSheet(oddsCards, onDismiss = { odds = false })
     }
+    if (comparing) CompareDecksSheet(ui, onDismiss = { comparing = false })
     if (menu) DeckActionsSheet(ui.name.ifBlank { "Deck" }, onDismiss = { menu = false }) {
         val close = { menu = false }
         DeckActionGroup("Play")
         if (ui.id != 0L && onPlaytest != null) DeckActionRow(Icons.Outlined.PlayArrow, "Playtest", "Play turns on a table, alone or against a deck of the same format") { close(); onPlaytest() }
         DeckActionRow(Icons.Outlined.Percent, "Draw odds", "How likely you are to draw a card by a given turn") { close(); odds = true }
+        DeckActionRow(Icons.Outlined.CompareArrows, "Compare", "See the cards only in this deck, only in another, or in both") { close(); comparing = true }
         DeckActionGroup("Cards")
         DeckActionRow(Icons.Outlined.LibraryAdd, "Add to collection", "Count the deck's cards as yours, kept in the deck") { close(); addingAll = true }
         DeckToolsMenuItems(vm.tools, ui, inDeck, close = close, onPrint = { printProxies() })
@@ -457,6 +461,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
             if (ui.id != 0L) DeckRecordRow(ui.id)
+            DeckInsightRows(ui, vm)
             if (small.isNotEmpty()) {
                 Text(
                     small.joinToString(" · "),
@@ -617,8 +622,7 @@ private fun DeckRecordRow(deckId: Long) {
     val r = remember(deckId, version) { com.mtgscanner.game.DeckResults.of(ctx, deckId) }
     var editing by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-        Text("Win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Spacer(Modifier.width(Space.s3))
+        Text("Win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.width(INSIGHT_LABEL))
         Text(
             r.winRate?.let { "$it% · ${r.wins}–${r.losses}–${r.draws}" } ?: "No games yet",
             style = MaterialTheme.typography.bodyMedium.merge(TabularNums),

@@ -119,6 +119,16 @@ jobs:
           gh release download models -p card-gallery.bin -D app/src/main/assets --clobber \
             || echo "No card gallery on the models release: the build leaves it out."
 
+      # Commander Spellbook's combos as a small list (built weekly by combos.yml), for "Combos you could build".
+      # Without it the phone downloads the list from the "models" release.
+      - name: Combo list
+        if: env.FULL == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download models -p combos.tsv.gz -D app/src/main/assets --clobber \
+            || echo "No combo list on the models release: the build leaves it out."
+
       # A release build (R8, no debugging): much faster on the phone. Same app id as the old debug
       # builds, and the same committed key unless the private key above is set.
       - name: Build APK
