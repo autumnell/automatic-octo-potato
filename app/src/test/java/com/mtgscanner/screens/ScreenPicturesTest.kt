@@ -5,9 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.Composable
@@ -191,11 +191,19 @@ class ScreenPicturesTest {
     }
 
     @Test fun gamePanelBack() = shoot("09f-game-panel-back") {
+        // The back of a panel at a 4-player table (short and wide), then at a 2-player table (taller).
         val g = com.mtgscanner.game.GameState.new(com.mtgscanner.game.GameFormat.COMMANDER, 4)
             .let { com.mtgscanner.game.Game.commanderDamage(it, 0, 1, 7, false) }
             .let { com.mtgscanner.game.Game.poison(it, 0, 2) }
-        Box(androidx.compose.ui.Modifier.fillMaxWidth().height(320.dp).padding(Space.s4)) {
-            com.mtgscanner.ui.game.PlayerBack(g, 0, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {})
+        val two = com.mtgscanner.game.GameState.new(com.mtgscanner.game.GameFormat.COMMANDER, 2, partners = true)
+        androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.padding(Space.s4)) {
+            Box(androidx.compose.ui.Modifier.size(380.dp, 170.dp)) {
+                com.mtgscanner.ui.game.PlayerBack(g, 0, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {})
+            }
+            androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.height(Space.s4))
+            Box(androidx.compose.ui.Modifier.size(350.dp, 300.dp)) {
+                com.mtgscanner.ui.game.PlayerBack(two, 1, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {})
+            }
         }
     }
 
