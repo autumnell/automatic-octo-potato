@@ -109,7 +109,6 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
     }
 }
 
-internal fun pct(x: Double): String = "${(x * 100).toInt()}%"
 
 /** A small row on the deck page: label, value and a muted note, tapping for more. */
 @Composable

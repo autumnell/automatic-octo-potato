@@ -227,7 +227,7 @@ private fun OpeningHandOdds(exactly: List<Double>, k: Int) {
     )
 }
 
-private fun pct(p: Double): String = when {
+internal fun pct(p: Double): String = when {
     p >= 0.995 && p < 1.0 -> ">99%"
     p > 0.0 && p < 0.005 -> "<1%"
     else -> "${(p * 100).toInt()}%"
