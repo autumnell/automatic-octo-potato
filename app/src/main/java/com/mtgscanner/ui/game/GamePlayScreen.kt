@@ -128,6 +128,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var ending by remember { mutableStateOf(false) }
     var playerSheet by remember { mutableStateOf<Int?>(null) }
+    var tutorial by remember { mutableStateOf(!vm.tutorialSeen) }
 
     // Keep the screen on during a game.
     val view = LocalView.current
@@ -146,7 +147,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
         onDispose { bars?.show(WindowInsetsCompat.Type.systemBars()) }
     }
     // Back opens the game menu instead of leaving the table by accident.
-    BackHandler(enabled = !menu && playerSheet == null && !ending) { menu = true }
+    BackHandler(enabled = !menu && playerSheet == null && !ending && !tutorial) { menu = true }
 
     // Day lights the table up; night (or not tracked) keeps it dark.
     val tableColor by animateColorAsState(
@@ -168,59 +169,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
                 onMore = { playerSheet = i },
             )
         }
-        val gap = 4.dp
-        when (g.players.size) {
-            1 -> panel(0, 0, Modifier.fillMaxSize().padding(gap))
-            2 -> Column(Modifier.fillMaxSize()) {
-                panel(0, 180, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                panel(1, 0, Modifier.weight(1f).fillMaxWidth().padding(gap))
-            }
-            3 -> Column(Modifier.fillMaxSize()) {
-                Row(Modifier.weight(1.4f)) {
-                    panel(0, 90, Modifier.weight(1f).fillMaxHeight().padding(gap))
-                    panel(1, 270, Modifier.weight(1f).fillMaxHeight().padding(gap))
-                }
-                panel(2, 0, Modifier.weight(1f).fillMaxWidth().padding(gap))
-            }
-            4 -> Row(Modifier.fillMaxSize()) {
-                // Clockwise from the top left: 1 and 4 on the left side, 2 and 3 on the right.
-                Column(Modifier.weight(1f)) {
-                    panel(0, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    panel(3, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                }
-                Column(Modifier.weight(1f)) {
-                    panel(1, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    panel(2, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                }
-            }
-            5 -> Column(Modifier.fillMaxSize()) {
-                // Clockwise: 1 top left, 2 and 3 down the right, 4 across the bottom, 5 bottom left.
-                Row(Modifier.weight(2.4f)) {
-                    Column(Modifier.weight(1f)) {
-                        panel(0, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                        panel(4, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    }
-                    Column(Modifier.weight(1f)) {
-                        panel(1, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                        panel(2, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    }
-                }
-                panel(3, 0, Modifier.weight(1f).fillMaxWidth().padding(gap))
-            }
-            else -> Row(Modifier.fillMaxSize()) {
-                // Clockwise: 1, 2, 3 is the top left, top right, middle right... 6 is middle left.
-                Column(Modifier.weight(1f)) {
-                    panel(0, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    panel(5, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    panel(4, 90, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                }
-                Column(Modifier.weight(1f)) {
-                    panel(1, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    panel(2, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                    panel(3, 270, Modifier.weight(1f).fillMaxWidth().padding(gap))
-                }
-            }
-        }
+        TableSeats(g.players.size, g.layout, 4.dp) { i, rot, mod -> panel(i, rot, mod) }
 
         // The middle: the game menu and undo. Day or night shows as a small chip once it's in play.
         Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -269,7 +218,10 @@ fun GamePlayScreen(onExit: () -> Unit) {
         g, vm, onDismiss = { menu = false },
         onEnd = { menu = false; ending = true },
         onLeave = { menu = false; onExit() },
+        onTutorial = { menu = false; tutorial = true },
     )
+    // The short how-to: once on the first game, then from the menu's Game page.
+    if (tutorial) GameTutorial(g, onDone = { tutorial = false; vm.tutorialDone() })
     playerSheet?.let { i -> PlayerOverlay(g, i, vm, onDismiss = { playerSheet = null }) }
     if (ending) EndGameDialog(g, onDismiss = { ending = false }) { save, winner ->
         ending = false

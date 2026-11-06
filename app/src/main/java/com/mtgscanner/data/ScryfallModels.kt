@@ -86,6 +86,10 @@ data class ScryfallCard(
     val smallImageUrl: String?
         get() = imageUris?.small ?: cardFaces?.firstOrNull()?.imageUris?.small
 
+    /** The art alone, cut from the card (front face for two-faced cards). */
+    val artCropUrl: String?
+        get() = imageUris?.artCrop ?: cardFaces?.firstOrNull()?.imageUris?.artCrop
+
     val hasFoil: Boolean get() = finishes.isEmpty() || "foil" in finishes || "etched" in finishes
     val hasNonFoil: Boolean get() = finishes.isEmpty() || "nonfoil" in finishes
 

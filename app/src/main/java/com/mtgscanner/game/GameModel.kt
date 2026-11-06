@@ -71,6 +71,8 @@ data class GameState(
     val startingLife: Int = 20,
     /** Track a partner (second commander) for each player. */
     val partners: Boolean = false,
+    /** Which seat arrangement the table uses ([TableLayouts]); 0 is the usual one. */
+    val layout: Int = 0,
     val turn: Int = 1,
     /** Whose turn it is, or null when turns aren't being tracked. */
     val active: Int? = null,
@@ -270,7 +272,28 @@ object Game {
         return GameState.new(s.format, s.players.size, s.startingLife, s.players.map { it.name }, s.partners)
             .let { g -> g.copy(players = g.players.mapIndexed { i, p -> p.copy(color = s.players[i].color, art = s.players[i].art, deckId = s.players[i].deckId) }) }
             .let { g -> if (first != null) g.copy(active = first, firstSeat = first, turn = 1) else g }
+            .copy(layout = s.layout)
     }
+}
+
+/** The ways seats can be arranged on the phone for each player count. Pure, for tests. */
+object TableLayouts {
+    /** How many arrangements [players] can choose from. */
+    fun count(players: Int): Int = if (players in 2..4) 2 else 1
+
+    /** A short name for each arrangement, for TalkBack and the setup screen. */
+    fun label(players: Int, layout: Int): String = when {
+        players == 2 && layout == 1 -> "Side by side"
+        players == 2 -> "Face to face"
+        players == 3 && layout == 1 -> "One at the end, two at the sides"
+        players == 3 -> "Two at the sides, one at the end"
+        players == 4 && layout == 1 -> "One on each side"
+        players == 4 -> "Two on each side"
+        else -> "Around the table"
+    }
+
+    /** A layout that exists for [players]; anything else falls back to the usual one. */
+    fun valid(players: Int, layout: Int): Int = if (layout in 0 until count(players)) layout else 0
 }
 
 /** One finished game, kept for the stats. */

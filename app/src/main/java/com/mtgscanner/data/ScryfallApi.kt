@@ -46,6 +46,10 @@ class ScryfallApi(
     private var lastRequestAt = 0L
 
     /** Fuzzy name lookup. Returns null when Scryfall has no match. */
+    /** One random card matching [query] (Scryfall's /cards/random), or null. */
+    suspend fun random(query: String): ScryfallCard? =
+        getOrNull(base.newBuilder().addPathSegments("cards/random").addQueryParameter("q", query).build())
+
     suspend fun named(fuzzy: String, set: String? = null): ScryfallCard? {
         val url = base.newBuilder().addPathSegments("cards/named")
             .addQueryParameter("fuzzy", fuzzy)
