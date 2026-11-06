@@ -1,0 +1,24 @@
+name: probe-avg
+on:
+  push:
+    branches: [claude/deck-insights]
+    paths: [.github/workflows/probe-avg.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -A "Grimoire-app" https://json.edhrec.com/pages/average-decks/atraxa-praetors-voice.json -o a.json -w "status %{http_code}\n"
+          python3 - <<'PY'
+          import json
+          d=json.load(open('a.json'))
+          print('top', list(d.keys())[:40])
+          for k in ['deck','decklist','cards']:
+              if k in d: print(k, type(d[k]).__name__, str(d[k])[:600])
+          c=d.get('container',{}).get('json_dict',{})
+          print('json_dict', list(c.keys()))
+          cl=c.get('cardlists',[])
+          print('cardlists', [(x.get('tag'),x.get('header'),len(x.get('cardviews',[]))) for x in cl][:20])
+          if cl: print(json.dumps(cl[0]['cardviews'][:2])[:800])
+          PY
+          curl -sS "https://api.scryfall.com/cards/search?q=is%3Agamechanger&unique=cards" -A "Grimoire-app" -H "Accept: application/json" | python3 -c "import json,sys;d=json.load(sys.stdin);print('gc',d.get('total_cards'),[c['name'] for c in d.get('data',[])])"
