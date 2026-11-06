@@ -93,21 +93,17 @@ internal fun PlayerBack(
             IconButton(onClick = onPlayer, modifier = Modifier.size(BACK_BUTTON)) { Icon(Icons.Outlined.Person, "${p.name}: name, color, art and more", tint = Color.White) }
             IconButton(onClick = onDone, modifier = Modifier.size(BACK_BUTTON)) { Icon(Icons.Outlined.Check, "Done", tint = Color.White) }
         }
+        if (showDamage) DamageLabel()
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val width = maxWidth
             val height = maxHeight
             // A short, wide panel (most seats at a table of 3 or 4) puts the table map and the counters side by
             // side; a taller one stacks them and scrolls if it has to.
             val wide = width > height * 1.2f
-            val map: @Composable (Modifier) -> Unit = { m ->
-                Column(m) {
-                    DamageLabel()
-                    SeatMap(g, i, turned, ratio, Modifier.weight(1f, fill = false), onCommander)
-                }
-            }
+            val map: @Composable (Modifier) -> Unit = { m -> SeatMap(g, i, turned, ratio, m, onCommander) }
             if (wide) Row(Modifier.fillMaxSize()) {
                 if (showDamage) {
-                    map(Modifier.fillMaxHeight().widthIn(max = (width - COUNTERS_WIDTH).coerceAtLeast(MAP_MIN / 2)))
+                    map(Modifier.heightIn(max = height).widthIn(max = (width - COUNTERS_WIDTH).coerceAtLeast(MAP_MIN / 2)))
                     Spacer(Modifier.width(Space.s3))
                 }
                 Column(
@@ -116,7 +112,7 @@ internal fun PlayerBack(
                 ) { counters.forEach { BackStepper(it) } }
             } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 if (showDamage) {
-                    map(Modifier.fillMaxWidth().heightIn(max = (height * 0.6f).coerceAtLeast(MAP_MIN)))
+                    map(Modifier.heightIn(max = (height * 0.6f).coerceAtLeast(MAP_MIN)).widthIn(max = width))
                     Spacer(Modifier.height(Space.s3))
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
