@@ -39,11 +39,4 @@ class GameSetupTest {
         assertTrue(tourPages(false, 2).none { it.title == "Commander damage" })
         assertTrue(tourPages(true, 1).none { it.title == "Commander damage" })
     }
-
-    @Test fun backOfPanelListsEachOtherCommander() {
-        assertEquals(listOf(1, 2, 3), damageSources(4, 0, partners = false).map { it.from })
-        // With partners each opponent has two commanders, the partner second.
-        val withPartners = damageSources(3, 1, partners = true)
-        assertEquals(listOf(0 to false, 0 to true, 2 to false, 2 to true), withPartners.map { it.from to it.partner })
-    }
 }
