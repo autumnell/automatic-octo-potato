@@ -230,9 +230,11 @@ private fun CheckRow(label: String, names: List<String>?, first: Boolean) {
 
 private val BRACKET_NAMES = listOf("Exhibition", "Core", "Upgraded", "Optimized", "cEDH")
 private val BRACKET_RULES = mapOf(
+    1 to "Exhibition: a deck built to show off a theme or idea, not to win",
     2 to "No Game Changers, no two-card combos, few tutors",
     3 to "Up to 3 Game Changers, or a two-card combo, or several tutors or extra turns",
     4 to "More than 3 Game Changers, or mass land denial",
+    5 to "cEDH: a competitive deck built to win as fast as it can",
 )
 
 /** The five brackets as steps, the deck's one filled in ink; 1 and 5 are faint because they aren't guessed. */
@@ -264,27 +266,26 @@ private fun BracketScale(level: Int) {
 
 @Composable
 private fun BracketSheet(b: Bracket, onDismiss: () -> Unit) {
-    DeckActionsSheet("Bracket ${b.level} · ${b.label}", onDismiss) { BracketBody(b) }
+    DeckActionsSheet("Bracket ${b.level}: ${b.label}", onDismiss) { BracketBody(b) }
 }
 
 /** The bracket sheet under its title; internal so the screen pictures can draw it. */
 @Composable
 internal fun ColumnScope.BracketBody(b: Bracket) {
-    SheetNote("Worked out from the list", top = true)
     InsightPanel {
         BracketScale(b.level)
         Spacer(Modifier.height(Space.s3))
         Text(BRACKET_RULES[b.level].orEmpty(), style = MaterialTheme.typography.bodyMedium)
     }
-    InsightPanel("What it found") {
+    InsightPanel("Deck stats:") {
         CheckRow("Game Changers", b.gameChangers, first = true)
         CheckRow("Two-card combos", b.twoCardCombos?.map { it.joinToString(" + ") }, first = false)
         CheckRow("Mass land denial", b.massLandDenial, first = false)
         CheckRow("Extra turns", b.extraTurns, first = false)
         CheckRow("Tutors", b.tutors, first = false)
     }
-    InsightPanel("How it's set") {
-        (2..4).forEach { n ->
+    InsightPanel("Bracket system:") {
+        (1..5).forEach { n ->
             Row(Modifier.padding(vertical = Space.s1)) {
                 Text(
                     "$n", style = MaterialTheme.typography.labelLarge, color = if (n == b.level) Palette.Text else Palette.Muted,
@@ -297,7 +298,6 @@ internal fun ColumnScope.BracketBody(b: Bracket) {
             }
         }
     }
-    SheetNote("Brackets 1 and 5 depend on how the deck is meant to be played, so they aren't guessed")
 }
 
 @Composable

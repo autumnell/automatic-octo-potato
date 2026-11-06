@@ -182,7 +182,7 @@ class ScreenPicturesTest {
 
     @Test fun deckBracket() = shoot("05e-deck-bracket") {
         val b = com.mtgscanner.ui.decks.Bracket(2, emptyList(), emptyList(), emptyList(), listOf("Fabricate", "From Father to Son", "Guidelight Pathmaker"), emptyList())
-        InsightSheet("Bracket 2 · Core") { BracketBody(b) }
+        InsightSheet("Bracket 2: Core") { BracketBody(b) }
     }
 
     @Test fun deckManaBase() = shoot("05f-deck-mana-base") {
