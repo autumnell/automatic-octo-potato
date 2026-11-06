@@ -356,7 +356,8 @@ fun BrowseScreen(
                 var sortMenu by remember { mutableStateOf(false) }
                 var groupMenu by remember { mutableStateOf(false) }
                 Box {
-                    ToolChip(f.sort.label, Icons.AutoMirrored.Outlined.Sort, { sortMenu = true }, compact = true)
+                    // The short name keeps Group and Filters in view next to Select; the menu has the full names.
+                    ToolChip(f.sort.short, Icons.AutoMirrored.Outlined.Sort, { sortMenu = true }, compact = true)
                     DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                         SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
                             DropdownMenuItem(
@@ -398,7 +399,7 @@ fun BrowseScreen(
                     if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
                 }
             }
-            if (ui.totalCards > 0 && !picking) TextButton(onClick = vm::startSelecting) { Text("Select") }
+            if (ui.totalCards > 0 && !picking) TextButton(onClick = vm::startSelecting, contentPadding = PaddingValues(horizontal = Space.s2)) { Text("Select") }
             IconButton(onClick = vm::cycleView) {
                 // Shows the view you get next.
                 when {
