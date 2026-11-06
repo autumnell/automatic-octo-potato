@@ -43,9 +43,11 @@ internal data class TourPage(val title: String, val body: String)
 internal fun tourPages(commanderDamage: Boolean, players: Int): List<TourPage> = buildList {
     add(TourPage("Change life", "Tap the left half of a player to take 1 life and the right half to give 1. Hold for 10, or swipe up and down to count one at a time."))
     if (commanderDamage && players > 1) {
-        add(TourPage("Commander damage", "The dots along the bottom are the other players' commanders. Tap a dot when its commander hits you, and hold it to take 1 back."))
+        add(TourPage("Commander damage", "Tap ⋯ on your panel to flip it over. Tap a player's color when their commander hits you, and hold it to take 1 back. Tap ✓ to flip back."))
+        add(TourPage("Counters and more", "The back of your panel also has poison, commander tax and rad. The person button there has your name, color, art, monarch and conceding."))
+    } else {
+        add(TourPage("Counters and more", "Tap ⋯ on your panel to flip it over for poison and rad. The person button there has your name, color, art and conceding."))
     }
-    add(TourPage("Your player menu", "The ⋯ on each panel opens that player's menu, turned to face them: poison, energy and other counters, commander tax, card art and their name."))
     add(TourPage("The middle button", "Opens the game menu: undo, turns and who goes first, monarch, day and night, dice and coins, and ending the game."))
 }
 

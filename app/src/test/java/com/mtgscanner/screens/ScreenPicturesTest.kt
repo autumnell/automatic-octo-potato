@@ -5,6 +5,11 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -173,20 +178,25 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.game.GameSetupScreen(onPlay = {})
     }
 
-    @Test fun gameFormat() = shoot("09b-game-format") {
+    @Test fun gamePlayers() = shoot("09c-game-players") {
         com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 1)
     }
 
-    @Test fun gamePlayers() = shoot("09c-game-players") {
+    @Test fun gameSeats() = shoot("09d-game-seats") {
         com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 2)
     }
 
-    @Test fun gameSeats() = shoot("09d-game-seats") {
+    @Test fun gameNames() = shoot("09e-game-names") {
         com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 3)
     }
 
-    @Test fun gameNames() = shoot("09e-game-names") {
-        com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 4)
+    @Test fun gamePanelBack() = shoot("09f-game-panel-back") {
+        val g = com.mtgscanner.game.GameState.new(com.mtgscanner.game.GameFormat.COMMANDER, 4)
+            .let { com.mtgscanner.game.Game.commanderDamage(it, 0, 1, 7, false) }
+            .let { com.mtgscanner.game.Game.poison(it, 0, 2) }
+        Box(androidx.compose.ui.Modifier.fillMaxWidth().height(320.dp).padding(Space.s4)) {
+            com.mtgscanner.ui.game.PlayerBack(g, 0, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {})
+        }
     }
 
     @Test fun playtest() = shoot("11-playtest") {
