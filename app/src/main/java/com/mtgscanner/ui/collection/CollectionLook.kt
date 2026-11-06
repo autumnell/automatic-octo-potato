@@ -68,7 +68,7 @@ fun ColorDot(identity: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * The collection's totals on one quiet line: "1,234 cards · $5,678 · +$12.40 this week". [value] and [week] are null
+ * The collection's totals on one quiet line: "1,234 cards · $5,678 · +$12.40 7d". [value] and [week] are null
  * when prices are off, and then only the card count shows. With [cardCount] / [valueNumber] the numbers
  * count to their new values instead of jumping.
  */
@@ -94,7 +94,7 @@ fun StatsStrip(
         if (week != null) {
             Text("  ·  ", style = style, color = Palette.Muted)
             Text(week, style = style, color = Palette.Text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(" this week", style = style, color = Palette.Muted, maxLines = 1)
+            Text(" 7d", style = style, color = Palette.Muted, maxLines = 1)
         }
     }
 }
