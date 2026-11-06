@@ -1,5 +1,19 @@
 package com.mtgscanner.ui.decks
 
+import androidx.compose.material.icons.outlined.PlaylistAdd
+
+import androidx.compose.material.icons.outlined.Style
+
+import androidx.compose.material.icons.outlined.Inventory2
+
+import com.mtgscanner.data.DeckUpgradeMath
+
+import com.mtgscanner.data.UpgradeSource
+
+import com.mtgscanner.data.deckSlotId
+
+import com.mtgscanner.ui.theme.AppSettings
+
 import com.mtgscanner.ui.theme.Space
 import android.content.Context
 import android.net.Uri
@@ -151,22 +165,28 @@ class DeckTools(
                 val found = commanders.map { n -> repo.api.named(n) ?: error("no commander") }
                 "WUBRG".filter { c -> found.any { card -> card.colorIdentity.any { it.equals(c.toString(), ignoreCase = true) } } }
             }.getOrNull()
-            val ideas = colors?.let { runCatching { repo.upgradeIdeas(commanders, it, names) }.getOrNull() }
+            val ideas = colors?.let { runCatching { repo.upgradeIdeas(commanders, it, names, AppSettings.upgradeSkipDeckOnly) }.getOrNull() }
             upgrade = upgrade?.copy(loading = false, ideas = ideas.orEmpty(), failed = ideas == null)
         }
     }
 
     fun closeUpgrade() { upgrade = null }
 
-    /** Adds one copy of an idea to the deck's main list, with Undo. */
-    fun add(idea: UpgradeIdea) {
+    /**
+     * Adds one copy of an idea to the deck's main list, with Undo. With [from], one copy also moves out of that box
+     * (or other deck) into this deck's cards.
+     */
+    fun add(idea: UpgradeIdea, from: UpgradeSource? = null) {
         val id = deckId()
         scope.launch {
             repo.addToDeckList(id, idea.name, 1) ?: return@launch
+            val before = from?.let { repo.snapshot(listOf(it.rowId)) }
+            if (from != null) repo.moveCopies(from.rowId, 1, repo.deckSlotId(id))
             upgrade = upgrade?.let { it.copy(added = it.added + idea.name) }
             repo.deckById(id)?.let { reload(it) }
-            Undo.offer("Added ${idea.name}") {
+            Undo.offer(if (from != null) "Added ${idea.name} from ${from.place}" else "Added ${idea.name}") {
                 repo.addToDeckList(id, idea.name, -1)
+                before?.let { repo.restore(it) }
                 upgrade = upgrade?.let { it.copy(added = it.added - idea.name) }
                 repo.deckById(id)?.let { reload(it) }
             }
@@ -276,6 +296,8 @@ private fun LendDeckDialog(tools: DeckTools, deckName: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
+    // The card whose copy is being picked: which box (or deck) it comes from.
+    var picking by remember { mutableStateOf<UpgradeIdea?>(null) }
     ModalBottomSheet(
         onDismissRequest = tools::closeUpgrade,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -283,35 +305,113 @@ private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("From your cards", style = MaterialTheme.typography.titleLarge)
-            Text("Cards you own that decks with this commander play", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+            Text(
+                if (AppSettings.upgradeSkipDeckOnly) "Cards you own that decks with this commander play, not counting cards only in decks"
+                else "Cards you own that decks with this commander play",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+            )
             Spacer(Modifier.height(Space.s2))
             when {
                 state.loading -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
                 state.failed -> EmptyState("Couldn't reach EDHREC or Scryfall", Modifier.padding(vertical = Space.s6))
                 state.ideas.isEmpty() -> EmptyState("Nothing new in your boxes", Modifier.padding(vertical = Space.s6))
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
-                    items(state.ideas, key = { it.name }) { idea ->
-                        val added = idea.name in state.added
-                        Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-                            CardImage(idea.imageUrl, Modifier.width(40.dp), zoom = true)
-                            Spacer(Modifier.width(Space.s3))
-                            Column(Modifier.weight(1f)) {
-                                Text(idea.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                val share = idea.share?.let { "In ${(it * 100).toInt()}% of decks · " }.orEmpty()
-                                Text(
-                                    share + idea.where.joinToString(", ").ifEmpty { "${idea.copies} owned" },
-                                    style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            IconButton(onClick = { if (!added) tools.add(idea) }, enabled = !added) {
-                                if (added) Icon(Icons.Outlined.Check, "Added", tint = Palette.Text)
-                                else Icon(Icons.Outlined.Add, "Add to deck", tint = Palette.Icon)
-                            }
+                    // EDHREC's own order: its top cards first, then its lists (Creatures, Mana Artifacts…), most played first.
+                    upgradeGroups(state.ideas).forEach { (title, ideas) ->
+                        item(key = "h-$title") {
+                            Text(
+                                "$title (${ideas.size})", style = MaterialTheme.typography.titleMedium, color = Palette.Muted,
+                                modifier = Modifier.padding(top = Space.s4, bottom = Space.s1),
+                            )
+                        }
+                        items(ideas, key = { "$title-${it.name}" }) { idea ->
+                            val added = idea.name in state.added
+                            UpgradeRow(idea, added) { if (!added) picking = idea }
                         }
                     }
                 }
             }
+            Spacer(Modifier.height(Space.s4))
+        }
+    }
+    picking?.let { idea -> TakeFromSheet(idea, onPick = { src -> picking = null; tools.add(idea, src) }, onDismiss = { picking = null }) }
+}
+
+/** Ideas under their EDHREC list, Top cards first; without EDHREC, by card type. Each list most played first. */
+private fun upgradeGroups(ideas: List<UpgradeIdea>): List<Pair<String, List<UpgradeIdea>>> {
+    val byGroup = ideas.groupBy { it.group ?: DeckTypes.of(it.typeLine).many }
+    val order = listOf(DeckUpgradeMath.TOP) + ideas.mapNotNull { it.group }.distinct() + DeckType.entries.map { it.many }
+    return order.distinct().mapNotNull { g -> byGroup[g]?.let { g to it.sortedByDescending { i -> i.share ?: -1.0 } } }
+}
+
+@Composable
+private fun UpgradeRow(idea: UpgradeIdea, added: Boolean, onAdd: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+        CardImage(idea.imageUrl, Modifier.width(40.dp), zoom = true)
+        Spacer(Modifier.width(Space.s3))
+        Column(Modifier.weight(1f)) {
+            Text(idea.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            idea.share?.let {
+                Text("In ${(it * 100).toInt()}% of decks", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted, maxLines = 1)
+            }
+            PlacesLine(idea.sources)
+        }
+        IconButton(onClick = onAdd, enabled = !added) {
+            if (added) Icon(Icons.Outlined.Check, "Added", tint = Palette.Text)
+            else Icon(Icons.Outlined.Add, "Add to deck", tint = Palette.Icon)
+        }
+    }
+}
+
+/** Where the copies are: boxes with a box icon in ink, decks with a deck icon in muted text. */
+@Composable
+private fun PlacesLine(sources: List<UpgradeSource>) {
+    val boxes = sources.filter { !it.inDeck }.groupBy { it.place }.map { (p, l) -> p to l.sumOf { it.copies } }
+    val decks = sources.filter { it.inDeck }.map { it.place }.distinct()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (boxes.isNotEmpty()) {
+            Icon(Icons.Outlined.Inventory2, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(Space.s1))
+            Text(
+                boxes.joinToString(", ") { (p, n) -> if (n > 1) "$p ×$n" else p },
+                style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Text,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+        if (boxes.isNotEmpty() && decks.isNotEmpty()) Spacer(Modifier.width(Space.s3))
+        if (decks.isNotEmpty()) {
+            Icon(Icons.Outlined.Style, null, tint = Palette.Muted, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(Space.s1))
+            Text(
+                if (decks.size == 1) "In ${decks[0]}" else "In ${decks.size} decks",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Where to take the copy from: each box or deck holding it, or only add it to the list. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TakeFromSheet(idea: UpgradeIdea, onPick: (UpgradeSource?) -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+            Text(
+                "Take ${idea.name} from", style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = Space.s4),
+            )
+            Text(
+                "One copy moves into this deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                modifier = Modifier.padding(horizontal = Space.s4),
+            )
+            val boxes = idea.sources.filter { !it.inDeck }
+            val decks = idea.sources.filter { it.inDeck }
+            if (boxes.isNotEmpty()) DeckActionGroup("Boxes")
+            boxes.forEach { s -> DeckActionRow(Icons.Outlined.Inventory2, s.place, "${s.printing} · ${s.copies} ${if (s.copies == 1) "copy" else "copies"}") { onPick(s) } }
+            if (decks.isNotEmpty()) DeckActionGroup("Other decks")
+            decks.forEach { s -> DeckActionRow(Icons.Outlined.Style, s.place, "${s.printing} · ${s.copies} ${if (s.copies == 1) "copy" else "copies"}") { onPick(s) } }
+            DeckActionGroup("Or")
+            DeckActionRow(Icons.Outlined.PlaylistAdd, "Only add it to the list", "Leave the copies where they are") { onPick(null) }
             Spacer(Modifier.height(Space.s4))
         }
     }

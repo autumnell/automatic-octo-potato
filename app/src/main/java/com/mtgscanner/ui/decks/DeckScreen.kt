@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
@@ -176,6 +177,7 @@ fun DeckScreen(
     var addingAll by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var odds by remember { mutableStateOf(false) }
+    var comparing by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     LaunchedEffect(ui.loaded) { if (startEditTab != null && ui.loaded && ui.id != 0L) vm.edit() }
@@ -281,11 +283,13 @@ fun DeckScreen(
         }
         DrawOddsSheet(oddsCards, onDismiss = { odds = false })
     }
+    if (comparing) CompareDecksSheet(ui, onDismiss = { comparing = false })
     if (menu) DeckActionsSheet(ui.name.ifBlank { "Deck" }, onDismiss = { menu = false }) {
         val close = { menu = false }
         DeckActionGroup("Play")
         if (ui.id != 0L && onPlaytest != null) DeckActionRow(Icons.Outlined.PlayArrow, "Playtest", "Play turns on a table, alone or against a deck of the same format") { close(); onPlaytest() }
         DeckActionRow(Icons.Outlined.Percent, "Draw odds", "How likely you are to draw a card by a given turn") { close(); odds = true }
+        DeckActionRow(Icons.Outlined.CompareArrows, "Compare", "See the cards only in this deck, only in another, or in both") { close(); comparing = true }
         DeckActionGroup("Cards")
         DeckActionRow(Icons.Outlined.LibraryAdd, "Add to collection", "Count the deck's cards as yours, kept in the deck") { close(); addingAll = true }
         DeckToolsMenuItems(vm.tools, ui, inDeck, close = close, onPrint = { printProxies() })
@@ -308,6 +312,9 @@ fun DeckScreen(
 }
 
 /** Opens [url] in the browser; nothing happens when no app can. */
+/** The list section for cards being considered: shown on the deck page, never counted or played. */
+private const val MAYBE = "Maybeboard"
+
 internal fun openLink(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }
@@ -435,9 +442,11 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     }
     // A commander deck lists its commanders (and companion, signature spell) first.
     val (leads, rest) = PullListMath.leadsFirst(check.lines.filter { DeckFind.matches(it.name, find) }, leadsOf(ui), { it.name }, DeckNames::key)
+    // The maybeboard (cards being considered) is shown on its own, not as missing or owned deck cards.
+    val maybe = rest.filter { it.section == MAYBE }
     val missing = rest.filter { it.section in PLAYED && it.missing > 0 }
-    val otherMissing = rest.filter { it.section !in PLAYED && it.missing > 0 }
-    val owned = rest.filter { it.owned > 0 }
+    val otherMissing = rest.filter { it.section !in PLAYED && it.section != MAYBE && it.missing > 0 }
+    val owned = rest.filter { it.owned > 0 && it.section != MAYBE }
     val inDeck = played.sumOf { minOf(it.inDeck, it.needed) }
     val complete = played.isNotEmpty() && played.all { it.inDeck >= it.needed }
     val pictures = picturesPick ?: complete
@@ -457,6 +466,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
             if (ui.id != 0L) DeckRecordRow(ui.id)
+            DeckInsightRows(ui, vm)
             if (small.isNotEmpty()) {
                 Text(
                     small.joinToString(" · "),
@@ -487,7 +497,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 }
             }
         }
-        if (leads.isEmpty() && missing.isEmpty() && otherMissing.isEmpty() && owned.isEmpty() && find.isNotBlank()) {
+        if (leads.isEmpty() && missing.isEmpty() && otherMissing.isEmpty() && owned.isEmpty() && maybe.isEmpty() && find.isNotBlank()) {
             item { EmptyState("No matches") }
         }
         if (pictures) {
@@ -496,8 +506,11 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             if (leads.isNotEmpty()) item(key = "p-lead") { DeckPiles(leadTitle, leads, open) }
             val groups = DeckTypes.group(rest.filter { it.section in PLAYED }.sortedBy { it.name.lowercase() }, typeOf)
             groups.forEach { (t, lines) -> item(key = "p-${t.name}") { DeckPiles(t.many, lines, open) } }
-            val others = rest.filter { it.section !in PLAYED }
-            if (others.isNotEmpty()) item(key = "p-other") { DeckPiles("Sideboard and more", others, open) }
+            val side = rest.filter { it.section == "Sideboard" }
+            if (side.isNotEmpty()) item(key = "p-side") { DeckPiles("Sideboard", side, open) }
+            if (maybe.isNotEmpty()) item(key = "p-maybe") { DeckPiles("Maybeboard", maybe, open) }
+            val others = rest.filter { it.section !in PLAYED && it.section != "Sideboard" && it.section != MAYBE }
+            if (others.isNotEmpty()) item(key = "p-other") { DeckPiles("Tokens and more", others, open) }
         } else {
             if (leads.isNotEmpty()) {
                 item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
@@ -515,6 +528,10 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             if (owned.isNotEmpty()) {
                 item { SectionHeader("In your collection") }
                 itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { open(l) }, onOpenSet = onOpenSet) }
+            }
+            if (maybe.isNotEmpty()) {
+                item { SectionHeader("Maybeboard (${maybe.sumOf { it.needed }})") }
+                itemsIndexed(maybe, key = { i, _ -> "y$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == maybe.lastIndex, onClick = { open(l) }, onOpenSet = onOpenSet) }
             }
         }
         item { Spacer(Modifier.height(Space.s6)) }
@@ -617,8 +634,7 @@ private fun DeckRecordRow(deckId: Long) {
     val r = remember(deckId, version) { com.mtgscanner.game.DeckResults.of(ctx, deckId) }
     var editing by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-        Text("Win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Spacer(Modifier.width(Space.s3))
+        Text("Win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.width(INSIGHT_LABEL))
         Text(
             r.winRate?.let { "$it% · ${r.wins}–${r.losses}–${r.draws}" } ?: "No games yet",
             style = MaterialTheme.typography.bodyMedium.merge(TabularNums),

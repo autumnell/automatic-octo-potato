@@ -14,8 +14,25 @@ import kotlinx.serialization.json.doubleOrNull
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
-/** A card you own that would suit a commander deck: how often EDHREC decks play it (0..1, null when unknown), and where it is. */
-data class UpgradeIdea(val name: String, val share: Double?, val copies: Int, val where: List<String>, val imageUrl: String?)
+/** One collection row an upgrade card can be taken from: its box (or deck, [inDeck]), printing and copies. */
+data class UpgradeSource(val rowId: Long, val place: String, val inDeck: Boolean, val copies: Int, val printing: String)
+
+/**
+ * A card you own that would suit a commander deck: how often EDHREC decks play it (0..1, null when unknown), where
+ * its copies are, and the EDHREC list it's in ("Top cards", "Creatures"…; null when EDHREC wasn't read).
+ */
+data class UpgradeIdea(
+    val name: String,
+    val share: Double?,
+    val copies: Int,
+    val imageUrl: String?,
+    val sources: List<UpgradeSource> = emptyList(),
+    val group: String? = null,
+    val typeLine: String = "",
+) {
+    /** Boxes first, then decks, each named once. */
+    val where: List<String> get() = sources.sortedBy { it.inDeck }.map { if (it.inDeck) "Deck: ${it.place}" else it.place }.distinct()
+}
 
 /** Upgrade a deck from your boxes. Pure parts, for tests. */
 object DeckUpgradeMath {
@@ -53,17 +70,35 @@ object DeckUpgradeMath {
     /** Color identity letters [card] needs fit inside [identity] ("" is colorless and fits any deck). */
     fun fits(card: String, identity: String): Boolean = card.uppercase().all { it !in "WUBRG" || it in identity.uppercase() }
 
+    /** The name for EDHREC's own top lists, which come first in the sheet. */
+    const val TOP = "Top cards"
+
+    /**
+     * Which EDHREC list each card goes under, by [CardNames.key]: Top Cards and High Synergy Cards become [TOP],
+     * then each other list (Creatures, Mana Artifacts…) in page order keeps the cards not placed yet.
+     */
+    fun groupsOf(groups: List<EdhrecGroup>): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        val (top, rest) = groups.partition { it.header.contains("Top Cards", true) || it.header.contains("High Synergy", true) }
+        top.forEach { g -> g.cards.forEach { out.putIfAbsent(CardNames.key(it.name), TOP) } }
+        rest.forEach { g -> g.cards.forEach { out.putIfAbsent(CardNames.key(it.name), g.header) } }
+        return out
+    }
+
     /**
      * Owned cards from [ranked] (best first) that aren't in the deck and fit its colors, at most [limit].
-     * [where] names a row's box. Basic lands are left out.
+     * [place] names a row's box and says whether it's a deck's; with [skipDeckOnly], cards whose every copy is
+     * in a deck are left out. [groups] is [groupsOf]. Basic lands are left out.
      */
     fun ideas(
         ranked: List<Pair<String, Double?>>,
         owned: List<CollectionCard>,
         inDeck: Set<String>,
         identity: String,
-        where: (CollectionCard) -> String?,
-        limit: Int = 60,
+        place: (CollectionCard) -> Pair<String, Boolean>?,
+        limit: Int = 150,
+        skipDeckOnly: Boolean = false,
+        groups: Map<String, String> = emptyMap(),
     ): List<UpgradeIdea> {
         val byName = owned.filter { it.quantity > 0 && !it.typeLine.startsWith("Basic Land") }.groupBy { CardNames.key(it.name) }
         return ranked.asSequence()
@@ -72,12 +107,19 @@ object DeckUpgradeMath {
             .mapNotNull { (k, _, share) ->
                 val rows = byName[k] ?: return@mapNotNull null
                 if (!fits(rows.first().colorIdentity, identity)) return@mapNotNull null
+                val sources = rows.map { r ->
+                    val (name, deck) = place(r) ?: ("Unsorted" to false)
+                    UpgradeSource(r.id, name, deck, r.quantity, "${r.setCode.uppercase()} ${r.collectorNumber}".trim())
+                }.sortedWith(compareBy({ it.inDeck }, { -it.copies }))
+                if (skipDeckOnly && sources.all { it.inDeck }) return@mapNotNull null
                 UpgradeIdea(
                     name = rows.first().name,
                     share = share,
                     copies = rows.sumOf { it.quantity },
-                    where = rows.mapNotNull(where).distinct(),
                     imageUrl = rows.first().smallImageUrl ?: rows.first().imageUrl,
+                    sources = sources,
+                    group = groups[k],
+                    typeLine = rows.first().typeLine,
                 )
             }
             .take(limit).toList()
@@ -99,16 +141,22 @@ internal suspend fun edhrecPage(commanders: List<String>): String? = withContext
  * Cards you own that EDHREC decks for [commanders] play and [deckNames] doesn't have yet, most played first.
  * Without EDHREC, Scryfall's popularity order for the deck's colors stands in. Throws when neither can be reached.
  */
-suspend fun CollectionRepository.upgradeIdeas(commanders: List<String>, identity: String, deckNames: Set<String>): List<UpgradeIdea> {
+suspend fun CollectionRepository.upgradeIdeas(
+    commanders: List<String>, identity: String, deckNames: Set<String>, skipDeckOnly: Boolean = false,
+): List<UpgradeIdea> {
     val inDeck = deckNames.map(CardNames::key).toSet() + commanders.map(CardNames::key)
     val owned = observeAll().first()
     val places = dao.allPlaces().associateBy { it.id }
-    val where = { c: CollectionCard -> places[c.boxId]?.let { b -> if (b.deckId != 0L) "Deck: ${b.name}" else b.name } }
-    var ranked = edhrecPage(commanders)?.let(DeckUpgradeMath::edhrecCards).orEmpty()
+    val place = { c: CollectionCard -> places[c.boxId]?.let { b -> b.name to (b.deckId != 0L) } }
+    val page = edhrecPage(commanders)
+    val groups = page?.let { DeckUpgradeMath.groupsOf(DeckIdeasMath.edhrecGroups(it)) }.orEmpty()
+    var ranked = page?.let(DeckUpgradeMath::edhrecCards).orEmpty()
     if (ranked.size < 20) {
         val colors = identity.lowercase().ifEmpty { "c" }
         ranked = api.searchAll("id<=$colors f:commander -t:basic game:paper", maxPages = 4, order = "edhrec")
             .map { it.name to null }
     }
-    return withContext(Dispatchers.Default) { DeckUpgradeMath.ideas(ranked, owned, inDeck, identity, where) }
+    return withContext(Dispatchers.Default) {
+        DeckUpgradeMath.ideas(ranked, owned, inDeck, identity, place, skipDeckOnly = skipDeckOnly, groups = if (ranked.size < 20) emptyMap() else groups)
+    }
 }

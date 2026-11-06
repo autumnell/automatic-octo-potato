@@ -61,10 +61,14 @@ object DeckText {
         return out.toList()
     }
 
-    /** Adds [delta] copies of [name] to the main deck (negative takes copies away). */
-    fun adjust(text: String, name: String, delta: Int): String {
+    /**
+     * Adds [delta] copies of [name] to [board] ("Main", "Sideboard" or "Maybeboard"; negative takes copies away).
+     * A section the list doesn't have yet gets its header at the end.
+     */
+    fun adjust(text: String, name: String, delta: Int, board: String = "Main"): String {
         if (delta == 0 || name.isBlank()) return text
-        if (text.isBlank()) return if (delta > 0) "$delta $name" else text
+        val target = board
+        if (text.isBlank()) return if (delta <= 0) text else if (target == "Main") "$delta $name" else "$target\n$delta $name"
         val lines = text.lines().toMutableList()
         var section = "Main"
         var found = -1
@@ -83,7 +87,7 @@ object DeckText {
             }
             val l = parsed.first()
             val lineSection = if (l.section == "Main") section else l.section
-            if (lineSection != "Main") continue
+            if (lineSection != target) continue
             lastMain = i
             if (found < 0 && com.mtgscanner.util.CardNames.key(l.name) == want) found = i
         }
@@ -99,14 +103,24 @@ object DeckText {
             return lines.joinToString("\n")
         }
         if (delta < 0) return text
-        lines.add(lastMain + 1, "$delta $name")
+        if (lastMain < 0 && target != "Main") return text.trimEnd() + "\n\n$target\n$delta $name"
+        // Lists that mark sideboard cards with "SB:" instead of a header keep doing so.
+        val sb = target == "Sideboard" && lines[lastMain].trim().startsWith("SB:", ignoreCase = true)
+        lines.add(lastMain + 1, if (sb) "SB: $delta $name" else "$delta $name")
         return lines.joinToString("\n")
     }
 
-    /** Copies of [name] in the main deck. */
-    fun count(text: String, name: String): Int {
+    /** Moves every copy of [name] from section [from] to [to]. */
+    fun move(text: String, name: String, from: String, to: String): String {
+        val n = count(text, name, from)
+        if (n == 0 || from == to) return text
+        return adjust(adjust(text, name, -n, from), name, n, to)
+    }
+
+    /** Copies of [name] in [section], the main deck unless named. */
+    fun count(text: String, name: String, section: String = "Main"): Int {
         val want = com.mtgscanner.util.CardNames.key(name)
-        return DecklistParser.parse(text).filter { it.section == "Main" && com.mtgscanner.util.CardNames.key(it.name) == want }
+        return DecklistParser.parse(text).filter { it.section == section && com.mtgscanner.util.CardNames.key(it.name) == want }
             .sumOf { it.quantity }
     }
 }

@@ -1,5 +1,15 @@
 package com.mtgscanner.ui.decks
 
+import androidx.compose.material.icons.outlined.BookmarkBorder
+
+import androidx.compose.material.icons.filled.Bookmark
+
+import androidx.compose.material.icons.outlined.MoreVert
+
+import androidx.compose.material3.DropdownMenuItem
+
+import androidx.compose.material3.DropdownMenu
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -85,17 +95,36 @@ private fun Stepper(count: Int, onChange: (Int) -> Unit) {
 @Composable
 fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
+    var board by rememberSaveable { mutableStateOf("Main") }
     val leads = remember(ui.commanders) { ui.commanders.all.map { DeckNames.key(it) }.toSet() }
-    val lines = remember(ui.text, leads) { DecklistParser.parse(ui.text).filter { it.section == "Main" && DeckNames.key(it.name) !in leads } }
+    val parsed = remember(ui.text) { DecklistParser.parse(ui.text) }
+    val counts = Board.entries.associateWith { b -> parsed.filter { it.section == b.section && (b != Board.MAIN || DeckNames.key(it.name) !in leads) }.sumOf { it.quantity } }
+    // The deck, the sideboard and the maybeboard (cards you're considering: not counted, not played in playtest).
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+        Board.entries.forEach { b -> SelectPill("${b.label} (${counts[b] ?: 0})", board == b.section, { board = b.section }) }
+    }
+    val lines = parsed.filter { it.section == board && (board != "Main" || DeckNames.key(it.name) !in leads) }
     if (lines.isEmpty()) {
-        Text("No cards yet: add them in List, Combos or EDHREC", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s6))
+        Text(
+            when (board) {
+                "Main" -> "No cards yet: add them in List, Combos or EDHREC"
+                "Sideboard" -> "No sideboard cards yet: move a card here from the deck with its menu"
+                else -> "Nothing you're considering yet: move a card here from the deck, or add one from EDHREC"
+            },
+            style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s6),
+        )
         return
     }
     SearchField(query, { query = it }, placeholder = "Find in deck")
     val q = query.trim()
     val shown = if (q.isEmpty()) lines else lines.filter { it.name.contains(q, ignoreCase = true) }
     Text(
-        if (q.isEmpty()) "${lines.sumOf { it.quantity }} cards, not counting commanders" else "${shown.size} of ${lines.size} cards",
+        when {
+            q.isNotEmpty() -> "${shown.size} of ${lines.size} cards"
+            board == "Main" -> "${lines.sumOf { it.quantity }} cards, not counting commanders"
+            board == "Maybeboard" -> "${lines.sumOf { it.quantity }} cards, not counted in the deck"
+            else -> "${lines.sumOf { it.quantity }} cards"
+        },
         style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s2),
     )
     DeckTypes.group(shown) { ui.cardInfo[DeckNames.key(it.name)]?.typeLine }.forEach { (type, group) ->
@@ -115,7 +144,30 @@ fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Stepper(l.quantity) { d -> vm.adjustCard(l.name, d) }
+                Stepper(l.quantity) { d -> vm.adjustCard(l.name, d, board) }
+                MoveMenu(board) { to -> com.mtgscanner.util.Haptics.tick(); vm.moveCard(l.name, board, to) }
+            }
+        }
+    }
+}
+
+/** The parts of a list a card can be in while editing. */
+enum class Board(val section: String, val label: String) {
+    MAIN("Main", "Deck"), SIDE("Sideboard", "Sideboard"), MAYBE("Maybeboard", "Maybeboard"),
+}
+
+/** A card row's ⋮: move it to one of the other boards. */
+@Composable
+private fun MoveMenu(from: String, onMove: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) { Icon(Icons.Outlined.MoreVert, "Move card", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Board.entries.filter { it.section != from }.forEach { b ->
+                DropdownMenuItem(
+                    text = { Text(if (b == Board.MAIN) "Move to the deck" else "Move to the ${b.label.lowercase()}") },
+                    onClick = { open = false; onMove(b.section) },
+                )
             }
         }
     }
@@ -215,14 +267,15 @@ fun EdhrecTab(ui: DeckUi, vm: DeckViewModel) {
         Text(g.header, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s4, bottom = Space.s1))
         (if (all) cards else cards.take(PER_GROUP)).forEachIndexed { i, rec ->
             if (i > 0) HorizontalDivider(color = Palette.Rule)
-            EdhrecRow(rec, DeckText.count(ui.text, rec.name)) { d -> vm.adjustCard(rec.name, d) }
+            val maybe = DeckText.count(ui.text, rec.name, "Maybeboard")
+            EdhrecRow(rec, DeckText.count(ui.text, rec.name), maybe > 0, onMaybe = { on -> vm.adjustCard(rec.name, if (on) 1 else -maybe, "Maybeboard") }) { d -> vm.adjustCard(rec.name, d) }
         }
         if (!all && cards.size > PER_GROUP) TextButton(onClick = { all = true }) { Text("Show ${cards.size - PER_GROUP} more") }
     }
 }
 
 @Composable
-private fun EdhrecRow(rec: EdhrecRec, inDeck: Int, onChange: (Int) -> Unit) {
+private fun EdhrecRow(rec: EdhrecRec, inDeck: Int, considering: Boolean, onMaybe: (Boolean) -> Unit, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
         CardImage(rec.imageUrl, Modifier.width(36.dp), zoom = rec.imageUrl != null)
         Spacer(Modifier.width(Space.s3))
@@ -232,9 +285,15 @@ private fun EdhrecRow(rec: EdhrecRec, inDeck: Int, onChange: (Int) -> Unit) {
                 listOfNotNull(
                     rec.share?.let { "In ${(it * 100).toInt()}% of decks" },
                     rec.synergy?.takeIf { kotlin.math.abs(it) >= 0.01 }?.let { "${if (it > 0) "+" else "−"}${(kotlin.math.abs(it) * 100).toInt()}% synergy" },
+                    if (considering) "In the maybeboard" else null,
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted, maxLines = 1,
             )
+        }
+        // The maybeboard: cards you're considering, not counted and not played in playtest.
+        if (inDeck == 0) IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onMaybe(!considering) }) {
+            if (considering) Icon(Icons.Filled.Bookmark, "Take out of the maybeboard", tint = Palette.Text, modifier = Modifier.size(20.dp))
+            else Icon(Icons.Outlined.BookmarkBorder, "Add to the maybeboard", tint = Palette.Icon, modifier = Modifier.size(20.dp))
         }
         if (inDeck > 0) Stepper(inDeck, onChange)
         else TextButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) {

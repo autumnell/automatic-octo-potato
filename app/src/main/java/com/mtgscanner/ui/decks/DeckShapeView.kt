@@ -66,7 +66,8 @@ fun DeckShapeView(
                 }
             }
         }
-        if (shape.pipTotal > 0) {
+        // A one-color deck has nothing to split, so the color bar is left out.
+        if (shape.pipTotal > 0 && shape.pips.count { (c, n) -> n > 0 && c in "WUBRG" } > 1) {
             Spacer(Modifier.height(Space.s2))
             Row(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small))) {
                 shape.pips.forEach { (c, n) ->

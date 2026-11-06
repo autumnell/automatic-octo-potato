@@ -173,6 +173,7 @@ fun DecksTab(
     var newMenu by remember { mutableStateOf(false) }
     var linking by remember { mutableStateOf(false) }
     var almost by remember { mutableStateOf(false) }
+    var ownedCombos by remember { mutableStateOf(false) }
     var shortages by remember { mutableStateOf(false) }
     var precons by remember { mutableStateOf(false) }
 
@@ -235,6 +236,7 @@ fun DecksTab(
                             DropdownMenuItem(text = { Text("From a link") }, onClick = { newMenu = false; linking = true })
                             DropdownMenuItem(text = { Text("Decks you can almost build") }, onClick = { newMenu = false; almost = true })
                             DropdownMenuItem(text = { Text("Precon decks") }, onClick = { newMenu = false; precons = true })
+                            DropdownMenuItem(text = { Text("Combos you could build") }, onClick = { newMenu = false; ownedCombos = true })
                             if (all.size >= 2) DropdownMenuItem(text = { Text("Shortages across decks") }, onClick = { newMenu = false; shortages = true })
                         }
                     }
@@ -286,6 +288,7 @@ fun DecksTab(
     }
 
     if (almost) AlmostDecksSheet(vm, onDismiss = { almost = false })
+    if (ownedCombos) CollectionCombosSheet(onDismiss = { ownedCombos = false })
     if (shortages) DeckShortagesSheet(vm, onDismiss = { shortages = false })
     if (precons) PreconsSheet(vm, onDismiss = { precons = false })
     if (linking) DeckLinkDialog(onDismiss = { linking = false }) { url -> linking = false; vm.importLink(url) }

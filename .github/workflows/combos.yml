@@ -1,0 +1,40 @@
+# Builds the combo list for "Combos you could build" from Commander Spellbook's variants file and keeps it on the
+# "models" release as combos.tsv.gz; the app build puts it in the APK. The full file is too big for a phone.
+name: Combo list
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 1"
+  push:
+    paths:
+      - .github/workflows/combos.yml
+      - .github/scripts/build_combos.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: combo-list
+  cancel-in-progress: false
+
+jobs:
+  combos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Spellbook variants
+        run: curl -fsSL --retry 4 -A "Grimoire-app" -o variants.json https://json.commanderspellbook.com/variants.json
+      - name: Build the list
+        run: |
+          python3 .github/scripts/build_combos.py variants.json combos.tsv.gz
+          ls -l combos.tsv.gz
+          zcat combos.tsv.gz | head -3
+      - name: Publish to the models release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view models >/dev/null 2>&1 || gh release create models --prerelease --latest=false \
+            --title "Scan models" --notes "Optional model files the app downloads. Not an app build."
+          gh release upload models combos.tsv.gz --clobber
