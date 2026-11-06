@@ -24,7 +24,7 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.CardNames
 import com.mtgscanner.util.DeckLine
 
-/** What a deck you don't fully own is for, shown on its tile. A fully owned deck shows "Owned" instead. */
+/** What a deck you don't fully own is for, shown on its tile. A fully owned deck shows no tag. */
 enum class DeckStatus(val label: String) { WANT("Want"), MAYBE("Maybe"), TESTING("Testing") }
 
 /** Each deck's [DeckStatus], by deck id, in the "deck_status" prefs (saved in backups). */
@@ -74,16 +74,15 @@ object DeckStatusStore {
 
 /** The tags a deck tile can show, in filter order. */
 object DeckTags {
-    const val OWNED = "Owned"
-    val ALL: List<String> = listOf(OWNED) + DeckStatus.entries.map { it.label }
+    val ALL: List<String> = DeckStatus.entries.map { it.label }
 }
 
 /** A deck has every played card. */
 val DeckRow.fullyOwned: Boolean get() = cards > 0 && owned >= cards
 
-/** The tag on a deck's tile: "Owned" when it's complete, else its [DeckStatus] label, or null. */
+/** The tag on a deck's tile: its [DeckStatus] label while it isn't complete, else null. */
 fun deckTag(context: Context, row: DeckRow): String? =
-    if (row.fullyOwned) DeckTags.OWNED else DeckStatusStore.get(context, row.deck.id)?.label
+    if (row.fullyOwned) null else DeckStatusStore.get(context, row.deck.id)?.label
 
 /** Whether a list is complete from the collection. Pure, for tests. */
 object DeckOwnership {
@@ -108,7 +107,7 @@ fun DeckCompleteNotes(complete: List<Pair<Long, String>>, onOpen: (Long) -> Unit
                 "$name is complete", style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
-            // Closing clears the deck's tag: it shows "Owned" now anyway.
+            // Closing clears the deck's tag: a complete deck shows none.
             IconButton(onClick = { DeckStatusStore.set(ctx, id, null) }) {
                 Icon(
                     Icons.Outlined.Close, "Close", tint = Palette.Icon,

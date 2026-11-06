@@ -161,4 +161,33 @@ class PlaytestTest {
         assertNull(Piece(1, PlayCard("Tarmogoyf", typeLine = "Creature", power = "*", toughness = "1+*")).power)
         assertEquals(3, Piece(1, giant).power)
     }
+
+    @Test fun keepingAfterMulligansPutsCardsOnTheBottom() {
+        assertEquals(0, Playtest.toBottom(0, free = false))
+        assertEquals(1, Playtest.toBottom(1, free = false))
+        assertEquals(0, Playtest.toBottom(1, free = true))
+        assertEquals(2, Playtest.toBottom(3, free = true))
+        assertTrue(Playtest.freeMulligan(PlayDeck("a", emptyList(), listOf(cmdr), "commander")))
+        assertFalse(Playtest.freeMulligan(PlayDeck("a", emptyList(), emptyList(), "modern")))
+        assertTrue(Playtest.freeMulligan(PlayDeck("a", emptyList(), listOf(cmdr), "")))
+
+        var t = Playtest.start(deck(forest to 20, bear to 20), null, Random(9))
+        t = Playtest.mulligan(t, 0, Random(9))
+        val two = t.sides[0][Zone.HAND].take(2).map { it.id }
+        t = Playtest.bottom(t, 0, two)
+        val s = t.sides[0]
+        assertEquals(5, s[Zone.HAND].size)
+        assertEquals(two, s[Zone.LIBRARY].takeLast(2).map { it.id })
+        assertEquals(40, allIds(s).toSet().size)
+    }
+
+    @Test fun battlefieldRowsByType() {
+        assertEquals(Lane.LANDS, Lane.of(Piece(1, forest)))
+        assertEquals(Lane.CREATURES, Lane.of(Piece(2, bear)))
+        assertEquals(Lane.OTHERS, Lane.of(Piece(3, PlayCard("Sol Ring", typeLine = "Artifact"))))
+        assertEquals(Lane.OTHERS, Lane.of(Piece(4, PlayCard("Rhystic Study", typeLine = "Enchantment"))))
+        assertEquals(Lane.CREATURES, Lane.of(Piece(5, PlayCard("Dryad Arbor", typeLine = "Land Creature — Forest Dryad"))))
+        assertEquals(Lane.CREATURES, Lane.of(Piece(6, PlayCard("Steel Overseer", typeLine = "Artifact Creature — Construct"))))
+        assertEquals(Lane.CREATURES, Lane.of(Piece(7, forest, faceDown = true)))
+    }
 }
