@@ -119,7 +119,7 @@ internal fun PlayerPanel(
             PlayerBack(
                 g, i, Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }.clip(RoundedCornerShape(Corners.Medium)).rotateLayout(rotation),
                 onCommander = onCommander, onPoison = onPoison, onCounter = onCounter,
-                onPlayer = onPlayer, onDone = { flipped = false },
+                onPlayer = onPlayer, onDone = { flipped = false }, rotation = rotation,
             )
         } else PanelFront(g, i, rotation, style, Modifier.fillMaxSize(), onLife, onFlip = { flipped = true })
     }

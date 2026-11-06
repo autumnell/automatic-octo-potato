@@ -1,6 +1,9 @@
 package com.mtgscanner.ui.game
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.clickable
@@ -53,18 +56,10 @@ import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Space
 
-/** One commander that can hit a player: whose it is, and whether it's their partner. */
-internal data class DamageSource(val from: Int, val partner: Boolean)
-
-/** The commanders that can hit player [i]: every other player's, and their partners' when partners count. Pure, for tests. */
-internal fun damageSources(players: Int, i: Int, partners: Boolean): List<DamageSource> =
-    (0 until players).filter { it != i }.flatMap { from ->
-        listOf(DamageSource(from, false)) + if (partners) listOf(DamageSource(from, true)) else emptyList()
-    }
-
 /**
  * The back of a player's panel, shown when they tap ⋯ and the panel flips over: commander damage from each
- * opponent in that opponent's color, then poison, commander tax and rad. Tap to add one, hold to take one back.
+ * opponent, laid out like the table itself so each tile sits where that player sits, then poison, commander tax
+ * and rad. Tap to add one, hold to take one back. [rotation] is how far the panel is turned to face its player.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -75,9 +70,10 @@ internal fun PlayerBack(
     onCounter: (kind: String, delta: Int) -> Unit,
     onPlayer: () -> Unit,
     onDone: () -> Unit,
+    rotation: Int = 0,
 ) {
     val p = g.players[i]
-    val sources = if (g.format.commanderDamage) damageSources(g.players.size, i, g.partners) else emptyList()
+    val showDamage = g.format.commanderDamage && g.players.size > 1
     val counters = buildList {
         add(BackCounter("Poison", p.poison, ManaIcons.Poison, warn = p.poison >= g.format.poisonLimit - 3, onChange = onPoison))
         if (g.format.usesCommander) {
@@ -86,6 +82,11 @@ internal fun PlayerBack(
         }
         add(BackCounter("Rad", p.rad, ManaIcons.Rad) { d -> onCounter("Rad", d) })
     }
+    // The table's shape as this player sees it from their seat: the phone's shape, turned with them.
+    val config = LocalConfiguration.current
+    val phone = config.screenWidthDp.toFloat() / config.screenHeightDp.coerceAtLeast(1)
+    val turned = (rotation % 360 + 360) % 360
+    val ratio = if (turned == 90 || turned == 270) 1f / phone else phone
     Column(modifier.fillMaxSize().background(Palette.StagePanel).padding(horizontal = Space.s3, vertical = Space.s2)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.name, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -94,27 +95,26 @@ internal fun PlayerBack(
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val width = maxWidth
-            val cols = sources.size.coerceIn(1, 3)
-            val rows = (sources.size + cols - 1) / cols
-            // A short, wide panel (most seats at a table of 3 or 4) puts the damage tiles and the counters side
-            // by side so nothing is cut off; a taller one stacks them and scrolls if it has to.
-            val wide = maxWidth >= 300.dp && maxWidth > maxHeight * 1.3f && rows <= 2
+            val height = maxHeight
+            // A short, wide panel (most seats at a table of 3 or 4) puts the table map and the counters side by
+            // side; a taller one stacks them and scrolls if it has to.
+            val wide = width > height * 1.2f
+            val map: @Composable (Modifier) -> Unit = { m -> SeatMap(g, i, turned, ratio, m, onCommander) }
             if (wide) Row(Modifier.fillMaxSize()) {
-                if (sources.isNotEmpty()) {
-                    Column(Modifier.weight(1f).fillMaxHeight()) {
-                        DamageLabel()
-                        DamageGrid(g, p, sources, cols, Modifier.weight(1f), fill = true, onCommander = onCommander)
-                    }
-                    Spacer(Modifier.width(Space.s3))
+                if (showDamage) Column(Modifier.fillMaxHeight().widthIn(max = (width - COUNTERS_WIDTH).coerceAtLeast(MAP_MIN / 2))) {
+                    // Beside the map, so the counters keep the full height.
+                    DamageLabel()
+                    map(Modifier.weight(1f, fill = false))
                 }
+                if (showDamage) Spacer(Modifier.width(Space.s3))
                 Column(
                     Modifier.fillMaxHeight().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Space.s1, Alignment.CenterVertically),
                 ) { counters.forEach { BackStepper(it) } }
             } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                if (sources.isNotEmpty()) {
+                if (showDamage) {
                     DamageLabel()
-                    DamageGrid(g, p, sources, (width.value / 96f).toInt().coerceIn(1, 5), Modifier, fill = false, onCommander = onCommander)
+                    map(Modifier.heightIn(max = (height * 0.6f).coerceAtLeast(MAP_MIN)).widthIn(max = width))
                     Spacer(Modifier.height(Space.s3))
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
@@ -128,40 +128,64 @@ internal fun PlayerBack(
 /** The back's icon buttons and counter buttons: smaller than usual so a short panel still fits them. */
 private val BACK_BUTTON = 36.dp
 
+/** Room kept for the counters beside the table map: label, −, value, +. */
+private val COUNTERS_WIDTH = 168.dp
+
+/** The table map never shrinks below this on a tall panel. */
+private val MAP_MIN = 120.dp
+
 /** A counter on the back of a panel. */
 private class BackCounter(val label: String, val value: Int, val icon: ImageVector, val warn: Boolean = false, val onChange: (Int) -> Unit)
 
 @Composable
 private fun DamageLabel() {
-    Text("Commander damage", color = Palette.OnDarkMuted, style = MaterialTheme.typography.labelMedium)
+    Text("Commander damage", color = Palette.OnDarkMuted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     Spacer(Modifier.height(Space.s1))
 }
 
-/** The damage tiles in rows of [cols]; with [fill] the rows share the height they're given. */
+/**
+ * A small picture of the table in its real layout: every other player's seat is a damage tile in their color,
+ * this player's own seat says You. It's drawn the way the phone lies on the table, so each tile points at the
+ * player it belongs to, and the words in it are turned to face whoever is reading. [ratio] is its width over
+ * height as the reader sees it.
+ */
 @Composable
-private fun DamageGrid(
-    g: GameState, p: com.mtgscanner.game.Player, sources: List<DamageSource>, cols: Int, modifier: Modifier, fill: Boolean,
+private fun SeatMap(
+    g: GameState, i: Int, turned: Int, ratio: Float, modifier: Modifier,
     onCommander: (from: Int, partner: Boolean, delta: Int) -> Unit,
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(Space.s2)) {
-        sources.chunked(cols).forEach { row ->
-            Row(if (fill) Modifier.weight(1f) else Modifier, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-                row.forEach { s ->
-                    val o = g.players[s.from]
-                    DamageTile(
-                        name = o.name,
-                        partner = s.partner,
-                        color = PLAYER_COLORS[o.color % PLAYER_COLORS.size],
-                        damage = p.damageFrom(s.from, s.partner),
-                        modifier = Modifier.weight(1f).then(if (fill) Modifier.fillMaxHeight() else Modifier),
-                        onChange = { d -> onCommander(s.from, s.partner, d) },
-                    )
+    val p = g.players[i]
+    Box(modifier.aspectRatio(ratio, matchHeightConstraintsFirst = true)) {
+        Box(Modifier.rotateLayout(360 - turned).fillMaxSize()) {
+            TableSeats(g.players.size, g.layout, SEAT_GAP) { seat, _, m ->
+                if (seat == i) Box(
+                    m.clip(RoundedCornerShape(Corners.Small)).border(1.dp, Palette.OnDarkMuted.copy(alpha = 0.5f), RoundedCornerShape(Corners.Small)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("You", color = Palette.OnDarkMuted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.rotateLayout(turned))
+                } else {
+                    val o = g.players[seat]
+                    val color = PLAYER_COLORS[o.color % PLAYER_COLORS.size]
+                    Box(m) {
+                        // With partners, the seat holds two tiles: the commander and the partner.
+                        Row(Modifier.rotateLayout(turned).fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(SEAT_GAP * 2)) {
+                            (if (g.partners) listOf(false, true) else listOf(false)).forEach { partner ->
+                                DamageTile(
+                                    name = o.name, partner = partner, color = color, damage = p.damageFrom(seat, partner),
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    onChange = { d -> onCommander(seat, partner, d) },
+                                )
+                            }
+                        }
+                    }
                 }
-                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
+
+/** Half the space between seats on the table map; on the 4dp grid once both sides add up. */
+private val SEAT_GAP = 2.dp
 
 /** Commander damage from one opponent: their color, their name, the number. Tap +1, hold −1. Red at 21. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -170,8 +194,8 @@ private fun DamageTile(name: String, partner: Boolean, color: Color, damage: Int
     val haptics = LocalHapticFeedback.current
     val lethal = damage >= GameState.COMMANDER_LIMIT
     val shape = RoundedCornerShape(Corners.Small)
-    Column(
-        modifier.heightIn(min = 56.dp).clip(shape).background(color)
+    BoxWithConstraints(
+        modifier.clip(shape).background(color)
             .border(if (lethal) 3.dp else 0.dp, if (lethal) Palette.Danger else Color.Transparent, shape)
             .semantics(mergeDescendants = true) { contentDescription = "Commander damage from $name${if (partner) " (partner)" else ""}: $damage" }
             .combinedClickable(
@@ -179,14 +203,18 @@ private fun DamageTile(name: String, partner: Boolean, color: Color, damage: Int
                 onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onChange(1) },
                 onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onChange(-1) },
             )
-            .padding(horizontal = Space.s1, vertical = Space.s1),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .padding(Space.s1),
+        contentAlignment = Alignment.Center,
     ) {
-        // Small type and two lines, so a name like "Player 2" fits a narrow tile instead of being cut off.
-        Text(name, color = Color.White, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-        if (partner) Text("Partner", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-        Text("$damage", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+        // A small seat shows just the number; the color says whose it is. A roomier one adds the name.
+        val roomy = maxHeight >= 48.dp && maxWidth >= 48.dp
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (roomy) Text(
+                if (partner) "Partner" else name, color = Color.White, style = MaterialTheme.typography.labelSmall,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+            )
+            Text("$damage", color = Color.White, fontSize = if (roomy) 22.sp else 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
     }
 }
 

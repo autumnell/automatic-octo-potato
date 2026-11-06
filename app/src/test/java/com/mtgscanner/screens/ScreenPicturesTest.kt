@@ -195,18 +195,19 @@ class ScreenPicturesTest {
     }
 
     @Test fun gamePanelBack() = shoot("09f-game-panel-back") {
-        // The back of a panel at a 4-player table (short and wide), then at a 2-player table (taller).
+        // The back of a panel at a 4-player table (player 1, on the left side, short and wide), then at a
+        // 2-player table with partners (the near seat, taller). The damage tiles sit where the players do.
         val g = com.mtgscanner.game.GameState.new(com.mtgscanner.game.GameFormat.COMMANDER, 4)
             .let { com.mtgscanner.game.Game.commanderDamage(it, 0, 1, 7, false) }
             .let { com.mtgscanner.game.Game.poison(it, 0, 2) }
         val two = com.mtgscanner.game.GameState.new(com.mtgscanner.game.GameFormat.COMMANDER, 2, partners = true)
         androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.padding(Space.s4)) {
             Box(androidx.compose.ui.Modifier.size(380.dp, 170.dp)) {
-                com.mtgscanner.ui.game.PlayerBack(g, 0, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {})
+                com.mtgscanner.ui.game.PlayerBack(g, 0, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {}, rotation = 90)
             }
             androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.height(Space.s4))
             Box(androidx.compose.ui.Modifier.size(350.dp, 300.dp)) {
-                com.mtgscanner.ui.game.PlayerBack(two, 1, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {})
+                com.mtgscanner.ui.game.PlayerBack(two, 1, androidx.compose.ui.Modifier, { _, _, _ -> }, {}, { _, _ -> }, {}, {}, rotation = 0)
             }
         }
     }
