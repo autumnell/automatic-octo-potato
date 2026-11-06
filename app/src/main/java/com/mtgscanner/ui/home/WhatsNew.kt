@@ -86,6 +86,7 @@ object WhatsNew {
         300 to "Game setup is a few quick screens: pick the format, the number of players, where everyone sits and their names. Every player gets random card art, and a short tour shows how the table works (again from the menu's Game page)",
         306 to "Tap ⋯ on a player's panel to flip it over for commander damage from each player, poison and commander tax. The Game tab opens on the format tiles, and the middle button sits dead center",
         310 to "The back of a player's panel fits short panels: commander damage and counters sit side by side. Game setup tiles are calmer, and the player count shows each seat's color",
+        314 to "Collection has an All tab with every card you own. The search above the tabs filters it, and Select, sorting and the views work as in Browse",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

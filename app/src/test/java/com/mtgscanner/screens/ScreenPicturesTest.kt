@@ -138,6 +138,10 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.collection.CollectionScreen(onBrowse = {}, onSettings = {}, onOpenDeck = {})
     }
 
+    @Test fun collectionAll() = shoot("02b-collection-all") {
+        com.mtgscanner.ui.collection.CollectionScreen(onBrowse = {}, onSettings = {}, onOpenDeck = {}, startTab = com.mtgscanner.ui.collection.CollectionTab.ALL)
+    }
+
     @Test fun browse() = shoot("03-browse-all") {
         com.mtgscanner.ui.collection.BrowseScreen(boxId = -1L, onBack = {}, onOpenCard = {})
     }

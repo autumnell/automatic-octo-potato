@@ -169,6 +169,12 @@ fun BrowseScreen(
     onTrade: (binderId: Long) -> Unit = {},
     /** Another box picked from the title's menu. */
     onOpenBox: ((Long) -> Unit)? = null,
+    /**
+     * Shown as Collection's All tab: no back arrow or title (the page has them) and no search of its own, since
+     * [pageQuery], the page search above the tabs, drives it.
+     */
+    embedded: Boolean = false,
+    pageQuery: String = "",
 ) {
     val vm: BrowseViewModel = viewModel(key = "browse-$boxId", factory = AppViewModels.browse(boxId))
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -234,7 +240,8 @@ fun BrowseScreen(
     // A new search or sort starts from the top, with the header showing.
     LaunchedEffect(f.query, f.sort, f.group, f.activeCount) { collapse.show() }
     val closeKeyboard = com.mtgscanner.ui.components.rememberKeyboardCloser()
-    Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding().nestedScroll(closeKeyboard).nestedScroll(collapse.connection)) {
+    if (embedded) LaunchedEffect(pageQuery) { vm.update { it.copy(query = pageQuery) } }
+    Column(Modifier.weight(1f).fillMaxHeight().then(if (embedded) Modifier else Modifier.statusBarsPadding()).nestedScroll(closeKeyboard).nestedScroll(collapse.connection)) {
         val pickedRows = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitPrice(), it.quantity, it.proxy) } }
         val pickedEur = remember(shownCards) { shownCards.map { PickedRow(it.id, it.unitEur(), it.quantity, it.proxy) } }
         val currency = AppSettings.currency
@@ -251,13 +258,14 @@ fun BrowseScreen(
             },
         )
         else Row(Modifier.fillMaxWidth().padding(end = Space.s2, top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+            if (!embedded) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+            else Spacer(Modifier.width(Space.s4))
             // Tap a box's name to jump to another box.
             val others = remember(ui.boxes, boxId) { if (boxId < 0 || onOpenBox == null) emptyList() else ui.boxes.filter { it.id != boxId } }
             var switching by remember { mutableStateOf(false) }
             Column(Modifier.weight(1f).then(if (others.isNotEmpty()) Modifier.clickable { switching = true } else Modifier)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (!embedded) Text(ui.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (others.isNotEmpty()) Icon(Icons.Outlined.ArrowDropDown, "Other boxes", tint = Palette.Icon)
                 }
                 DropdownMenu(expanded = switching, onDismissRequest = { switching = false }) {
@@ -308,7 +316,7 @@ fun BrowseScreen(
 
             var syntaxHelp by remember { mutableStateOf(false) }
             var recentCards by rememberSaveable { mutableStateOf(false) }
-            SearchField(
+            if (!embedded) SearchField(
                 f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
                 placeholder = "r:rare t:creature",
                 mono = true,

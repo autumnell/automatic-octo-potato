@@ -176,6 +176,8 @@ fun CollectionScreen(
     /** Opens the Sell tool (sell list and Card Kingdom offers). */
     onBuylist: () -> Unit = {},
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
+    /** The tab it opens on, for the screen pictures. */
+    startTab: CollectionTab = CollectionTab.BOXES,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val weekChange by vm.weekChange.collectAsStateWithLifecycle()
@@ -186,7 +188,7 @@ fun CollectionScreen(
     remember { CollectionPrefs.load(ctx) }
     val layout = CollectionPrefs.layout
     var editingLayout by remember { mutableStateOf(false) }
-    var tabName by rememberSaveable { mutableStateOf(CollectionTab.BOXES.name) }
+    var tabName by rememberSaveable { mutableStateOf(startTab.name) }
     val tab = CollectionTab.entries.firstOrNull { it.name == tabName } ?: CollectionTab.BOXES
     // One search for the page: Boxes and Decks each show their own matches, then the cards found.
     var search by rememberSaveable { mutableStateOf("") }
@@ -273,12 +275,12 @@ fun CollectionScreen(
                     )
                 }
                 // Above the tabs, so it's there on every one. Wishlist and Tools have nothing to match, so typing there
-                // moves to Boxes.
+                // moves to Boxes. On All it filters the cards like Browse's own search.
                 if (layout.shows(CollectionPart.BROWSE)) SearchField(
                     search,
                     { q ->
                         search = q
-                        if (q.isNotBlank() && tab != CollectionTab.BOXES && tab != CollectionTab.DECKS) tabName = CollectionTab.BOXES.name
+                        if (q.isNotBlank() && tab != CollectionTab.BOXES && tab != CollectionTab.DECKS && tab != CollectionTab.ALL) tabName = CollectionTab.BOXES.name
                     },
                     Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
                     placeholder = "Search",
@@ -297,6 +299,8 @@ fun CollectionScreen(
             com.mtgscanner.ui.components.PriceRefreshBox(refreshing, vm::refreshPrices, Modifier.fillMaxSize()) {
             when (tab) {
                 CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true }, query = search, onQuery = { search = it })
+                // Every card, as Browse shows them; the page search filters them.
+                CollectionTab.ALL -> BrowseScreen(boxId = -1L, onBack = {}, onOpenCard = onOpenCard, onTrade = onTrade, embedded = true, pageQuery = search)
                 CollectionTab.DECKS -> DecksTab(onOpenDeck, query = search, cards = { CardsFound(search, vm, onBrowse, onOpenCard) })
                 CollectionTab.WISHLIST -> WishlistTab(vm)
                 CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE), onOpenCard = onOpenCard)
