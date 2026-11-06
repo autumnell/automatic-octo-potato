@@ -158,6 +158,8 @@ fun CollectionCard.totalEur(): Double = if (proxy) 0.0 else (unitEur() ?: 0.0) *
 /** Scryfall serves the same image path in several sizes; this swaps in the art-only crop. */
 fun artCropUrl(imageUrl: String?): String? = imageUrl
     ?.replace("/normal/", "/art_crop/")?.replace("/large/", "/art_crop/")?.replace("/small/", "/art_crop/")
+    // Scryfall API image links ("...?format=image&version=normal").
+    ?.replace("version=normal", "version=art_crop")?.replace("version=large", "version=art_crop")?.replace("version=small", "version=art_crop")
 
 /** Price per copy when it was added: what you paid, else the market price then. */
 fun CollectionCard.priceWhenAdded(): Double? = purchasePrice ?: priceAtAdd
