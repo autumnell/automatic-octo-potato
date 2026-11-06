@@ -42,6 +42,8 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
@@ -151,7 +153,11 @@ import com.mtgscanner.ui.components.panelRow
 
 /** One deck: paste or edit the list, then see what you own, where it is, and what's missing. */
 @Composable
-fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null, onPlaytest: (() -> Unit)? = null) {
+fun DeckScreen(
+    deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null, onPlaytest: (() -> Unit)? = null,
+    /** Opens on the picture view (true) or the list (false); null picks pictures for a complete deck. */
+    startPictures: Boolean? = null,
+) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     // Keeps the deck check running only while this screen is showing.
@@ -223,11 +229,12 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                 LaunchedEffect(Unit) { runCatching { com.mtgscanner.data.SaltScores.load(ctx) } }
                 val saltScores = com.mtgscanner.data.SaltScores.scores
                 val salt = remember(ui.text, saltScores) { com.mtgscanner.data.SaltMath.deck(com.mtgscanner.util.DecklistParser.parse(ui.text), saltScores) }
+                val totals = ui.check?.let { deckTotals(it.lines.filter { l -> l.section in PLAYED }) }
                 com.mtgscanner.ui.components.CollapsingHeader(collapse) {
-                    DeckHeader(
+                    DeckArtHeader(
                         ui.format, ui.commanders, ui.leadArt, ui.issues,
                         onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
-                        salt = salt,
+                        salt = salt, totals = totals,
                     )
                 }
                 // Every played card already in the deck: nothing to pull, so the Pull list and the tab row go.
@@ -240,7 +247,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                         PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeck, leads = leadsOf(ui))
                     }
                     // Pull down to refresh prices.
-                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm, onOpenSet) }
+                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm, onOpenSet, startPictures) }
                 }
             }
         }
@@ -291,6 +298,19 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
 /** Opens [url] in the browser; nothing happens when no app can. */
 private fun openLink(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+}
+
+/** "100 cards · $123.51" for the played lines; the value only when prices are shown and known. */
+private fun deckTotals(played: List<DeckCheckLine>): String {
+    val cards = played.sumOf { it.needed }
+    return listOfNotNull(if (cards == 1) "1 card" else "$cards cards", deckValue(played)).joinToString(" · ")
+}
+
+/** What the played lines are worth, every copy counted; null when prices are hidden or none is known. */
+private fun deckValue(played: List<DeckCheckLine>): String? {
+    val value = played.sumOf { (it.price ?: 0.0) * it.needed }
+    val valueEur = played.sumOf { (it.priceEur ?: 0.0) * it.needed }
+    return if (AppSettings.showPrices && primaryValue(value, valueEur) > 0) formatMoney(value, valueEur) else null
 }
 
 /** A commander-style deck's commanders, companion and signature spell, shown first in its card lists. */
@@ -354,11 +374,13 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
 }
 
 @Composable
-private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)?) {
+private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)?, startPictures: Boolean? = null) {
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
     var find by rememberSaveable { mutableStateOf("") }
     var showShared by rememberSaveable { mutableStateOf(false) }
+    // Pictures by type, or the list by what's owned. A complete deck starts on pictures.
+    var picturesPick by rememberSaveable { mutableStateOf(startPictures) }
     val shared by vm.shared.collectAsStateWithLifecycle()
     val check = ui.check
     if (ui.checking || check == null) {
@@ -386,6 +408,8 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     val otherMissing = rest.filter { it.section !in PLAYED && it.missing > 0 }
     val owned = rest.filter { it.owned > 0 }
     val inDeck = played.sumOf { minOf(it.inDeck, it.needed) }
+    val complete = played.isNotEmpty() && played.all { it.inDeck >= it.needed }
+    val pictures = picturesPick ?: complete
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             ui.shape?.let { DeckShapeView(it) }
@@ -395,11 +419,8 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
             }
-            // Small print: the deck's value and where its owned copies are.
-            val value = played.sumOf { (it.price ?: 0.0) * it.needed }
-            val valueEur = played.sumOf { (it.priceEur ?: 0.0) * it.needed }
+            // Small print: where the owned copies are. The value is in the header and the footer.
             val small = listOfNotNull(
-                if (AppSettings.showPrices && primaryValue(value, valueEur) > 0) "Value ${formatMoney(value, valueEur)}" else null,
                 if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
             if (ui.id != 0L) DeckRecordRow(ui.id)
@@ -445,28 +466,46 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                     IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share missing cards", tint = Palette.Icon) }
                 }
             }
-            SearchField(find, { find = it }, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), placeholder = "Find in deck")
+            Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+                SearchField(find, { find = it }, Modifier.weight(1f).padding(vertical = Space.s2), placeholder = "Find in deck")
+                // Shows the view you get next.
+                IconButton(onClick = { picturesPick = !pictures }) {
+                    if (pictures) Icon(Icons.Outlined.ViewAgenda, "List view", tint = Palette.Icon)
+                    else Icon(Icons.Outlined.GridView, "Pictures by type", tint = Palette.Icon)
+                }
+            }
         }
         if (leads.isEmpty() && missing.isEmpty() && otherMissing.isEmpty() && owned.isEmpty() && find.isNotBlank()) {
             item { EmptyState("No matches") }
         }
-        if (leads.isNotEmpty()) {
-            item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
-            itemsIndexed(leads, key = { i, _ -> "c$i" }) { i, l -> DeckLineRow(l, missingView = l.missing > 0, first = i == 0, last = i == leads.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+        if (pictures) {
+            val typeOf = { l: DeckCheckLine -> ui.cardTexts[DeckNames.key(l.name)]?.first }
+            val leadTitle = if (ui.commanders.commanders.size > 1) "Commanders" else "Commander"
+            if (leads.isNotEmpty()) item(key = "p-lead") { DeckPiles(leadTitle, leads, vm::openPrintings) }
+            val groups = DeckTypes.group(rest.filter { it.section in PLAYED }.sortedBy { it.name.lowercase() }, typeOf)
+            groups.forEach { (t, lines) -> item(key = "p-${t.name}") { DeckPiles(t.many, lines, vm::openPrintings) } }
+            val others = rest.filter { it.section !in PLAYED }
+            if (others.isNotEmpty()) item(key = "p-other") { DeckPiles("Sideboard and more", others, vm::openPrintings) }
+        } else {
+            if (leads.isNotEmpty()) {
+                item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
+                itemsIndexed(leads, key = { i, _ -> "c$i" }) { i, l -> DeckLineRow(l, missingView = l.missing > 0, first = i == 0, last = i == leads.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+            }
+            // Keys by position: the same card can be listed twice (two printings).
+            if (missing.isNotEmpty()) {
+                item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
+                itemsIndexed(missing, key = { i, _ -> "m$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == missing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+            }
+            if (otherMissing.isNotEmpty()) {
+                item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
+                itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == otherMissing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+            }
+            if (owned.isNotEmpty()) {
+                item { SectionHeader("In your collection") }
+                itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+            }
         }
-        // Keys by position: the same card can be listed twice (two printings).
-        if (missing.isNotEmpty()) {
-            item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
-            itemsIndexed(missing, key = { i, _ -> "m$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == missing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
-        }
-        if (otherMissing.isNotEmpty()) {
-            item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
-            itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == otherMissing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
-        }
-        if (owned.isNotEmpty()) {
-            item { SectionHeader("In your collection") }
-            itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
-        }
+        if (find.isBlank()) item { DeckFooter(ui.format, ui.issues, needed, deckValue(played)) }
         item { Spacer(Modifier.height(Space.s6)) }
     }
     if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {

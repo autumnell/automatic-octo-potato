@@ -145,6 +145,10 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.decks.DeckScreen(deckId = 1L, onBack = {})
     }
 
+    @Test fun deckPictures() = shoot("05b-deck-pictures") {
+        com.mtgscanner.ui.decks.DeckScreen(deckId = 1L, onBack = {}, startPictures = true)
+    }
+
     @Test fun search() = shoot("06-search") {
         com.mtgscanner.ui.search.SearchScreen()
     }
