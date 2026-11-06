@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -152,7 +153,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
 
     // Day lights the table up; night (or not tracked) keeps it dark.
     val tableColor by animateColorAsState(
-        if (g?.dayNight == "day") DAY_TABLE else Color.Black, animationSpec = tween(700), label = "table",
+        if (g?.dayNight == "day") DAY_TABLE else Color.Black, animationSpec = tween(700, easing = Motion.ease), label = "table",
     )
 
     if (g == null) {

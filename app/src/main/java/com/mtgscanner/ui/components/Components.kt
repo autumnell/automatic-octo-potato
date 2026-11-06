@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.components
 
+import androidx.compose.animation.core.tween
+import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -315,7 +317,7 @@ fun CardTile(
     onClick: () -> Unit,
 ) {
     val press = remember { MutableInteractionSource() }
-    val tint by animateColorAsState(if (selected) Palette.Accent.copy(alpha = 0.22f) else Color.Transparent, label = "tileSelected")
+    val tint by animateColorAsState(if (selected) Palette.Accent.copy(alpha = 0.22f) else Color.Transparent, tween(Motion.fast, easing = Motion.ease), label = "tileSelected")
     Column(
         modifier
             .pressScale(press)

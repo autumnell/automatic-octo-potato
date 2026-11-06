@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.detail
 
+import androidx.compose.animation.core.tween
+import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.ruleAbove
 import androidx.compose.material.icons.outlined.Share
@@ -782,9 +784,9 @@ private fun Hero(c: CollectionCard, sharedId: Long, height: Dp, onPhoto: () -> U
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // Room under the floating buttons, down to the sheet.
     val bigH = (height - 16.dp - top - 64.dp - 12.dp).coerceAtLeast(132.dp)
-    val cardH by animateDpAsState(if (big) bigH else 132.dp, label = "heroCard")
-    val bias by animateFloatAsState(if (big) 0f else -1f, label = "heroBias")
-    val dim by animateFloatAsState(if (big) 0.55f else 0f, label = "heroDim")
+    val cardH by animateDpAsState(if (big) bigH else 132.dp, tween(Motion.base, easing = Motion.ease), label = "heroCard")
+    val bias by animateFloatAsState(if (big) 0f else -1f, tween(Motion.base, easing = Motion.ease), label = "heroBias")
+    val dim by animateFloatAsState(if (big) 0.55f else 0f, tween(Motion.base, easing = Motion.ease), label = "heroDim")
     Box(Modifier.fillMaxWidth().height(height - 16.dp)) {
         // The art behind dims while the card is big, so the card stands out.
         if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))

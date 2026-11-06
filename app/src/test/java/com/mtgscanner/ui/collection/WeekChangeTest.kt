@@ -39,6 +39,10 @@ class WeekChangeTest {
         assertEquals("−3.05", WeekChange.label(-3.05))
         assertEquals("0.00", WeekChange.label(-0.001))
         assertEquals("+1,041.80", WeekChange.label(1041.8))
+        assertEquals("+$0.06", WeekChange.dollars(0.06))
+        assertEquals("−$3.05", WeekChange.dollars(-3.05))
+        assertEquals("$0.00", WeekChange.dollars(0.0))
+        assertEquals("—", WeekChange.dollars(null))
         assertEquals("3,418.20", WeekChange.amount(3418.2))
         assertEquals("—", WeekChange.amount(null))
     }

@@ -352,8 +352,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             }
             composable(
                 "stats",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) {
               // Card pictures on Stats grow into the card page too.
               ScreenAnimation(this) {
@@ -366,8 +366,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             }
             composable(
                 "goals",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) { com.mtgscanner.ui.goals.GoalsScreen(onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") }) }
             composable("scan") { ScreenAnimation(this) { ScanScreen(onOpenCard = { nav.navigate("card/$it") }) } }
             composable("search") { SearchScreen(onOpenSet = { nav.navigate("set/$it") }, onOpenCard = { nav.navigate("card/$it") }) }
@@ -390,13 +390,13 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             composable("game/play") { GamePlayScreen(onExit = { if (it.isResumed) nav.popBackStack("game", inclusive = false) }) }
             composable(
                 "sets",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) { com.mtgscanner.ui.collection.SetsScreen(onBack = { nav.popFrom(it) }, onOpenSet = { nav.navigate("set/$it") }) }
             composable(
                 "set/{code}",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) {
                 com.mtgscanner.ui.collection.SetDetailScreen(
                     code = it.arguments?.getString("code").orEmpty(),
@@ -406,14 +406,14 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             }
             composable(
                 "extras",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) { com.mtgscanner.ui.collection.ExtrasScreen(onBack = { nav.popFrom(it) }) }
             composable(
                 "deck/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) {
                 val id = it.arguments?.getLong("id") ?: 0L
                 DeckScreen(
@@ -424,16 +424,16 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             composable(
                 "deck/{id}/playtest",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) {
                 com.mtgscanner.ui.decks.playtest.PlaytestScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) })
             }
             composable(
                 "browse/{boxId}",
                 arguments = listOf(navArgument("boxId") { type = NavType.LongType }),
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) {
               ScreenAnimation(this) {
                 BrowseScreen(
@@ -448,8 +448,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             }
             composable(
                 "settings",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) {
                 SettingsScreen(
                     onBack = { nav.popFrom(it) },
@@ -460,30 +460,30 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             composable(
                 "trade/{boxId}",
                 arguments = listOf(navArgument("boxId") { type = NavType.LongType }),
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) { TradeScreen(binderId = it.arguments?.getLong("boxId") ?: -1L, onBack = { nav.popFrom(it) }, onSellList = { nav.navigate("buylist") }) }
             composable(
                 "loans",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) { com.mtgscanner.ui.loans.LoansScreen(onBack = { nav.popFrom(it) }, onOpenCard = { id -> nav.navigate("card/$id") }) }
             composable(
                 "buylist",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) { com.mtgscanner.ui.sell.SellScreen(onBack = { nav.popFrom(it) }, onBrowse = { nav.navigate("browse/-1") }, onOpenCard = { id -> nav.navigate("card/$id") }) }
             composable(
                 "scanlog",
-                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
-                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+                enterTransition = { pageIn() },
+                popExitTransition = { pageOut() },
             ) { ScanLogScreen(onBack = { nav.popFrom(it) }) }
             // The card page grows out of the picture tapped, and shrinks back into it.
             composable(
                 "card/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                enterTransition = { scaleIn(tween(CARD_GROW_MS), initialScale = 0.9f) + fadeIn(tween(CARD_GROW_MS - 60)) },
-                popExitTransition = { scaleOut(tween(CARD_GROW_MS - 40), targetScale = 0.9f) + fadeOut(tween(CARD_GROW_MS - 80)) },
+                enterTransition = { scaleIn(tween(CARD_GROW_MS, easing = Motion.ease), initialScale = 0.9f) + fadeIn(tween(CARD_GROW_MS - 60, easing = Motion.ease)) },
+                popExitTransition = { scaleOut(tween(CARD_GROW_MS - 40, easing = Motion.ease), targetScale = 0.9f) + fadeOut(tween(CARD_GROW_MS - 80, easing = Motion.ease)) },
             ) {
                 ScreenAnimation(this) {
                     CardDetailScreen(id = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") })
@@ -645,3 +645,13 @@ private fun Modifier.onHold(enabled: Boolean, onHold: () -> Unit): Modifier = if
         }
     }
 }
+
+/** A page sliding in from the right: `slow` on the one easing curve, like every other motion in the app. */
+private fun pageIn() =
+    slideInHorizontally(tween(Motion.slow, easing = Motion.ease)) { it / 3 } +
+        fadeIn(tween(Motion.slow, easing = Motion.ease))
+
+/** The same page sliding back out when you go back. */
+private fun pageOut() =
+    slideOutHorizontally(tween(Motion.slow, easing = Motion.ease)) { it / 3 } +
+        fadeOut(tween(Motion.slow, easing = Motion.ease))
