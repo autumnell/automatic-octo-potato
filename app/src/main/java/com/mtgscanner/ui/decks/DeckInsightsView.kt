@@ -92,7 +92,23 @@ internal fun deckIdentity(ui: DeckUi): Set<Char> {
     return from.flatMap { it.toList() }.filter { it in "WUBRG" }.toSet()
 }
 
-private enum class InsightSheet { BRACKET, MANA, GOLDFISH }
+private enum class InsightSheet { MANA, GOLDFISH }
+
+/**
+ * A Commander deck's bracket, worked out from its list (shown under the commander's name on the deck page); null
+ * for other formats and for lists too short to judge.
+ */
+@Composable
+internal fun rememberBracket(ui: DeckUi, vm: DeckViewModel): Bracket? {
+    val commander = DeckFormats.isCommander(ui.format)
+    val cards = remember(ui.text, ui.cardInfo, ui.commanders, ui.format) { insightCards(ui) }
+    val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
+    if (commander) LaunchedEffect(ui.text, ui.format) { vm.loadCombos() }
+    val gameChangers by produceState(BracketMath.GAME_CHANGERS) { GameChangers.fetch(repo.api)?.let { value = it } }
+    val twoCard = ui.combos.takeIf { !it.failed }?.value?.included?.filter { it.cards.size == 2 }?.map { it.cards }
+    val bracket = remember(cards, gameChangers, twoCard) { BracketMath.of(cards, gameChangers, twoCard) }
+    return bracket.takeIf { commander && cards.sumOf { it.copies } >= 20 }
+}
 
 /** Bracket (Commander decks), mana base and goldfish rows under the win rate; each opens a sheet with the detail. */
 @Composable
@@ -102,13 +118,7 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, lead: InsightStat? =
         lead?.let { InsightStrip(listOf(it)) }
         return
     }
-    val commander = DeckFormats.isCommander(ui.format)
-    val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
     var sheet by remember { mutableStateOf<InsightSheet?>(null) }
-    if (commander) LaunchedEffect(ui.text, ui.format) { vm.loadCombos() }
-    val gameChangers by produceState(BracketMath.GAME_CHANGERS) { GameChangers.fetch(repo.api)?.let { value = it } }
-    val twoCard = ui.combos.takeIf { !it.failed }?.value?.included?.filter { it.cards.size == 2 }?.map { it.cards }
-    val bracket = remember(cards, gameChangers, twoCard) { BracketMath.of(cards, gameChangers, twoCard) }
     val identity = remember(ui.text, ui.cardInfo, ui.commanders, ui.format) { deckIdentity(ui) }
     val mana = remember(cards, identity) { ManaBaseMath.of(cards, identity) }
     val goldfish by produceState<Goldfish?>(null, cards) { value = withContext(Dispatchers.Default) { GoldfishMath.of(cards) } }
@@ -116,13 +126,11 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, lead: InsightStat? =
     // One compact strip of figures instead of a row each (unslop: compact stats, not equal cards). Tap one for its sheet.
     val items = buildList {
         lead?.let { add(it) }
-        if (commander) add(InsightStat("Bracket", "${bracket.level} · ${bracket.label}", bracket.reasons.firstOrNull()) { sheet = InsightSheet.BRACKET })
         add(InsightStat("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA })
         add(InsightStat("Goldfish", goldfish?.let { "Keep ${pct(it.keepable)}" } ?: "…", goldfish?.let { "Turn 4 land ${pct(it.landDrop[3])}" }) { if (goldfish != null) sheet = InsightSheet.GOLDFISH })
     }
     InsightStrip(items)
     when (sheet) {
-        InsightSheet.BRACKET -> BracketSheet(bracket, onDismiss = { sheet = null })
         InsightSheet.MANA -> ManaBaseSheet(mana, onDismiss = { sheet = null })
         InsightSheet.GOLDFISH -> GoldfishSheet(cards, onDismiss = { sheet = null })
         null -> Unit
@@ -139,15 +147,15 @@ internal class InsightStat(val label: String, val value: String, val note: Strin
 @Composable
 internal fun InsightStrip(items: List<InsightStat>) {
     val rows = if (items.size <= 3) listOf(items) else items.chunked(2)
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s2, vertical = Space.s1)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s2)) {
         rows.forEachIndexed { r, row ->
             if (r > 0) HorizontalDivider(Modifier.padding(horizontal = Space.s2), color = Palette.Rule)
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
                 row.forEachIndexed { i, it ->
-                    if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s2), color = Palette.Rule)
+                    if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s1), color = Palette.Rule)
                     Column(
                         Modifier.weight(1f).clip(RoundedCornerShape(Corners.Small)).clickable(onClickLabel = it.label, onClick = it.onClick)
-                            .padding(horizontal = Space.s2, vertical = Space.s2),
+                            .padding(horizontal = Space.s2, vertical = Space.s1),
                     ) {
                         Text(it.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
                         Text(it.value, style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -287,7 +295,7 @@ private fun BracketScale(level: Int) {
 }
 
 @Composable
-private fun BracketSheet(b: Bracket, onDismiss: () -> Unit) {
+internal fun BracketSheet(b: Bracket, onDismiss: () -> Unit) {
     DeckActionsSheet("Bracket ${b.level}: ${b.label}", onDismiss) { BracketBody(b) }
 }
 

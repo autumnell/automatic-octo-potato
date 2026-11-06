@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.decks
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -54,6 +55,9 @@ fun DeckArtHeader(
     onEdhrec: (() -> Unit)?, salt: com.mtgscanner.data.DeckSalt?, totals: String?,
     /** The mana curve and colors, drawn over the art under the names. */
     shape: DeckShape? = null,
+    /** "Bracket 2: Core", shown under the names on the art; tapping it opens [onBracket]. */
+    bracket: String? = null,
+    onBracket: (() -> Unit)? = null,
 ) {
     val f = DeckFormats.of(format)
     if (!hasArtHeader(format, commanders, art)) {
@@ -79,30 +83,32 @@ fun DeckArtHeader(
                     commanders.commanders.joinToString(" & "), style = MaterialTheme.typography.titleLarge, color = Color.White,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    listOfNotNull(f.label, totals).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.OnDarkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                // The deck's bracket where the card count used to be; it opens the bracket sheet.
+                if (bracket != null) Text(
+                    bracket, style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.OnDarkMuted, maxLines = 1,
+                    modifier = if (onBracket != null) Modifier.clickable(onClickLabel = "Bracket", onClick = onBracket) else Modifier,
                 )
+                val saltTag: (@Composable () -> Unit)? = salt?.let { st ->
+                    { Text("Salt %.1f".format(st.total), style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.OnDarkMuted, maxLines = 1) }
+                }
                 if (shape != null && !shape.isEmpty) {
                     Spacer(Modifier.height(Space.s3))
-                    DeckShapeView(shape, onArt = true)
-                }
+                    DeckShapeView(shape, onArt = true, trailing = saltTag)
+                } else if (saltTag != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { saltTag() }
             }
-        }
-        if (!issues.isEmpty || salt != null || onEdhrec != null) Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                DeckIssuesLine(issues)
-                if (salt != null) Text(
-                    salt.label, style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (onEdhrec != null) TextButton(onClick = onEdhrec) {
-                Text("EDHREC")
+            // EDHREC sits on the art's top right, on a dark chip so it reads over any picture.
+            if (onEdhrec != null) Row(
+                Modifier.align(Alignment.TopEnd).padding(Space.s2).clip(RoundedCornerShape(Corners.Small))
+                    .background(Color.Black.copy(alpha = 0.55f)).clickable(onClick = onEdhrec)
+                    .heightIn(min = 40.dp).padding(horizontal = Space.s3),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("EDHREC", style = MaterialTheme.typography.labelLarge, color = Color.White)
                 Spacer(Modifier.width(Space.s1))
-                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = Color.White, modifier = Modifier.size(16.dp))
             }
         }
+        if (!issues.isEmpty) DeckIssuesLine(issues)
     }
 }
 
