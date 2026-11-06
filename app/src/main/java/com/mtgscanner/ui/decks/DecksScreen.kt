@@ -249,7 +249,6 @@ fun DecksTab(
             if (tagsShown.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "tags") {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-                        SelectPill("All", tag == null, { picked = null })
                         tagsShown.forEach { t -> SelectPill(t, tag == t, { picked = if (tag == t) null else t }) }
                     }
                 }
@@ -364,7 +363,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                         row.identity.forEach { c -> Mana.Symbol(c.toString(), 15.dp) }
                     }
                 }
-                // Top left: "Owned" once every card is owned, else the status picked from the menu.
+                // Top left: the status picked from the menu, until every card is owned.
                 val tag = deckTag(ctx, row)
                 if (tag != null) {
                     Text(
@@ -400,7 +399,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Move to folder") }, onClick = { menu = false; onMove() })
                         DropdownMenuItem(text = { Text("Cover card") }, onClick = { menu = false; onCover() })
-                        // A fully owned deck always shows "Owned".
+                        // A fully owned deck has no status to pick.
                         if (!owned) {
                             HorizontalDivider(color = Palette.Rule)
                             DeckStatus.entries.forEach { st ->

@@ -24,6 +24,23 @@ data class PlayCard(
  */
 data class PlayDeck(val name: String, val cards: List<PlayCard>, val commanders: List<PlayCard> = emptyList(), val format: String = "")
 
+/**
+ * The three rows of a side's battlefield: creatures nearest the opponent, then artifacts, enchantments and the other
+ * permanents, then lands nearest you.
+ */
+enum class Lane(val label: String) {
+    CREATURES("Creatures"), OTHERS("Artifacts and enchantments"), LANDS("Lands");
+
+    companion object {
+        /** A creature land counts as a creature; a face-down card is a 2/2 creature. */
+        fun of(p: Piece): Lane = when {
+            p.faceDown || p.card.isCreature -> CREATURES
+            p.card.isLand -> LANDS
+            else -> OTHERS
+        }
+    }
+}
+
 enum class Zone(val label: String) {
     LIBRARY("Library"), HAND("Hand"), BATTLEFIELD("Battlefield"), GRAVEYARD("Graveyard"), EXILE("Exile"), COMMAND("Command zone"),
 }
@@ -124,6 +141,23 @@ object Playtest {
         val n = minOf(HAND, all.size)
         s.with(Zone.HAND, all.take(n)).with(Zone.LIBRARY, all.drop(n)).copy(mulligans = s.mulligans + 1)
     }
+
+    /**
+     * Whether the first mulligan is free, as in Commander games: Commander, PDH and Brawl decks, and a deck with no
+     * format that has a commander.
+     */
+    fun freeMulligan(deck: PlayDeck): Boolean = when (deck.format) {
+        "commander", "paupercommander", "brawl", "standardbrawl" -> true
+        "" -> deck.commanders.isNotEmpty()
+        else -> false
+    }
+
+    /** Cards to put on the bottom when keeping, by the London mulligan: one for each mulligan but a free one. */
+    fun toBottom(mulligans: Int, free: Boolean): Int = (mulligans - if (free) 1 else 0).coerceIn(0, HAND)
+
+    /** Puts [ids] from the hand on the bottom of the library, in that order. */
+    fun bottom(t: Table, side: Int, ids: List<Int>): Table =
+        ids.fold(t) { acc, id -> if (acc.sides[side][Zone.HAND].any { it.id == id }) move(acc, side, id, Zone.LIBRARY, bottom = true) else acc }
 
     /**
      * Moves a card to [to], on top (or the bottom of the library with [bottom]). Leaving the battlefield untaps it
