@@ -389,6 +389,9 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     var find by rememberSaveable { mutableStateOf("") }
     // Pictures by type, or the list by what's owned. A complete deck starts on pictures.
     var picturesPick by rememberSaveable { mutableStateOf(startPictures) }
+    // Tapping a card slides up its details; Other printings there opens the picker.
+    var tapped by remember { mutableStateOf<DeckCheckLine?>(null) }
+    val open: (DeckCheckLine) -> Unit = { tapped = it }
     val check = ui.check
     if (ui.checking || check == null) {
         PlaceholderRows(6, Modifier.padding(Space.s4))
@@ -469,34 +472,41 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
         if (pictures) {
             val typeOf = { l: DeckCheckLine -> ui.cardTexts[DeckNames.key(l.name)]?.first }
             val leadTitle = if (ui.commanders.commanders.size > 1) "Commanders" else "Commander"
-            if (leads.isNotEmpty()) item(key = "p-lead") { DeckPiles(leadTitle, leads, vm::openPrintings) }
+            if (leads.isNotEmpty()) item(key = "p-lead") { DeckPiles(leadTitle, leads, open) }
             val groups = DeckTypes.group(rest.filter { it.section in PLAYED }.sortedBy { it.name.lowercase() }, typeOf)
-            groups.forEach { (t, lines) -> item(key = "p-${t.name}") { DeckPiles(t.many, lines, vm::openPrintings) } }
+            groups.forEach { (t, lines) -> item(key = "p-${t.name}") { DeckPiles(t.many, lines, open) } }
             val others = rest.filter { it.section !in PLAYED }
-            if (others.isNotEmpty()) item(key = "p-other") { DeckPiles("Sideboard and more", others, vm::openPrintings) }
+            if (others.isNotEmpty()) item(key = "p-other") { DeckPiles("Sideboard and more", others, open) }
         } else {
             if (leads.isNotEmpty()) {
                 item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
-                itemsIndexed(leads, key = { i, _ -> "c$i" }) { i, l -> DeckLineRow(l, missingView = l.missing > 0, first = i == 0, last = i == leads.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+                itemsIndexed(leads, key = { i, _ -> "c$i" }) { i, l -> DeckLineRow(l, missingView = l.missing > 0, first = i == 0, last = i == leads.lastIndex, onClick = { open(l) }, onOpenSet = onOpenSet) }
             }
             // Keys by position: the same card can be listed twice (two printings).
             if (missing.isNotEmpty()) {
                 item { SectionHeader("Missing (${missing.sumOf { it.missing }})") }
-                itemsIndexed(missing, key = { i, _ -> "m$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == missing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+                itemsIndexed(missing, key = { i, _ -> "m$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == missing.lastIndex, onClick = { open(l) }, onOpenSet = onOpenSet) }
             }
             if (otherMissing.isNotEmpty()) {
                 item { SectionHeader("Sideboard and more (${otherMissing.sumOf { it.missing }})") }
-                itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == otherMissing.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+                itemsIndexed(otherMissing, key = { i, _ -> "x$i" }) { i, l -> DeckLineRow(l, missingView = true, first = i == 0, last = i == otherMissing.lastIndex, onClick = { open(l) }, onOpenSet = onOpenSet) }
             }
             if (owned.isNotEmpty()) {
                 item { SectionHeader("In your collection") }
-                itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
+                itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { open(l) }, onOpenSet = onOpenSet) }
             }
         }
         item { Spacer(Modifier.height(Space.s6)) }
     }
     if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {
         played.filter { it.missing > 0 }.map { it.shareLine() }
+    }
+    tapped?.let { l ->
+        DeckCardSheet(
+            l, ui.cardInfo[DeckNames.key(l.name)],
+            onPrintings = { tapped = null; vm.openPrintings(l) },
+            onDismiss = { tapped = null },
+        )
     }
     ui.printingLine?.let { line ->
         val chosen = ui.printings?.firstOrNull { p ->
@@ -533,7 +543,7 @@ private fun DeckLineRow(
                 overflow = TextOverflow.Ellipsis,
             )
             val listed = l.setCode?.let { it.uppercase() + (l.collectorNumber?.let { n -> " #$n" } ?: "") }
-            // "LCI #287 · Borderless" opens the set when tapped; the rest of the line picks the printing.
+            // "LCI #287 · Borderless" opens the set when tapped; the rest of the line opens the card sheet.
             val set = l.setCode?.takeIf { onOpenSet != null && !l.otherPrinting }
             val link = when {
                 l.otherPrinting -> null

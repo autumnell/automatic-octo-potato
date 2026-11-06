@@ -181,6 +181,8 @@ data class DeckUi(
     val shape: DeckShape? = null,
     /** Type line and rules text of the listed cards, by [DeckNames.key], for the draw odds. */
     val cardTexts: Map<String, Pair<String, String>> = emptyMap(),
+    /** What's known about each listed card, by [DeckNames.key], for the card sheet. */
+    val cardInfo: Map<String, DeckCardInfo> = emptyMap(),
 )
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
@@ -309,7 +311,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 .mapNotNull { (n, q) -> info[DeckNames.key(n)]?.let { ShapeCard(q, it.cmc, it.typeLine, it.manaCost) } }
             val shape = DeckShapeMath.of(shapeCards)
             val texts = info.mapValues { (_, v) -> v.typeLine to v.oracleText }
-            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec, shape = shape, cardTexts = texts) }
+            _ui.update { it.copy(leadInfo = it.leadInfo + leads, leadArt = art, issues = issues, edhrec = edhrec, shape = shape, cardTexts = texts, cardInfo = info) }
             // Saved only when every card was found, so a page opened offline doesn't keep a short curve.
             if (info.isNotEmpty() && shapeCards.size == played.size + s.commanders.all.count { DeckNames.key(it) !in playedKeys }) {
                 DeckPageCache.put(s.id, DeckPageCache.stamp(s.text, s.format, s.commanders.encode()), shape, art, edhrec)

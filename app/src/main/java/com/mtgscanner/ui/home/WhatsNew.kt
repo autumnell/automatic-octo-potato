@@ -78,7 +78,7 @@ object WhatsNew {
         270 to "Playtest a deck: from its menu, play turns on a table with tokens, counters and tapping, alone or against another of your decks or a precon that plays itself. Complete decks drop the Pull list and the owned numbers. Pick a deck per seat in Game to track its win rate (shown and editable on the deck), and browse every precon in Search",
         274 to "Commander decks open with their art across the top, and a complete deck shows its cards as pictures grouped by type. The grid button by Find in deck switches between pictures and the list",
         278 to "Playtest has its own button on the deck page and matches your deck's format: life to match, and only decks and precons of that format to play against. The deck menu is a tidier list with a line on each action. Pulling to refresh in a box or deck updates just those cards",
-        281 to "The mana curve and colors sit on the commander art at the top of a deck. The legality footer and the cards-in-other-decks line are gone",
+        281 to "The mana curve and colors sit on the commander art at the top of a deck. Tap a card in a deck to slide up its details. The legality footer and the cards-in-other-decks line are gone",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
