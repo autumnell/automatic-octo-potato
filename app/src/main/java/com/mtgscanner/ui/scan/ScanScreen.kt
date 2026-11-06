@@ -140,6 +140,7 @@ fun ScanScreen(
     onOpenCard: (Long) -> Unit,
     vm: ScanViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
+    com.mtgscanner.ui.components.KeepUpright()
     val ctx = LocalContext.current
     var hasPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)

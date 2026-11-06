@@ -120,6 +120,7 @@ fun Modifier.rotateLayout(degrees: Int): Modifier = when ((degrees % 360 + 360) 
  */
 @Composable
 fun GamePlayScreen(onExit: () -> Unit) {
+    com.mtgscanner.ui.components.KeepUpright()
     val vm = gameViewModel()
     val game by vm.game.collectAsStateWithLifecycle()
     val g = game

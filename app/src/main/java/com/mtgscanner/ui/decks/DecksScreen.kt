@@ -201,7 +201,7 @@ fun DecksTab(
     }
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Adaptive(160.dp),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = Space.s4, end = Space.s4, bottom = Space.s6),
         horizontalArrangement = Arrangement.spacedBy(Space.s3),
