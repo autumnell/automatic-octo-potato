@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -51,9 +52,11 @@ import com.mtgscanner.ui.theme.TabularNums
 fun DeckArtHeader(
     format: String, commanders: DeckCommanders, art: List<String>, issues: CommanderRules.Issues,
     onEdhrec: (() -> Unit)?, salt: com.mtgscanner.data.DeckSalt?, totals: String?,
+    /** The mana curve and colors, drawn over the art under the names. */
+    shape: DeckShape? = null,
 ) {
     val f = DeckFormats.of(format)
-    if (!f.commander || art.isEmpty() || commanders.commanders.isEmpty()) {
+    if (!hasArtHeader(format, commanders, art)) {
         DeckHeader(format, commanders, art, issues, onEdhrec, salt)
         if (totals != null) Text(
             totals, style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
@@ -62,15 +65,16 @@ fun DeckArtHeader(
         return
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1)) {
-        Box(Modifier.fillMaxWidth().height(152.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.ArtBase)) {
+        // The content sets the height; the art fills behind it.
+        Box(Modifier.fillMaxWidth().heightIn(min = 152.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.ArtBase)) {
             Row(Modifier.matchParentSize()) {
                 art.take(2).forEach { url ->
                     AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.weight(1f).fillMaxHeight())
                 }
             }
             // A scrim only, to keep the names readable over the art (design/Design.md).
-            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)))))
-            Column(Modifier.align(Alignment.BottomStart).padding(Space.s3)) {
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f), Color.Black.copy(alpha = 0.85f)))))
+            Column(Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(start = Space.s3, end = Space.s3, top = Space.s12, bottom = Space.s3)) {
                 Text(
                     commanders.commanders.joinToString(" & "), style = MaterialTheme.typography.titleLarge, color = Color.White,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -79,6 +83,10 @@ fun DeckArtHeader(
                     listOfNotNull(f.label, totals).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.OnDarkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
+                if (shape != null && !shape.isEmpty) {
+                    Spacer(Modifier.height(Space.s3))
+                    DeckShapeView(shape, onArt = true)
+                }
             }
         }
         if (!issues.isEmpty || salt != null || onEdhrec != null) Row(verticalAlignment = Alignment.CenterVertically) {
@@ -135,15 +143,6 @@ fun DeckPiles(title: String, lines: List<DeckCheckLine>, onOpen: (DeckCheckLine)
     Spacer(Modifier.height(Space.s2))
 }
 
-/** "Legal · 100 cards · $123.51" under the list; legality only when the deck has a format. */
-@Composable
-fun DeckFooter(format: String, issues: CommanderRules.Issues, cards: Int, value: String?) {
-    val f = DeckFormats.of(format)
-    val legal = if (f.id.isEmpty()) null else if (issues.isEmpty) "Legal in ${f.label}" else DeckIssueText.count(issues.count)
-    Text(
-        listOfNotNull(legal, if (cards == 1) "1 card" else "$cards cards", value).joinToString(" · "),
-        style = MaterialTheme.typography.bodySmall.merge(TabularNums),
-        color = if (issues.isEmpty) Palette.Muted else Palette.Danger,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s4),
-    )
-}
+/** Whether [DeckArtHeader] draws the art band (a commander deck whose commander art is known). */
+fun hasArtHeader(format: String, commanders: DeckCommanders, art: List<String>): Boolean =
+    DeckFormats.of(format).commander && art.isNotEmpty() && commanders.commanders.isNotEmpty()

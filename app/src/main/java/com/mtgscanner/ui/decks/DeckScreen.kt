@@ -227,7 +227,7 @@ fun DeckScreen(
                     DeckArtHeader(
                         ui.format, ui.commanders, ui.leadArt, ui.issues,
                         onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
-                        salt = salt, totals = totals,
+                        salt = salt, totals = totals, shape = ui.shape,
                     )
                 }
                 // Every played card already in the deck: nothing to pull, so the Pull list and the tab row go.
@@ -387,10 +387,8 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     val scope = rememberCoroutineScope()
     var sharing by remember { mutableStateOf(false) }
     var find by rememberSaveable { mutableStateOf("") }
-    var showShared by rememberSaveable { mutableStateOf(false) }
     // Pictures by type, or the list by what's owned. A complete deck starts on pictures.
     var picturesPick by rememberSaveable { mutableStateOf(startPictures) }
-    val shared by vm.shared.collectAsStateWithLifecycle()
     val check = ui.check
     if (ui.checking || check == null) {
         PlaceholderRows(6, Modifier.padding(Space.s4))
@@ -421,7 +419,8 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     val pictures = picturesPick ?: complete
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            ui.shape?.let { DeckShapeView(it) }
+            // The curve sits on the commander art when there is one.
+            if (!hasArtHeader(ui.format, ui.commanders, ui.leadArt)) ui.shape?.let { DeckShapeView(it) }
             // A complete deck has nothing missing, so the owned and missing numbers would only say so.
             // Two plain figures rather than two equal panels (unslop: compact stats).
             if (have < needed) Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
@@ -429,7 +428,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 if (AppSettings.showPrices) Stat("To finish", missingCostText)
                 else Stat("Missing", "${needed - have}")
             }
-            // Small print: where the owned copies are. The value is in the header and the footer.
+            // Small print: where the owned copies are. The value is in the header.
             val small = listOfNotNull(
                 if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
@@ -440,27 +439,6 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                     style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
                     modifier = Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2),
                 )
-            }
-            if (shared.isNotEmpty()) {
-                Text(
-                    "${shared.size} ${if (shared.size == 1) "card" else "cards"} also in other decks " + if (showShared) "▴" else "▾",
-                    style = MaterialTheme.typography.bodySmall, color = Palette.AccentText,
-                    modifier = Modifier.clickable { showShared = !showShared }.padding(start = Space.s4, end = Space.s4, top = Space.s1, bottom = Space.s2),
-                )
-                if (showShared) {
-                    Column(Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2)) {
-                        shared.forEach { c ->
-                            Row(Modifier.padding(vertical = Space.s1)) {
-                                Text(c.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Spacer(Modifier.width(Space.s2))
-                                Text(
-                                    c.decks.joinToString(", "), style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-                                    modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
             }
             if (played.any { it.missing > 0 }) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
@@ -515,7 +493,6 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 itemsIndexed(owned, key = { i, _ -> "o$i" }) { i, l -> DeckLineRow(l, missingView = false, first = i == 0, last = i == owned.lastIndex, onClick = { vm.openPrintings(l) }, onOpenSet = onOpenSet) }
             }
         }
-        if (find.isBlank()) item { DeckFooter(ui.format, ui.issues, needed, deckValue(played)) }
         item { Spacer(Modifier.height(Space.s6)) }
     }
     if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {
