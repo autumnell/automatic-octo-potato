@@ -8,26 +8,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for c in atraxa-praetors-voice the-ur-dragon edgar-markov krenko-mob-boss yuriko-the-tigers-shadow kenrith-the-returned-king muldrotha-the-gravetide meren-of-clan-nel-toth lathril-blade-of-the-elves miirym-sentinel-wyrm korvold-fae-cursed-king prossh-skyraider-of-kher sythis-harvests-hand niv-mizzet-parun chulane-teller-of-tales; do
-            curl -sS -A "Grimoire-app" https://json.edhrec.com/pages/commanders/$c.json -o $c.json
-          done
+          curl -sSI -A "Grimoire-app" https://json.commanderspellbook.com/variants.json | grep -iE "^(HTTP|content-length|content-type|content-encoding|last-modified)"
+          curl -sS -A "Grimoire-app" -H "Accept-Encoding: gzip" https://json.commanderspellbook.com/variants.json -o v.gz -w "status %{http_code} size %{size_download}\n"
+          ls -la v.gz; file v.gz
+          (gunzip -c v.gz 2>/dev/null || cat v.gz) > v.json; ls -la v.json
           python3 - <<'PY'
-          import json,glob,time,urllib.request
-          names=set()
-          for f in glob.glob('*.json'):
-              try: d=json.load(open(f))
-              except Exception: continue
-              for l in d.get('container',{}).get('json_dict',{}).get('cardlists',[]):
-                  for c in l.get('cardviews',[]): names.add(c['name'])
-          names=sorted(names); print('names',len(names))
-          for n in [300,1000,len(names)]:
-              body=json.dumps({"commanders":[],"main":[{"card":x,"quantity":1} for x in names[:n]]}).encode()
-              req=urllib.request.Request("https://backend.commanderspellbook.com/find-my-combos",data=body,headers={"Content-Type":"application/json","User-Agent":"Grimoire-app"})
-              t=time.time()
-              try:
-                  r=urllib.request.urlopen(req,timeout=60); d=json.load(r)
-                  res=d.get('results',{})
-                  print(n,'status',r.status,'secs',round(time.time()-t,1),{k:len(v) for k,v in res.items() if isinstance(v,list)}, 'count' ,d.get('count'), 'next', d.get('next'))
-                  if res.get('included'): print(json.dumps(res['included'][0])[:400])
-              except Exception as e: print(n,'error',e, getattr(e,'read',lambda:b'')()[:300])
+          import json
+          d=json.load(open('v.json'))
+          print(type(d).__name__, list(d.keys())[:10] if isinstance(d,dict) else len(d))
+          vs=d['variants'] if isinstance(d,dict) and 'variants' in d else d
+          print('n',len(vs)); print(json.dumps(vs[0])[:1500])
+          from collections import Counter
+          print(Counter(len(v.get('uses',[])) for v in vs).most_common(8))
+          print('status', Counter(v.get('status') for v in vs))
           PY
