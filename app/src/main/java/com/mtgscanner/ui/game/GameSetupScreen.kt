@@ -93,6 +93,9 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     val names = rememberSaveable(saver = NamesSaver) {
         mutableStateListOf<String>().apply { addAll(vm.lastNames + List(Player.MAX_PLAYERS) { "" }); while (size > Player.MAX_PLAYERS) removeAt(size - 1) }
     }
+    // The deck at each seat (-1 for none), so the game counts toward that deck's win rate.
+    val seatDecks = rememberSaveable(saver = DecksSaver) { mutableStateListOf<Long>().apply { repeat(Player.MAX_PLAYERS) { add(-1L) } } }
+    val deckList by vm.decks.collectAsStateWithLifecycle()
     val style by vm.style.collectAsStateWithLifecycle()
     val records by vm.records.collectAsStateWithLifecycle()
     val last = vm.lastSetup
@@ -103,7 +106,8 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     var customLife by remember { mutableStateOf(false) }
 
     fun begin(f: GameFormat, n: Int, l: Int, p: Boolean) {
-        val go = { vm.start(f, n, l, names.take(n), p); onPlay() }
+        val decks = seatDecks.take(n).map { id -> id.takeIf { d -> d >= 0 && deckList.any { it.first == d } } }
+        val go = { vm.start(f, n, l, names.take(n), p, decks); onPlay() }
         if (current != null) startingNew = go else go()
     }
 
@@ -173,6 +177,10 @@ fun GameSetupScreen(onPlay: () -> Unit) {
             Row(Modifier.fillMaxWidth().padding(top = Space.s1), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { players-- }, enabled = players > 1) { Text("− Seat") }
                 TextButton(onClick = { players++ }, enabled = players < Player.MAX_PLAYERS) { Text("+ Seat") }
+            }
+            if (deckList.isNotEmpty()) {
+                SeatDecks(players, names, seatDecks, deckList)
+                Spacer(Modifier.height(Space.s2))
             }
 
             if (last != null) {
@@ -367,3 +375,36 @@ private val NamesSaver = listSaver<SnapshotStateList<String>, String>(
     save = { it.toList() },
     restore = { mutableStateListOf<String>().apply { addAll(it) } },
 )
+
+private val DecksSaver = listSaver<SnapshotStateList<Long>, Long>(
+    save = { it.toList() },
+    restore = { mutableStateListOf<Long>().apply { addAll(it) } },
+)
+
+/**
+ * Which of your decks each seat plays, as a side option: the deck's wins and losses are counted when the game is
+ * saved. Seats without a deck aren't counted for any.
+ */
+@Composable
+private fun SeatDecks(players: Int, names: List<String>, seatDecks: SnapshotStateList<Long>, decks: List<Pair<Long, String>>) {
+    Text("Decks", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s1))
+    for (i in 0 until players) {
+        val picked = decks.firstOrNull { it.first == seatDecks[i] }
+        var open by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                names.getOrElse(i) { "" }.ifBlank { "Player ${i + 1}" }, style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Box {
+                TextButton(onClick = { open = true }) {
+                    Text(picked?.second ?: "No deck", color = if (picked != null) Palette.Text else Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    DropdownMenuItem(text = { Text("No deck") }, onClick = { open = false; seatDecks[i] = -1L })
+                    decks.forEach { (id, name) -> DropdownMenuItem(text = { Text(name) }, onClick = { open = false; seatDecks[i] = id }) }
+                }
+            }
+        }
+    }
+}

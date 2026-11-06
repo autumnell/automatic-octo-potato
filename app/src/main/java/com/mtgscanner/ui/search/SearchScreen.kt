@@ -119,7 +119,15 @@ fun SearchScreen(
     Box(Modifier.fillMaxSize().background(Palette.Background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             TabBar(ui.tab, vm::setTab)
-            if (ui.tab == 0) CardsTab(ui, vm, owned) else SetsTab(ui, vm, ownedSets, onOpenSet)
+            when (ui.tab) {
+                0 -> CardsTab(ui, vm, owned)
+                1 -> SetsTab(ui, vm, ownedSets, onOpenSet)
+                // Every precon MTGJSON lists, to see how much you own and save one as a deck.
+                else -> com.mtgscanner.ui.decks.PreconBrowser(
+                    viewModel(factory = AppViewModels.Factory),
+                    Modifier.padding(horizontal = Space.s4, vertical = Space.s2), title = false,
+                )
+            }
         }
         com.mtgscanner.ui.components.SlimSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
@@ -158,7 +166,7 @@ fun SearchScreen(
 
 @Composable
 private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
-    UnderlineTabs(listOf("Cards", "Sets"), selected, onSelect, Modifier.background(Palette.Background))
+    UnderlineTabs(listOf("Cards", "Sets", "Precons"), selected, onSelect, Modifier.background(Palette.Background))
 }
 
 @Composable

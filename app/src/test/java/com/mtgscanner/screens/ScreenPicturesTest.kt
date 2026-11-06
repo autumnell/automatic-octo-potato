@@ -161,6 +161,10 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.game.GameSetupScreen(onPlay = {})
     }
 
+    @Test fun playtest() = shoot("11-playtest") {
+        com.mtgscanner.ui.decks.playtest.PlaytestScreen(deckId = 1L, onBack = {}, preview = PlaytestPreview.table)
+    }
+
     @Test fun sets() = shoot("10-sets") {
         com.mtgscanner.ui.collection.SetsScreen(onBack = {}, onOpenSet = {})
     }

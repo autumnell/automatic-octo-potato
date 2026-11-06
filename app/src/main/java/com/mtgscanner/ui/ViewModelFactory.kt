@@ -44,6 +44,10 @@ object AppViewModels {
         initializer { DeckViewModel((this[AppKey] as MtgApp).repository, id) }
     }
 
+    fun playtest(id: Long) = viewModelFactory {
+        initializer { com.mtgscanner.ui.decks.playtest.PlaytestViewModel((this[AppKey] as MtgApp).repository, id) }
+    }
+
     fun detail(id: Long) = viewModelFactory {
         initializer { CardDetailViewModel((this[AppKey] as MtgApp).repository, id) }
     }

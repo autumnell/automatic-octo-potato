@@ -3,6 +3,8 @@ package com.mtgscanner.ui.game
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.db.artCropUrl
 import com.mtgscanner.game.Game
@@ -63,6 +65,11 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     val style: StateFlow<TableStyle> = _style
     fun setStyle(s: TableStyle) { _style.value = s; prefs.edit().putString("style", s.name).apply() }
 
+    /** Your decks, newest first, to pick one per seat so its wins and losses are counted. */
+    val decks: StateFlow<List<Pair<Long, String>>> = repo.observeDecks()
+        .map { all -> all.filter { it.text.isNotBlank() }.sortedByDescending { it.updatedAt }.map { it.id to it.name.ifBlank { "Deck" } } }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** Finished games, newest first. */
     private val _records = MutableStateFlow(
         loadRecords()?.let { runCatching { json.decodeFromString(recordsSerializer, it) }.getOrNull() }.orEmpty(),
@@ -79,13 +86,14 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
         return old
     }
 
-    fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean) {
+    fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean, decks: List<Long?> = emptyList()) {
         saveIfWon()
         val clean = names.mapIndexed { i, n -> n.trim().ifEmpty { GameState.NAMES[i] } }
         val setup = LastSetup(format, players, life, partners)
         lastSetup = setup
         prefs.edit().putString("names", clean.joinToString("\n")).putString("last_setup", setup.encode()).apply()
-        set(GameState.new(format, players, life, clean, partners))
+        val g = GameState.new(format, players, life, clean, partners)
+        set(g.copy(players = g.players.mapIndexed { i, p -> p.copy(deckId = decks.getOrNull(i)) }))
     }
 
     fun update(change: (GameState) -> GameState) {

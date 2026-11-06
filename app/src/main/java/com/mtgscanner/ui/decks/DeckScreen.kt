@@ -151,7 +151,7 @@ import com.mtgscanner.ui.components.panelRow
 
 /** One deck: paste or edit the list, then see what you own, where it is, and what's missing. */
 @Composable
-fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
+fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null, onPlaytest: (() -> Unit)? = null) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     // Keeps the deck check running only while this screen is showing.
@@ -199,6 +199,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
                             DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
+                            if (ui.id != 0L && onPlaytest != null) DropdownMenuItem(text = { Text("Playtest") }, onClick = { menu = false; onPlaytest() })
                             if (ui.check != null) DropdownMenuItem(text = { Text("Sample hand") }, onClick = { menu = false; sampling = true })
                             DropdownMenuItem(text = { Text("Draw odds") }, onClick = { menu = false; odds = true })
                             DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
@@ -229,8 +230,10 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                         salt = salt,
                     )
                 }
-                UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
-                when (view) {
+                // Every played card already in the deck: nothing to pull, so the Pull list and the tab row go.
+                val allInDeck = ui.check?.lines?.filter { it.section in PLAYED }?.let { p -> p.isNotEmpty() && p.all { it.inDeck >= it.needed } } == true
+                if (!allInDeck) UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
+                when (if (allInDeck) 0 else view) {
                     1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
                         val checks by vm.pullChecks.collectAsStateWithLifecycle()
@@ -386,7 +389,8 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             ui.shape?.let { DeckShapeView(it) }
-            Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
+            // A complete deck has nothing missing, so the owned and missing numbers would only say so.
+            if (have < needed) Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
                 Stat("Owned", "$have / $needed", Modifier.weight(1f))
                 if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
@@ -396,8 +400,9 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             val valueEur = played.sumOf { (it.priceEur ?: 0.0) * it.needed }
             val small = listOfNotNull(
                 if (AppSettings.showPrices && primaryValue(value, valueEur) > 0) "Value ${formatMoney(value, valueEur)}" else null,
-                if (have > 0) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
+                if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
+            if (ui.id != 0L) DeckRecordRow(ui.id)
             if (small.isNotEmpty()) {
                 Text(
                     small.joinToString(" · "),
@@ -544,5 +549,64 @@ private fun DeckLineRow(
             )
         }
         else Icon(Icons.Outlined.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
+    }
+}
+
+/**
+ * The deck's wins, losses and draws from games where a seat picked it (Game tab), with Edit to set them by hand.
+ */
+@Composable
+private fun DeckRecordRow(deckId: Long) {
+    val ctx = LocalContext.current
+    var version by remember { mutableIntStateOf(0) }
+    val r = remember(deckId, version) { com.mtgscanner.game.DeckResults.of(ctx, deckId) }
+    var editing by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+        Text("Win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+        Spacer(Modifier.width(Space.s3))
+        Text(
+            r.winRate?.let { "$it% · ${r.wins}–${r.losses}–${r.draws}" } ?: "No games yet",
+            style = MaterialTheme.typography.bodyMedium.merge(TabularNums),
+            color = if (r.games > 0) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = { editing = true }) { Text("Edit") }
+    }
+    if (editing) DeckRecordDialog(r, onDismiss = { editing = false }) { new ->
+        com.mtgscanner.game.DeckResults.set(ctx, deckId, new)
+        editing = false
+        version++
+    }
+}
+
+@Composable
+private fun DeckRecordDialog(start: com.mtgscanner.game.DeckResult, onDismiss: () -> Unit, onSave: (com.mtgscanner.game.DeckResult) -> Unit) {
+    var w by remember { mutableIntStateOf(start.wins) }
+    var l by remember { mutableIntStateOf(start.losses) }
+    var d by remember { mutableIntStateOf(start.draws) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Win rate") },
+        text = {
+            Column {
+                Text("Games from the Game tab count on their own when a seat picks this deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                Spacer(Modifier.height(Space.s2))
+                RecordStepper("Wins", w) { w = (w + it).coerceAtLeast(0) }
+                RecordStepper("Losses", l) { l = (l + it).coerceAtLeast(0) }
+                RecordStepper("Draws", d) { d = (d + it).coerceAtLeast(0) }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(com.mtgscanner.game.DeckResult(w, l, d)) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun RecordStepper(label: String, n: Int, onChange: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        TextButton(onClick = { onChange(-1) }, enabled = n > 0) { Text("−", style = MaterialTheme.typography.titleLarge) }
+        Text("$n", style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.widthIn(min = 32.dp))
+        TextButton(onClick = { onChange(1) }) { Text("+", style = MaterialTheme.typography.titleLarge) }
     }
 }
