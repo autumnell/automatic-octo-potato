@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -183,13 +184,13 @@ fun GameSetupScreen(
                         val formats = GameFormat.entries.filter { it != GameFormat.CUSTOM }
                         TileGrid(formats.size, columns = 2) { i, m ->
                             val f = formats[i]
-                            Tile(PLAYER_COLORS[i % PLAYER_COLORS.size], selected = f == format, modifier = m.heightIn(min = 104.dp), onClick = {
+                            Tile(selected = f == format, modifier = m.heightIn(min = 104.dp), onClick = {
                                 format = f; life = f.life; players = f.defaultPlayers; layout = 0
                                 if (!f.commanderDamage) partners = false
                                 step = SetupStep.PLAYERS
                             }) {
-                                Text(f.label, style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                Text("${f.life} life", style = MaterialTheme.typography.bodySmall, color = Palette.OnDarkMuted)
+                                Text(f.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                                Text("${f.life} life", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                             }
                         }
                         Spacer(Modifier.height(Space.s3))
@@ -203,11 +204,16 @@ fun GameSetupScreen(
                         Question("How many players?")
                         TileGrid(Player.MAX_PLAYERS, columns = 3) { i, m ->
                             val n = i + 1
-                            Tile(PLAYER_COLORS[i], selected = n == players, modifier = m.aspectRatio(1f), center = true, onClick = {
+                            Tile(selected = n == players, modifier = m.aspectRatio(1f), center = true, onClick = {
                                 players = n; layout = TableLayouts.valid(n, layout)
                                 step = if (TableLayouts.count(n) > 1) SetupStep.SEATS else SetupStep.NAMES
                             }) {
-                                Text("$n", style = MaterialTheme.typography.displaySmall, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text("$n", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(Space.s2))
+                                // One dot per seat in that player's color, the colors they'll have at the table.
+                                Row(horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
+                                    repeat(n) { k -> Box(Modifier.size(Space.s2).clip(CircleShape).background(PLAYER_COLORS[k])) }
+                                }
                             }
                         }
                     }
@@ -303,12 +309,12 @@ private fun TileGrid(count: Int, columns: Int, tile: @Composable (Int, Modifier)
     }
 }
 
-/** A big colored tile for a setup choice; the choice made before has a white edge. */
+/** A big tile for a setup choice, on the panel surface; the choice made before has an ink edge. */
 @Composable
-private fun Tile(color: Color, selected: Boolean, modifier: Modifier, center: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun Tile(selected: Boolean, modifier: Modifier, center: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        modifier.clip(RoundedCornerShape(Corners.Medium)).background(color)
-            .then(if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(Corners.Medium)) else Modifier)
+        modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface)
+            .then(if (selected) Modifier.border(2.dp, Palette.Text, RoundedCornerShape(Corners.Medium)) else Modifier)
             .clickable(onClick = onClick).padding(Space.s4),
         contentAlignment = if (center) Alignment.Center else Alignment.BottomStart,
     ) {
@@ -342,7 +348,7 @@ private fun MiniTable(players: Int, layout: Int, selected: Boolean, onClick: () 
     ) {
         TableSeats(players, layout, Space.s1) { i, rot, m ->
             Box(m.clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]), contentAlignment = Alignment.Center) {
-                Text("${i + 1}", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.rotate(rot.toFloat()))
+                Text("${i + 1}", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, modifier = Modifier.rotate(rot.toFloat()))
             }
         }
     }
