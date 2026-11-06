@@ -9,7 +9,7 @@ on:
   push:
     paths:
       - .github/workflows/bracket-tags.yml
-      - .github/scripts/build_bracket_tags.py
+      - .github/bracket/build_bracket_tags.py
 
 permissions:
   contents: write
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build the lists
         run: |
-          python3 .github/scripts/build_bracket_tags.py bracket-tags.json
+          python3 .github/bracket/build_bracket_tags.py bracket-tags.json
           ls -l bracket-tags.json
       - name: Publish to the models release
         if: github.ref == 'refs/heads/main'

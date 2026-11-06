@@ -130,7 +130,9 @@ internal fun rememberBracket(ui: DeckUi, vm: DeckViewModel): Bracket? {
     if (commander) LaunchedEffect(ui.text, ui.format) { vm.loadCombos() }
     val gameChangers by produceState(BracketMath.GAME_CHANGERS) { GameChangers.fetch(repo.api)?.let { value = it } }
     val twoCard = ui.combos.takeIf { !it.failed }?.value?.included?.filter { it.cards.size == 2 }?.map { it.cards }
-    val bracket = remember(cards, gameChangers, twoCard) { BracketMath.of(cards, gameChangers, twoCard) }
+    val ctx = LocalContext.current
+    val tags by produceState<BracketTagLists?>(null) { value = BracketTags.load(ctx) }
+    val bracket = remember(cards, gameChangers, twoCard, tags) { BracketMath.of(cards, gameChangers, twoCard, tags) }
     return bracket.takeIf { commander && cards.sumOf { it.copies } >= 20 }
 }
 

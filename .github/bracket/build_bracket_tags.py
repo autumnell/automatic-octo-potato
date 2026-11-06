@@ -7,8 +7,8 @@ import json, sys, time, urllib.parse, urllib.request
 
 CANDIDATES = {
     "tutor": ["tutor"],
-    "land_tutor": ["tutor-land", "tutor-basic-land", "land-tutor", "ramp-search", "fetch-land"],
-    "mld": ["mass-land-denial", "mass-land-destruction", "armageddon", "land-destruction-mass"],
+    "land_tutor": ["tutor-land"],
+    "mld": ["mass-land-denial"],
 }
 
 
