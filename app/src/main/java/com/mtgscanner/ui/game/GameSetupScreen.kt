@@ -1,32 +1,29 @@
 package com.mtgscanner.ui.game
 
-import com.mtgscanner.ui.theme.Space
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -35,7 +32,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,23 +50,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.game.GameFormat
 import com.mtgscanner.game.Player
+import com.mtgscanner.game.TableLayouts
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.QuantityStepper
-import com.mtgscanner.ui.components.ruleBelow
-import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
-import com.mtgscanner.ui.theme.PlexMonoText
+import com.mtgscanner.ui.theme.Palette
+import com.mtgscanner.ui.theme.Space
 
 /** Player colors for the life counter panels. */
 val PLAYER_COLORS = listOf(
@@ -80,24 +81,32 @@ val PLAYER_COLORS = listOf(
 fun gameViewModel(): GameViewModel =
     viewModel(viewModelStoreOwner = LocalContext.current as ComponentActivity, factory = AppViewModels.Factory)
 
-/** The Game tab: a small picture of the table to set up, or the game in progress to carry on. */
-@OptIn(ExperimentalLayoutApi::class)
+/** The setup screens, one question each: what format, how many players, where they sit, and their names. */
+private enum class SetupStep(val title: String) { HOME("Game"), FORMAT("Format"), PLAYERS("Players"), SEATS("Seats"), NAMES("Names") }
+
+/**
+ * The Game tab. Its first screen resumes the game in progress or starts a new one; a new game then asks one
+ * thing per screen with big tiles to tap, and ends on the names and Start.
+ */
 @Composable
-fun GameSetupScreen(onPlay: () -> Unit) {
+fun GameSetupScreen(
+    onPlay: () -> Unit,
+    /** Opens on this setup screen (0 the first, 4 the names), for the screen pictures. */
+    startAt: Int = 0,
+) {
     com.mtgscanner.ui.components.KeepUpright()
     val vm = gameViewModel()
     val current by vm.game.collectAsStateWithLifecycle()
-    // Saveable, so switching tabs and coming back keeps the format, players and names picked.
+    // Saveable, so switching tabs and coming back keeps the screen and the choices made.
+    var step by rememberSaveable { mutableStateOf(SetupStep.entries[startAt.coerceIn(0, SetupStep.entries.lastIndex)]) }
     var format by rememberSaveable { mutableStateOf(GameFormat.COMMANDER) }
     var players by rememberSaveable { mutableIntStateOf(format.defaultPlayers) }
     var life by rememberSaveable { mutableIntStateOf(format.life) }
+    var layout by rememberSaveable { mutableIntStateOf(0) }
     var partners by rememberSaveable { mutableStateOf(false) }
     val names = rememberSaveable(saver = NamesSaver) {
         mutableStateListOf<String>().apply { addAll(vm.lastNames + List(Player.MAX_PLAYERS) { "" }); while (size > Player.MAX_PLAYERS) removeAt(size - 1) }
     }
-    // The deck at each seat (-1 for none), so the game counts toward that deck's win rate.
-    val seatDecks = rememberSaveable(saver = DecksSaver) { mutableStateListOf<Long>().apply { repeat(Player.MAX_PLAYERS) { add(-1L) } } }
-    val deckList by vm.decks.collectAsStateWithLifecycle()
     val style by vm.style.collectAsStateWithLifecycle()
     val records by vm.records.collectAsStateWithLifecycle()
     val last = vm.lastSetup
@@ -107,95 +116,148 @@ fun GameSetupScreen(onPlay: () -> Unit) {
     var showStats by remember { mutableStateOf(false) }
     var customLife by remember { mutableStateOf(false) }
 
-    fun begin(f: GameFormat, n: Int, l: Int, p: Boolean) {
-        val decks = seatDecks.take(n).map { id -> id.takeIf { d -> d >= 0 && deckList.any { it.first == d } } }
-        val go = { vm.start(f, n, l, names.take(n), p, decks); onPlay() }
+    fun begin(f: GameFormat, n: Int, l: Int, p: Boolean, seats: Int) {
+        val go = { vm.start(f, n, l, names.take(n), p, seats); step = SetupStep.HOME; onPlay() }
         if (current != null) startingNew = go else go()
     }
+    fun back() {
+        step = when (step) {
+            SetupStep.NAMES -> if (TableLayouts.count(players) > 1) SetupStep.SEATS else SetupStep.PLAYERS
+            SetupStep.SEATS -> SetupStep.PLAYERS
+            SetupStep.PLAYERS -> SetupStep.FORMAT
+            else -> SetupStep.HOME
+        }
+    }
+    BackHandler(enabled = step != SetupStep.HOME) { back() }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
-        Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4),
-        ) {
-            Row(Modifier.padding(top = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-                Text("Game", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                StyleMenu(style, vm::setStyle)
+        Row(Modifier.fillMaxWidth().padding(Space.s1), verticalAlignment = Alignment.CenterVertically) {
+            if (step != SetupStep.HOME) IconButton(onClick = ::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+            Text(
+                step.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f)
+                    .padding(start = if (step == SetupStep.HOME) Space.s3 else Space.s1),
+            )
+            if (step == SetupStep.HOME) StyleMenu(style, vm::setStyle)
+            else {
+                // Where you are: the Seats step only comes up when the player count has more than one way to sit.
+                val total = if (TableLayouts.count(players) > 1) 4 else 3
+                val at = if (step == SetupStep.NAMES) total else step.ordinal
+                Text("$at of $total", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(end = Space.s3))
             }
-
-            current?.let { g ->
-                Spacer(Modifier.height(Space.s2))
-                Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(horizontal = Space.s3, vertical = Space.s3)) {
-                        Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall,
-                            color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
+        }
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4)) {
+            when (step) {
+                SetupStep.HOME -> {
+                    current?.let { g ->
                         Spacer(Modifier.height(Space.s2))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            com.mtgscanner.ui.components.QuietButton(onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Resume") }
-                            Spacer(Modifier.width(Space.s2))
-                            TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
+                        Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(Space.s3)) {
+                                Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall,
+                                    color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(Modifier.height(Space.s2))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    com.mtgscanner.ui.components.QuietButton(onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Resume") }
+                                    Spacer(Modifier.width(Space.s2))
+                                    TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(Space.s3))
+                    if (last != null) {
+                        SameAsLast(last, names) { begin(last.format, last.players, last.life, last.partners, last.layout) }
+                        Spacer(Modifier.height(Space.s2))
+                    }
+                    StatsCard(records, onOpen = { showStats = true })
+                }
+                SetupStep.FORMAT -> {
+                    Question("What are you playing?")
+                    val formats = GameFormat.entries.filter { it != GameFormat.CUSTOM }
+                    TileGrid(formats.size, columns = 2) { i, m ->
+                        val f = formats[i]
+                        Tile(PLAYER_COLORS[i % PLAYER_COLORS.size], selected = f == format, modifier = m.heightIn(min = 104.dp), onClick = {
+                            format = f; life = f.life; players = f.defaultPlayers; layout = 0
+                            if (!f.commanderDamage) partners = false
+                            step = SetupStep.PLAYERS
+                        }) {
+                            Text(f.label, style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text("${f.life} life", style = MaterialTheme.typography.bodySmall, color = Palette.OnDarkMuted)
+                        }
+                    }
+                    Spacer(Modifier.height(Space.s3))
+                    OtherRow("Other starting life", if (format == GameFormat.CUSTOM) "$life life" else "House rules") { customLife = true }
+                }
+                SetupStep.PLAYERS -> {
+                    Question("How many players?")
+                    TileGrid(Player.MAX_PLAYERS, columns = 3) { i, m ->
+                        val n = i + 1
+                        Tile(PLAYER_COLORS[i], selected = n == players, modifier = m.aspectRatio(1f), center = true, onClick = {
+                            players = n; layout = TableLayouts.valid(n, layout)
+                            step = if (TableLayouts.count(n) > 1) SetupStep.SEATS else SetupStep.NAMES
+                        }) {
+                            Text("$n", style = MaterialTheme.typography.displaySmall, color = Color.White, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
-            }
-
-            // The setup as one line: tap a word to change it.
-            Spacer(Modifier.height(Space.s3))
-            val words = buildList {
-                add(format.label); add(if (players == 1) "1 player" else "$players players"); add("$life life")
-                if (format.commanderDamage) add(if (partners) "partners" else "no partners")
-            }
-            // Shrink the words to keep the setup on one line, whatever the screen width.
-            // Lexend, not the Fraunces heading face: these are tappable choices, and Fraunces sets headings only.
-            val base = MaterialTheme.typography.titleMedium
-            val measurer = rememberTextMeasurer()
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val avail = constraints.maxWidth - with(LocalDensity.current) { (10.dp * words.size).roundToPx() }
-                val full = remember(words, base) { measurer.measure(words.joinToString(" · "), base, maxLines = 1, softWrap = false).size.width }
-                val style = if (full <= avail || full == 0) base else base.copy(fontSize = base.fontSize * (avail.toFloat() / full) * 0.9f)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Pick(style, format.label, GameFormat.entries.map { it.label }) { i ->
-                    val f = GameFormat.entries[i]
-                    format = f; life = f.life; players = f.defaultPlayers
-                    if (!f.commanderDamage) partners = false
+                SetupStep.SEATS -> {
+                    Question("Where does everyone sit?")
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+                        repeat(TableLayouts.count(players)) { k ->
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                MiniTable(players, k, selected = k == layout) { layout = k; step = SetupStep.NAMES }
+                                Spacer(Modifier.height(Space.s2))
+                                Text(TableLayouts.label(players, k), style = MaterialTheme.typography.bodyMedium, color = if (k == layout) Palette.Text else Palette.Muted)
+                            }
+                        }
+                    }
                 }
-                Dot(style)
-                Pick(style, if (players == 1) "1 player" else "$players players", (1..Player.MAX_PLAYERS).map { "$it" }) { players = it + 1 }
-                Dot(style)
-                Pick(style, "$life life", listOf("20", "25", "30", "40", "Other…")) { i ->
-                    if (i == 4) customLife = true else life = listOf(20, 25, 30, 40)[i]
+                SetupStep.NAMES -> {
+                    Question("Who's playing?")
+                    for (i in 0 until players) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(Space.s6).clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]))
+                            Spacer(Modifier.width(Space.s3))
+                            OutlinedTextField(
+                                value = names[i], onValueChange = { names[i] = it }, singleLine = true,
+                                placeholder = { Text("Player ${i + 1}") }, modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                    if (format.commanderDamage) {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Partner commanders", style = MaterialTheme.typography.bodyLarge)
+                                Text("Count damage from each partner on its own", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                            }
+                            Switch(checked = partners, onCheckedChange = { partners = it })
+                        }
+                    }
+                    Spacer(Modifier.height(Space.s3))
+                    Text(
+                        listOf(format.label, "$players ${if (players == 1) "player" else "players"}", "$life life", TableLayouts.label(players, layout).takeIf { TableLayouts.count(players) > 1 })
+                            .filterNotNull().joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                    )
+                    Text("Everyone gets random card art. Change it from a player's menu at the table", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
-                if (format.commanderDamage) {
-                    Dot(style)
-                    Pick(style, if (partners) "partners" else "no partners", listOf("No partners", "Partners")) { partners = it == 1 }
-                }
             }
-            }
-
-            Spacer(Modifier.height(Space.s3))
-            // The player count is set in the line above; no separate seat buttons (unslop: one control per job).
-            TablePreview(players, life, names, onRename = { i, v -> names[i] = v })
-            Spacer(Modifier.height(Space.s6))
-            if (deckList.isNotEmpty()) {
-                SeatDecks(players, names, seatDecks, deckList)
-                Spacer(Modifier.height(Space.s6))
-            }
-
-            if (last != null) {
-                SameAsLast(last, names) { begin(last.format, last.players, last.life, last.partners) }
-                Spacer(Modifier.height(Space.s2))
-            }
-            StatsCard(records, onOpen = { showStats = true })
-            Spacer(Modifier.height(Space.s2))
+            Spacer(Modifier.height(Space.s4))
         }
-        // Pinned under the scroll so it's always in reach.
-        GradientButton(
-            if (current != null) "Start a new game" else "Start",
-            { begin(format, players, life, partners) },
-            Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
-        )
+        // One main action per screen, pinned under the scroll so it's always in reach.
+        when (step) {
+            SetupStep.HOME -> GradientButton(
+                if (current != null) "Start a new game" else "New game", { step = SetupStep.FORMAT },
+                Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
+            )
+            SetupStep.NAMES -> GradientButton(
+                "Start", { begin(format, players, life, partners, layout) },
+                Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
+            )
+            else -> Unit
+        }
     }
 
     current?.let { g -> if (ending) EndGameDialog(g, onDismiss = { ending = false }) { save, winner -> ending = false; vm.end(save, winner) } }
@@ -208,112 +270,74 @@ fun GameSetupScreen(onPlay: () -> Unit) {
             }
         }
     }
-    if (customLife) LifeDialog(life, onDismiss = { customLife = false }) { life = it; customLife = false }
+    if (customLife) LifeDialog(life, onDismiss = { customLife = false }) {
+        format = GameFormat.CUSTOM; life = it; players = GameFormat.CUSTOM.defaultPlayers; partners = false; layout = 0
+        customLife = false
+        step = SetupStep.PLAYERS
+    }
     if (showStats) StatsSheet(records, vm, onDismiss = { showStats = false })
 }
 
-/** A word in the setup line, underlined, that opens a short list to pick from. */
+/** The one question a setup screen asks. */
 @Composable
-private fun Pick(style: TextStyle, text: String, options: List<String>, onPick: (Int) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        Text(
-            text,
-            style = style.copy(textDecoration = TextDecoration.Underline),
-            maxLines = 1, softWrap = false,
-            color = Palette.Text,
-            modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { open = true }.padding(horizontal = Space.s1, vertical = Space.s1),
-        )
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEachIndexed { i, o -> DropdownMenuItem(text = { Text(o) }, onClick = { open = false; onPick(i) }) }
-        }
-    }
+private fun Question(text: String) {
+    Text(text, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = Space.s4, bottom = Space.s4))
 }
 
+/** [count] tiles in rows of [columns]; a short last row keeps its tiles the same width. */
 @Composable
-private fun Dot(style: TextStyle) {
-    Text(" · ", style = style, maxLines = 1, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s1))
-}
-
-/** The table seats laid out the way the life counter will show them, with names to type on each seat. */
-@Composable
-private fun TablePreview(players: Int, life: Int, names: List<String>, onRename: (Int, String) -> Unit) {
-    val gap = 4.dp
-    @Composable
-    fun seat(i: Int, modifier: Modifier) = Seat(i, names[i], life, { onRename(i, it) }, modifier.padding(gap))
-    Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface, modifier = Modifier.fillMaxWidth().height(if (players >= 5) 320.dp else 250.dp)) {
-        Box(Modifier.padding(gap)) {
-            when (players) {
-                1 -> seat(0, Modifier.fillMaxSize())
-                2 -> Column(Modifier.fillMaxSize()) {
-                    seat(0, Modifier.weight(1f).fillMaxWidth())
-                    seat(1, Modifier.weight(1f).fillMaxWidth())
-                }
-                3 -> Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.weight(1.4f)) {
-                        seat(0, Modifier.weight(1f).fillMaxHeight())
-                        seat(1, Modifier.weight(1f).fillMaxHeight())
-                    }
-                    seat(2, Modifier.weight(1f).fillMaxWidth())
-                }
-                4 -> Row(Modifier.fillMaxSize()) {
-                    Column(Modifier.weight(1f)) {
-                        seat(0, Modifier.weight(1f).fillMaxWidth())
-                        seat(3, Modifier.weight(1f).fillMaxWidth())
-                    }
-                    Column(Modifier.weight(1f)) {
-                        seat(1, Modifier.weight(1f).fillMaxWidth())
-                        seat(2, Modifier.weight(1f).fillMaxWidth())
-                    }
-                }
-                5 -> Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.weight(2.4f)) {
-                        Column(Modifier.weight(1f)) {
-                            seat(0, Modifier.weight(1f).fillMaxWidth())
-                            seat(4, Modifier.weight(1f).fillMaxWidth())
-                        }
-                        Column(Modifier.weight(1f)) {
-                            seat(1, Modifier.weight(1f).fillMaxWidth())
-                            seat(2, Modifier.weight(1f).fillMaxWidth())
-                        }
-                    }
-                    seat(3, Modifier.weight(1f).fillMaxWidth())
-                }
-                else -> Row(Modifier.fillMaxSize()) {
-                    Column(Modifier.weight(1f)) {
-                        seat(0, Modifier.weight(1f).fillMaxWidth())
-                        seat(5, Modifier.weight(1f).fillMaxWidth())
-                        seat(4, Modifier.weight(1f).fillMaxWidth())
-                    }
-                    Column(Modifier.weight(1f)) {
-                        seat(1, Modifier.weight(1f).fillMaxWidth())
-                        seat(2, Modifier.weight(1f).fillMaxWidth())
-                        seat(3, Modifier.weight(1f).fillMaxWidth())
-                    }
-                }
+private fun TileGrid(count: Int, columns: Int, tile: @Composable (Int, Modifier) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s3)) {
+        (0 until count).chunked(columns).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
+                row.forEach { i -> tile(i, Modifier.weight(1f)) }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
 
-/** One seat: the player's color, their life, and their name to type in. */
+/** A big colored tile for a setup choice; the choice made before has a white edge. */
 @Composable
-private fun Seat(i: Int, value: String, life: Int, onChange: (String) -> Unit, modifier: Modifier) {
-    Box(modifier.clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]).padding(horizontal = Space.s3, vertical = Space.s2)) {
-        Text(
-            "$life", style = MaterialTheme.typography.headlineSmall.copy(fontFamily = PlexMonoText),
-            color = Color.White, modifier = Modifier.align(Alignment.Center),
-        )
-        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
-            if (value.isEmpty()) Text("Player ${i + 1}", color = Palette.OnDarkMuted, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-            BasicTextField(
-                value = value,
-                onValueChange = onChange,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                cursorBrush = SolidColor(Color.White),
-                modifier = Modifier.fillMaxWidth(),
-            )
+private fun Tile(color: Color, selected: Boolean, modifier: Modifier, center: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(Corners.Medium)).background(color)
+            .then(if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(Corners.Medium)) else Modifier)
+            .clickable(onClick = onClick).padding(Space.s4),
+        contentAlignment = if (center) Alignment.Center else Alignment.BottomStart,
+    ) {
+        Column(horizontalAlignment = if (center) Alignment.CenterHorizontally else Alignment.Start) { content() }
+    }
+}
+
+/** A quiet row under the tiles for the less common choice. */
+@Composable
+private fun OtherRow(title: String, sub: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface)
+            .clickable(onClick = onClick).padding(horizontal = Space.s4, vertical = Space.s3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+        }
+    }
+}
+
+/** A small picture of the table in one arrangement: each seat in its color, its number turned to face its player. */
+@Composable
+private fun MiniTable(players: Int, layout: Int, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(0.56f).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Stage)
+            .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Text else Palette.Rule, RoundedCornerShape(Corners.Medium))
+            .clickable(onClick = onClick).padding(Space.s1)
+            .semantics(mergeDescendants = true) { contentDescription = TableLayouts.label(players, layout) },
+    ) {
+        TableSeats(players, layout, Space.s1) { i, rot, m ->
+            Box(m.clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]), contentAlignment = Alignment.Center) {
+                Text("${i + 1}", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.rotate(rot.toFloat()))
+            }
         }
     }
 }
@@ -376,35 +400,3 @@ private val NamesSaver = listSaver<SnapshotStateList<String>, String>(
     restore = { mutableStateListOf<String>().apply { addAll(it) } },
 )
 
-private val DecksSaver = listSaver<SnapshotStateList<Long>, Long>(
-    save = { it.toList() },
-    restore = { mutableStateListOf<Long>().apply { addAll(it) } },
-)
-
-/**
- * Which of your decks each seat plays, as a side option: the deck's wins and losses are counted when the game is
- * saved. Seats without a deck aren't counted for any.
- */
-@Composable
-private fun SeatDecks(players: Int, names: List<String>, seatDecks: SnapshotStateList<Long>, decks: List<Pair<Long, String>>) {
-    Text("Decks, for each deck's win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(bottom = Space.s1))
-    for (i in 0 until players) {
-        val picked = decks.firstOrNull { it.first == seatDecks[i] }
-        var open by remember { mutableStateOf(false) }
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).ruleBelow(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                names.getOrElse(i) { "" }.ifBlank { "Player ${i + 1}" }, style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-            )
-            Box {
-                TextButton(onClick = { open = true }) {
-                    Text(picked?.second ?: "No deck", color = if (picked != null) Palette.Text else Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    DropdownMenuItem(text = { Text("No deck") }, onClick = { open = false; seatDecks[i] = -1L })
-                    decks.forEach { (id, name) -> DropdownMenuItem(text = { Text(name) }, onClick = { open = false; seatDecks[i] = id }) }
-                }
-            }
-        }
-    }
-}

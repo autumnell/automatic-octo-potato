@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
@@ -86,14 +87,19 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 import com.mtgscanner.ui.theme.Corners
 
-/** Which way each seat faces, matching the table layout. */
-fun seatRotation(players: Int, i: Int): Int = when (players) {
+/** Which way each seat faces, matching the table layout ([TableSeats]). */
+fun seatRotation(players: Int, i: Int, layout: Int = 0): Int = when {
+    players == 2 && layout == 1 -> 0
+    players == 3 && layout == 1 -> listOf(180, 270, 90)[i]
+    players == 4 && layout == 1 -> listOf(180, 270, 0, 90)[i]
+    else -> when (players) {
     1 -> 0
     2 -> if (i == 0) 180 else 0
     3 -> listOf(90, 270, 0)[i]
     4 -> listOf(90, 270, 270, 90)[i]
     5 -> listOf(90, 270, 270, 0, 90)[i]
     else -> listOf(90, 270, 270, 270, 90, 90)[i]
+    }
 }
 
 /** Who holds the monarch or the initiative. */
@@ -311,7 +317,7 @@ fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit
     val tabs = listOfNotNull("Counters", if (showCommander) "Damage" else null, "Player")
     var tab by remember { mutableIntStateOf(0) }
     val name = tabs[tab.coerceIn(0, tabs.lastIndex)]
-    TableOverlay(seatRotation(g.players.size, i), p.name, tabs, tab, { tab = it }, onDismiss) {
+    TableOverlay(seatRotation(g.players.size, i, g.layout), p.name, tabs, tab, { tab = it }, onDismiss) {
         when (name) {
             "Counters" -> {
                 val tiles = buildList<@Composable (Modifier) -> Unit> {
@@ -406,6 +412,7 @@ fun MenuOverlay(
     onEnd: () -> Unit,
     onLeave: () -> Unit,
     startPick: TableMarker? = null,
+    onTutorial: () -> Unit = {},
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var picking by remember { mutableStateOf(startPick) }
@@ -507,6 +514,7 @@ fun MenuOverlay(
                             }
                             add { m -> ActionTile(Icons.Outlined.EmojiEvents, "End game", m, "Save who won") { onEnd() } }
                             add { m -> ActionTile(Icons.AutoMirrored.Outlined.ExitToApp, "Leave table", m, "Game is kept") { onLeave() } }
+                            add { m -> ActionTile(Icons.AutoMirrored.Outlined.HelpOutline, "How it works", m, "The short tour") { onTutorial() } }
                         }
                     }
                 }

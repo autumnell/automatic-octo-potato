@@ -1,5 +1,8 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.game.TableLayouts
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,13 +30,14 @@ import kotlinx.serialization.json.Json
 enum class TableStyle(val label: String) { BOLD("Bold"), GRADIENT("Gradient"), DARK("Dark") }
 
 /** The setup of a started game, kept so the same group can start again in one tap. */
-data class LastSetup(val format: GameFormat, val players: Int, val life: Int, val partners: Boolean) {
-    fun encode() = "${format.name}|$players|$life|$partners"
+data class LastSetup(val format: GameFormat, val players: Int, val life: Int, val partners: Boolean, val layout: Int = 0) {
+    fun encode() = "${format.name}|$players|$life|$partners|$layout"
 
     companion object {
         fun parse(s: String): LastSetup? = runCatching {
             val p = s.split('|')
-            LastSetup(GameFormat.valueOf(p[0]), p[1].toInt().coerceIn(1, Player.MAX_PLAYERS), p[2].toInt(), p[3].toBoolean())
+            val n = p[1].toInt().coerceIn(1, Player.MAX_PLAYERS)
+            LastSetup(GameFormat.valueOf(p[0]), n, p[2].toInt(), p[3].toBoolean(), TableLayouts.valid(n, p.getOrNull(4)?.toIntOrNull() ?: 0))
         }.getOrNull()
     }
 }
@@ -42,6 +46,9 @@ data class LastSetup(val format: GameFormat, val players: Int, val life: Int, va
 data class ArtChoice(val name: String, val set: String, val art: String)
 
 /** The life counter. The game in progress is saved, so it survives leaving the app. */
+/** What random player art is drawn from: creature and planeswalker art at high resolution, no jokes or tokens. */
+private const val RANDOM_ART = "(t:creature or t:planeswalker) is:hires -is:funny -t:token game:paper"
+
 class GameViewModel(context: Context, private val repo: CollectionRepository) : ViewModel() {
     private val prefs = context.applicationContext.getSharedPreferences("game", Context.MODE_PRIVATE)
     /** Finished games live in their own file, so saving the game in progress doesn't rewrite them. */
@@ -65,10 +72,10 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     val style: StateFlow<TableStyle> = _style
     fun setStyle(s: TableStyle) { _style.value = s; prefs.edit().putString("style", s.name).apply() }
 
-    /** Your decks, newest first, to pick one per seat so its wins and losses are counted. */
-    val decks: StateFlow<List<Pair<Long, String>>> = repo.observeDecks()
-        .map { all -> all.filter { it.text.isNotBlank() }.sortedByDescending { it.updatedAt }.map { it.id to it.name.ifBlank { "Deck" } } }
-        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** The short how-to on the table shows once, the first time a game opens; the game menu shows it again. */
+    var tutorialSeen: Boolean = prefs.getBoolean("tutorial_seen", false)
+        private set
+    fun tutorialDone() { tutorialSeen = true; prefs.edit().putBoolean("tutorial_seen", true).apply() }
 
     /** Finished games, newest first. */
     private val _records = MutableStateFlow(
@@ -86,14 +93,32 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
         return old
     }
 
-    fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean, decks: List<Long?> = emptyList()) {
+    fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean, layout: Int = 0) {
         saveIfWon()
         val clean = names.mapIndexed { i, n -> n.trim().ifEmpty { GameState.NAMES[i] } }
-        val setup = LastSetup(format, players, life, partners)
+        val seats = TableLayouts.valid(players, layout)
+        val setup = LastSetup(format, players, life, partners, seats)
         lastSetup = setup
         prefs.edit().putString("names", clean.joinToString("\n")).putString("last_setup", setup.encode()).apply()
-        val g = GameState.new(format, players, life, clean, partners)
-        set(g.copy(players = g.players.mapIndexed { i, p -> p.copy(deckId = decks.getOrNull(i)) }))
+        val g = GameState.new(format, players, life, clean, partners).copy(layout = seats)
+        set(g)
+        randomArt(g.startedAt, g.players.size)
+    }
+
+    /**
+     * Gives each player random card art from Scryfall (a creature or planeswalker, cut from the card), as it
+     * arrives. Without a connection the panels stay plain; art picked by hand at the table is kept.
+     */
+    private fun randomArt(game: Long, count: Int) {
+        viewModelScope.launch {
+            val arts = (0 until count).map {
+                async { runCatching { repo.api.random(RANDOM_ART)?.artCropUrl }.getOrNull() }
+            }.awaitAll()
+            update { g ->
+                if (g.startedAt != game) g
+                else g.copy(players = g.players.mapIndexed { i, p -> if (p.art == null) p.copy(art = arts.getOrNull(i)) else p })
+            }
+        }
     }
 
     fun update(change: (GameState) -> GameState) {

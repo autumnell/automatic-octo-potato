@@ -173,6 +173,22 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.game.GameSetupScreen(onPlay = {})
     }
 
+    @Test fun gameFormat() = shoot("09b-game-format") {
+        com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 1)
+    }
+
+    @Test fun gamePlayers() = shoot("09c-game-players") {
+        com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 2)
+    }
+
+    @Test fun gameSeats() = shoot("09d-game-seats") {
+        com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 3)
+    }
+
+    @Test fun gameNames() = shoot("09e-game-names") {
+        com.mtgscanner.ui.game.GameSetupScreen(onPlay = {}, startAt = 4)
+    }
+
     @Test fun playtest() = shoot("11-playtest") {
         com.mtgscanner.ui.decks.playtest.PlaytestScreen(deckId = 1L, onBack = {}, preview = PlaytestPreview.table)
     }

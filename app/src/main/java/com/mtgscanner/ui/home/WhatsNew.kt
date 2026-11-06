@@ -83,6 +83,7 @@ object WhatsNew {
         290 to "Editing a deck has tabs. Cards: change a card's printing and count. Combos: Commander Spellbook's combos in the deck and one card away. EDHREC: how often decks play each card, with add and remove",
         292 to "Turn the phone sideways for two columns in Browse, Search and Decks (Scan, Game and playtest stay upright). Playtest stacks matching lands and animates plays and taps. The Cards tab in deck editing groups by type and has Find. Combos and EDHREC show card pictures",
         296 to "A deck page shows its Commander bracket, a mana base check and goldfish odds. Decks have a sideboard and a maybeboard for cards you're considering (not counted or played). From your cards groups cards like EDHREC and lets you pick the box to take each one from. Compare decks from the deck menu, and Decks › New › Combos you could build finds Commander Spellbook combos you own",
+        300 to "Game setup is a few quick screens: pick the format, the number of players, where everyone sits and their names. Every player gets random card art, and a short tour shows how the table works (again from the menu's Game page)",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
