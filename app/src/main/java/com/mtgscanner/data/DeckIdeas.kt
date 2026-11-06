@@ -18,13 +18,20 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /** A card EDHREC suggests for a commander: the share of its decks that play it (0..1) and its synergy (-1..1). */
-data class EdhrecRec(val name: String, val share: Double?, val synergy: Double?)
+data class EdhrecRec(val name: String, val share: Double?, val synergy: Double?, val scryfallId: String? = null) {
+    /** Scryfall's small picture of the card, from its id; null without one. */
+    val imageUrl: String? get() = scryfallId?.takeIf { it.length > 2 }?.let { "https://cards.scryfall.io/small/front/${it[0]}/${it[1]}/$it.jpg" }
+}
 
 /** One list on an EDHREC commander page ("Top Cards", "Creatures"…). */
 data class EdhrecGroup(val header: String, val cards: List<EdhrecRec>)
 
 /** A combo from Commander Spellbook: its cards, what it makes, and the cards it still needs (none when complete). */
-data class Combo(val id: String, val cards: List<String>, val produces: List<String>, val missing: List<String>)
+data class Combo(
+    val id: String, val cards: List<String>, val produces: List<String>, val missing: List<String>,
+    /** A small picture for each card, by name, when Spellbook gives one. */
+    val images: Map<String, String> = emptyMap(),
+)
 
 /** What Commander Spellbook finds for a deck: combos it has, and combos one card away. */
 data class DeckCombos(val included: List<Combo>, val almost: List<Combo>)
@@ -51,7 +58,7 @@ object DeckIdeasMath {
                 val n = c.num("num_decks") ?: c.num("inclusion")
                 val pot = c.num("potential_decks")
                 val share = if (n != null && pot != null && pot > 0) (n / pot).coerceIn(0.0, 1.0) else null
-                EdhrecRec(name, share, c.num("synergy"))
+                EdhrecRec(name, share, c.num("synergy"), c.str("id"))
             }
             if (cards.isEmpty()) null else EdhrecGroup(o.str("header") ?: "Cards", cards)
         }
@@ -72,10 +79,12 @@ object DeckIdeasMath {
         val r = root["results"] as? JsonObject ?: return null
         fun list(k: String): List<Combo> = (r[k] as? JsonArray).orEmpty().mapNotNull { v ->
             val o = v as? JsonObject ?: return@mapNotNull null
-            val cards = (o["uses"] as? JsonArray).orEmpty().mapNotNull { u -> ((u as? JsonObject)?.get("card") as? JsonObject)?.str("name") }
+            val used = (o["uses"] as? JsonArray).orEmpty().mapNotNull { u -> (u as? JsonObject)?.get("card") as? JsonObject }
+            val cards = used.mapNotNull { it.str("name") }
             if (cards.isEmpty()) return@mapNotNull null
+            val images = used.mapNotNull { c -> c.str("name")?.let { n -> (c.str("imageUriFrontSmall") ?: c.str("imageUriFrontNormal"))?.let { n to it } } }.toMap()
             val produces = (o["produces"] as? JsonArray).orEmpty().mapNotNull { p -> ((p as? JsonObject)?.get("feature") as? JsonObject)?.str("name") }
-            Combo(o.str("id") ?: cards.joinToString("+"), cards, produces, cards.filterNot(has))
+            Combo(o.str("id") ?: cards.joinToString("+"), cards, produces, cards.filterNot(has), images)
         }
         return DeckCombos(list("included"), list("almostIncluded"))
     }

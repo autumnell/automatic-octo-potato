@@ -41,6 +41,23 @@ enum class Lane(val label: String) {
     }
 }
 
+/** Matching lands shown as one pile on the table. Pure, for tests. */
+object Stacks {
+    /**
+     * [pieces] in piles: plain lands (no counters, face up, not tokens) with the same name and the same tapped state
+     * share a pile; everything else is a pile of one. Piles keep the order their first card had.
+     */
+    fun of(pieces: List<Piece>): List<List<Piece>> {
+        val piles = LinkedHashMap<Any, MutableList<Piece>>()
+        pieces.forEach { p ->
+            val plain = p.card.isLand && !p.card.isCreature && !p.card.token && !p.faceDown && p.counters.isEmpty()
+            val key: Any = if (plain) "${p.card.name}|${p.tapped}" else p.id
+            piles.getOrPut(key) { mutableListOf() } += p
+        }
+        return piles.values.toList()
+    }
+}
+
 enum class Zone(val label: String) {
     LIBRARY("Library"), HAND("Hand"), BATTLEFIELD("Battlefield"), GRAVEYARD("Graveyard"), EXILE("Exile"), COMMAND("Command zone"),
 }

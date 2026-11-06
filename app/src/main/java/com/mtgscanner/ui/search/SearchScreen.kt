@@ -73,6 +73,7 @@ import com.mtgscanner.data.ScryfallSet
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.SearchField
+import com.mtgscanner.ui.collection.LIST_COLUMN
 import com.mtgscanner.ui.components.AddCardSheet
 import com.mtgscanner.ui.components.BoxEditorSheet
 import com.mtgscanner.ui.components.CardImage
@@ -304,7 +305,7 @@ private fun Results(
     }
     LaunchedEffect(nearEnd, results.size) { if (nearEnd) onLoadMore() }
     LazyVerticalGrid(
-        columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
+        columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Adaptive(LIST_COLUMN),
         state = state,
         contentPadding = PaddingValues(start = Space.s3, end = Space.s3, bottom = Space.s6),
         modifier = Modifier.fillMaxSize().pinchToResize(onBigger, onSmaller),

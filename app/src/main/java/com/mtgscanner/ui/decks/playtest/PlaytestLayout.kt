@@ -5,7 +5,16 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import com.mtgscanner.ui.theme.Motion
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Dp
@@ -33,6 +42,8 @@ object FitMath {
 @Composable
 fun <T> FitRow(
     items: List<T>, cardWidth: Dp, modifier: Modifier = Modifier,
+    /** Each card's identity, so a card that moves along the row slides there and a new one fades in. */
+    id: (T) -> Any,
     /** Draw order: a card being dragged goes over the rest. */
     z: (T) -> Float = { 0f },
     card: @Composable (T) -> Unit,
@@ -41,7 +52,19 @@ fun <T> FitRow(
         val step = FitMath.step(items.size, cardWidth.value, Space.s1.value, maxWidth.value).dp
         Box(Modifier.fillMaxWidth().height(cardWidth * 1.4f)) {
             items.forEachIndexed { i, item ->
-                Box(Modifier.offset(x = step * i).zIndex(z(item))) { card(item) }
+                key(id(item)) {
+                    val x by animateDpAsState(step * i, tween(Motion.base, easing = Motion.ease), label = "slide")
+                    // A card that just arrived grows in from a little smaller.
+                    val shown = remember { Animatable(0f) }
+                    LaunchedEffect(Unit) { shown.animateTo(1f, tween(Motion.base, easing = Motion.ease)) }
+                    Box(
+                        Modifier.offset(x = x).zIndex(z(item)).graphicsLayer {
+                            alpha = shown.value
+                            val k = 0.85f + 0.15f * shown.value
+                            scaleX = k; scaleY = k
+                        },
+                    ) { card(item) }
+                }
             }
         }
     }

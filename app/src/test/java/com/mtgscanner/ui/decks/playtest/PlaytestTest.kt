@@ -190,4 +190,14 @@ class PlaytestTest {
         assertEquals(Lane.CREATURES, Lane.of(Piece(6, PlayCard("Steel Overseer", typeLine = "Artifact Creature — Construct"))))
         assertEquals(Lane.CREATURES, Lane.of(Piece(7, forest, faceDown = true)))
     }
+
+    @Test fun matchingLandsShareAPile() {
+        val swamp = PlayCard("Swamp", typeLine = "Basic Land — Swamp")
+        val pieces = listOf(
+            Piece(1, forest), Piece(2, bear), Piece(3, forest), Piece(4, forest, tapped = true), Piece(5, swamp),
+            Piece(6, forest), Piece(7, forest, counters = mapOf("Charge" to 1)),
+        )
+        val piles = Stacks.of(pieces).map { pile -> pile.map { it.id } }
+        assertEquals(listOf(listOf(1, 3, 6), listOf(2), listOf(4), listOf(5), listOf(7)), piles)
+    }
 }

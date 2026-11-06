@@ -84,6 +84,7 @@ fun gameViewModel(): GameViewModel =
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GameSetupScreen(onPlay: () -> Unit) {
+    com.mtgscanner.ui.components.KeepUpright()
     val vm = gameViewModel()
     val current by vm.game.collectAsStateWithLifecycle()
     // Saveable, so switching tabs and coming back keeps the format, players and names picked.
