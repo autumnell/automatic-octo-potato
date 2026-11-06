@@ -50,7 +50,7 @@ fun StatsCard(records: List<GameRecord>, onOpen: () -> Unit) {
     val top = remember(records) { GameStats.byPlayer(records).firstOrNull() }
     Surface(onClick = onOpen, shape = RoundedCornerShape(Corners.Small), color = Palette.Surface, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.EmojiEvents, null, tint = Palette.Gold)
+            Icon(Icons.Outlined.EmojiEvents, null, tint = Palette.Icon)
             Spacer(Modifier.width(Space.s3))
             Column(Modifier.weight(1f)) {
                 Text("Game stats", style = MaterialTheme.typography.titleMedium)

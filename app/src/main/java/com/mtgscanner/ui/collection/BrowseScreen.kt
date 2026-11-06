@@ -408,7 +408,11 @@ fun BrowseScreen(
                 action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },
             )
             ui.pagesView && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.binder && ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
-            else -> CardGrid(
+            // Pull down to refresh prices: in a box, just its cards; in All cards, the whole collection.
+            else -> com.mtgscanner.ui.components.PriceRefreshBox(
+                Modifier.fillMaxSize(),
+                cards = if (boxId < 0) null else ({ allNow.filter { it.boxId == boxId }.map { it.scryfallId } }),
+            ) { CardGrid(
                 ui.groups, grid, selected, picking, dense, week,
                 fresh = fresh,
                 slotOf = { c -> slotLabel(c, kinds[c.boxId], c.boxId in perCopy) },
@@ -423,7 +427,7 @@ fun BrowseScreen(
                 modifier = Modifier.pinchToResize(vm::bigger, vm::smaller),
                 onDragSelect = vm::setSelection,
                 scrollKey = "browse-$boxId",
-            )
+            ) }
         }
     }
 

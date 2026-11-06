@@ -64,6 +64,7 @@ import com.mtgscanner.game.Player
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.QuantityStepper
+import com.mtgscanner.ui.components.ruleBelow
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.PlexMonoText
@@ -173,14 +174,12 @@ fun GameSetupScreen(onPlay: () -> Unit) {
             }
 
             Spacer(Modifier.height(Space.s3))
+            // The player count is set in the line above; no separate seat buttons (unslop: one control per job).
             TablePreview(players, life, names, onRename = { i, v -> names[i] = v })
-            Row(Modifier.fillMaxWidth().padding(top = Space.s1), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { players-- }, enabled = players > 1) { Text("− Seat") }
-                TextButton(onClick = { players++ }, enabled = players < Player.MAX_PLAYERS) { Text("+ Seat") }
-            }
+            Spacer(Modifier.height(Space.s6))
             if (deckList.isNotEmpty()) {
                 SeatDecks(players, names, seatDecks, deckList)
-                Spacer(Modifier.height(Space.s2))
+                Spacer(Modifier.height(Space.s6))
             }
 
             if (last != null) {
@@ -387,11 +386,11 @@ private val DecksSaver = listSaver<SnapshotStateList<Long>, Long>(
  */
 @Composable
 private fun SeatDecks(players: Int, names: List<String>, seatDecks: SnapshotStateList<Long>, decks: List<Pair<Long, String>>) {
-    Text("Decks", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s1))
+    Text("Decks, for each deck's win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(bottom = Space.s1))
     for (i in 0 until players) {
         val picked = decks.firstOrNull { it.first == seatDecks[i] }
         var open by remember { mutableStateOf(false) }
-        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).ruleBelow(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 names.getOrElse(i) { "" }.ifBlank { "Player ${i + 1}" }, style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),

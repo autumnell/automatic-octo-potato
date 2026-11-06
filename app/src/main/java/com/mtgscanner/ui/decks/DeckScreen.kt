@@ -43,6 +43,10 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.LibraryAdd
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Percent
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
@@ -157,6 +161,8 @@ fun DeckScreen(
     deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null, onPlaytest: (() -> Unit)? = null,
     /** Opens on the picture view (true) or the list (false); null picks pictures for a complete deck. */
     startPictures: Boolean? = null,
+    /** Opens with the actions sheet up, for the screen pictures. */
+    startMenu: Boolean = false,
 ) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -164,10 +170,9 @@ fun DeckScreen(
     vm.checkRunner.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var view by rememberSaveable { mutableIntStateOf(0) }
-    var menu by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(startMenu) }
     var addingAll by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    var sampling by remember { mutableStateOf(false) }
     var odds by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
@@ -197,21 +202,9 @@ fun DeckScreen(
                 )
                 if (!ui.editing) {
                     IconButton(onClick = vm::edit) { Icon(Icons.Outlined.Edit, "Edit list") }
-                    IconButton(onClick = { if (inDeck > 0) confirmDelete = true else vm.delete(false, onBack) }) {
-                        Icon(Icons.Outlined.DeleteOutline, "Delete deck")
-                    }
-                    Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Deck options") }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
-                            DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
-                            if (ui.id != 0L && onPlaytest != null) DropdownMenuItem(text = { Text("Playtest") }, onClick = { menu = false; onPlaytest() })
-                            if (ui.check != null) DropdownMenuItem(text = { Text("Sample hand") }, onClick = { menu = false; sampling = true })
-                            DropdownMenuItem(text = { Text("Draw odds") }, onClick = { menu = false; odds = true })
-                            DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
-                            DeckToolsMenuItems(vm.tools, ui, inDeck, close = { menu = false }, onPrint = { printProxies() })
-                        }
-                    }
+                    // Playtest sits in the bar, one tap from the deck.
+                    if (ui.id != 0L && onPlaytest != null) IconButton(onClick = onPlaytest) { Icon(Icons.Outlined.PlayArrow, "Playtest") }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Deck options") }
                 }
             }
             val lentTo by vm.tools.lentTo.collectAsStateWithLifecycle()
@@ -246,8 +239,14 @@ fun DeckScreen(
                         val checks by vm.pullChecks.collectAsStateWithLifecycle()
                         PullListView(pull, checks, vm::togglePulled, vm::clearPulled, vm::moveCheckedToDeck, leads = leadsOf(ui))
                     }
-                    // Pull down to refresh prices.
-                    else -> com.mtgscanner.ui.components.PriceRefreshBox(Modifier.fillMaxSize()) { Results(ui, vm, onOpenSet, startPictures) }
+                    // Pull down to refresh the prices of this deck's cards only.
+                    else -> com.mtgscanner.ui.components.PriceRefreshBox(
+                        Modifier.fillMaxSize(),
+                        cards = {
+                            val keys = ui.check?.lines.orEmpty().map { DeckNames.key(it.name) }.toSet()
+                            repo.observeAll().first().filter { DeckNames.key(it.name) in keys }.map { it.scryfallId }
+                        },
+                    ) { Results(ui, vm, onOpenSet, startPictures) }
                 }
             }
         }
@@ -279,12 +278,22 @@ fun DeckScreen(
         }
         DrawOddsSheet(oddsCards, onDismiss = { odds = false })
     }
-    if (sampling) ui.check?.let { check ->
-        SampleHandSheet(
-            check.lines,
-            leads = if (DeckFormats.isCommander(ui.format)) ui.commanders.commanders else emptyList(),
-            onDismiss = { sampling = false },
-        )
+    if (menu) DeckActionsSheet(ui.name.ifBlank { "Deck" }, onDismiss = { menu = false }) {
+        val close = { menu = false }
+        DeckActionGroup("Play")
+        if (ui.id != 0L && onPlaytest != null) DeckActionRow(Icons.Outlined.PlayArrow, "Playtest", "Play turns on a table, alone or against a deck of the same format") { close(); onPlaytest() }
+        DeckActionRow(Icons.Outlined.Percent, "Draw odds", "How likely you are to draw a card by a given turn") { close(); odds = true }
+        DeckActionGroup("Cards")
+        DeckActionRow(Icons.Outlined.LibraryAdd, "Add to collection", "Count the deck's cards as yours, kept in the deck") { close(); addingAll = true }
+        DeckToolsMenuItems(vm.tools, ui, inDeck, close = close, onPrint = { printProxies() })
+        DeckActionGroup("List")
+        DeckActionRow(Icons.Outlined.Link, "Update from link", "Get the newest list from Moxfield or Archidekt") { close(); vm.changes.updateFromLink(ui.id, vm.savedText) }
+        DeckListMenuItems(ui, close = close, onDuplicate = vm::duplicate)
+        DeckActionGroup("Deck")
+        DeckActionRow(Icons.Outlined.DeleteOutline, "Delete deck", null, danger = true) {
+            close()
+            if (inDeck > 0) confirmDelete = true else vm.delete(false, onBack)
+        }
     }
     if (confirmDelete) {
         DeleteDeckDialog(
@@ -414,10 +423,11 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
         item {
             ui.shape?.let { DeckShapeView(it) }
             // A complete deck has nothing missing, so the owned and missing numbers would only say so.
-            if (have < needed) Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
-                Stat("Owned", "$have / $needed", Modifier.weight(1f))
-                if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
-                else Stat("Missing", "${needed - have}", Modifier.weight(1f))
+            // Two plain figures rather than two equal panels (unslop: compact stats).
+            if (have < needed) Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                Stat("Owned", "$have / $needed")
+                if (AppSettings.showPrices) Stat("To finish", missingCostText)
+                else Stat("Missing", "${needed - have}")
             }
             // Small print: where the owned copies are. The value is in the header and the footer.
             val small = listOfNotNull(
@@ -520,12 +530,10 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
 }
 
 @Composable
-private fun Stat(label: String, value: String, modifier: Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column(Modifier.padding(Space.s4)) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-            Text(value, style = MaterialTheme.typography.titleLarge)
-        }
+private fun Stat(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+        Text(value, style = MaterialTheme.typography.titleLarge.merge(TabularNums))
     }
 }
 

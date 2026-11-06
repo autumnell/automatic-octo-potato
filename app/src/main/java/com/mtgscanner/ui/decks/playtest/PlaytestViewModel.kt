@@ -3,6 +3,10 @@ package com.mtgscanner.ui.decks.playtest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.CollectionRepository
+import com.mtgscanner.data.CommanderRules
+import com.mtgscanner.data.DeckFormats
+import com.mtgscanner.ui.decks.rules
+import com.mtgscanner.util.DeckLine
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCommanders
 import com.mtgscanner.data.PreconEntry
@@ -51,9 +55,13 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
     val ui: StateFlow<PlaytestUi> = _ui
     private val random = Random(System.nanoTime())
 
-    /** Your other decks, to play against. */
+    /** Your other decks of the same format, to play against. */
     val otherDecks: StateFlow<List<Opponent.OwnDeck>> = repo.observeDecks()
-        .map { all -> all.filter { it.id != deckId && it.text.isNotBlank() }.map { Opponent.OwnDeck(it.id, it.name.ifBlank { "Deck" }) } }
+        .map { all ->
+            val format = all.firstOrNull { it.id == deckId }?.format.orEmpty()
+            all.filter { it.id != deckId && it.text.isNotBlank() && PlaytestFormats.sameFormat(format, it.format) }
+                .map { Opponent.OwnDeck(it.id, it.name.ifBlank { "Deck" }) }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** MTGJSON's precons, commander decks first; null while loading. */
@@ -78,17 +86,32 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
         val d = repo.observeDecks().first().firstOrNull { it.id == id } ?: return null
         val lines = DecklistParser.parse(d.text)
         val leads = (DeckCommanders.decode(d.commanders).takeUnless { it.isEmpty } ?: DeckCommanders.fromLines(lines)).commanders
-        return build(d.name.ifBlank { "Deck" }, lines.filter { it.section in DeckCheck.PLAYED }.map { it.name to it.quantity }, leads)
+        val played = lines.filter { it.section in DeckCheck.PLAYED }.map { it.name to it.quantity }
+        val info = runCatching { repo.deckCardInfo(played.map { it.first } + leads) }.getOrDefault(emptyMap())
+        return build(d.name.ifBlank { "Deck" }, played, leads, info, d.format)
     }
 
-    private suspend fun loadPrecon(entry: PreconEntry): PlayDeck? {
+    /**
+     * A precon as cards to play in [format]. Its cards are checked against the format first: an illegal precon gives
+     * null and [illegal] says why.
+     */
+    private suspend fun loadPrecon(entry: PreconEntry, format: String, illegal: (String) -> Unit): PlayDeck? {
         val p = Precons.deck(repo.appContext, entry) ?: return null
         val leads = p.commanders.map { it.name }
-        return build(entry.name, p.cards.filter { it.section != "Sideboard" }.map { it.name to it.count }, leads)
+        val played = p.cards.filter { it.section != "Sideboard" }.map { it.name to it.count }
+        val info = runCatching { repo.deckCardInfo(p.cards.map { it.name }, format) }.getOrDefault(emptyMap())
+        if (format.isNotEmpty()) {
+            val lines = p.cards.map { DeckLine(it.count, it.name, section = it.section) }
+            val issues = CommanderRules.issues(lines, format, DeckCommanders(leads)) { n -> info[DeckNames.key(n)]?.rules() }
+            if (!issues.isEmpty) {
+                illegal("${entry.name} isn't legal in ${DeckFormats.of(format).label}")
+                return null
+            }
+        }
+        return build(entry.name, played, leads, info, format)
     }
 
-    private suspend fun build(name: String, lines: List<Pair<String, Int>>, leads: List<String>): PlayDeck {
-        val info = runCatching { repo.deckCardInfo(lines.map { it.first } + leads) }.getOrDefault(emptyMap())
+    private fun build(name: String, lines: List<Pair<String, Int>>, leads: List<String>, info: Map<String, DeckCardInfo>, format: String): PlayDeck {
         fun card(n: String) = info[DeckNames.key(n)].toPlayCard(n)
         val leadKeys = leads.map { DeckNames.key(it) }.toSet()
         // A commander listed in the deck too is taken out once per commander.
@@ -96,7 +119,7 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
             val k = DeckNames.key(n)
             List(if (k in leadKeys) (q - 1).coerceAtLeast(0) else q) { card(n) }
         }
-        return PlayDeck(name, cards, leads.map(::card))
+        return PlayDeck(name, cards, leads.map(::card), format)
     }
 
     /** Starts the game against [opponent] (null to play alone). */
@@ -104,10 +127,15 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
         val deck = _ui.value.deck ?: return
         _ui.update { it.copy(opponentLoading = opponent != null, pilot = pilot) }
         viewModelScope.launch {
+            var refused: String? = null
             val opp = when (opponent) {
                 null -> null
                 is Opponent.OwnDeck -> loadOwn(opponent.id)
-                is Opponent.Precon -> loadPrecon(opponent.entry)
+                is Opponent.Precon -> loadPrecon(opponent.entry, deck.format) { why -> refused = why }
+            }
+            refused?.let { why ->
+                _ui.update { it.copy(opponentLoading = false, message = why) }
+                return@launch
             }
             if (opponent != null && (opp == null || opp.cards.isEmpty())) {
                 _ui.update { it.copy(opponentLoading = false, message = "Couldn't load ${opponent.name}") }
