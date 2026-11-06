@@ -93,6 +93,7 @@ internal fun PlayerBack(
             IconButton(onClick = onDone, modifier = Modifier.size(BACK_BUTTON)) { Icon(Icons.Outlined.Check, "Done", tint = Color.White) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val width = maxWidth
             val cols = sources.size.coerceIn(1, 3)
             val rows = (sources.size + cols - 1) / cols
             // A short, wide panel (most seats at a table of 3 or 4) puts the damage tiles and the counters side
@@ -113,7 +114,7 @@ internal fun PlayerBack(
             } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 if (sources.isNotEmpty()) {
                     DamageLabel()
-                    DamageGrid(g, p, sources, (maxWidth.value / 96f).toInt().coerceIn(1, 5), Modifier, fill = false, onCommander = onCommander)
+                    DamageGrid(g, p, sources, (width.value / 96f).toInt().coerceIn(1, 5), Modifier, fill = false, onCommander = onCommander)
                     Spacer(Modifier.height(Space.s3))
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
