@@ -465,8 +465,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             val small = listOfNotNull(
                 if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
-            if (ui.id != 0L) DeckRecordRow(ui.id)
-            DeckInsightRows(ui, vm)
+            DeckInsights(ui, vm)
             if (small.isNotEmpty()) {
                 Text(
                     small.joinToString(" · "),
@@ -628,22 +627,20 @@ private fun DeckLineRow(
  * The deck's wins, losses and draws from games where a seat picked it (Game tab), with Edit to set them by hand.
  */
 @Composable
-private fun DeckRecordRow(deckId: Long) {
+private fun DeckInsights(ui: DeckUi, vm: DeckViewModel) {
     val ctx = LocalContext.current
     var version by remember { mutableIntStateOf(0) }
-    val r = remember(deckId, version) { com.mtgscanner.game.DeckResults.of(ctx, deckId) }
+    val r = remember(ui.id, version) { com.mtgscanner.game.DeckResults.of(ctx, ui.id) }
     var editing by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-        Text("Win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.width(INSIGHT_LABEL))
-        Text(
-            r.winRate?.let { "$it% · ${r.wins}–${r.losses}–${r.draws}" } ?: "No games yet",
-            style = MaterialTheme.typography.bodyMedium.merge(TabularNums),
-            color = if (r.games > 0) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = { editing = true }) { Text("Edit") }
-    }
+    // The win rate leads the insight grid; tapping it edits the record.
+    val win = if (ui.id == 0L) null else InsightStat(
+        "Win rate",
+        r.winRate?.let { "$it%" } ?: "No games",
+        if (r.games > 0) "${r.wins}–${r.losses}–${r.draws}" else "Tap to add",
+    ) { editing = true }
+    DeckInsightRows(ui, vm, win)
     if (editing) DeckRecordDialog(r, onDismiss = { editing = false }) { new ->
-        com.mtgscanner.game.DeckResults.set(ctx, deckId, new)
+        com.mtgscanner.game.DeckResults.set(ctx, ui.id, new)
         editing = false
         version++
     }

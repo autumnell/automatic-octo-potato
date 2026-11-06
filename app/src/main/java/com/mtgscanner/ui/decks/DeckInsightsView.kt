@@ -3,6 +3,8 @@ package com.mtgscanner.ui.decks
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -94,9 +96,12 @@ private enum class InsightSheet { BRACKET, MANA, GOLDFISH }
 
 /** Bracket (Commander decks), mana base and goldfish rows under the win rate; each opens a sheet with the detail. */
 @Composable
-internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
+internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, lead: InsightStat? = null) {
     val cards = remember(ui.text, ui.cardInfo, ui.commanders, ui.format) { insightCards(ui) }
-    if (cards.sumOf { it.copies } < 20) return
+    if (cards.sumOf { it.copies } < 20) {
+        lead?.let { InsightStrip(listOf(it)) }
+        return
+    }
     val commander = DeckFormats.isCommander(ui.format)
     val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
     var sheet by remember { mutableStateOf<InsightSheet?>(null) }
@@ -108,11 +113,14 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
     val mana = remember(cards, identity) { ManaBaseMath.of(cards, identity) }
     val goldfish by produceState<Goldfish?>(null, cards) { value = withContext(Dispatchers.Default) { GoldfishMath.of(cards) } }
 
-    if (commander) InsightRow("Bracket", "${bracket.level} · ${bracket.label}", bracket.reasons.firstOrNull()) { sheet = InsightSheet.BRACKET }
-    InsightRow("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA }
-    goldfish?.let { g ->
-        InsightRow("Goldfish", "Keep 7 ${pct(g.keepable)}", "4th land on turn 4 ${pct(g.landDrop[3])}") { sheet = InsightSheet.GOLDFISH }
+    // One compact strip of figures instead of a row each (unslop: compact stats, not equal cards). Tap one for its sheet.
+    val items = buildList {
+        lead?.let { add(it) }
+        if (commander) add(InsightStat("Bracket", "${bracket.level} · ${bracket.label}", bracket.reasons.firstOrNull()) { sheet = InsightSheet.BRACKET })
+        add(InsightStat("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA })
+        add(InsightStat("Goldfish", goldfish?.let { "Keep ${pct(it.keepable)}" } ?: "…", goldfish?.let { "Turn 4 land ${pct(it.landDrop[3])}" }) { if (goldfish != null) sheet = InsightSheet.GOLDFISH })
     }
+    InsightStrip(items)
     when (sheet) {
         InsightSheet.BRACKET -> BracketSheet(bracket, onDismiss = { sheet = null })
         InsightSheet.MANA -> ManaBaseSheet(mana, onDismiss = { sheet = null })
@@ -122,20 +130,34 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
 }
 
 
-/** A small row on the deck page: label, value and a muted note, tapping for more. */
+internal class InsightStat(val label: String, val value: String, val note: String?, val onClick: () -> Unit)
+
+/**
+ * The deck page's insight figures in a compact grid split by hairlines: one row for up to three, two by two for
+ * four. Each cell is a label, a figure and a short note, and taps through to its detail.
+ */
 @Composable
-internal fun InsightRow(label: String, value: String, note: String?, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(start = Space.s4, end = Space.s3),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.width(INSIGHT_LABEL))
-        Text(value, style = MaterialTheme.typography.bodyMedium.merge(TabularNums), maxLines = 1)
-        if (note != null) {
-            Spacer(Modifier.width(Space.s2))
-            Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        } else Spacer(Modifier.weight(1f))
-        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+internal fun InsightStrip(items: List<InsightStat>) {
+    val rows = if (items.size <= 3) listOf(items) else items.chunked(2)
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s2, vertical = Space.s1)) {
+        rows.forEachIndexed { r, row ->
+            if (r > 0) HorizontalDivider(Modifier.padding(horizontal = Space.s2), color = Palette.Rule)
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+                row.forEachIndexed { i, it ->
+                    if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s2), color = Palette.Rule)
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(Corners.Small)).clickable(onClickLabel = it.label, onClick = it.onClick)
+                            .padding(horizontal = Space.s2, vertical = Space.s2),
+                    ) {
+                        Text(it.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
+                        Text(it.value, style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(it.note ?: "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                // A short last row keeps its cells the same width as the row above.
+                if (rows.size > 1 && row.size < 2) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 
@@ -230,9 +252,11 @@ private fun CheckRow(label: String, names: List<String>?, first: Boolean) {
 
 private val BRACKET_NAMES = listOf("Exhibition", "Core", "Upgraded", "Optimized", "cEDH")
 private val BRACKET_RULES = mapOf(
+    1 to "Exhibition: a deck built to show off a theme or idea, not to win",
     2 to "No Game Changers, no two-card combos, few tutors",
     3 to "Up to 3 Game Changers, or a two-card combo, or several tutors or extra turns",
     4 to "More than 3 Game Changers, or mass land denial",
+    5 to "cEDH: a competitive deck built to win as fast as it can",
 )
 
 /** The five brackets as steps, the deck's one filled in ink; 1 and 5 are faint because they aren't guessed. */
@@ -264,27 +288,26 @@ private fun BracketScale(level: Int) {
 
 @Composable
 private fun BracketSheet(b: Bracket, onDismiss: () -> Unit) {
-    DeckActionsSheet("Bracket ${b.level} · ${b.label}", onDismiss) { BracketBody(b) }
+    DeckActionsSheet("Bracket ${b.level}: ${b.label}", onDismiss) { BracketBody(b) }
 }
 
 /** The bracket sheet under its title; internal so the screen pictures can draw it. */
 @Composable
 internal fun ColumnScope.BracketBody(b: Bracket) {
-    SheetNote("Worked out from the list", top = true)
     InsightPanel {
         BracketScale(b.level)
         Spacer(Modifier.height(Space.s3))
         Text(BRACKET_RULES[b.level].orEmpty(), style = MaterialTheme.typography.bodyMedium)
     }
-    InsightPanel("What it found") {
+    InsightPanel("Deck stats:") {
         CheckRow("Game Changers", b.gameChangers, first = true)
         CheckRow("Two-card combos", b.twoCardCombos?.map { it.joinToString(" + ") }, first = false)
         CheckRow("Mass land denial", b.massLandDenial, first = false)
         CheckRow("Extra turns", b.extraTurns, first = false)
         CheckRow("Tutors", b.tutors, first = false)
     }
-    InsightPanel("How it's set") {
-        (2..4).forEach { n ->
+    InsightPanel("Bracket system:") {
+        (1..5).forEach { n ->
             Row(Modifier.padding(vertical = Space.s1)) {
                 Text(
                     "$n", style = MaterialTheme.typography.labelLarge, color = if (n == b.level) Palette.Text else Palette.Muted,
@@ -297,7 +320,6 @@ internal fun ColumnScope.BracketBody(b: Bracket) {
             }
         }
     }
-    SheetNote("Brackets 1 and 5 depend on how the deck is meant to be played, so they aren't guessed")
 }
 
 @Composable
