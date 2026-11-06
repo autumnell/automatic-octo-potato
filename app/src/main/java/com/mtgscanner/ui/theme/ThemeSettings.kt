@@ -14,21 +14,13 @@ data class AccentPreset(val name: String, val color: Color)
 
 /** Appearance choices from the Settings page, saved on the phone and readable from any composable. */
 object ThemeSettings {
+    /** A few muted accents that sit with the warm ink look; Oxblood is the brand and the default. */
     val presets = listOf(
         AccentPreset("Oxblood", Color(0xFF9E3A33)),
-        AccentPreset("Ember", Color(0xFFF28C38)),
-        AccentPreset("Flame", Color(0xFFE5533D)),
-        AccentPreset("Crimson", Color(0xFFD7263D)),
-        AccentPreset("Rose", Color(0xFFE8508A)),
-        AccentPreset("Orchid", Color(0xFFC04BD8)),
-        AccentPreset("Violet", Color(0xFF8B5CF6)),
-        AccentPreset("Indigo", Color(0xFF5B6CF0)),
-        AccentPreset("Island", Color(0xFF3B8EEA)),
-        AccentPreset("Cyan", Color(0xFF22B8CF)),
-        AccentPreset("Teal", Color(0xFF14B8A6)),
-        AccentPreset("Forest", Color(0xFF22C55E)),
-        AccentPreset("Lime", Color(0xFF9ACD32)),
-        AccentPreset("Gold", Color(0xFFE6B422)),
+        AccentPreset("Ink blue", Color(0xFF3E5C7A)),
+        AccentPreset("Moss", Color(0xFF5E6B3A)),
+        AccentPreset("Ochre", Color(0xFFA87A2A)),
+        AccentPreset("Plum", Color(0xFF6E4560)),
     )
 
     private var prefs: SharedPreferences? = null
@@ -43,9 +35,6 @@ object ThemeSettings {
     private val oldDefaultAccent: Color = Color(0xFFE6B422)
 
     var accent by mutableStateOf(defaultAccent)
-        private set
-    /** The last color made with the picker, kept so it stays one tap away. */
-    var customAccent by mutableStateOf<Color?>(null)
         private set
 
     /** Dark mode on pure black (OLED): backgrounds black, panels near-black. */
@@ -77,7 +66,15 @@ object ThemeSettings {
             }
             p.edit().putBoolean("smallStepLook", true).apply()
         }
-        if (p.contains("custom")) customAccent = Color(p.getInt("custom", 0))
+        if (!p.getBoolean("mutedAccents", false)) {
+            // One time: the bright swatches and the color wheel are gone, so an accent not in the muted set
+            // goes back to Oxblood.
+            if (presets.none { it.color.toArgb() == accent.toArgb() }) {
+                accent = defaultAccent
+                p.edit().putInt("accent", defaultAccent.toArgb()).apply()
+            }
+            p.edit().putBoolean("mutedAccents", true).remove("custom").apply()
+        }
         trueBlack = p.getBoolean("trueBlack", false)
         accentFromCollection = p.getBoolean("accentFromCollection", false)
         collectionColor = p.getString("collectionColor", null)?.firstOrNull()
@@ -105,14 +102,10 @@ object ThemeSettings {
         prefs?.edit()?.putString("mode", m.name)?.apply()
     }
 
-    fun updateAccent(c: Color, custom: Boolean = false) {
+    fun updateAccent(c: Color) {
         // Picking a color by hand ends "accent from my collection".
         if (accentFromCollection) updateAccentFromCollection(false)
         accent = c
         prefs?.edit()?.putInt("accent", c.toArgb())?.apply()
-        if (custom) {
-            customAccent = c
-            prefs?.edit()?.putInt("custom", c.toArgb())?.apply()
-        }
     }
 }

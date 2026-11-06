@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mtgscanner.MtgApp
 import com.mtgscanner.data.db.CollectionCard
@@ -73,9 +74,21 @@ object RecentMath {
     }
 }
 
-/** A short row of the cards opened last. Draws nothing when there are none. */
+/**
+ * A short row of the cards opened last, under [heading]. Draws nothing, heading included, when there are none.
+ * [cardWidth] sets how big each card shows.
+ */
 @Composable
-fun RecentCardsStrip(refreshKey: Any?, onOpen: (CollectionCard) -> Unit, modifier: Modifier = Modifier) {
+fun RecentCardsStrip(
+    refreshKey: Any?, onOpen: (CollectionCard) -> Unit, modifier: Modifier = Modifier,
+    cardWidth: Dp = 52.dp,
+    heading: @Composable () -> Unit = {
+        Text(
+            "Recently opened", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
+            modifier = Modifier.padding(start = Space.s4, top = Space.s1, bottom = Space.s1),
+        )
+    },
+) {
     val ctx = LocalContext.current
     remember { RecentCards.load(ctx) }
     val ids = RecentCards.ids
@@ -87,15 +100,12 @@ fun RecentCardsStrip(refreshKey: Any?, onOpen: (CollectionCard) -> Unit, modifie
     }
     if (cards.isEmpty()) return
     Column(modifier) {
-        Text(
-            "Recently opened", style = MaterialTheme.typography.labelMedium, color = Palette.Muted,
-            modifier = Modifier.padding(start = Space.s4, top = Space.s1, bottom = Space.s1),
-        )
+        heading()
         LazyRow(contentPadding = PaddingValues(horizontal = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             items(cards, key = { it.id }) { c ->
                 CardImage(
                     c.smallImageUrl ?: c.imageUrl,
-                    Modifier.width(52.dp).clip(CardShape).clickable { onOpen(c) },
+                    Modifier.width(cardWidth).clip(CardShape).clickable { onOpen(c) },
                 )
             }
         }

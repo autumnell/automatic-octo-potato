@@ -16,7 +16,8 @@ class HomeOrderTest {
 
     @Test fun existingUserGetsStripFirstAndTilesUnderIt() {
         val list = HomeOrder.load("goals,recent,movers", oldKnown)
-        assertEquals(listOf(NEWEST, TILES, GOALS, RECENT, MOVERS), list)
+        // Sections added since that save (Recently viewed) come in at the end.
+        assertEquals(listOf(NEWEST, TILES, GOALS, RECENT, MOVERS, VIEWED), list)
     }
 
     @Test fun hiddenStripStaysHiddenOnceSavedWithIt() {
@@ -38,12 +39,12 @@ class HomeOrderTest {
     @Test fun removedSectionsAreDropped() {
         val known = "newest,tiles,sort,goals,daycard,recent,movers,valuable,gainers,boxes,bulk,colors,pairs,alerts"
         val list = HomeOrder.load("newest,daycard,tiles,valuable,sort,colors,pairs,boxes,bulk,goals,alerts,someday", known)
-        assertEquals(listOf(NEWEST, TILES, TO_SORT, GOALS, ALERTS), list)
+        assertEquals(listOf(NEWEST, TILES, TO_SORT, GOALS, ALERTS, VIEWED), list)
     }
 
     @Test fun biggestGainsBecomesPriceMoves() {
         val known = "newest,tiles,sort,goals,daycard,recent,movers,valuable,gainers,boxes,bulk,colors,pairs,alerts"
-        assertEquals(listOf(NEWEST, MOVERS, GOALS), HomeOrder.load("newest,gainers,goals", known))
-        assertEquals(listOf(MOVERS, GOALS), HomeOrder.load("movers,gainers,goals", known))
+        assertEquals(listOf(NEWEST, MOVERS, GOALS, VIEWED), HomeOrder.load("newest,gainers,goals", known))
+        assertEquals(listOf(MOVERS, GOALS, VIEWED), HomeOrder.load("movers,gainers,goals", known))
     }
 }

@@ -226,13 +226,17 @@ fun ValueBar(boxes: List<BoxSummary>, colors: Map<Long, Color>, onClick: () -> U
     val weights = boxes.map { b -> b to if (prices) b.value else b.cards.toDouble() }.filter { it.second > 0 }
     val sum = weights.sumOf { it.second }
     if (sum <= 0) return
-    Row(
-        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s4, vertical = Space.s2)
-            .height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh),
-        horizontalArrangement = Arrangement.spacedBy(Space.s1),
-    ) {
-        weights.forEach { (b, w) ->
-            Box(Modifier.weight((w / sum).toFloat().coerceAtLeast(0.002f)).fillMaxHeight().background(colors[b.id] ?: Palette.Accent))
+    // Labelled so the thin bar reads as a split by box, not an empty progress bar.
+    Row(modifier.clickable(onClick = onClick).padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (prices) "Value by box" else "Cards by box", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
+        Spacer(Modifier.width(Space.s2))
+        Row(
+            Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh),
+            horizontalArrangement = Arrangement.spacedBy(Space.s1),
+        ) {
+            weights.forEach { (b, w) ->
+                Box(Modifier.weight((w / sum).toFloat().coerceAtLeast(0.002f)).fillMaxHeight().background(colors[b.id] ?: Palette.Accent))
+            }
         }
     }
 }

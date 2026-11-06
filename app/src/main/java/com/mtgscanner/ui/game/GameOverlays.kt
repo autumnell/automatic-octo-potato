@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -245,10 +246,14 @@ private fun ActionTile(
 /** Big buttons, one per player, to hand something to someone. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlayerPicker(g: GameState, question: String, current: Int?, onPick: (Int?) -> Unit, onBack: () -> Unit, allowNobody: Boolean = true) {
+private fun PlayerPicker(
+    g: GameState, question: String, current: Int?, onPick: (Int?) -> Unit, onBack: () -> Unit, allowNobody: Boolean = true,
+    onRandom: (() -> Unit)? = null,
+) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(question, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            if (onRandom != null) TextButton(onClick = onRandom) { Text("Random", fontSize = 19.sp) }
             TextButton(onClick = onBack) { Text("Back", fontSize = 19.sp) }
         }
         Spacer(Modifier.height(Space.s2))
@@ -328,7 +333,11 @@ private fun PlayerSettings(g: GameState, i: Int, vm: GameViewModel) {
     }
 }
 
-/** The middle button's panel: table actions and dice, in big tiles. */
+/**
+ * The middle button's panel, on one page with no tabs: the turn first (next turn and undo, big), then the
+ * table (monarch, initiative, day and night, who goes first), the dice, and the game itself at the bottom.
+ * The game time sits in the title.
+ */
 @Composable
 fun MenuOverlay(
     g: GameState,
@@ -339,22 +348,18 @@ fun MenuOverlay(
     startPick: TableMarker? = null,
     onTutorial: () -> Unit = {},
 ) {
-    var tab by remember { mutableIntStateOf(0) }
     var picking by remember { mutableStateOf(startPick) }
     var choosingFirst by remember { mutableStateOf(false) }
     var confirmRestart by remember { mutableStateOf(false) }
-    var roll by remember { mutableStateOf<String?>(null) }
     var rollKind by remember { mutableStateOf<DieKind?>(null) }
     var rollResult by remember { mutableStateOf<String?>(null) }
     var rollKey by remember { mutableIntStateOf(0) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
 
-    // Few big tiles per page, so everything reads from across the table.
-    val tabs = listOf("Turn", "Table", "Game", "Dice")
-    TableOverlay(0, g.format.label, tabs, tab, { tab = it; picking = null; choosingFirst = false }, onDismiss) {
+    TableOverlay(0, "${g.format.label} · ${elapsed(now - g.startedAt)}", emptyList(), 0, {}, onDismiss) {
         val marker = picking
-        val pageScroll = remember(tab, marker, choosingFirst) { ScrollState(0) }
+        val pageScroll = remember(marker, choosingFirst) { ScrollState(0) }
         when {
             marker != null -> ScrollPage(pageScroll) {
                 Column(Modifier.verticalScroll(pageScroll)) {
@@ -376,78 +381,99 @@ fun MenuOverlay(
                         g, "Who goes first?", g.active,
                         onPick = { who -> if (who != null) vm.update { Game.setFirst(it, who) }; choosingFirst = false },
                         onBack = { choosingFirst = false }, allowNobody = false,
+                        onRandom = { vm.update { Game.setFirst(it, Random.nextInt(it.players.size)) }; choosingFirst = false },
                     )
                 }
             }
-            tab == 3 -> Column(Modifier.fillMaxSize()) {
-                RollStage(rollKind, rollResult, rollKey)
-                ScrollPage(pageScroll) {
-                    Column(Modifier.verticalScroll(pageScroll)) {
-                        TileGrid(DieKind.entries.size, minTile = 150) { k, m ->
-                            val kind = DieKind.entries[k]
-                            ActionTile(com.mtgscanner.ui.components.ManaIcons.Dice, kind.label, m) {
-                                rollKind = kind; rollResult = kind.roll(); rollKey++
+            else -> ScrollPage(pageScroll) {
+                Column(Modifier.verticalScroll(pageScroll), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+                    // The turn: the two things used every few minutes, big.
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+                        ActionTile(
+                            Icons.Outlined.SkipNext, if (g.active == null) "Start turns" else "Next turn", Modifier.weight(1f),
+                            g.active?.let { "Turn ${g.turn} · ${g.players[it].name}" }, tint = Palette.Accent,
+                        ) { vm.nextTurn() }
+                        ActionTile(
+                            Icons.AutoMirrored.Outlined.Undo, "Undo", Modifier.weight(1f),
+                            g.history.lastOrNull()?.let { describe(g, it) }, enabled = g.undoStack.isNotEmpty(),
+                        ) { vm.undo() }
+                    }
+                    MenuSection("Table")
+                    val table = buildList<@Composable (Modifier) -> Unit> {
+                        if (g.players.size > 1) {
+                            add { m ->
+                                SmallTile(TableMarker.MONARCH.icon, "Monarch", m, g.monarch?.let { g.players[it].name } ?: "Nobody",
+                                    tint = if (g.monarch != null) Palette.Gold else Color.White) { picking = TableMarker.MONARCH }
+                            }
+                            add { m ->
+                                SmallTile(TableMarker.INITIATIVE.icon, "Initiative", m, g.initiative?.let { g.players[it].name } ?: "Nobody",
+                                    tint = if (g.initiative != null) Palette.Gold else Color.White) { picking = TableMarker.INITIATIVE }
                             }
                         }
+                        add { m ->
+                            SmallTile(dayNightIcon(g.dayNight), dayNightLabel(g.dayNight), m, "Tap to change",
+                                tint = if (g.dayNight != null) Palette.Gold else Color.White) { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
+                        }
+                        if (g.players.size > 1) add { m ->
+                            SmallTile(Icons.Outlined.SkipNext, "First player", m, g.active?.let { g.players[it].name } ?: "Pick or random") { choosingFirst = true }
+                        }
                     }
+                    TileGrid(table.size, minTile = 150) { k, m -> table[k](m) }
+                    MenuSection("Dice")
+                    if (rollKind != null) RollStage(rollKind, rollResult, rollKey)
+                    TileGrid(DieKind.entries.size, minTile = 120) { k, m ->
+                        val kind = DieKind.entries[k]
+                        SmallTile(com.mtgscanner.ui.components.ManaIcons.Dice, kind.label, m) {
+                            rollKind = kind; rollResult = kind.roll(); rollKey++
+                        }
+                    }
+                    MenuSection("Game")
+                    val game = buildList<@Composable (Modifier) -> Unit> {
+                        add { m ->
+                            SmallTile(Icons.Outlined.RestartAlt, if (confirmRestart) "Tap again" else "Restart", m,
+                                if (confirmRestart) "Resets to ${g.startingLife}" else "Same players",
+                                tint = if (confirmRestart) Palette.Danger else Color.White) {
+                                if (confirmRestart) { vm.restart(); confirmRestart = false; onDismiss() } else confirmRestart = true
+                            }
+                        }
+                        add { m -> SmallTile(Icons.Outlined.EmojiEvents, "End game", m, "Save who won") { onEnd() } }
+                        add { m -> SmallTile(Icons.AutoMirrored.Outlined.ExitToApp, "Leave table", m, "Game is kept") { onLeave() } }
+                        add { m -> SmallTile(Icons.AutoMirrored.Outlined.HelpOutline, "How it works", m, "The short tour") { onTutorial() } }
+                    }
+                    TileGrid(game.size, minTile = 150) { k, m -> game[k](m) }
                 }
             }
-            else -> {
-                val tiles = buildList<@Composable (Modifier) -> Unit> {
-                    when (tab) {
-                        0 -> {
-                            add { m -> ActionTile(Icons.AutoMirrored.Outlined.Undo, "Undo", m, g.history.lastOrNull()?.let { describe(g, it) }, enabled = g.undoStack.isNotEmpty()) { vm.undo() } }
-                            add { m ->
-                                ActionTile(Icons.Outlined.SkipNext, if (g.active == null) "Start turns" else "Next turn", m,
-                                    g.active?.let { "Turn ${g.turn} · ${g.players[it].name}" }, tint = Palette.Accent) { vm.nextTurn() }
-                            }
-                            if (g.players.size > 1) {
-                                add { m ->
-                                    ActionTile(com.mtgscanner.ui.components.ManaIcons.Dice, "Random first", m, roll?.takeIf { it.endsWith("goes first") }) {
-                                        val first = Random.nextInt(g.players.size)
-                                        vm.update { Game.setFirst(it, first) }
-                                        roll = "${g.players[first].name} goes first"
-                                    }
-                                }
-                                add { m -> ActionTile(Icons.Outlined.SkipNext, "Pick first", m, "Who starts") { choosingFirst = true } }
-                            }
-                        }
-                        1 -> {
-                            if (g.players.size > 1) {
-                                add { m ->
-                                    ActionTile(TableMarker.MONARCH.icon, "Monarch", m, g.monarch?.let { g.players[it].name } ?: "Nobody",
-                                        tint = if (g.monarch != null) Palette.Gold else Color.White) { picking = TableMarker.MONARCH }
-                                }
-                                add { m ->
-                                    ActionTile(TableMarker.INITIATIVE.icon, "Initiative", m, g.initiative?.let { g.players[it].name } ?: "Nobody",
-                                        tint = if (g.initiative != null) Palette.Gold else Color.White) { picking = TableMarker.INITIATIVE }
-                                }
-                            }
-                            add { m ->
-                                ActionTile(dayNightIcon(g.dayNight), dayNightLabel(g.dayNight), m, "Tap to change",
-                                    tint = if (g.dayNight != null) Palette.Gold else Color.White) { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
-                            }
-                            add { m -> ActionTile(Icons.Outlined.Timer, elapsed(now - g.startedAt), m, "Game time", enabled = true) {} }
-                        }
-                        else -> {
-                            add { m ->
-                                ActionTile(Icons.Outlined.RestartAlt, if (confirmRestart) "Tap again" else "Restart", m,
-                                    if (confirmRestart) "Resets to ${g.startingLife}" else "Same players",
-                                    tint = if (confirmRestart) Palette.Danger else Color.White) {
-                                    if (confirmRestart) { vm.restart(); confirmRestart = false; onDismiss() } else confirmRestart = true
-                                }
-                            }
-                            add { m -> ActionTile(Icons.Outlined.EmojiEvents, "End game", m, "Save who won") { onEnd() } }
-                            add { m -> ActionTile(Icons.AutoMirrored.Outlined.ExitToApp, "Leave table", m, "Game is kept") { onLeave() } }
-                            add { m -> ActionTile(Icons.AutoMirrored.Outlined.HelpOutline, "How it works", m, "The short tour") { onTutorial() } }
-                        }
-                    }
-                }
-                ScrollPage(pageScroll) {
-                    Column(Modifier.verticalScroll(pageScroll)) {
-                        TileGrid(tiles.size, minTile = 160) { k, m -> tiles[k](m) }
-                    }
-                }
+        }
+    }
+}
+
+/** A section name on the game menu, quiet so the tiles lead. */
+@Composable
+private fun MenuSection(title: String) {
+    Text(title, color = Palette.OnDarkMuted, fontSize = 16.sp, modifier = Modifier.padding(top = Space.s3))
+}
+
+/** A smaller tile for the less used parts of the game menu: icon beside the label, the detail under it. */
+@Composable
+private fun SmallTile(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier,
+    detail: String? = null,
+    tint: Color = Color.White,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick, modifier = modifier.heightIn(min = 72.dp),
+        shape = RoundedCornerShape(Corners.Medium), color = Palette.StagePanel,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+    ) {
+        Row(Modifier.padding(horizontal = Space.s3, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(Space.s3))
+            Column {
+                Text(label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (detail != null) Text(detail, color = Palette.OnDarkMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

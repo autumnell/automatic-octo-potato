@@ -5,6 +5,7 @@ enum class HomeSection(val key: String, val label: String) {
     NEWEST("newest", "Newest cards"),
     TILES("tiles", "Stat tiles"),
     TO_SORT("sort", "To be sorted"),
+    VIEWED("viewed", "Recently viewed"),
     GOALS("goals", "Goals"),
     RECENT("recent", "Recently added"),
     MOVERS("movers", "Price moves"),
