@@ -238,7 +238,7 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, action: (@Compos
 
 /** Small outlined button with an icon, used for Sort / Group / Filter. Active: a filled panel with a text-colored edge. */
 @Composable
-fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, active: Boolean = false) {
+fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, active: Boolean = false, compact: Boolean = false) {
     Surface(
         onClick = onClick,
         modifier = modifier,
@@ -246,9 +246,15 @@ fun ToolChip(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Mo
         color = Palette.SurfaceHigh,
         border = if (active) BorderStroke(1.dp, Palette.Text) else null,
     ) {
-        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (active) Palette.Text else Palette.Icon, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(Space.s2))
+        // Compact chips share a row with other controls: just the label, with less padding around it.
+        Row(
+            Modifier.padding(horizontal = if (compact) Space.s3 else Space.s4, vertical = if (compact) Space.s2 else Space.s3),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (!compact) {
+                Icon(icon, null, tint = if (active) Palette.Text else Palette.Icon, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(Space.s2))
+            }
             Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
         }
     }

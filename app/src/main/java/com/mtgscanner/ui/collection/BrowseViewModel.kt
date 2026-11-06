@@ -58,8 +58,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collectLatest
 
 @Serializable
-enum class SortBy(val label: String) {
-    RECENT("Recently added"), NAME("Name"), PRICE("Price"), MANA("Mana value"), SET("Set & number"), COLOR("Color"), GAIN("Price change"),
+enum class SortBy(val label: String, val short: String = label) {
+    RECENT("Recently added", "Newest"), NAME("Name"), PRICE("Price"), MANA("Mana value", "Mana"), SET("Set & number", "Set"), COLOR("Color"),
+    GAIN("Price change", "Change"),
     ;
 
     val isPrice: Boolean get() = this == PRICE || this == GAIN
