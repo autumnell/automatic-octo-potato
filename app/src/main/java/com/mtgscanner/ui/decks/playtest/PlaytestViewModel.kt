@@ -44,6 +44,8 @@ data class PlaytestUi(
     val history: List<Table> = emptyList(),
     val pilot: Pilot = SimplePilot,
     val message: String? = null,
+    /** The game has started and you're choosing to keep your opening hand or mulligan. */
+    val opening: Boolean = false,
 )
 
 /**
@@ -141,7 +143,7 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
                 _ui.update { it.copy(opponentLoading = false, message = "Couldn't load ${opponent.name}") }
                 return@launch
             }
-            _ui.update { it.copy(opponentLoading = false, table = Playtest.start(deck, opp, random), history = emptyList()) }
+            _ui.update { it.copy(opponentLoading = false, table = Playtest.start(deck, opp, random), history = emptyList(), opening = true) }
         }
     }
 
@@ -167,6 +169,25 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
         if (passed.active != 0 && pilot != HandPilot) Playtest.nextTurn(pilot.takeTurn(passed, passed.active)) else passed
     }
 
+    /** A new opening 7 before the game starts; not a step for Undo. */
+    fun mulliganOpening() = _ui.update { u -> u.copy(table = u.table?.let { Playtest.mulligan(it, 0, random) }) }
+
+    /** Cards to put on the bottom when you keep now. */
+    fun toBottom(): Int {
+        val u = _ui.value
+        val deck = u.deck ?: return 0
+        return Playtest.toBottom(u.table?.sides?.get(0)?.mulligans ?: 0, Playtest.freeMulligan(deck))
+    }
+
+    /** Keeps the hand, with [bottom] (the hand's card ids) put on the bottom, and starts play. */
+    fun keep(bottom: List<Int>) = _ui.update { u ->
+        val t = u.table ?: return@update u
+        val m = t.sides[0].mulligans
+        val kept = Playtest.bottom(t, 0, bottom)
+        val line = if (m == 0) "You kept 7" else "You kept ${kept.sides[0][Zone.HAND].size} after ${if (m == 1) "1 mulligan" else "$m mulligans"}"
+        u.copy(table = Playtest.logged(kept, line), history = emptyList(), opening = false)
+    }
+
     fun undo() {
         val h = _ui.value.history
         if (h.isEmpty()) return
@@ -174,10 +195,10 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
     }
 
     /** Back to the opponent picker with the same deck. */
-    fun restart() = _ui.update { it.copy(table = null, history = emptyList()) }
+    fun restart() = _ui.update { it.copy(table = null, history = emptyList(), opening = false) }
 
     /** Shows a ready-made game, for the screen pictures. */
-    fun show(table: Table) = _ui.update { it.copy(loading = false, table = table, history = emptyList()) }
+    fun show(table: Table, opening: Boolean = false) = _ui.update { it.copy(loading = false, table = table, history = emptyList(), opening = opening) }
 
     fun messageShown() = _ui.update { it.copy(message = null) }
 

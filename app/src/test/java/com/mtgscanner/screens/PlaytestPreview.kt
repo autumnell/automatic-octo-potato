@@ -19,9 +19,13 @@ object PlaytestPreview {
     private val gitrog = PlayCard("The Gitrog, Ravenous Ride", typeLine = "Legendary Creature — Frog Horror Mount", cmc = 5.0, power = "6", toughness = "5")
     private val zombie = PlayCard("Gravecrawler", typeLine = "Creature — Zombie", cmc = 1.0, power = "2", toughness = "1")
 
+    private val you = PlayDeck("The Gitrog", List(40) { forest } + List(30) { swamp } + List(15) { elf } + List(13) { beast } + ring, listOf(gitrog))
+    private val them = PlayDeck("Undead Unleashed", List(36) { swamp } + List(63) { zombie })
+
+    /** The game just dealt, for the opening hand picture. */
+    val opening: Table by lazy { Playtest.start(you, them, Random(4)) }
+
     val table: Table by lazy {
-        val you = PlayDeck("The Gitrog", List(40) { forest } + List(30) { swamp } + List(15) { elf } + List(13) { beast } + ring, listOf(gitrog))
-        val them = PlayDeck("Undead Unleashed", List(36) { swamp } + List(63) { zombie })
         var t = Playtest.start(you, them, Random(4))
         fun play(side: Int, pick: (Piece) -> Boolean) {
             val s = t.sides[side]

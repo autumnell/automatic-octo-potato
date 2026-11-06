@@ -8,9 +8,9 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Undo
@@ -47,7 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,9 +80,11 @@ fun PlaytestScreen(
     onBack: () -> Unit,
     /** A game already set up, for the screen pictures. */
     preview: Table? = null,
+    /** With [preview]: show it as the opening hand, before the keep. */
+    previewOpening: Boolean = false,
 ) {
     val vm: PlaytestViewModel = viewModel(key = "playtest$deckId", factory = AppViewModels.playtest(deckId))
-    if (preview != null) remember(preview) { vm.show(preview); true }
+    if (preview != null) remember(preview) { vm.show(preview, previewOpening); true }
     val ui by vm.ui.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { Undo.offer(it); vm.messageShown() } }
     val table = ui.table
@@ -89,6 +93,10 @@ fun PlaytestScreen(
             CircularProgressIndicator(color = Palette.Text)
         }
         table == null -> PlaytestSetup(ui, vm, onBack)
+        ui.opening -> {
+            BackHandler { vm.restart() }
+            OpeningHand(table, vm, onBack)
+        }
         else -> {
             BackHandler { vm.restart() }
             PlayTable(table, ui, vm, onBack)
@@ -145,7 +153,11 @@ private fun PlayTable(t: Table, ui: PlaytestUi, vm: PlaytestViewModel, onBack: (
             )
         }
         SideBar(t.sides[me], me, vm, onZone = { zoneOpen = me to it }, compact = false, onPick = { picked = it })
-        HandRow(t.sides[me], me, onPick = { picked = it })
+        HandRow(t.sides[me], me, onPick = { picked = it }, onPlay = { p ->
+            // Permanents go onto the battlefield; instants and sorceries are cast, so they go to the graveyard.
+            val to = if (p.card.isPermanent || p.card.typeLine.isBlank()) Zone.BATTLEFIELD else Zone.GRAVEYARD
+            vm.act { Playtest.move(it, me, p.id, to) }
+        })
         Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
             StageButton("Token", Modifier.weight(1f)) { tokens = true }
             StageButton("Draw", Modifier.weight(1f), enabled = t.sides[me][Zone.LIBRARY].isNotEmpty()) { vm.act { Playtest.draw(it, me) } }
@@ -211,24 +223,31 @@ private fun ZoneChip(label: String, count: Int, onClick: () -> Unit) {
     }
 }
 
-/** Creatures and other permanents in one group, lands in the next; tap to tap or untap, hold for more. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * A side's battlefield in three rows: creatures nearest the opponent, then artifacts, enchantments and other
+ * permanents, then lands nearest its player ([Lane]). The opponent's side is upside down, so their creatures face
+ * yours. Each row fits its cards without scrolling. Tap a card to tap or untap it, hold it for more.
+ */
 @Composable
 private fun Battlefield(s: Side, index: Int, small: Boolean, vm: PlaytestViewModel, onPick: (Picked) -> Unit, modifier: Modifier) {
     val all = s[Zone.BATTLEFIELD]
-    val (lands, others) = all.partition { it.card.isLand && !it.card.isCreature }
-    val w = if (small) 44.dp else 56.dp
-    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s2, vertical = Space.s1)) {
-        if (all.isEmpty()) {
-            Text(
-                if (small) "Nothing out yet" else "Tap a card in your hand to play it",
-                style = MaterialTheme.typography.bodySmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(vertical = Space.s4),
-            )
-        }
-        listOf(others, lands).filter { it.isNotEmpty() }.forEach { group ->
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s1), verticalArrangement = Arrangement.spacedBy(Space.s1), modifier = Modifier.padding(bottom = Space.s2)) {
-                group.forEach { p ->
+    val byLane = all.groupBy(Lane::of)
+    val lanes = if (small) Lane.entries.reversed() else Lane.entries
+    val most = if (small) 44.dp else 56.dp
+    Column(modifier.fillMaxWidth().padding(horizontal = Space.s2)) {
+        lanes.forEachIndexed { i, lane ->
+            if (i > 0) HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(vertical = Space.s1), contentAlignment = Alignment.CenterStart) {
+                val cards = byLane[lane].orEmpty()
+                // As big as the row lets it be, up to the usual size.
+                val w = minOf(most, maxHeight / 1.4f).coerceAtLeast(24.dp)
+                if (cards.isEmpty()) {
+                    if (!small) Text(
+                        if (all.isEmpty() && lane == Lane.OTHERS) "Drag a card up from your hand to play it" else lane.label,
+                        style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                    )
+                } else FitRow(cards, w) { p ->
                     PieceTile(p, w, onTap = { vm.act { Playtest.toggleTap(it, index, p.id) } }, onHold = { onPick(Picked(index, p.id)) })
                 }
             }
@@ -236,15 +255,35 @@ private fun Battlefield(s: Side, index: Int, small: Boolean, vm: PlaytestViewMod
     }
 }
 
+/**
+ * Your hand, all of it on screen: the cards overlap when there are many. Tap a card for what it can do, or drag it
+ * up onto the battlefield to play it.
+ */
 @Composable
-private fun HandRow(s: Side, index: Int, onPick: (Picked) -> Unit) {
+private fun HandRow(s: Side, index: Int, onPick: (Picked) -> Unit, onPlay: (Piece) -> Unit) {
     val hand = s[Zone.HAND]
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 112.dp).horizontalScroll(rememberScrollState()).padding(horizontal = Space.s2, vertical = Space.s1),
-        horizontalArrangement = Arrangement.spacedBy(Space.s1),
-    ) {
+    var dragging by remember { mutableStateOf<Int?>(null) }
+    val playAt = with(LocalDensity.current) { 64.dp.toPx() }
+    Box(Modifier.fillMaxWidth().heightIn(min = 112.dp).padding(horizontal = Space.s2, vertical = Space.s1), contentAlignment = Alignment.CenterStart) {
         if (hand.isEmpty()) Text("No cards in hand", style = MaterialTheme.typography.bodySmall, color = Palette.OnDarkMuted, modifier = Modifier.padding(Space.s4))
-        hand.forEach { p -> PieceTile(p, 76.dp, onTap = { onPick(Picked(index, p.id)) }, onHold = { onPick(Picked(index, p.id)) }) }
+        FitRow(hand, 76.dp, z = { if (it.id == dragging) 1f else 0f }) { p ->
+            var drag by remember(p.id) { mutableStateOf(Offset.Zero) }
+            PieceTile(
+                p, 76.dp, onTap = { onPick(Picked(index, p.id)) }, onHold = { onPick(Picked(index, p.id)) },
+                modifier = Modifier
+                    .graphicsLayer { translationX = drag.x; translationY = drag.y }
+                    .pointerInput(p.id) {
+                        detectDragGestures(
+                            onDragStart = { dragging = p.id },
+                            onDragEnd = {
+                                if (drag.y < -playAt) onPlay(p)
+                                drag = Offset.Zero; dragging = null
+                            },
+                            onDragCancel = { drag = Offset.Zero; dragging = null },
+                        ) { change, d -> change.consume(); drag += d }
+                    },
+            )
+        }
     }
 }
 
@@ -254,10 +293,10 @@ private fun HandRow(s: Side, index: Int, onPick: (Picked) -> Unit) {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun PieceTile(p: Piece, width: Dp, onTap: () -> Unit, onHold: () -> Unit) {
+internal fun PieceTile(p: Piece, width: Dp, onTap: () -> Unit, onHold: () -> Unit, modifier: Modifier = Modifier) {
     val height = width * 1.4f
     Box(
-        Modifier.size(width, height).combinedClickable(onClick = onTap, onLongClick = onHold, onClickLabel = p.card.name),
+        modifier.size(width, height).combinedClickable(onClick = onTap, onLongClick = onHold, onClickLabel = p.card.name),
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(width, height).graphicsLayer {
@@ -294,7 +333,7 @@ internal fun PieceTile(p: Piece, width: Dp, onTap: () -> Unit, onHold: () -> Uni
 
 /** A card face with just words on it, for tokens, face-down cards and cards without a picture. */
 @Composable
-private fun PlainFace(title: String, sub: String?, modifier: Modifier) {
+internal fun PlainFace(title: String, sub: String?, modifier: Modifier) {
     Column(
         modifier.clip(CardShape).background(Palette.StagePanel).padding(Space.s1),
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
@@ -306,7 +345,7 @@ private fun PlainFace(title: String, sub: String?, modifier: Modifier) {
 
 /** A flat button for the dark table: panel fill and white text. */
 @Composable
-private fun StageButton(label: String, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun StageButton(label: String, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.StagePanel)
             .clickable(enabled = enabled, onClick = onClick),

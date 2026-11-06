@@ -37,4 +37,18 @@ class DrawOddsMathTest {
         assertTrue(OddsGroup.REMOVAL.has(OddsCard("Doom Blade", 1, "Instant", "Destroy target nonblack creature.")))
         assertTrue(!OddsGroup.RAMP.has(OddsCard("Forest", 1, "Basic Land — Forest", "({T}: Add {G}.)")))
     }
+
+    @Test fun severalOfAGroup() {
+        // 37 lands in 99: exactly 4 in the opening 7 is C(37,4)·C(62,3)/C(99,7) ≈ 0.1678.
+        assertEquals(0.1678, DrawOddsMath.exactly(99, 37, 7, 4), 0.001)
+        val hand = DrawOddsMath.openingHand(99, 37)
+        assertEquals(8, hand.size)
+        assertEquals(1.0, hand.sum(), 1e-9)
+        assertEquals(hand.drop(4).sum(), DrawOddsMath.atLeast(99, 37, 7, 4), 1e-9)
+        assertEquals(DrawOddsMath.atLeastOne(60, 4, 7), DrawOddsMath.atLeast(60, 4, 7, 1), 1e-12)
+        assertEquals(0.0, DrawOddsMath.atLeast(60, 2, 7, 3), 0.0)
+        val two = DrawOddsMath.byTurn(99, 37, onPlay = true, atLeast = 2)
+        val one = DrawOddsMath.byTurn(99, 37, onPlay = true)
+        assertTrue(two.indices.all { two[it] <= one[it] })
+    }
 }
