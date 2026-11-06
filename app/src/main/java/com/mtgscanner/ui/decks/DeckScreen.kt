@@ -228,13 +228,22 @@ fun DeckScreen(
                 val saltScores = com.mtgscanner.data.SaltScores.scores
                 val salt = remember(ui.text, saltScores) { com.mtgscanner.data.SaltMath.deck(com.mtgscanner.util.DecklistParser.parse(ui.text), saltScores) }
                 val totals = ui.check?.let { deckTotals(it.lines.filter { l -> l.section in PLAYED }) }
+                val bracket = rememberBracket(ui, vm)
+                var bracketOpen by remember { mutableStateOf(false) }
+                // A bracket set by hand wins over the worked-out one.
+                val chosenBracket = if (ui.id != 0L) BracketChoice.get(ctx, ui.id) else null
+                val shownBracket = chosenBracket ?: bracket?.level
                 com.mtgscanner.ui.components.CollapsingHeader(collapse) {
                     DeckArtHeader(
                         ui.format, ui.commanders, ui.leadArt, ui.issues,
                         onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
                         salt = salt, totals = totals, shape = ui.shape,
+                        bracket = shownBracket?.let { "Bracket $it: ${bracketName(it)}" }, onBracket = { bracketOpen = true },
                     )
                 }
+                if (bracketOpen && bracket != null) BracketSheet(
+                    bracket, chosenBracket, onChoose = { if (ui.id != 0L) BracketChoice.set(ctx, ui.id, it) }, onDismiss = { bracketOpen = false },
+                )
                 // Every played card already in the deck: nothing to pull, so the Pull list and the tab row go.
                 val allInDeck = ui.check?.lines?.filter { it.section in PLAYED }?.let { p -> p.isNotEmpty() && p.all { it.inDeck >= it.needed } } == true
                 if (!allInDeck) UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)

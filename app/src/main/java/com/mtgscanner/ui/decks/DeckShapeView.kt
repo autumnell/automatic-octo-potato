@@ -34,6 +34,8 @@ fun DeckShapeView(
     shape: DeckShape, modifier: Modifier = Modifier,
     /** Drawn over the commander art: light ink on the scrim, shorter bars, and no side margin of its own. */
     onArt: Boolean = false,
+    /** Drawn at the right end of the color legend row (the salt score on the art header). */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     if (shape.isEmpty) return
     val top = shape.curve.maxOrNull()?.coerceAtLeast(1) ?: 1
@@ -67,7 +69,8 @@ fun DeckShapeView(
             }
         }
         // A one-color deck has nothing to split, so the color bar is left out.
-        if (shape.pipTotal > 0 && shape.pips.count { (c, n) -> n > 0 && c in "WUBRG" } > 1) {
+        val split = shape.pipTotal > 0 && shape.pips.count { (c, n) -> n > 0 && c in "WUBRG" } > 1
+        if (split) {
             Spacer(Modifier.height(Space.s2))
             Row(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Corners.Small))) {
                 shape.pips.forEach { (c, n) ->
@@ -76,7 +79,7 @@ fun DeckShapeView(
             }
             Spacer(Modifier.height(Space.s1))
             val pct = DeckShapeMath.percents(shape.pips.map { it.second })
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.s3), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s3), verticalAlignment = Alignment.CenterVertically) {
                 shape.pips.forEachIndexed { i, (c, _) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ColorPip(c, 10.dp)
@@ -84,7 +87,11 @@ fun DeckShapeView(
                         Text("${pct.getOrElse(i) { 0 }}%", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = ink)
                     }
                 }
+                if (trailing != null) { Spacer(Modifier.weight(1f)); trailing() }
             }
+        } else if (trailing != null) {
+            Spacer(Modifier.height(Space.s1))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { trailing() }
         }
     }
 }
