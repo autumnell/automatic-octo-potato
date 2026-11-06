@@ -163,6 +163,8 @@ fun DeckScreen(
     startPictures: Boolean? = null,
     /** Opens with the actions sheet up, for the screen pictures. */
     startMenu: Boolean = false,
+    /** Opens in edit mode on this tab, for the screen pictures. */
+    startEditTab: EditTab? = null,
 ) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -176,6 +178,7 @@ fun DeckScreen(
     var odds by remember { mutableStateOf(false) }
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
+    LaunchedEffect(ui.loaded) { if (startEditTab != null && ui.loaded && ui.id != 0L) vm.edit() }
     val dirty = ui.editing && ui.text.trim() != vm.savedText.trim()
     val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
     val printProxies = DeckToolsLayer(vm.tools, ui, repo)
@@ -215,7 +218,7 @@ fun DeckScreen(
                 )
             }
             if (!ui.loaded) return@Column
-            if (ui.editing) Editor(ui, vm)
+            if (ui.editing) Editor(ui, vm, startEditTab)
             else {
                 val ctx = LocalContext.current
                 val edhrec = ui.edhrec
@@ -305,7 +308,7 @@ fun DeckScreen(
 }
 
 /** Opens [url] in the browser; nothing happens when no app can. */
-private fun openLink(ctx: android.content.Context, url: String) {
+internal fun openLink(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }
 
@@ -349,7 +352,7 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
 }
 
 @Composable
-private fun Editor(ui: DeckUi, vm: DeckViewModel) {
+private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
     val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text)
     Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Space.s4)) {
         OutlinedTextField(
@@ -365,20 +368,38 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel) {
             CommanderSlots(ui.format, ui.commanders, ui.leadInfo, vm::openPicker, vm::clearSlot)
         }
         Spacer(Modifier.height(Space.s3))
-        OutlinedTextField(
-            value = ui.text, onValueChange = vm::setText,
-            placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 420.dp),
-            shape = RoundedCornerShape(Corners.Medium), colors = colors,
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("One card per line", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
-            // A photo of a printed list: its lines join what's here, to check before saving.
-            FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
+        val tabs = editTabs(ui.format, ui.commanders)
+        var picked by rememberSaveable { mutableStateOf(startTab ?: EditTab.LIST) }
+        val tab = if (picked in tabs) picked else EditTab.LIST
+        EditTabRow(tabs, tab) { picked = it }
+        Spacer(Modifier.height(Space.s3))
+        when (tab) {
+            EditTab.LIST -> {
+                OutlinedTextField(
+                    value = ui.text, onValueChange = vm::setText,
+                    placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 420.dp),
+                    shape = RoundedCornerShape(Corners.Medium), colors = colors,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("One card per line", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                    // A photo of a printed list: its lines join what's here, to check before saving.
+                    FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
+                }
+            }
+            EditTab.CARDS -> DeckCardsTab(ui, vm)
+            EditTab.COMBOS -> CombosTab(ui, vm)
+            EditTab.EDHREC -> EdhrecTab(ui, vm)
         }
         Spacer(Modifier.height(Space.s2))
         GradientButton("Check my collection", vm::save, Modifier.fillMaxWidth(), enabled = ui.text.isNotBlank())
         Spacer(Modifier.height(Space.s6))
+    }
+    ui.printingLine?.let { line ->
+        val chosen = ui.printings?.firstOrNull { p ->
+            line.setCode != null && PrintingLookup.samePrinting(line.setCode, line.shownNumber, p.set, p.collectorNumber)
+        }
+        PrintingsSheet(ui.printings, chosen?.id, vm::pickPrinting, vm::closePrintings)
     }
 }
 

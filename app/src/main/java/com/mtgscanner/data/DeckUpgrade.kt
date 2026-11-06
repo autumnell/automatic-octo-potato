@@ -87,7 +87,7 @@ object DeckUpgradeMath {
 private val edhrecClient by lazy { sharedHttpClient.newBuilder().callTimeout(15, TimeUnit.SECONDS).build() }
 
 /** The JSON behind an EDHREC commander page; null when it can't be read. */
-private suspend fun edhrecPage(commanders: List<String>): String? = withContext(Dispatchers.IO) {
+internal suspend fun edhrecPage(commanders: List<String>): String? = withContext(Dispatchers.IO) {
     val slugs = commanders.map(Edhrec::slug).filter { it.isNotEmpty() }.distinct().take(2).sorted()
     if (slugs.isEmpty()) return@withContext null
     val req = Request.Builder().url("https://json.edhrec.com/pages/commanders/${slugs.joinToString("-")}.json")
