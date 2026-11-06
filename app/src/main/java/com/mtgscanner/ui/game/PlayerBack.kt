@@ -93,7 +93,6 @@ internal fun PlayerBack(
             IconButton(onClick = onPlayer, modifier = Modifier.size(BACK_BUTTON)) { Icon(Icons.Outlined.Person, "${p.name}: name, color, art and more", tint = Color.White) }
             IconButton(onClick = onDone, modifier = Modifier.size(BACK_BUTTON)) { Icon(Icons.Outlined.Check, "Done", tint = Color.White) }
         }
-        if (showDamage) DamageLabel()
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val width = maxWidth
             val height = maxHeight
@@ -102,16 +101,19 @@ internal fun PlayerBack(
             val wide = width > height * 1.2f
             val map: @Composable (Modifier) -> Unit = { m -> SeatMap(g, i, turned, ratio, m, onCommander) }
             if (wide) Row(Modifier.fillMaxSize()) {
-                if (showDamage) {
-                    map(Modifier.heightIn(max = height).widthIn(max = (width - COUNTERS_WIDTH).coerceAtLeast(MAP_MIN / 2)))
-                    Spacer(Modifier.width(Space.s3))
+                if (showDamage) Column(Modifier.fillMaxHeight().widthIn(max = (width - COUNTERS_WIDTH).coerceAtLeast(MAP_MIN / 2))) {
+                    // Beside the map, so the counters keep the full height.
+                    DamageLabel()
+                    map(Modifier.weight(1f, fill = false))
                 }
+                if (showDamage) Spacer(Modifier.width(Space.s3))
                 Column(
                     Modifier.fillMaxHeight().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Space.s1, Alignment.CenterVertically),
                 ) { counters.forEach { BackStepper(it) } }
             } else Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 if (showDamage) {
+                    DamageLabel()
                     map(Modifier.heightIn(max = (height * 0.6f).coerceAtLeast(MAP_MIN)).widthIn(max = width))
                     Spacer(Modifier.height(Space.s3))
                 }
@@ -137,7 +139,7 @@ private class BackCounter(val label: String, val value: Int, val icon: ImageVect
 
 @Composable
 private fun DamageLabel() {
-    Text("Commander damage", color = Palette.OnDarkMuted, style = MaterialTheme.typography.labelMedium)
+    Text("Commander damage", color = Palette.OnDarkMuted, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     Spacer(Modifier.height(Space.s1))
 }
 
