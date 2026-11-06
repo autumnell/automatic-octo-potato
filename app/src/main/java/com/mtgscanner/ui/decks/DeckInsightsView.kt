@@ -1,6 +1,18 @@
 package com.mtgscanner.ui.decks
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import com.mtgscanner.ui.components.ColorPip
+import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.MtgColors
+import com.mtgscanner.ui.theme.PriceStyle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -128,11 +140,6 @@ internal fun InsightRow(label: String, value: String, note: String?, onClick: ()
 }
 
 @Composable
-private fun SheetLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s4, bottom = Space.s1))
-}
-
-@Composable
 private fun SheetLine(text: String, muted: Boolean = false) {
     Text(
         text, style = MaterialTheme.typography.bodyMedium, color = if (muted) Palette.Muted else Palette.Text,
@@ -140,86 +147,235 @@ private fun SheetLine(text: String, muted: Boolean = false) {
     )
 }
 
-/** A label and its figure on one line, the figure on the right. */
+/**
+ * One group in an insight sheet: a panel in the page color, so it stands a clear step apart from the sheet, with a
+ * small muted heading and an optional figure on the right of it.
+ */
 @Composable
-private fun FigureLine(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium.merge(TabularNums))
+private fun InsightPanel(title: String? = null, trailing: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s2).fillMaxWidth()
+            .clip(RoundedCornerShape(Corners.Medium)).background(Palette.Background).padding(Space.s4),
+    ) {
+        if (title != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.weight(1f))
+                if (trailing != null) Text(trailing, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+            }
+            Spacer(Modifier.height(Space.s3))
+        }
+        content()
     }
 }
 
+/** The sheet's subtitle under its title. */
 @Composable
-private fun ColumnScope.NamesOrNone(names: List<String>) {
-    if (names.isEmpty()) SheetLine("None", muted = true) else names.forEach { SheetLine(it) }
+private fun SheetNote(text: String, top: Boolean = false) {
+    Text(
+        text, style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+        modifier = Modifier.padding(start = Space.s4, end = Space.s4, top = if (top) Space.s1 else Space.s4),
+    )
+}
+
+/** Two or three headline figures side by side, each a large number over its label. */
+@Composable
+private fun Figures(vararg items: Pair<String, String>) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+        items.forEach { (value, label) ->
+            Column(Modifier.weight(1f)) {
+                Text(value, style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.6f), color = Palette.Text, maxLines = 1)
+                Text(label, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2)
+            }
+        }
+    }
+}
+
+/** A thin bar filled to [fraction]: ink by default, or a mana color where the color means something. */
+@Composable
+private fun Meter(fraction: Float, modifier: Modifier = Modifier, color: Color = Palette.Text) {
+    Box(modifier.height(6.dp).clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh)) {
+        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().background(color))
+    }
+}
+
+/** A line of advice with a mark: a green check when all is well, a gold mark when something wants changing. */
+@Composable
+private fun AdviceLine(text: String, ok: Boolean) {
+    Row(Modifier.padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            if (ok) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline, null,
+            tint = if (ok) Palette.Success else Palette.GoldText, modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(Space.s2))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** One thing the bracket looks for: its name and count, then the cards found under it. */
+@Composable
+private fun CheckRow(label: String, names: List<String>?, first: Boolean) {
+    if (!first) HorizontalDivider(color = Palette.Rule)
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(
+            when { names == null -> "Couldn't check"; names.isEmpty() -> "None"; else -> "${names.size}" },
+            style = MaterialTheme.typography.labelLarge, color = if (names.isNullOrEmpty()) Palette.Muted else Palette.Text,
+        )
+    }
+    names?.forEach { n ->
+        Text(n, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(bottom = Space.s1))
+    }
+    if (!names.isNullOrEmpty()) Spacer(Modifier.height(Space.s1))
+}
+
+private val BRACKET_NAMES = listOf("Exhibition", "Core", "Upgraded", "Optimized", "cEDH")
+private val BRACKET_RULES = mapOf(
+    2 to "No Game Changers, no two-card combos, few tutors",
+    3 to "Up to 3 Game Changers, or a two-card combo, or several tutors or extra turns",
+    4 to "More than 3 Game Changers, or mass land denial",
+)
+
+/** The five brackets as steps, the deck's one filled in ink; 1 and 5 are faint because they aren't guessed. */
+@Composable
+private fun BracketScale(level: Int) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
+        (1..5).forEach { n ->
+            val on = n == level
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(Corners.Small))
+                        .background(if (on) Palette.Text else Palette.SurfaceHigh),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "$n", style = MaterialTheme.typography.titleMedium.merge(TabularNums),
+                        color = when { on -> Palette.Background; n == 1 || n == 5 -> Palette.Faint; else -> Palette.Muted },
+                    )
+                }
+                Spacer(Modifier.height(Space.s1))
+                Text(
+                    BRACKET_NAMES[n - 1], style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (on) Palette.Text else Palette.Muted,
+                )
+            }
+        }
+    }
 }
 
 @Composable
 private fun BracketSheet(b: Bracket, onDismiss: () -> Unit) {
-    DeckActionsSheet("Bracket ${b.level} · ${b.label}", onDismiss) {
-        Text(
-            "Worked out from the list. Brackets 1 and 5 depend on how the deck is meant to be played, so they aren't guessed.",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4),
-        )
-        SheetLabel("Game Changers (${b.gameChangers.size})")
-        NamesOrNone(b.gameChangers)
-        SheetLabel("Two-card combos")
-        val combos = b.twoCardCombos
-        if (combos == null) SheetLine("Couldn't check Commander Spellbook", muted = true) else NamesOrNone(combos.map { it.joinToString(" + ") })
-        SheetLabel("Mass land denial")
-        NamesOrNone(b.massLandDenial)
-        SheetLabel("Extra turns")
-        NamesOrNone(b.extraTurns)
-        SheetLabel("Tutors (${b.tutors.size})")
-        NamesOrNone(b.tutors)
-        SheetLabel("How it's set")
-        SheetLine("2 Core: no Game Changers, no two-card combos, few tutors", muted = true)
-        SheetLine("3 Upgraded: up to 3 Game Changers, or a two-card combo, or several tutors or extra turns", muted = true)
-        SheetLine("4 Optimized: more than 3 Game Changers, or mass land denial", muted = true)
+    DeckActionsSheet("Bracket ${b.level} · ${b.label}", onDismiss) { BracketBody(b) }
+}
+
+/** The bracket sheet under its title; internal so the screen pictures can draw it. */
+@Composable
+internal fun ColumnScope.BracketBody(b: Bracket) {
+    SheetNote("Worked out from the list", top = true)
+    InsightPanel {
+        BracketScale(b.level)
+        Spacer(Modifier.height(Space.s3))
+        Text(BRACKET_RULES[b.level].orEmpty(), style = MaterialTheme.typography.bodyMedium)
     }
+    InsightPanel("What it found") {
+        CheckRow("Game Changers", b.gameChangers, first = true)
+        CheckRow("Two-card combos", b.twoCardCombos?.map { it.joinToString(" + ") }, first = false)
+        CheckRow("Mass land denial", b.massLandDenial, first = false)
+        CheckRow("Extra turns", b.extraTurns, first = false)
+        CheckRow("Tutors", b.tutors, first = false)
+    }
+    InsightPanel("How it's set") {
+        (2..4).forEach { n ->
+            Row(Modifier.padding(vertical = Space.s1)) {
+                Text(
+                    "$n", style = MaterialTheme.typography.labelLarge, color = if (n == b.level) Palette.Text else Palette.Muted,
+                    modifier = Modifier.width(Space.s6),
+                )
+                Text(
+                    BRACKET_RULES.getValue(n), style = MaterialTheme.typography.bodySmall,
+                    color = if (n == b.level) Palette.Text else Palette.Muted,
+                )
+            }
+        }
+    }
+    SheetNote("Brackets 1 and 5 depend on how the deck is meant to be played, so they aren't guessed")
 }
 
 @Composable
 private fun ManaBaseSheet(m: ManaBase, onDismiss: () -> Unit) {
-    DeckActionsSheet("Mana base", onDismiss) {
-        Spacer(Modifier.height(Space.s2))
-        FigureLine("Lands", "${m.lands}")
-        m.suggested?.let { FigureLine("Suggested for this curve", "$it") }
-        FigureLine("Average mana value", "%.2f".format(m.avgManaValue))
-        SheetLabel("Advice")
-        if (m.advice.isEmpty()) SheetLine("Looks right for this curve and these colors") else m.advice.forEach { SheetLine(it) }
-        if (m.wanted.isNotEmpty()) {
-            SheetLabel("Sources of each color")
-            m.wanted.entries.sortedBy { "WUBRG".indexOf(it.key) }.forEach { (c, want) ->
-                FigureLine(ManaBaseMath.colorName(c).replaceFirstChar { it.uppercase() }, "${m.sources[c] ?: 0} of $want")
-            }
+    DeckActionsSheet("Mana base", onDismiss) { ManaBaseBody(m) }
+}
+
+/** The mana base sheet under its title. */
+@Composable
+internal fun ColumnScope.ManaBaseBody(m: ManaBase) {
+    SheetNote("Average mana value ${"%.2f".format(m.avgManaValue)}", top = true)
+    InsightPanel {
+        if (m.suggested != null) Figures("${m.lands}" to "Lands", "${m.suggested}" to "Suggested for this curve")
+        else Figures("${m.lands}" to "Lands")
+        m.suggested?.let { s ->
+            Spacer(Modifier.height(Space.s3))
+            Meter(m.lands.toFloat() / s, Modifier.fillMaxWidth())
         }
-        Spacer(Modifier.height(Space.s2))
-        Text(
-            "Frank Karsten's numbers: lands from the average mana value and cheap ramp, sources from each color's share of the mana symbols",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4),
-        )
+        Spacer(Modifier.height(Space.s3))
+        if (m.advice.isEmpty()) AdviceLine("Looks right for this curve and these colors", ok = true)
+        else m.advice.forEach { AdviceLine(it, ok = false) }
     }
+    if (m.wanted.isNotEmpty()) InsightPanel("Sources of each color", trailing = "Have / need") {
+        m.wanted.entries.sortedBy { "WUBRG".indexOf(it.key) }.forEachIndexed { i, (c, want) ->
+            val have = m.sources[c] ?: 0
+            if (i > 0) Spacer(Modifier.height(Space.s3))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ColorPip(c, 14.dp)
+                Spacer(Modifier.width(Space.s2))
+                Text(ManaBaseMath.colorName(c).replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (have < want) {
+                    Text("${want - have} short", style = MaterialTheme.typography.labelMedium, color = Palette.GoldText)
+                    Spacer(Modifier.width(Space.s2))
+                }
+                Text("$have / $want", style = MaterialTheme.typography.labelLarge, color = Palette.Text)
+            }
+            Spacer(Modifier.height(Space.s2))
+            Meter(have.toFloat() / want.coerceAtLeast(1), Modifier.fillMaxWidth(), color = if (c == 'W') MtgColors.WOnSurface else MtgColors.forLetter(c))
+        }
+    }
+    SheetNote("Frank Karsten's numbers: lands from the average mana value and cheap ramp, sources from each color's share of the mana symbols")
 }
 
 @Composable
 private fun GoldfishSheet(cards: List<InsightCard>, onDismiss: () -> Unit) {
     var onPlay by rememberSaveable { mutableStateOf(true) }
     val g by produceState<Goldfish?>(null, cards, onPlay) { value = withContext(Dispatchers.Default) { GoldfishMath.of(cards, onPlay = onPlay) } }
-    DeckActionsSheet("Goldfish", onDismiss) {
-        Text(
-            "1,000 games played alone, one land a turn when you have one",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4),
-        )
-        Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-            SelectPill("On the play", onPlay, { onPlay = true })
-            SelectPill("On the draw", !onPlay, { onPlay = false })
+    DeckActionsSheet("Goldfish", onDismiss) { GoldfishBody(g, onPlay) { onPlay = it } }
+}
+
+/** The goldfish sheet under its title: play or draw, then the results once worked out. */
+@Composable
+internal fun ColumnScope.GoldfishBody(g: Goldfish?, onPlay: Boolean, onToggle: (Boolean) -> Unit) {
+    SheetNote("1,000 games played alone, one land a turn when you have one", top = true)
+    Row(Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s3, bottom = Space.s1), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+        SelectPill("On the play", onPlay, { onToggle(true) })
+        SelectPill("On the draw", !onPlay, { onToggle(false) })
+    }
+    val r = g ?: return
+    InsightPanel {
+        val cmd = if (r.commanderCost != null && r.commanderOnCurve != null) pct(r.commanderOnCurve) to "Commander on turn ${r.commanderCost}" else null
+        if (cmd != null) Figures(pct(r.keepable) to "Opening 7s to keep", cmd, "%.1f".format(r.landsTurn5) to "Lands by turn 5")
+        else Figures(pct(r.keepable) to "Opening 7s to keep", "%.1f".format(r.landsTurn5) to "Lands by turn 5")
+        Spacer(Modifier.height(Space.s3))
+        Text("A keepable hand has 2 to 5 lands", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+    }
+    InsightPanel("Land drop each turn") {
+        r.landDrop.forEachIndexed { i, x ->
+            if (i > 0) Spacer(Modifier.height(Space.s3))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Turn ${i + 1}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(INSIGHT_LABEL * 0.75f))
+                Meter(x.toFloat(), Modifier.weight(1f))
+                Text(
+                    pct(x), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.End,
+                    modifier = Modifier.width(Space.s12),
+                )
+            }
         }
-        val r = g ?: return@DeckActionsSheet
-        FigureLine("Opening 7 you'd keep (2 to 5 lands)", pct(r.keepable))
-        r.landDrop.forEachIndexed { i, x -> FigureLine("Land drop on turn ${i + 1}", pct(x)) }
-        if (r.commanderCost != null && r.commanderOnCurve != null) FigureLine("Commander on turn ${r.commanderCost}", pct(r.commanderOnCurve))
-        FigureLine("Lands in play on turn 5", "%.1f".format(r.landsTurn5))
     }
 }
 

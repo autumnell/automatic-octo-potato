@@ -17,6 +17,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.mtgscanner.ui.decks.BracketBody
+import com.mtgscanner.ui.decks.GoldfishBody
+import com.mtgscanner.ui.decks.ManaBaseBody
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.captureToImage
@@ -164,6 +167,32 @@ class ScreenPicturesTest {
 
     @Test fun deckEditCards() = shoot("05d-deck-edit-cards") {
         com.mtgscanner.ui.decks.DeckScreen(deckId = 1L, onBack = {}, startEditTab = com.mtgscanner.ui.decks.EditTab.CARDS)
+    }
+
+    /** The deck page's insight sheets, drawn as their sheet would show them, with numbers like a real deck's. */
+    @Composable
+    private fun InsightSheet(title: String, body: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+        androidx.compose.foundation.layout.Column(
+            Modifier.fillMaxSize().background(com.mtgscanner.ui.theme.Palette.Surface).padding(top = Space.s4),
+        ) {
+            androidx.compose.material3.Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4))
+            body()
+        }
+    }
+
+    @Test fun deckBracket() = shoot("05e-deck-bracket") {
+        val b = com.mtgscanner.ui.decks.Bracket(2, emptyList(), emptyList(), emptyList(), listOf("Fabricate", "From Father to Son", "Guidelight Pathmaker"), emptyList())
+        InsightSheet("Bracket 2 · Core") { BracketBody(b) }
+    }
+
+    @Test fun deckManaBase() = shoot("05f-deck-mana-base") {
+        val m = com.mtgscanner.ui.decks.ManaBase(36, 39, 3.05, mapOf('W' to 22, 'U' to 18), mapOf('W' to 17, 'U' to 22))
+        InsightSheet("Mana base") { ManaBaseBody(m) }
+    }
+
+    @Test fun deckGoldfish() = shoot("05g-deck-goldfish") {
+        val g = com.mtgscanner.ui.decks.Goldfish(1000, 0.78, listOf(0.96, 0.84, 0.69, 0.51), 0.69, 3, 3.8)
+        InsightSheet("Goldfish") { GoldfishBody(g, true) {} }
     }
 
     @Test fun search() = shoot("06-search") {
