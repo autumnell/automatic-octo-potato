@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -145,106 +146,114 @@ fun GameSetupScreen(
                 Text("$at of $total", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(end = Space.s3))
             }
         }
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s4)) {
-            when (step) {
-                SetupStep.HOME -> {
-                    current?.let { g ->
-                        Spacer(Modifier.height(Space.s2))
-                        Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(Space.s3)) {
-                                Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall,
-                                    color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                                Spacer(Modifier.height(Space.s2))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    com.mtgscanner.ui.components.QuietButton(onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Resume") }
-                                    Spacer(Modifier.width(Space.s2))
-                                    TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
+        // The picking screens sit in the middle of the space; Home and Names start at the top.
+        val centered = step == SetupStep.FORMAT || step == SetupStep.PLAYERS || step == SetupStep.SEATS
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val room = maxHeight
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = room).padding(horizontal = Space.s4),
+                verticalArrangement = if (centered) Arrangement.Center else Arrangement.Top,
+            ) {
+                when (step) {
+                    SetupStep.HOME -> {
+                        current?.let { g ->
+                            Spacer(Modifier.height(Space.s2))
+                            Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(Space.s3)) {
+                                    Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
+                                    Text(
+                                        g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall,
+                                        color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Spacer(Modifier.height(Space.s2))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        com.mtgscanner.ui.components.QuietButton(onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) { Text("Resume") }
+                                        Spacer(Modifier.width(Space.s2))
+                                        TextButton(onClick = { ending = true }) { Text("End game", color = Palette.Muted) }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(Space.s3))
+                        if (last != null) {
+                            SameAsLast(last, names) { begin(last.format, last.players, last.life, last.partners, last.layout) }
+                            Spacer(Modifier.height(Space.s2))
+                        }
+                        StatsCard(records, onOpen = { showStats = true })
+                    }
+                    SetupStep.FORMAT -> {
+                        Question("What are you playing?")
+                        val formats = GameFormat.entries.filter { it != GameFormat.CUSTOM }
+                        TileGrid(formats.size, columns = 2) { i, m ->
+                            val f = formats[i]
+                            Tile(PLAYER_COLORS[i % PLAYER_COLORS.size], selected = f == format, modifier = m.heightIn(min = 104.dp), onClick = {
+                                format = f; life = f.life; players = f.defaultPlayers; layout = 0
+                                if (!f.commanderDamage) partners = false
+                                step = SetupStep.PLAYERS
+                            }) {
+                                Text(f.label, style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text("${f.life} life", style = MaterialTheme.typography.bodySmall, color = Palette.OnDarkMuted)
+                            }
+                        }
+                        Spacer(Modifier.height(Space.s3))
+                        OtherRow("Other starting life", if (format == GameFormat.CUSTOM) "$life life" else "House rules") { customLife = true }
+                    }
+                    SetupStep.PLAYERS -> {
+                        Question("How many players?")
+                        TileGrid(Player.MAX_PLAYERS, columns = 3) { i, m ->
+                            val n = i + 1
+                            Tile(PLAYER_COLORS[i], selected = n == players, modifier = m.aspectRatio(1f), center = true, onClick = {
+                                players = n; layout = TableLayouts.valid(n, layout)
+                                step = if (TableLayouts.count(n) > 1) SetupStep.SEATS else SetupStep.NAMES
+                            }) {
+                                Text("$n", style = MaterialTheme.typography.displaySmall, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    SetupStep.SEATS -> {
+                        Question("Where does everyone sit?")
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+                            repeat(TableLayouts.count(players)) { k ->
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    MiniTable(players, k, selected = k == layout) { layout = k; step = SetupStep.NAMES }
+                                    Spacer(Modifier.height(Space.s2))
+                                    Text(TableLayouts.label(players, k), style = MaterialTheme.typography.bodyMedium, color = if (k == layout) Palette.Text else Palette.Muted)
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(Space.s3))
-                    if (last != null) {
-                        SameAsLast(last, names) { begin(last.format, last.players, last.life, last.partners, last.layout) }
-                        Spacer(Modifier.height(Space.s2))
-                    }
-                    StatsCard(records, onOpen = { showStats = true })
-                }
-                SetupStep.FORMAT -> {
-                    Question("What are you playing?")
-                    val formats = GameFormat.entries.filter { it != GameFormat.CUSTOM }
-                    TileGrid(formats.size, columns = 2) { i, m ->
-                        val f = formats[i]
-                        Tile(PLAYER_COLORS[i % PLAYER_COLORS.size], selected = f == format, modifier = m.heightIn(min = 104.dp), onClick = {
-                            format = f; life = f.life; players = f.defaultPlayers; layout = 0
-                            if (!f.commanderDamage) partners = false
-                            step = SetupStep.PLAYERS
-                        }) {
-                            Text(f.label, style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Text("${f.life} life", style = MaterialTheme.typography.bodySmall, color = Palette.OnDarkMuted)
-                        }
-                    }
-                    Spacer(Modifier.height(Space.s3))
-                    OtherRow("Other starting life", if (format == GameFormat.CUSTOM) "$life life" else "House rules") { customLife = true }
-                }
-                SetupStep.PLAYERS -> {
-                    Question("How many players?")
-                    TileGrid(Player.MAX_PLAYERS, columns = 3) { i, m ->
-                        val n = i + 1
-                        Tile(PLAYER_COLORS[i], selected = n == players, modifier = m.aspectRatio(1f), center = true, onClick = {
-                            players = n; layout = TableLayouts.valid(n, layout)
-                            step = if (TableLayouts.count(n) > 1) SetupStep.SEATS else SetupStep.NAMES
-                        }) {
-                            Text("$n", style = MaterialTheme.typography.displaySmall, color = Color.White, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-                SetupStep.SEATS -> {
-                    Question("Where does everyone sit?")
-                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-                        repeat(TableLayouts.count(players)) { k ->
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                MiniTable(players, k, selected = k == layout) { layout = k; step = SetupStep.NAMES }
-                                Spacer(Modifier.height(Space.s2))
-                                Text(TableLayouts.label(players, k), style = MaterialTheme.typography.bodyMedium, color = if (k == layout) Palette.Text else Palette.Muted)
+                    SetupStep.NAMES -> {
+                        Question("Who's playing?")
+                        for (i in 0 until players) {
+                            Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(Space.s6).clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]))
+                                Spacer(Modifier.width(Space.s3))
+                                OutlinedTextField(
+                                    value = names[i], onValueChange = { names[i] = it }, singleLine = true,
+                                    placeholder = { Text("Player ${i + 1}") }, modifier = Modifier.weight(1f),
+                                )
                             }
                         }
-                    }
-                }
-                SetupStep.NAMES -> {
-                    Question("Who's playing?")
-                    for (i in 0 until players) {
-                        Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(Space.s6).clip(RoundedCornerShape(Corners.Small)).background(PLAYER_COLORS[i]))
-                            Spacer(Modifier.width(Space.s3))
-                            OutlinedTextField(
-                                value = names[i], onValueChange = { names[i] = it }, singleLine = true,
-                                placeholder = { Text("Player ${i + 1}") }, modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                    if (format.commanderDamage) {
-                        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Partner commanders", style = MaterialTheme.typography.bodyLarge)
-                                Text("Count damage from each partner on its own", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                        if (format.commanderDamage) {
+                            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Partner commanders", style = MaterialTheme.typography.bodyLarge)
+                                    Text("Count damage from each partner on its own", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                                }
+                                Switch(checked = partners, onCheckedChange = { partners = it })
                             }
-                            Switch(checked = partners, onCheckedChange = { partners = it })
                         }
+                        Spacer(Modifier.height(Space.s3))
+                        Text(
+                            listOf(format.label, "$players ${if (players == 1) "player" else "players"}", "$life life", TableLayouts.label(players, layout).takeIf { TableLayouts.count(players) > 1 })
+                                .filterNotNull().joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                        )
+                        Text("Everyone gets random card art. Change it from a player's menu at the table", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     }
-                    Spacer(Modifier.height(Space.s3))
-                    Text(
-                        listOf(format.label, "$players ${if (players == 1) "player" else "players"}", "$life life", TableLayouts.label(players, layout).takeIf { TableLayouts.count(players) > 1 })
-                            .filterNotNull().joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-                    )
-                    Text("Everyone gets random card art. Change it from a player's menu at the table", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
+                Spacer(Modifier.height(Space.s4))
             }
-            Spacer(Modifier.height(Space.s4))
         }
         // One main action per screen, pinned under the scroll so it's always in reach.
         when (step) {
