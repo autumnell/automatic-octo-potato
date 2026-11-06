@@ -89,7 +89,7 @@ data class BoxDraft(
 )
 
 /** A box's label color; 0 means the accent color. */
-fun boxColor(color: Int): Color = if (color == 0) Palette.Accent else Color(color)
+fun boxColor(color: Int): Color = if ((color ushr 24) == 0) Palette.Accent else Color(color)
 
 /**
  * Step-by-step sheet for making or editing a box:

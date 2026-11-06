@@ -61,7 +61,8 @@ private val derivedColors = listOf(
 fun boxStripeColors(boxes: List<BoxSummary>): Map<Long, Color> {
     var next = 0
     return boxes.associate { b ->
-        b.id to if (b.color != 0) Color(b.color) else derivedColors[next++ % derivedColors.size]
+        // A color with no alpha (0, or an old saved index like 1) counts as unset, else it would draw invisible.
+        b.id to if ((b.color ushr 24) != 0) Color(b.color) else derivedColors[next++ % derivedColors.size]
     }
 }
 
@@ -226,13 +227,22 @@ fun ValueBar(boxes: List<BoxSummary>, colors: Map<Long, Color>, onClick: () -> U
     val weights = boxes.map { b -> b to if (prices) b.value else b.cards.toDouble() }.filter { it.second > 0 }
     val sum = weights.sumOf { it.second }
     if (sum <= 0) return
-    Row(
-        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s4, vertical = Space.s2)
-            .height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh),
-        horizontalArrangement = Arrangement.spacedBy(Space.s1),
-    ) {
-        weights.forEach { (b, w) ->
-            Box(Modifier.weight((w / sum).toFloat().coerceAtLeast(0.002f)).fillMaxHeight().background(colors[b.id] ?: Palette.Accent))
+    // Labelled so the thin bar reads as a split by box, not an empty progress bar.
+    Row(modifier.clickable(onClick = onClick).padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (prices) "Value by box" else "Cards by box", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
+        Spacer(Modifier.width(Space.s2))
+        // Drawn rather than laid out with weights, so every box gets its segment however small.
+        val track = Palette.SurfaceHigh
+        val fallback = Palette.Accent
+        Canvas(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp))) {
+            drawRect(track)
+            val gap = 2.dp.toPx()
+            var x = 0f
+            weights.forEach { (b, w) ->
+                val width = size.width * (w / sum).toFloat()
+                drawRect(colors[b.id] ?: fallback, topLeft = Offset(x, 0f), size = Size((width - gap).coerceAtLeast(1f), size.height))
+                x += width
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.RotateRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -306,7 +307,7 @@ private fun HandRow(s: Side, index: Int, onPick: (Picked) -> Unit, onPlay: (Piec
 }
 
 /**
- * One card: its picture (or a plain face for a token or a face-down card), turned sideways when tapped, with its
+ * One card: its picture (or a plain face for a token or a face-down card), dimmed and marked when tapped, with its
  * counters and changed power and toughness written on it.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -317,13 +318,9 @@ internal fun PieceTile(p: Piece, width: Dp, onTap: () -> Unit, onHold: () -> Uni
         modifier.size(width, height).combinedClickable(onClick = onTap, onLongClick = onHold, onClickLabel = p.card.name),
         contentAlignment = Alignment.Center,
     ) {
-        // Tapping turns the card sideways smoothly.
+        // A tapped card stays upright so its name stays readable; it dims and says "Tapped" instead of turning sideways.
         val turn by animateFloatAsState(if (p.tapped) 1f else 0f, tween(Motion.base, easing = Motion.ease), label = "tap")
-        Box(Modifier.size(width, height).graphicsLayer {
-            rotationZ = 90f * turn
-            val k = 1f - 0.28f * turn
-            scaleX = k; scaleY = k
-        }) {
+        Box(Modifier.size(width, height).graphicsLayer { alpha = 1f - 0.45f * turn }) {
             when {
                 p.faceDown -> PlainFace("Face down", null, Modifier.fillMaxSize())
                 p.card.imageUrl == null -> PlainFace(p.card.name, p.card.typeLine.substringAfter("— ", "").ifBlank { null }, Modifier.fillMaxSize())
@@ -346,10 +343,14 @@ internal fun PieceTile(p: Piece, width: Dp, onTap: () -> Unit, onHold: () -> Uni
                 )
             }
         }
-        if (p.card.token) Text(
-            "Token", style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted,
-            modifier = Modifier.align(Alignment.TopCenter).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.75f)).padding(horizontal = Space.s1),
-        )
+        // Tokens say so; tapped cards get a small turned-arrow mark, which fits even the opponent's small cards.
+        if (p.card.token || p.tapped) Row(
+            Modifier.align(Alignment.TopCenter).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.75f)).padding(horizontal = Space.s1),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (p.card.token) Text("Token", style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, maxLines = 1)
+            if (p.tapped) Icon(Icons.Outlined.RotateRight, "Tapped", tint = Color.White, modifier = Modifier.size(12.dp))
+        }
     }
 }
 

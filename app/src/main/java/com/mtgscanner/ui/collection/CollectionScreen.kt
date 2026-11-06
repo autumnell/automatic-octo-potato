@@ -378,13 +378,15 @@ private fun BoxesTab(
         if (layout.sections.isEmpty()) EmptyState("All hidden", action = "Edit page", onAction = onEditPage)
         for (section in layout.sections) {
             when (section) {
-                // A thin colour bar by default; tap it for the full ring, and the ring to fold it back.
+                // A thin colour bar by default (in the Boxes row when that shows); tap it for the full ring, and the ring to fold it back.
                 CollectionSection.RING -> if (ringOpen) {
                     ValueRing(
                         ui.boxes, ui.stats, colors, ui.totalCards, ui.totalValue, totalEur = ui.totalEur, legend = layout.shows(CollectionPart.LEGEND),
                         modifier = Modifier.clickable { ringOpen = false },
                     )
-                } else ValueBar(ui.boxes, colors, onClick = { ringOpen = true })
+                } else if (CollectionSection.BOXES !in layout.sections) {
+                    ValueBar(ui.boxes, colors, onClick = { ringOpen = true }, modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4))
+                }
                 // Shown in the Boxes heading as a chip; here only when the Boxes section is hidden.
                 CollectionSection.TO_SORT -> {
                     val toMove = toSort.sumOf { it.card.quantity }
@@ -395,10 +397,15 @@ private fun BoxesTab(
                 CollectionSection.BOXES -> {
                     // One row with no title: the box tools menu and New on the right. The page search above the tabs
                     // finds boxes by name here, then cards with their box, divider and shelf spot.
-                    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                         // While searching, "Boxes" heads the boxes found, to set them apart from the cards below.
                         if (q.isNotEmpty()) Text("Boxes", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
-                        else Spacer(Modifier.weight(1f))
+                        // The folded value bar sits in this row, left of the tools, so it costs no row of its own.
+                        else Box(Modifier.weight(1f)) {
+                            if (CollectionSection.RING in layout.sections && !ringOpen) {
+                                ValueBar(ui.boxes, colors, onClick = { ringOpen = true }, modifier = Modifier.fillMaxWidth().padding(end = Space.s3))
+                            }
+                        }
                         val toMove = toSort.sumOf { it.card.quantity }
                         if (toMove > 0) ToSortChip(toMove) { sortingOpen = true }
                         // One menu for the box tools and order, then New.

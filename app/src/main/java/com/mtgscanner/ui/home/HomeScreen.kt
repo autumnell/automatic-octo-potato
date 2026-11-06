@@ -245,6 +245,11 @@ fun HomeScreen(
                         HomeHeading("To be sorted")
                         ToSortSection(toSort, { vm.sortAll() }, onOpenCard, onUnknown = { unknown = it }, shared = shared(section))
                     }
+                    // The cards you opened last, to get back to them in one tap.
+                    HomeSection.VIEWED -> com.mtgscanner.ui.collection.RecentCardsStrip(
+                        ui.totalCards, onOpen = { onOpenCard(it.id) }, cardWidth = 88.dp,
+                        heading = { HomeHeading("Recently viewed") },
+                    )
                     HomeSection.GOALS -> {
                         HomeHeading("Goals", if (goals.isNotEmpty()) "See all" else null, onGoals)
                         GoalsPreview(goals, onGoals)

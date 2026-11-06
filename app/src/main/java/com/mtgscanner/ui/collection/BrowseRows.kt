@@ -161,21 +161,22 @@ import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.CardShape
 import com.mtgscanner.ui.theme.TabularNums
 
-/** A few examples of Scryfall search syntax, which the collection search reads too. */
+/** A few examples of Scryfall search syntax, which the collection search reads too. [collection] adds its own words. */
 @Composable
-internal fun SyntaxHelp(modifier: Modifier = Modifier) {
+internal fun SyntaxHelp(modifier: Modifier = Modifier, collection: Boolean = true) {
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface).padding(horizontal = Space.s4, vertical = Space.s3),
     ) {
-        listOf(
+        (listOf(
             "t:elf  c:rg  id<=esper  mv>=4",
             "o:\"draw a card\"  r:mythic  s:mh2",
             "pow>tou  usd>5  is:foil  a:rush",
             "-t:land  (bolt or shock)  !\"Sol Ring\"",
+        ) + if (collection) listOf(
             "box:binder  tag:trade  cond:lp  qty>1",
             "added>=7d  is:lent  is:forsale",
             "f:modern  otag:ramp  (asks Scryfall)",
-        ).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Text) }
+        ) else listOf("f:modern  otag:ramp  is:commander")).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Text) }
     }
 }
 

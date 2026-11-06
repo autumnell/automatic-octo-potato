@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.search
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.pinchToResize
 import androidx.compose.foundation.background
@@ -187,6 +189,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
     val collapse = com.mtgscanner.ui.components.rememberCollapseState()
     LaunchedEffect(ui.ranQuery) { collapse.show() }
     val closeKeyboard = com.mtgscanner.ui.components.rememberKeyboardCloser()
+    var syntaxHelp by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().nestedScroll(closeKeyboard).nestedScroll(collapse.connection)) {
         com.mtgscanner.ui.components.CollapsingHeader(collapse) {
             Column(Modifier.fillMaxWidth().background(Palette.Surface).padding(horizontal = Space.s4, vertical = Space.s3)) {
@@ -195,6 +198,9 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(Corners.Medium)).background(Palette.SurfaceHigh).padding(start = Space.s4),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        // The keyboard's search key runs the search, so there's no separate Search button.
+                        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(Space.s3))
                         Box(Modifier.weight(1f)) {
                             if (ui.query.isEmpty()) Text("Search", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)
                             BasicTextField(
@@ -211,17 +217,14 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         if (ui.query.isNotEmpty()) {
                             IconButton(onClick = vm::clearResults) { Icon(Icons.Outlined.Close, "Clear search", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
                         } else {
-                            Spacer(Modifier.width(Space.s4))
+                            // How to write searches like t:dragon c:r, as in Browse.
+                            Text(
+                                "?", color = if (syntaxHelp) Palette.Text else Palette.Muted, style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.clip(RoundedCornerShape(Corners.Small)).clickable { syntaxHelp = !syntaxHelp }
+                                    .semantics { contentDescription = "Search tips" }.padding(horizontal = Space.s4, vertical = Space.s2),
+                            )
                         }
                     }
-                    Spacer(Modifier.width(Space.s3))
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(Corners.Medium))
-                            .background(Palette.Accent)
-                            .clickable { focus.clearFocus(); vm.submit() }
-                            .padding(horizontal = Space.s4, vertical = Space.s4),
-                    ) { Text("Search", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
                     IconButton(onClick = vm::toggleGrid) {
                         Icon(if (ui.grid) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView, "Change layout", tint = Palette.Icon)
                     }
@@ -234,9 +237,8 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                     )
                     Spacer(Modifier.width(Space.s2))
                     SelectPill("Price a list", false, { pricing = true })
-                    Spacer(Modifier.width(Space.s3))
-                    Text("e.g. t:dragon c:r", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                if (syntaxHelp) com.mtgscanner.ui.collection.SyntaxHelp(Modifier.padding(top = Space.s2), collection = false)
             }
         }
         Box(Modifier.fillMaxSize()) {
