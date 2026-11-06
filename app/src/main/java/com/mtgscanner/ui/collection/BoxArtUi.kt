@@ -230,12 +230,17 @@ fun ValueBar(boxes: List<BoxSummary>, colors: Map<Long, Color>, onClick: () -> U
     Row(modifier.clickable(onClick = onClick).padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
         Text(if (prices) "Value by box" else "Cards by box", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
         Spacer(Modifier.width(Space.s2))
-        Row(
-            Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Palette.SurfaceHigh),
-            horizontalArrangement = Arrangement.spacedBy(Space.s1),
-        ) {
+        // Drawn rather than laid out with weights, so every box gets its segment however small.
+        val track = Palette.SurfaceHigh
+        val fallback = Palette.Accent
+        Canvas(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp))) {
+            drawRect(track)
+            val gap = 2.dp.toPx()
+            var x = 0f
             weights.forEach { (b, w) ->
-                Box(Modifier.weight((w / sum).toFloat().coerceAtLeast(0.002f)).fillMaxHeight().background(colors[b.id] ?: Palette.Accent))
+                val width = size.width * (w / sum).toFloat()
+                drawRect(colors[b.id] ?: fallback, topLeft = Offset(x, 0f), size = Size((width - gap).coerceAtLeast(1f), size.height))
+                x += width
             }
         }
     }

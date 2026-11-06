@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.RotateRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -342,11 +343,14 @@ internal fun PieceTile(p: Piece, width: Dp, onTap: () -> Unit, onHold: () -> Uni
                 )
             }
         }
-        val tags = listOfNotNull("Token".takeIf { p.card.token }, "Tapped".takeIf { p.tapped })
-        if (tags.isNotEmpty()) Text(
-            tags.joinToString(" · "), maxLines = 1, style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted,
-            modifier = Modifier.align(Alignment.TopCenter).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.75f)).padding(horizontal = Space.s1),
-        )
+        // Tokens say so; tapped cards get a small turned-arrow mark, which fits even the opponent's small cards.
+        if (p.card.token || p.tapped) Row(
+            Modifier.align(Alignment.TopCenter).clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.75f)).padding(horizontal = Space.s1),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (p.card.token) Text("Token", style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, maxLines = 1)
+            if (p.tapped) Icon(Icons.Outlined.RotateRight, "Tapped", tint = Color.White, modifier = Modifier.size(12.dp))
+        }
     }
 }
 

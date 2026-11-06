@@ -89,7 +89,7 @@ object WhatsNew {
         314 to "Collection has an All tab with every card you own. The search above the tabs filters it, and Select, sorting and the views work as in Browse",
         330 to "On the back of a player's panel, commander damage is laid out like the table: each player's tile sits where they sit, and your own seat says You",
         334 to "Sort, Group and Filters are slimmer and share one row with Select and the card size button",
-        340 to "The game menu is one page: next turn, table, dice and game. Search has the search key on the keyboard and its tips under ?. Home can show cards you viewed recently. Tapped playtest cards stay upright and say Tapped. Accent colors are five muted ones that suit the look",
+        340 to "The game menu is one page: next turn, table, dice and game. Search has the search key on the keyboard and its tips under ?. Home can show cards you viewed recently. Tapped playtest cards stay upright, dimmed with a small turn mark. Accent colors are five muted ones that suit the look",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
