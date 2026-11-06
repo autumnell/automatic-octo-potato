@@ -94,6 +94,30 @@ internal fun deckIdentity(ui: DeckUi): Set<Char> {
 
 private enum class InsightSheet { MANA, GOLDFISH }
 
+/** A bracket the player set by hand for a deck (1 to 5), kept on the phone; none means use the worked-out one. */
+internal object BracketChoice {
+    private const val FILE = "deck_brackets"
+    private val cache = androidx.compose.runtime.mutableStateMapOf<Long, Int?>()
+
+    fun get(ctx: android.content.Context, deckId: Long): Int? {
+        if (deckId !in cache) {
+            cache[deckId] = ctx.applicationContext.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE)
+                .getInt(deckId.toString(), 0).takeIf { it in 1..5 }
+        }
+        return cache[deckId]
+    }
+
+    fun set(ctx: android.content.Context, deckId: Long, level: Int?) {
+        cache[deckId] = level
+        ctx.applicationContext.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).edit().apply {
+            if (level == null) remove(deckId.toString()) else putInt(deckId.toString(), level)
+        }.apply()
+    }
+}
+
+/** "Core", "Upgraded"… for a bracket from 1 to 5. */
+internal fun bracketName(level: Int): String = BRACKET_NAMES.getOrElse(level - 1) { "" }
+
 /**
  * A Commander deck's bracket, worked out from its list (shown under the commander's name on the deck page); null
  * for other formats and for lists too short to judge.
@@ -267,21 +291,22 @@ private val BRACKET_RULES = mapOf(
     5 to "cEDH: a competitive deck built to win as fast as it can",
 )
 
-/** The five brackets as steps, the deck's one filled in ink; 1 and 5 are faint because they aren't guessed. */
+/** The five brackets as steps, the deck's one filled in ink; tap one to set the bracket by hand. */
 @Composable
-private fun BracketScale(level: Int) {
+private fun BracketScale(level: Int, onPick: (Int) -> Unit = {}) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
         (1..5).forEach { n ->
             val on = n == level
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(Corners.Small))
-                        .background(if (on) Palette.Text else Palette.SurfaceHigh),
+                        .background(if (on) Palette.Text else Palette.SurfaceHigh)
+                        .clickable(onClickLabel = "Set bracket $n") { onPick(n) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "$n", style = MaterialTheme.typography.titleMedium.merge(TabularNums),
-                        color = when { on -> Palette.Background; n == 1 || n == 5 -> Palette.Faint; else -> Palette.Muted },
+                        color = if (on) Palette.Background else Palette.Muted,
                     )
                 }
                 Spacer(Modifier.height(Space.s1))
@@ -295,17 +320,28 @@ private fun BracketScale(level: Int) {
 }
 
 @Composable
-internal fun BracketSheet(b: Bracket, onDismiss: () -> Unit) {
-    DeckActionsSheet("Bracket ${b.level}: ${b.label}", onDismiss) { BracketBody(b) }
+internal fun BracketSheet(b: Bracket, chosen: Int?, onChoose: (Int?) -> Unit, onDismiss: () -> Unit) {
+    val shown = chosen ?: b.level
+    DeckActionsSheet("Bracket $shown: ${bracketName(shown)}", onDismiss) { BracketBody(b, chosen, onChoose) }
 }
 
 /** The bracket sheet under its title; internal so the screen pictures can draw it. */
 @Composable
-internal fun ColumnScope.BracketBody(b: Bracket) {
+internal fun ColumnScope.BracketBody(b: Bracket, chosen: Int? = null, onChoose: (Int?) -> Unit = {}) {
+    val shown = chosen ?: b.level
     InsightPanel {
-        BracketScale(b.level)
+        BracketScale(shown, onPick = { n -> onChoose(if (n == b.level) null else n) })
         Spacer(Modifier.height(Space.s3))
-        Text(BRACKET_RULES[b.level].orEmpty(), style = MaterialTheme.typography.bodyMedium)
+        Text(BRACKET_RULES[shown].orEmpty(), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(Space.s2))
+        // Set by hand or worked out: say which, and give the way back.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (chosen != null) "Set by you · the list says ${b.level}" else "Worked out from the list · tap a number to set your own",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f),
+            )
+            if (chosen != null) TextButton(onClick = { onChoose(null) }) { Text("Use ${b.level}") }
+        }
     }
     InsightPanel("Deck stats:") {
         CheckRow("Game Changers", b.gameChangers, first = true)
@@ -318,12 +354,12 @@ internal fun ColumnScope.BracketBody(b: Bracket) {
         (1..5).forEach { n ->
             Row(Modifier.padding(vertical = Space.s1)) {
                 Text(
-                    "$n", style = MaterialTheme.typography.labelLarge, color = if (n == b.level) Palette.Text else Palette.Muted,
+                    "$n", style = MaterialTheme.typography.labelLarge, color = if (n == shown) Palette.Text else Palette.Muted,
                     modifier = Modifier.width(Space.s6),
                 )
                 Text(
                     BRACKET_RULES.getValue(n), style = MaterialTheme.typography.bodySmall,
-                    color = if (n == b.level) Palette.Text else Palette.Muted,
+                    color = if (n == shown) Palette.Text else Palette.Muted,
                 )
             }
         }

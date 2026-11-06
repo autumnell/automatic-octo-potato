@@ -38,6 +38,27 @@ class DeckInsightsTest {
         assertEquals(listOf("Armageddon"), b.massLandDenial)
     }
 
+    @Test fun rampIsNotATutor() {
+        assertEquals(false, BracketMath.isTutor("Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield, then shuffle."))
+        assertEquals(false, BracketMath.isTutor("Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle."))
+        assertEquals(false, BracketMath.isTutor("Search your library for a Forest or Plains card, put it onto the battlefield, then shuffle."))
+        assertEquals(true, BracketMath.isTutor("Search your library for an artifact card, reveal it, put it into your hand, then shuffle."))
+        assertEquals(true, BracketMath.isTutor("Search your library for a card, put that card into your hand, then shuffle."))
+    }
+
+    @Test fun destroyingOneChosenTypeIsNotLandDenial() {
+        val season = spell(
+            "Season of Gathering", 6.0,
+            "Choose up to five {P} worth of modes. You may choose the same mode more than once.\n" +
+                "{P} — Put a +1/+1 counter on a creature you control. It gains vigilance and trample until end of turn.\n" +
+                "{P}{P} — Choose artifact or enchantment. Destroy all permanents of the chosen type.\n" +
+                "{P}{P}{P} — Draw cards equal to the greatest power among creatures you control.",
+        )
+        val jokulhaups = spell("Jokulhaups", 6.0, "Destroy all artifacts, creatures, and lands. They can't be regenerated.")
+        val b = BracketMath.of(filler(58) + season + jokulhaups + land("Forest", 40), emptySet(), null)
+        assertEquals(listOf("Jokulhaups"), b.massLandDenial)
+    }
+
     @Test fun tutorsAndExtraTurnsAreFoundByText() {
         val tutors = List(4) { spell("Tutor $it", 2.0, "Search your library for a card, put it into your hand, then shuffle.") }
         val ramp = spell("Rampant Growth", 2.0, "Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.")

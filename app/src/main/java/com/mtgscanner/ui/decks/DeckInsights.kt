@@ -58,9 +58,17 @@ object BracketMath {
         "Mana Vault", "Mishra's Workshop", "Mox Diamond", "Panoptic Mirror", "The One Ring", "The Tabernacle at Pendrell Vale",
     )
 
-    private val MLD = Regex("""destroy all (nonbasic )?lands|destroy all permanents|each player sacrifices (all|that many|a) lands?|lands don't untap|return all lands""", RegexOption.IGNORE_CASE)
+    // "Destroy all permanents" only when it stops there: Season of Gathering destroys all permanents "of the
+    // chosen type" (artifacts or enchantments), which is not land denial.
+    private val MLD = Regex("""destroy all (nonbasic )?lands|destroy all [a-z, ]*\band lands|destroy all permanents\.|each player sacrifices (all|that many) lands|lands don't untap|return all lands""", RegexOption.IGNORE_CASE)
     private val EXTRA_TURN = Regex("""takes? an extra turn""", RegexOption.IGNORE_CASE)
-    private val TUTOR = Regex("""search your library for (a|an|up to (one|two|three)) (?!basic )(?!(\w+ )?land)""", RegexOption.IGNORE_CASE)
+    /** Each "search your library for … card(s)" and what it looks for. */
+    private val SEARCH = Regex("""search your library for ([^.]*?)\bcards?\b""", RegexOption.IGNORE_CASE)
+    /** Ramp, not a tutor: the search finds a land, by name, type or basic land type. */
+    private val LAND_SEARCH = Regex("""\b(lands?|basic|plains|island|swamp|mountain|forest|gate|desert|cave|town)\b""", RegexOption.IGNORE_CASE)
+
+    /** A card that tutors: it searches the library for something other than lands. */
+    fun isTutor(oracle: String): Boolean = SEARCH.findAll(oracle).any { !LAND_SEARCH.containsMatchIn(it.groupValues[1]) }
 
     fun of(cards: List<InsightCard>, gameChangers: Set<String>, twoCardCombos: List<List<String>>?): Bracket {
         val gcKeys = gameChangers.map { DeckNames.key(it) }.toSet()
@@ -68,7 +76,7 @@ object BracketMath {
         val gc = names { DeckNames.key(it.name) in gcKeys }
         val mld = names { !it.isLand && MLD.containsMatchIn(it.oracleText) }
         val turns = names { EXTRA_TURN.containsMatchIn(it.oracleText) }
-        val tutors = names { !it.isLand && TUTOR.containsMatchIn(it.oracleText) }
+        val tutors = names { !it.isLand && isTutor(it.oracleText) }
         val combos = twoCardCombos.orEmpty()
         val level = when {
             gc.size > 3 || mld.isNotEmpty() -> 4
