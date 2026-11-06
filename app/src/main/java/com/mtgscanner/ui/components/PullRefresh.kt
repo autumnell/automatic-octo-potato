@@ -25,11 +25,15 @@ fun PriceRefreshBox(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifi
 }
 
 /**
- * [PriceRefreshBox] for screens without their own refresh: runs the same price refresh as
- * Collection and Settings, and says how it went in the app's snackbar.
+ * [PriceRefreshBox] for screens without their own refresh, saying how it went in the app's snackbar. With [cards]
+ * (a box's or a deck's printings) only those prices are refreshed; without, the whole collection's, as on Collection.
  */
 @Composable
-fun PriceRefreshBox(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+fun PriceRefreshBox(
+    modifier: Modifier = Modifier,
+    cards: (suspend () -> Collection<String>)? = null,
+    content: @Composable BoxScope.() -> Unit,
+) {
     val repo = (LocalContext.current.applicationContext as MtgApp).repository
     val scope = rememberCoroutineScope()
     var refreshing by remember { mutableStateOf(false) }
@@ -39,7 +43,7 @@ fun PriceRefreshBox(modifier: Modifier = Modifier, content: @Composable BoxScope
             if (!refreshing) {
                 refreshing = true
                 scope.launch {
-                    val msg = runCatching { repo.refreshPrices() }
+                    val msg = runCatching { if (cards != null) repo.refreshPricesOf(cards()) else repo.refreshPrices() }
                         .fold({ "Updated prices for $it cards" }, { "Couldn't refresh prices: ${it.message}" })
                     refreshing = false
                     Undo.offer(msg)

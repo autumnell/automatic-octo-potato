@@ -832,6 +832,32 @@ class CollectionRepository(
     private suspend fun refreshPricesLocked(): Int {
         val ids = dao.allScryfallIds()
         if (ids.isEmpty()) return 0
+        val updated = fetchPrices(ids)
+        // Daily points older than 90 days thin out to weekly ones.
+        runCatching { dao.thinPriceHistory(LocalDate.now().minusDays(90).toString()) }
+        // Wishlist prices too, so its total and alerts stay current.
+        val wishes = dao.allWishlist()
+        if (wishes.isNotEmpty()) {
+            val freshWish = runCatching { withBackoff { api.collection(wishes.map { it.scryfallId }) } }.getOrDefault(emptyList()).associateBy { it.id }
+            wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.updateWish(w.copy(priceUsd = f.prices.usd?.toDoubleOrNull())) } }
+        }
+        prefs.edit().putLong("pricesAt", System.currentTimeMillis()).apply()
+        recordSnapshot()
+        return updated
+    }
+
+    /**
+     * Refreshes the prices of just these printings: a box's or a deck's cards, from that screen's pull to refresh.
+     * The collection-wide refresh time is left alone, so the daily refresh still runs.
+     */
+    suspend fun refreshPricesOf(scryfallIds: Collection<String>): Int {
+        val ids = scryfallIds.filter { it.isNotBlank() }.distinct()
+        if (ids.isEmpty()) return 0
+        return priceLock.withLock { fetchPrices(ids) }.also { recordSnapshot() }
+    }
+
+    /** Fetches and saves today's prices for [ids]; how many card rows changed. */
+    private suspend fun fetchPrices(ids: List<String>): Int {
         // Fetched and saved a batch at a time: a failed request keeps what came before, and network
         // errors and "too many requests" are tried again after a pause.
         var updated = 0
@@ -860,16 +886,6 @@ class CollectionRepository(
             // The card list on the phone gets today's prices too, so scans of owned cards needn't ask Scryfall.
             localCards.update(fresh)
         }
-        // Daily points older than 90 days thin out to weekly ones.
-        runCatching { dao.thinPriceHistory(LocalDate.now().minusDays(90).toString()) }
-        // Wishlist prices too, so its total and alerts stay current.
-        val wishes = dao.allWishlist()
-        if (wishes.isNotEmpty()) {
-            val freshWish = runCatching { withBackoff { api.collection(wishes.map { it.scryfallId }) } }.getOrDefault(emptyList()).associateBy { it.id }
-            wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.updateWish(w.copy(priceUsd = f.prices.usd?.toDoubleOrNull())) } }
-        }
-        prefs.edit().putLong("pricesAt", System.currentTimeMillis()).apply()
-        recordSnapshot()
         return updated
     }
 

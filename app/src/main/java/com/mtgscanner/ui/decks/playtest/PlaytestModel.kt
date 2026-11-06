@@ -18,8 +18,11 @@ data class PlayCard(
     val isPermanent: Boolean get() = typeLine.isNotBlank() && "Instant" !in typeLine && "Sorcery" !in typeLine
 }
 
-/** A deck to play: the cards shuffled into the library, and commanders that start in the command zone. */
-data class PlayDeck(val name: String, val cards: List<PlayCard>, val commanders: List<PlayCard> = emptyList())
+/**
+ * A deck to play: the cards shuffled into the library, and commanders that start in the command zone. [format] is the
+ * deck's format id ("modern", "commander"; "" when none is set), which sets the starting life.
+ */
+data class PlayDeck(val name: String, val cards: List<PlayCard>, val commanders: List<PlayCard> = emptyList(), val format: String = "")
 
 enum class Zone(val label: String) {
     LIBRARY("Library"), HAND("Hand"), BATTLEFIELD("Battlefield"), GRAVEYARD("Graveyard"), EXILE("Exile"), COMMAND("Command zone"),
@@ -80,8 +83,17 @@ data class Table(
 object Playtest {
     const val HAND = 7
 
-    /** Commander decks start at 40 life, others at 20. */
-    fun startingLife(deck: PlayDeck): Int = if (deck.commanders.isNotEmpty()) 40 else 20
+    /**
+     * Life for a two-player game of the deck's format: Commander 40, PDH 30, Brawl 25, Duel Commander, Oathbreaker
+     * and the constructed formats 20. A deck with no format starts at 40 when it has a commander.
+     */
+    fun startingLife(deck: PlayDeck): Int = when (deck.format) {
+        "commander" -> 40
+        "paupercommander" -> 30
+        "brawl", "standardbrawl" -> 25
+        "" -> if (deck.commanders.isNotEmpty()) 40 else 20
+        else -> 20
+    }
 
     /** Shuffles each deck, deals 7 and puts commanders in the command zone. You go first. */
     fun start(you: PlayDeck, opponent: PlayDeck?, random: Random): Table {

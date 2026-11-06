@@ -6,6 +6,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.FileCopy
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import com.mtgscanner.data.CollectionRepository
@@ -30,14 +34,14 @@ private fun copyText(ctx: Context, label: String, text: String) {
 }
 
 
-/** "Copy list", "Share list" and "Duplicate" for the deck's menu. [close] shuts the menu. */
+/** "Copy list", "Share list" and "Duplicate" for the deck's actions sheet. [close] shuts the sheet. */
 @Composable
 fun DeckListMenuItems(ui: DeckUi, close: () -> Unit, onDuplicate: () -> Unit) {
     val ctx = LocalContext.current
     val title = ui.name.ifBlank { "Deck" }
-    DropdownMenuItem(text = { Text("Copy list") }, onClick = { close(); copyText(ctx, title, deckListText(ui)) })
-    DropdownMenuItem(text = { Text("Share list") }, onClick = { close(); shareText(ctx, title, deckListText(ui)) })
-    DropdownMenuItem(text = { Text("Duplicate") }, onClick = { close(); onDuplicate() })
+    DeckActionRow(Icons.Outlined.ContentCopy, "Copy list", "As text, to paste into Moxfield or Archidekt") { close(); copyText(ctx, title, deckListText(ui)) }
+    DeckActionRow(Icons.Outlined.Share, "Share list", "Send the list to another app") { close(); shareText(ctx, title, deckListText(ui)) }
+    DeckActionRow(Icons.Outlined.FileCopy, "Duplicate", "A new deck with the same list, without its cards") { close(); onDuplicate() }
 }
 
 /**

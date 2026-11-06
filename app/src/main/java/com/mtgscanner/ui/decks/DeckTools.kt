@@ -36,6 +36,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.Upgrade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -192,29 +197,29 @@ class DeckTools(
     }
 }
 
-/** The tools' lines in the deck's ⋮ menu. */
+/** The tools' rows in the deck's actions sheet. */
 @Composable
 fun DeckToolsMenuItems(tools: DeckTools, ui: DeckUi, inDeck: Int, close: () -> Unit, onPrint: () -> Unit) {
     val lent by tools.lentTo.collectAsStateWithLifecycle()
     if (lent != null) {
-        DropdownMenuItem(text = { Text("Mark returned") }, onClick = { close(); tools.returned() })
+        DeckActionRow(Icons.Outlined.Replay, "Mark returned", "Lent to $lent") { close(); tools.returned() }
     } else if (inDeck > 0) {
-        DropdownMenuItem(text = { Text("Lend deck") }, onClick = { close(); tools.lending = true })
+        DeckActionRow(Icons.Outlined.PersonAdd, "Lend deck", "Note who has it until it comes back") { close(); tools.lending = true }
     }
     val leads = ui.commanders.commanders
     if (DeckFormats.isCommander(ui.format) && leads.isNotEmpty()) {
-        DropdownMenuItem(text = { Text("Upgrade from your cards") }, onClick = {
+        DeckActionRow(Icons.Outlined.Upgrade, "Upgrade from your cards", "Cards you own in the commander's colors") {
             close()
             // Each commander's colors, once they've loaded; null has the tools look them up first.
             val known = leads.all { ui.leadInfo[it.lowercase()] != null }
             val identity = if (!known) null else "WUBRG".filter { c -> leads.any { c in ui.leadInfo[it.lowercase()]?.identity.orEmpty().uppercase() } }
             tools.openUpgrade(leads, identity, ui.text)
-        })
+        }
     }
     if (ui.check?.missingLines?.isNotEmpty() == true) {
-        DropdownMenuItem(text = { Text("Print proxies") }, onClick = { close(); onPrint() })
+        DeckActionRow(Icons.Outlined.Print, "Print proxies", "A PDF of the missing cards") { close(); onPrint() }
     }
-    DropdownMenuItem(text = { Text("Build with another deck") }, onClick = { close(); tools.pickingOther = true })
+    DeckActionRow(Icons.Outlined.Layers, "Build with another deck", "Which cards both decks need") { close(); tools.pickingOther = true }
 }
 
 /** The tools' dialogs and sheets. Call [print] to ask where to save the proxies. */

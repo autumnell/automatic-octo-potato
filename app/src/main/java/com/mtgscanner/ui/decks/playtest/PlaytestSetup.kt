@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mtgscanner.data.DeckFormats
 import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.PlaceholderRows
@@ -66,7 +67,7 @@ internal fun PlaytestSetup(ui: PlaytestUi, vm: PlaytestViewModel, onBack: () -> 
             if (deck != null) {
                 Text(deck.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${deck.cards.size + deck.commanders.size} cards" +
+                    listOfNotNull(DeckFormats.of(deck.format).label.takeIf { deck.format.isNotEmpty() }, "${deck.cards.size + deck.commanders.size} cards").joinToString(" · ") +
                         if (deck.commanders.isNotEmpty()) " · ${deck.commanders.joinToString(" & ") { it.name }}" else "",
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
@@ -94,7 +95,7 @@ internal fun PlaytestSetup(ui: PlaytestUi, vm: PlaytestViewModel, onBack: () -> 
         when (against) {
             Against.NONE -> Spacer(Modifier.weight(1f))
             Against.DECKS -> LazyColumn(Modifier.weight(1f)) {
-                if (decks.isEmpty()) item { Text("No other decks yet", color = Palette.Muted, modifier = Modifier.padding(Space.s4)) }
+                if (decks.isEmpty()) item { Text(noneOfFormat(deck?.format.orEmpty(), "decks"), color = Palette.Muted, modifier = Modifier.padding(Space.s4)) }
                 items(decks, key = { it.id }) { d -> PickRow(d.name, null, picked == d) { picked = d } }
             }
             Against.PRECONS -> Column(Modifier.weight(1f)) {
@@ -103,9 +104,13 @@ internal fun PlaytestSetup(ui: PlaytestUi, vm: PlaytestViewModel, onBack: () -> 
                 if (list == null) PlaceholderRows(6, Modifier.padding(Space.s4))
                 else {
                     val q = query.trim()
-                    val shown = list.filter { q.isEmpty() || it.name.contains(q, true) || it.code.equals(q, true) }
+                    // Only precons of this deck's format; a constructed one is checked card by card at Start.
+                    val format = deck?.format.orEmpty()
+                    val fits = list.filter { PlaytestFormats.preconFits(format, it.isCommander, DeckFormats.isCommander(format)) }
+                    val shown = fits.filter { q.isEmpty() || it.name.contains(q, true) || it.code.equals(q, true) }
                     LazyColumn(Modifier.weight(1f)) {
                         if (list.isEmpty()) item { Text("Couldn't load the precon list", color = Palette.Muted, modifier = Modifier.padding(Space.s4)) }
+                        else if (fits.isEmpty()) item { Text(noneOfFormat(format, "precons"), color = Palette.Muted, modifier = Modifier.padding(Space.s4)) }
                         items(shown, key = { it.fileName }) { e ->
                             val o = Opponent.Precon(e)
                             PickRow(e.name, "${e.code} · ${e.releaseDate.take(4)} · ${e.type}", picked == o) { picked = o }
@@ -120,6 +125,17 @@ internal fun PlaytestSetup(ui: PlaytestUi, vm: PlaytestViewModel, onBack: () -> 
             modifier = Modifier.fillMaxWidth().padding(Space.s4),
             enabled = deck != null && !ui.opponentLoading && (against == Against.NONE || picked != null),
         )
+    }
+}
+
+/** "No other Modern decks", or "No precons for Brawl". */
+private fun noneOfFormat(format: String, what: String): String {
+    val label = DeckFormats.of(format).label.takeIf { format.isNotEmpty() }
+    return when {
+        what == "decks" && label != null -> "No other $label decks"
+        what == "decks" -> "No other decks without a format"
+        label != null -> "No precons for $label"
+        else -> "No precons"
     }
 }
 

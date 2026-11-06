@@ -300,7 +300,7 @@ private fun PlainFace(title: String, sub: String?, modifier: Modifier) {
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        if (sub != null) Text(sub, style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (sub != null && !sub.equals(title, true)) Text(sub, style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
