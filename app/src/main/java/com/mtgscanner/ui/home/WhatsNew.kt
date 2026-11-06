@@ -76,6 +76,7 @@ object WhatsNew {
         263 to "Boxes and Decks: the search moved up into the heading row, next to the menu and New",
         267 to "Collection has one search again: it finds boxes or decks first, then the cards. Light mode is a soft grey instead of cream, and box value changes say since added",
         270 to "Playtest a deck: from its menu, play turns on a table with tokens, counters and tapping, alone or against another of your decks or a precon that plays itself. Complete decks drop the Pull list and the owned numbers. Pick a deck per seat in Game to track its win rate (shown and editable on the deck), and browse every precon in Search",
+        274 to "Commander decks open with their art across the top, and a complete deck shows its cards as pictures grouped by type. The grid button by Find in deck switches between pictures and the list",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

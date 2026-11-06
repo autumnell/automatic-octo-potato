@@ -54,7 +54,9 @@ object SampleCollection {
             scryfallId = "sample-$i", oracleId = "oracle-${i % cards.size}", name = c[0], setCode = c[1], setName = c[2],
             collectorNumber = c[3], rarity = c[4], typeLine = c[5], manaCost = c[6],
             cmc = c[6].count { it == '{' }.toDouble(), colors = c[7], colorIdentity = c[7], oracleText = "", tags = "",
-            priceUsd = price, priceUsdFoil = price * 1.8, imageUrl = null, smallImageUrl = null, scryfallUri = "", lang = "en",
+            priceUsd = price, priceUsdFoil = price * 1.8,
+            // One picture link, so the deck page draws its commander art header (it may not load in the test).
+            imageUrl = if (c[0].startsWith("Atraxa")) "https://api.scryfall.com/cards/2xm/190?format=image&version=normal" else null, smallImageUrl = null, scryfallUri = "", lang = "en",
             releasedAt = "2021-06-18", artist = "Sample Artist", foil = i % 9 == 0, quantity = 1 + (i % 4), condition = "NM",
             boxId = boxId, priceAtAdd = price * 0.9, purchasePrice = null, addedAt = now - i * 3_600_000L, updatedAt = now - i * 3_600_000L,
         )
@@ -82,7 +84,7 @@ object SampleCollection {
         repo.saveDeck(
             0, "Atraxa superfriends",
             "1 Atraxa, Praetors' Voice\n1 Sol Ring\n1 Arcane Signet\n1 Command Tower\n1 Smothering Tithe\n1 Rhystic Study\n1 Teferi, Time Raveler\n1 Cyclonic Rift\n30 Island",
-            format = "commander", commanders = "Atraxa, Praetors' Voice",
+            format = "commander", commanders = "commander:Atraxa, Praetors' Voice",
         )
     }
 }
