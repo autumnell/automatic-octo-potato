@@ -23,6 +23,9 @@ data class DeckCardInfo(
     val edhrec: String? = null,
     /** Scryfall's legality by format key; a format that's missing isn't known. */
     val legalities: Map<String, String> = emptyMap(),
+    /** Printed power and toughness (the front face's), for the playtest table; null for non-creatures. */
+    val power: String? = null,
+    val toughness: String? = null,
 )
 
 object DeckNames {
@@ -50,7 +53,7 @@ private fun CollectionCard.deckInfo(): DeckCardInfo {
     return DeckCardInfo(
         name = name, cmc = cmc, manaCost = manaCost, typeLine = typeLine,
         colors = colors, colorIdentity = colorIdentity, oracleText = oracleText,
-        imageUrl = imageUrl,
+        imageUrl = imageUrl, power = power, toughness = toughness,
         // No legality tags at all: not known (an old or hand-made row), rather than "not legal anywhere".
         legalities = if (legal.isEmpty()) emptyMap() else TAGGED_FORMATS.associateWith { if (it in legal) "legal" else "not_legal" },
     )
@@ -96,6 +99,8 @@ suspend fun CollectionRepository.deckCardInfo(names: Collection<String>, format:
                         colors = c.effectiveColors.joinToString(""), colorIdentity = c.colorIdentity.joinToString(""),
                         oracleText = c.effectiveOracleText, imageUrl = c.imageUrl, edhrec = c.relatedUris["edhrec"],
                         legalities = c.legalities,
+                        power = c.power ?: c.cardFaces?.firstOrNull()?.power,
+                        toughness = c.toughness ?: c.cardFaces?.firstOrNull()?.toughness,
                     )
                     cardCache[k] = info
                     out[k] = info

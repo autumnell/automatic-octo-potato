@@ -151,7 +151,7 @@ import com.mtgscanner.ui.components.panelRow
 
 /** One deck: paste or edit the list, then see what you own, where it is, and what's missing. */
 @Composable
-fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null) {
+fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? = null, onPlaytest: (() -> Unit)? = null) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
     // Keeps the deck check running only while this screen is showing.
@@ -199,6 +199,7 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Add to collection") }, onClick = { menu = false; addingAll = true })
                             DropdownMenuItem(text = { Text("Update from link") }, onClick = { menu = false; vm.changes.updateFromLink(ui.id, vm.savedText) })
+                            if (ui.id != 0L && onPlaytest != null) DropdownMenuItem(text = { Text("Playtest") }, onClick = { menu = false; onPlaytest() })
                             if (ui.check != null) DropdownMenuItem(text = { Text("Sample hand") }, onClick = { menu = false; sampling = true })
                             DropdownMenuItem(text = { Text("Draw odds") }, onClick = { menu = false; odds = true })
                             DeckListMenuItems(ui, close = { menu = false }, onDuplicate = vm::duplicate)
@@ -229,8 +230,10 @@ fun DeckScreen(deckId: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)? 
                         salt = salt,
                     )
                 }
-                UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
-                when (view) {
+                // Every played card already in the deck: nothing to pull, so the Pull list and the tab row go.
+                val allInDeck = ui.check?.lines?.filter { it.section in PLAYED }?.let { p -> p.isNotEmpty() && p.all { it.inDeck >= it.needed } } == true
+                if (!allInDeck) UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
+                when (if (allInDeck) 0 else view) {
                     1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
                         val checks by vm.pullChecks.collectAsStateWithLifecycle()
@@ -386,7 +389,8 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             ui.shape?.let { DeckShapeView(it) }
-            Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
+            // A complete deck has nothing missing, so the owned and missing numbers would only say so.
+            if (have < needed) Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
                 Stat("Owned", "$have / $needed", Modifier.weight(1f))
                 if (AppSettings.showPrices) Stat("Missing cost", missingCostText, Modifier.weight(1f))
                 else Stat("Missing", "${needed - have}", Modifier.weight(1f))
@@ -396,7 +400,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
             val valueEur = played.sumOf { (it.priceEur ?: 0.0) * it.needed }
             val small = listOfNotNull(
                 if (AppSettings.showPrices && primaryValue(value, valueEur) > 0) "Value ${formatMoney(value, valueEur)}" else null,
-                if (have > 0) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
+                if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
             if (small.isNotEmpty()) {
                 Text(

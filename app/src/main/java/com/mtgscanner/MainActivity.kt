@@ -415,7 +415,19 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
                 popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
             ) {
-                DeckScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") })
+                val id = it.arguments?.getLong("id") ?: 0L
+                DeckScreen(
+                    deckId = id, onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") },
+                    onPlaytest = { nav.navigate("deck/$id/playtest") },
+                )
+            }
+            composable(
+                "deck/{id}/playtest",
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                enterTransition = { slideInHorizontally { it / 3 } + fadeIn() },
+                popExitTransition = { slideOutHorizontally { it / 3 } + fadeOut() },
+            ) {
+                com.mtgscanner.ui.decks.playtest.PlaytestScreen(deckId = it.arguments?.getLong("id") ?: 0L, onBack = { nav.popFrom(it) })
             }
             composable(
                 "browse/{boxId}",
