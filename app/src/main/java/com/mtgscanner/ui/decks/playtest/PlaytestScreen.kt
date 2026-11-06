@@ -1,6 +1,8 @@
 package com.mtgscanner.ui.decks.playtest
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,6 +65,7 @@ import com.mtgscanner.ui.components.GradientButton
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.theme.CardShape
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.theme.TabularNums
@@ -83,6 +86,7 @@ fun PlaytestScreen(
     /** With [preview]: show it as the opening hand, before the keep. */
     previewOpening: Boolean = false,
 ) {
+    com.mtgscanner.ui.components.KeepUpright()
     val vm: PlaytestViewModel = viewModel(key = "playtest$deckId", factory = AppViewModels.playtest(deckId))
     if (preview != null) remember(preview) { vm.show(preview, previewOpening); true }
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -156,6 +160,7 @@ private fun PlayTable(t: Table, ui: PlaytestUi, vm: PlaytestViewModel, onBack: (
         HandRow(t.sides[me], me, onPick = { picked = it }, onPlay = { p ->
             // Permanents go onto the battlefield; instants and sorceries are cast, so they go to the graveyard.
             val to = if (p.card.isPermanent || p.card.typeLine.isBlank()) Zone.BATTLEFIELD else Zone.GRAVEYARD
+            com.mtgscanner.util.Haptics.tick()
             vm.act { Playtest.move(it, me, p.id, to) }
         })
         Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
@@ -247,8 +252,21 @@ private fun Battlefield(s: Side, index: Int, small: Boolean, vm: PlaytestViewMod
                         style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted.copy(alpha = 0.6f),
                         textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                     )
-                } else FitRow(cards, w) { p ->
-                    PieceTile(p, w, onTap = { vm.act { Playtest.toggleTap(it, index, p.id) } }, onHold = { onPick(Picked(index, p.id)) })
+                } else FitRow(Stacks.of(cards), w, id = { it.first().id }) { pile ->
+                    val p = pile.first()
+                    Box {
+                        PieceTile(
+                            p, w,
+                            // A pile taps or untaps one of its lands at a time.
+                            onTap = { com.mtgscanner.util.Haptics.tick(); vm.act { Playtest.toggleTap(it, index, p.id) } },
+                            onHold = { onPick(Picked(index, p.id)) },
+                        )
+                        if (pile.size > 1) Text(
+                            "×${pile.size}", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Color.White,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(Space.s1).clip(RoundedCornerShape(Corners.Small))
+                                .background(Color.Black.copy(alpha = 0.75f)).padding(horizontal = Space.s1),
+                        )
+                    }
                 }
             }
         }
@@ -266,7 +284,7 @@ private fun HandRow(s: Side, index: Int, onPick: (Picked) -> Unit, onPlay: (Piec
     val playAt = with(LocalDensity.current) { 64.dp.toPx() }
     Box(Modifier.fillMaxWidth().heightIn(min = 112.dp).padding(horizontal = Space.s2, vertical = Space.s1), contentAlignment = Alignment.CenterStart) {
         if (hand.isEmpty()) Text("No cards in hand", style = MaterialTheme.typography.bodySmall, color = Palette.OnDarkMuted, modifier = Modifier.padding(Space.s4))
-        FitRow(hand, 76.dp, z = { if (it.id == dragging) 1f else 0f }) { p ->
+        FitRow(hand, 76.dp, id = { it.id }, z = { if (it.id == dragging) 1f else 0f }) { p ->
             var drag by remember(p.id) { mutableStateOf(Offset.Zero) }
             PieceTile(
                 p, 76.dp, onTap = { onPick(Picked(index, p.id)) }, onHold = { onPick(Picked(index, p.id)) },
@@ -299,8 +317,12 @@ internal fun PieceTile(p: Piece, width: Dp, onTap: () -> Unit, onHold: () -> Uni
         modifier.size(width, height).combinedClickable(onClick = onTap, onLongClick = onHold, onClickLabel = p.card.name),
         contentAlignment = Alignment.Center,
     ) {
+        // Tapping turns the card sideways smoothly.
+        val turn by animateFloatAsState(if (p.tapped) 1f else 0f, tween(Motion.base, easing = Motion.ease), label = "tap")
         Box(Modifier.size(width, height).graphicsLayer {
-            if (p.tapped) { rotationZ = 90f; scaleX = 0.72f; scaleY = 0.72f }
+            rotationZ = 90f * turn
+            val k = 1f - 0.28f * turn
+            scaleX = k; scaleY = k
         }) {
             when {
                 p.faceDown -> PlainFace("Face down", null, Modifier.fillMaxSize())

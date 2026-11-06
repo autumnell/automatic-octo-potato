@@ -43,6 +43,7 @@ import com.mtgscanner.data.DeckFormats
 import com.mtgscanner.data.DeckIdeasMath
 import com.mtgscanner.data.EdhrecRec
 import com.mtgscanner.scan.DeckText
+import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.theme.Palette
@@ -68,42 +69,54 @@ fun EditTabRow(tabs: List<EditTab>, tab: EditTab, onTab: (EditTab) -> Unit) {
 @Composable
 private fun Stepper(count: Int, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onChange(-1) }, enabled = count > 0) {
+        IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(-1) }, enabled = count > 0) {
             Icon(Icons.Outlined.Remove, "One fewer", tint = if (count > 0) Palette.Icon else Palette.Faint, modifier = Modifier.size(20.dp))
         }
         Text("$count", style = MaterialTheme.typography.bodyLarge.merge(TabularNums), modifier = Modifier.width(Space.s6))
-        IconButton(onClick = { onChange(1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
     }
 }
 
 /**
- * Edit › Cards: the main deck as rows with a picture, the printing (tap to change it) and − / + for the count.
+ * Edit › Cards: the main deck grouped by card type, each row with a picture, the printing (tap to change it) and
+ * − / + for the count. The commanders have their own slots above, so they're left out. A Find box narrows the list.
  * Changes go into the list and are saved with it.
  */
 @Composable
 fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
-    val lines = remember(ui.text) { DecklistParser.parse(ui.text).filter { it.section == "Main" } }
+    var query by rememberSaveable { mutableStateOf("") }
+    val leads = remember(ui.commanders) { ui.commanders.all.map { DeckNames.key(it) }.toSet() }
+    val lines = remember(ui.text, leads) { DecklistParser.parse(ui.text).filter { it.section == "Main" && DeckNames.key(it.name) !in leads } }
     if (lines.isEmpty()) {
         Text("No cards yet: add them in List, Combos or EDHREC", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s6))
         return
     }
+    SearchField(query, { query = it }, placeholder = "Find in deck")
+    val q = query.trim()
+    val shown = if (q.isEmpty()) lines else lines.filter { it.name.contains(q, ignoreCase = true) }
     Text(
-        "${lines.sumOf { it.quantity }} cards in the main deck",
+        if (q.isEmpty()) "${lines.sumOf { it.quantity }} cards, not counting commanders" else "${shown.size} of ${lines.size} cards",
         style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s2),
     )
-    lines.forEachIndexed { i, l ->
-        if (i > 0) HorizontalDivider(color = Palette.Rule)
-        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-            CardImage(ui.cardInfo[DeckNames.key(l.name)]?.imageUrl, Modifier.width(36.dp), zoom = true)
-            Spacer(Modifier.width(Space.s3))
-            Column(Modifier.weight(1f).clickable { vm.openPrintingsFor(l) }.padding(vertical = Space.s1)) {
-                Text(l.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    l.setCode?.let { s -> s.uppercase() + (l.collectorNumber?.let { " #$it" } ?: "") + " · Change printing" } ?: "Pick a printing",
-                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+    DeckTypes.group(shown) { ui.cardInfo[DeckNames.key(it.name)]?.typeLine }.forEach { (type, group) ->
+        Text(
+            "${if (group.sumOf { it.quantity } == 1) type.one else type.many} (${group.sumOf { it.quantity }})",
+            style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s1),
+        )
+        group.forEachIndexed { i, l ->
+            if (i > 0) HorizontalDivider(color = Palette.Rule)
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                CardImage(ui.cardInfo[DeckNames.key(l.name)]?.imageUrl, Modifier.width(36.dp), zoom = true)
+                Spacer(Modifier.width(Space.s3))
+                Column(Modifier.weight(1f).clickable { vm.openPrintingsFor(l) }.padding(vertical = Space.s1)) {
+                    Text(l.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        l.setCode?.let { s -> s.uppercase() + (l.collectorNumber?.let { " #$it" } ?: "") + " · Change printing" } ?: "Pick a printing",
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Stepper(l.quantity) { d -> vm.adjustCard(l.name, d) }
             }
-            Stepper(l.quantity) { d -> vm.adjustCard(l.name, d) }
         }
     }
 }
@@ -151,13 +164,19 @@ private fun ComboGroup(title: String, combos: List<Combo>, emptyText: String, on
         if (i > 0) HorizontalDivider(color = Palette.Rule)
         Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
+                // The combo's cards side by side; hold one to see it big.
+                if (combo.images.isNotEmpty()) Row(Modifier.padding(bottom = Space.s1), horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
+                    combo.cards.take(5).forEach { n ->
+                        CardImage(combo.images[n], Modifier.width(44.dp), zoom = combo.images[n] != null, grey = n in combo.missing)
+                    }
+                }
                 Text(combo.cards.joinToString(" + "), style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (combo.produces.isNotEmpty()) Text(
                     combo.produces.take(2).joinToString(", "),
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 if (onAdd != null) combo.missing.forEach { name ->
-                    TextButton(onClick = { onAdd(name) }) {
+                    TextButton(onClick = { com.mtgscanner.util.Haptics.tick(); onAdd(name) }) {
                         Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(Space.s1))
                         Text("Add $name", maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -205,6 +224,8 @@ fun EdhrecTab(ui: DeckUi, vm: DeckViewModel) {
 @Composable
 private fun EdhrecRow(rec: EdhrecRec, inDeck: Int, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        CardImage(rec.imageUrl, Modifier.width(36.dp), zoom = rec.imageUrl != null)
+        Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f).padding(vertical = Space.s1)) {
             Text(rec.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
@@ -216,7 +237,7 @@ private fun EdhrecRow(rec: EdhrecRec, inDeck: Int, onChange: (Int) -> Unit) {
             )
         }
         if (inDeck > 0) Stepper(inDeck, onChange)
-        else TextButton(onClick = { onChange(1) }) {
+        else TextButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) {
             Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s1))
             Text("Add")

@@ -280,7 +280,7 @@ internal fun CardGrid(
     Box(Modifier.fillMaxWidth().weight(1f)) {
         LazyVerticalGrid(
             state = state,
-            columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Fixed(1),
+            columns = if (grid) GridCells.Adaptive(108.dp) else GridCells.Adaptive(LIST_COLUMN),
             contentPadding = PaddingValues(start = 10.dp, end = if (jumpBar) 28.dp else 10.dp, bottom = 24.dp),
             modifier = Modifier.fillMaxSize().then(
                 if (onDragSelect != null) Modifier.dragToSelect(state, order, { selectedNow }, onDragSelect, scope) else Modifier,
@@ -294,7 +294,12 @@ internal fun CardGrid(
                     }
                 }
                 items(cards, key = { it.id }, contentType = { if (grid) "tile" else if (dense) "dense" else "row" }) { c ->
-                    Box(Modifier.animateItem().flashOnce(c.id in justAdded)) {
+                    Box(
+                        Modifier.animateItem().flashOnce(c.id in justAdded).then(
+                            if (grid) Modifier.semantics(mergeDescendants = true) { contentDescription = spokenRow(c, if (AppSettings.showPrices) cardPriceShort(c) else null) }
+                            else Modifier,
+                        ),
+                    ) {
                     if (grid) {
                         CardTile(
                             c.smallImageUrl ?: c.imageUrl, c.name, cardPriceShort(c), quantity = c.quantity, foil = c.foil,
@@ -468,6 +473,12 @@ private val USD_COL = 64.dp
 @Composable
 private fun usdCol(): Dp = USD_COL * LocalDensity.current.fontScale.coerceAtLeast(1f)
 private val WEEK_COL = 52.dp
+
+/** A card row as TalkBack reads it. */
+internal fun spokenRow(c: CollectionCard, price: String?): String = listOfNotNull(
+    c.name, c.setCode.uppercase(), if (c.quantity == 1) "1 copy" else "${c.quantity} copies",
+    "foil".takeIf { c.foil }, price?.takeIf { it.isNotBlank() },
+).joinToString(", ")
 private val COL_GAP = 8.dp
 
 // Row text styles, made once rather than for every row.
@@ -537,6 +548,8 @@ private fun PriceRow(
                 drawLine(RuleColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
             }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            // TalkBack reads the row as one line: "Lightning Bolt, M11, 2 copies, foil, $1.20".
+            .semantics(mergeDescendants = true) { contentDescription = spokenRow(c, if (AppSettings.showPrices) rowPrice(c) else null) }
             .heightIn(min = if (dense) 44.dp else 52.dp)
             .padding(horizontal = Space.s2, vertical = Space.s2),
         horizontalArrangement = Arrangement.spacedBy(COL_GAP),
@@ -703,3 +716,6 @@ internal object ScrollMemory {
     fun get(key: String): Pair<Int, Int>? = spots[key]
     fun put(key: String, index: Int, offset: Int) { spots[key] = index to offset }
 }
+
+/** The narrowest a column of card rows gets: one column on an upright phone, two when the phone is turned sideways. */
+internal val LIST_COLUMN = 360.dp
