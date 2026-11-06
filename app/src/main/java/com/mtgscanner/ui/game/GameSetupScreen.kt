@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -83,16 +84,16 @@ fun gameViewModel(): GameViewModel =
     viewModel(viewModelStoreOwner = LocalContext.current as ComponentActivity, factory = AppViewModels.Factory)
 
 /** The setup screens, one question each: what format, how many players, where they sit, and their names. */
-private enum class SetupStep(val title: String) { HOME("Game"), FORMAT("Format"), PLAYERS("Players"), SEATS("Seats"), NAMES("Names") }
+private enum class SetupStep(val title: String) { FORMAT("Game"), PLAYERS("Players"), SEATS("Seats"), NAMES("Names") }
 
 /**
- * The Game tab. Its first screen resumes the game in progress or starts a new one; a new game then asks one
- * thing per screen with big tiles to tap, and ends on the names and Start.
+ * The Game tab. It opens on the format tiles, with the game in progress and "Same as last time" above them; a new
+ * game then asks one thing per screen with big tiles to tap, and ends on the names and Start.
  */
 @Composable
 fun GameSetupScreen(
     onPlay: () -> Unit,
-    /** Opens on this setup screen (0 the first, 4 the names), for the screen pictures. */
+    /** Opens on this setup screen (0 the formats, 3 the names), for the screen pictures. */
     startAt: Int = 0,
 ) {
     com.mtgscanner.ui.components.KeepUpright()
@@ -118,7 +119,7 @@ fun GameSetupScreen(
     var customLife by remember { mutableStateOf(false) }
 
     fun begin(f: GameFormat, n: Int, l: Int, p: Boolean, seats: Int) {
-        val go = { vm.start(f, n, l, names.take(n), p, seats); step = SetupStep.HOME; onPlay() }
+        val go = { vm.start(f, n, l, names.take(n), p, seats); step = SetupStep.FORMAT; onPlay() }
         if (current != null) startingNew = go else go()
     }
     fun back() {
@@ -126,27 +127,27 @@ fun GameSetupScreen(
             SetupStep.NAMES -> if (TableLayouts.count(players) > 1) SetupStep.SEATS else SetupStep.PLAYERS
             SetupStep.SEATS -> SetupStep.PLAYERS
             SetupStep.PLAYERS -> SetupStep.FORMAT
-            else -> SetupStep.HOME
+            else -> SetupStep.FORMAT
         }
     }
-    BackHandler(enabled = step != SetupStep.HOME) { back() }
+    BackHandler(enabled = step != SetupStep.FORMAT) { back() }
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            if (step != SetupStep.HOME) IconButton(onClick = ::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
+            if (step != SetupStep.FORMAT) IconButton(onClick = ::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             Text(
                 step.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f)
-                    .padding(start = if (step == SetupStep.HOME) Space.s3 else Space.s1),
+                    .padding(start = if (step == SetupStep.FORMAT) Space.s3 else Space.s1),
             )
-            if (step == SetupStep.HOME) StyleMenu(style, vm::setStyle)
+            if (step == SetupStep.FORMAT) StyleMenu(style, vm::setStyle, onStats = { showStats = true })
             else {
                 // Where you are: the Seats step only comes up when the player count has more than one way to sit.
                 val total = if (TableLayouts.count(players) > 1) 4 else 3
-                val at = if (step == SetupStep.NAMES) total else step.ordinal
+                val at = if (step == SetupStep.NAMES) total else step.ordinal + 1
                 Text("$at of $total", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(end = Space.s3))
             }
         }
-        // The picking screens sit in the middle of the space; Home and Names start at the top.
+        // The picking screens sit in the middle of the space; Names starts at the top, under the keyboard.
         val centered = step == SetupStep.FORMAT || step == SetupStep.PLAYERS || step == SetupStep.SEATS
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val room = maxHeight
@@ -155,9 +156,9 @@ fun GameSetupScreen(
                 verticalArrangement = if (centered) Arrangement.Center else Arrangement.Top,
             ) {
                 when (step) {
-                    SetupStep.HOME -> {
+                    SetupStep.FORMAT -> {
                         current?.let { g ->
-                            Spacer(Modifier.height(Space.s2))
+                            Spacer(Modifier.height(Space.s3))
                             Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(Space.s3)) {
                                     Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
@@ -174,14 +175,10 @@ fun GameSetupScreen(
                                 }
                             }
                         }
-                        Spacer(Modifier.height(Space.s3))
                         if (last != null) {
+                            Spacer(Modifier.height(Space.s3))
                             SameAsLast(last, names) { begin(last.format, last.players, last.life, last.partners, last.layout) }
-                            Spacer(Modifier.height(Space.s2))
                         }
-                        StatsCard(records, onOpen = { showStats = true })
-                    }
-                    SetupStep.FORMAT -> {
                         Question("What are you playing?")
                         val formats = GameFormat.entries.filter { it != GameFormat.CUSTOM }
                         TileGrid(formats.size, columns = 2) { i, m ->
@@ -197,6 +194,10 @@ fun GameSetupScreen(
                         }
                         Spacer(Modifier.height(Space.s3))
                         OtherRow("Other starting life", if (format == GameFormat.CUSTOM) "$life life" else "House rules") { customLife = true }
+                        if (records.isNotEmpty()) {
+                            Spacer(Modifier.height(Space.s3))
+                            StatsCard(records, onOpen = { showStats = true })
+                        }
                     }
                     SetupStep.PLAYERS -> {
                         Question("How many players?")
@@ -257,10 +258,6 @@ fun GameSetupScreen(
         }
         // One main action per screen, pinned under the scroll so it's always in reach.
         when (step) {
-            SetupStep.HOME -> GradientButton(
-                if (current != null) "Start a new game" else "New game", { step = SetupStep.FORMAT },
-                Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
-            )
             SetupStep.NAMES -> GradientButton(
                 "Start", { begin(format, players, life, partners, layout) },
                 Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
@@ -373,11 +370,13 @@ private fun SameAsLast(last: LastSetup, names: List<String>, onStart: () -> Unit
 
 /** The table look, tucked in a menu since it's rarely changed. */
 @Composable
-private fun StyleMenu(style: TableStyle, onPick: (TableStyle) -> Unit) {
+private fun StyleMenu(style: TableStyle, onPick: (TableStyle) -> Unit, onStats: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Outlined.MoreVert, contentDescription = "More", tint = Palette.Icon) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Game stats") }, onClick = { open = false; onStats() })
+            HorizontalDivider()
             Text("Table style", style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s3, vertical = Space.s2))
             TableStyle.entries.forEach { t ->
                 DropdownMenuItem(
