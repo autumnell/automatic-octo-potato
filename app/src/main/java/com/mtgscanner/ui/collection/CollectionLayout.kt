@@ -82,9 +82,9 @@ data class CollectionLayout(
 
 /** The sub-tabs of the Collection tab; Boxes is always there. */
 enum class CollectionTab(val label: String, val part: CollectionPart?) {
-    BOXES("Boxes", null),
-    /** Every card in the collection, as in Browse. */
+    /** Every card in the collection, as in Browse. The first tab, and where the page opens. */
     ALL("All", null),
+    BOXES("Boxes", null),
     DECKS("Decks", CollectionPart.DECKS),
     WISHLIST("Wishlist", CollectionPart.WISHLIST),
     TOOLS("Tools", CollectionPart.TOOLS),

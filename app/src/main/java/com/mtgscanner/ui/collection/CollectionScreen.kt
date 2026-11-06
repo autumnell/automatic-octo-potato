@@ -177,7 +177,7 @@ fun CollectionScreen(
     onBuylist: () -> Unit = {},
     vm: CollectionViewModel = viewModel(factory = AppViewModels.Factory),
     /** The tab it opens on, for the screen pictures. */
-    startTab: CollectionTab = CollectionTab.BOXES,
+    startTab: CollectionTab = CollectionTab.ALL,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val weekChange by vm.weekChange.collectAsStateWithLifecycle()
@@ -189,7 +189,7 @@ fun CollectionScreen(
     val layout = CollectionPrefs.layout
     var editingLayout by remember { mutableStateOf(false) }
     var tabName by rememberSaveable { mutableStateOf(startTab.name) }
-    val tab = CollectionTab.entries.firstOrNull { it.name == tabName } ?: CollectionTab.BOXES
+    val tab = CollectionTab.entries.firstOrNull { it.name == tabName } ?: CollectionTab.ALL
     // One search for the page: Boxes and Decks each show their own matches, then the cards found.
     var search by rememberSaveable { mutableStateOf("") }
     var scanningLabel by remember { mutableStateOf(false) }
@@ -275,12 +275,12 @@ fun CollectionScreen(
                     )
                 }
                 // Above the tabs, so it's there on every one. Wishlist and Tools have nothing to match, so typing there
-                // moves to Boxes. On All it filters the cards like Browse's own search.
+                // moves to All. On All it filters the cards like Browse's own search.
                 if (layout.shows(CollectionPart.BROWSE)) SearchField(
                     search,
                     { q ->
                         search = q
-                        if (q.isNotBlank() && tab != CollectionTab.BOXES && tab != CollectionTab.DECKS && tab != CollectionTab.ALL) tabName = CollectionTab.BOXES.name
+                        if (q.isNotBlank() && tab != CollectionTab.BOXES && tab != CollectionTab.DECKS && tab != CollectionTab.ALL) tabName = CollectionTab.ALL.name
                     },
                     Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
                     placeholder = "Search",
@@ -310,7 +310,7 @@ fun CollectionScreen(
     }
     if (editingLayout) EditCollectionDialog(onDismiss = {
         editingLayout = false
-        if (tab !in CollectionTab.shown(CollectionPrefs.layout)) tabName = CollectionTab.BOXES.name
+        if (tab !in CollectionTab.shown(CollectionPrefs.layout)) tabName = CollectionTab.ALL.name
     })
     if (sharingAll) ShareDialog("My collection", scope, onDismiss = { sharingAll = false }) { vm.allCards().map { it.shareLine() } }
     if (scanningLabel) BoxQrScanSheet(
