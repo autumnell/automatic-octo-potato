@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Motion
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
@@ -13,7 +14,7 @@ import com.mtgscanner.ui.theme.Palette
 /** A soft accent glow over a row that fades over a second, when [on]: marks a card that was just added. */
 fun Modifier.flashOnce(on: Boolean): Modifier = if (!on) this else composed {
     val glow = remember { Animatable(0.22f) }
-    LaunchedEffect(Unit) { glow.animateTo(0f, tween(1200)) }
+    LaunchedEffect(Unit) { glow.animateTo(0f, tween(1200, easing = Motion.ease)) }
     drawWithContent {
         drawContent()
         val a = glow.value

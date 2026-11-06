@@ -131,6 +131,16 @@ class DesignRulesTest {
         assertTrue("Use Motion.ease and no bounce in: $bad", bad.isEmpty())
     }
 
+    /** A tween with no easing falls back to FastOutSlowIn, a second curve; every tween names Motion.ease (or linear for loops). */
+    @Test
+    fun everyTweenNamesItsEasing() {
+        val call = Regex("""\btween\(([^()]|\([^()]*\))*\)""")
+        val bad = sources.flatMap { f ->
+            call.findAll(f.readText()).filter { "easing" !in it.value }.map { "${f.name}: ${it.value}" }.toList()
+        }
+        assertTrue("Give these tweens easing = Motion.ease: $bad", bad.isEmpty())
+    }
+
     private fun lum(hex: String): Double {
         fun ch(i: Int): Double {
             val v = hex.substring(1 + 2 * i, 3 + 2 * i).toInt(16) / 255.0

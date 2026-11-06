@@ -273,8 +273,10 @@ fun BrowseScreen(
                         DropdownMenuItem(text = { Text(b.placeName()) }, onClick = { switching = false; onOpenBox?.invoke(b.id) })
                     }
                 }
-                Text(
-                    if (f.activeCount > 0 || f.query.isNotBlank()) "${ui.shownCards} of ${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}"
+                // In Collection's All tab the totals line above the tabs already has the count; show it only once filtered.
+                val filtered = f.activeCount > 0 || f.query.isNotBlank()
+                if (!embedded || filtered) Text(
+                    if (filtered) "${ui.shownCards} of ${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}"
                     else "${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,

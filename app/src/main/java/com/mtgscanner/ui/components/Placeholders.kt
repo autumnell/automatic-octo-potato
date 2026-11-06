@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -41,7 +42,7 @@ private fun pulse(): State<Float> =
     rememberInfiniteTransition(label = "placeholder").animateFloat(
         initialValue = 1f,
         targetValue = 0.6f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(900, easing = Motion.ease), RepeatMode.Reverse),
         label = "placeholderPulse",
     )
 

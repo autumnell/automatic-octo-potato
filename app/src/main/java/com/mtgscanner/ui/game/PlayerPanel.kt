@@ -111,7 +111,7 @@ internal fun PlayerPanel(
     onPlayer: () -> Unit,
 ) {
     // ⋯ flips the panel over to its back: commander damage and counters. ✓ flips it back.
-    var flipped by remember { mutableStateOf(false) }
+    var flipped by remember(g.startedAt) { mutableStateOf(false) }
     val turn by animateFloatAsState(if (flipped) 180f else 0f, animationSpec = tween(Motion.slow, easing = Motion.ease), label = "flip")
     val density = LocalDensity.current.density
     Box(modifier.graphicsLayer { rotationY = turn; cameraDistance = 12f * density }) {
@@ -163,7 +163,7 @@ private fun PanelFront(
     }
     val runVisible = runBase != null && shownRun != 0
     val runAlpha by animateFloatAsState(
-        if (runVisible) 1f else 0f, animationSpec = tween(if (runVisible) 120 else 600), label = "run",
+        if (runVisible) 1f else 0f, animationSpec = tween(if (runVisible) Motion.fast else 600, easing = Motion.ease), label = "run",
     )
 
     val shape = RoundedCornerShape(Corners.Medium)

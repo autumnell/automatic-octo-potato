@@ -264,7 +264,7 @@ fun CollectionScreen(
                         cards = "%,d".format(ui.totalCards),
                         value = if (prices) formatMoneyShort(ui.totalValue, ui.totalEur) else null,
                         // History is in dollars, so there's no week change to show in euros.
-                        week = if (prices) WeekChange.label(weekChange.takeIf { AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR }) else null,
+                        week = if (prices) WeekChange.dollars(weekChange.takeIf { AppSettings.currency != com.mtgscanner.util.PriceCurrency.EUR }) else null,
                         modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
                         cardCount = ui.totalCards,
                         valueNumber = if (prices) com.mtgscanner.ui.components.primaryValue(ui.totalValue, ui.totalEur) else null,

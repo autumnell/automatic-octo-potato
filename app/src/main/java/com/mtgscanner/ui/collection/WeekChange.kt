@@ -39,6 +39,16 @@ object WeekChange {
     }
 
     /** "+2.10", "−3.05" (a real minus) or "0.00"; "—" with no data. */
+    /** [label] with the dollar sign, "+$2.10", for places where the number stands alone. */
+    fun dollars(change: Double?): String {
+        val l = label(change)
+        return when {
+            l == "—" -> l
+            l[0] == '+' || l[0] == '−' -> "${l[0]}$" + l.substring(1)
+            else -> "$" + l
+        }
+    }
+
     fun label(change: Double?): String {
         if (change == null) return "—"
         val v = if (abs(change) < 0.005) 0.0 else change

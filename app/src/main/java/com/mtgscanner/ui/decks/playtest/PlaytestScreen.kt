@@ -360,7 +360,8 @@ internal fun PlainFace(title: String, sub: String?, modifier: Modifier) {
         modifier.clip(CardShape).background(Palette.StagePanel).padding(Space.s1),
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        // A long word that won't fit a small card breaks with a hyphen, "Llano-war", not mid-word with none.
+        Text(title, style = MaterialTheme.typography.labelSmall.copy(hyphens = androidx.compose.ui.text.style.Hyphens.Auto, lineBreak = androidx.compose.ui.text.style.LineBreak.Paragraph), color = Color.White, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
         if (sub != null && !sub.equals(title, true)) Text(sub, style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
