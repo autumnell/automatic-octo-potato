@@ -38,6 +38,15 @@ class DeckInsightsTest {
         assertEquals(listOf("Armageddon"), b.massLandDenial)
     }
 
+    @Test fun scryfallTagListsDecideWhenPresent() {
+        val tags = BracketTags.parse("""{"tutor":["Fabricate"],"mld":["Armageddon"]}""")
+        val cards = filler(57) + spell("Fabricate", 3.0, "Search your library for an artifact card.") +
+            spell("Diabolic Tutor", 4.0, "Search your library for a card.") + spell("Armageddon", 4.0, "Destroy all lands.") + land("Forest", 40)
+        val b = BracketMath.of(cards, emptySet(), null, tags)
+        assertEquals(listOf("Fabricate"), b.tutors)
+        assertEquals(listOf("Armageddon"), b.massLandDenial)
+    }
+
     @Test fun rampIsNotATutor() {
         assertEquals(false, BracketMath.isTutor("Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield, then shuffle."))
         assertEquals(false, BracketMath.isTutor("Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle."))
