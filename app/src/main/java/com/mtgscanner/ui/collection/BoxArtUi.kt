@@ -61,7 +61,8 @@ private val derivedColors = listOf(
 fun boxStripeColors(boxes: List<BoxSummary>): Map<Long, Color> {
     var next = 0
     return boxes.associate { b ->
-        b.id to if (b.color != 0) Color(b.color) else derivedColors[next++ % derivedColors.size]
+        // A color with no alpha (0, or an old saved index like 1) counts as unset, else it would draw invisible.
+        b.id to if ((b.color ushr 24) != 0) Color(b.color) else derivedColors[next++ % derivedColors.size]
     }
 }
 
