@@ -3,6 +3,8 @@ package com.mtgscanner.ui.decks
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -108,11 +110,13 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
     val mana = remember(cards, identity) { ManaBaseMath.of(cards, identity) }
     val goldfish by produceState<Goldfish?>(null, cards) { value = withContext(Dispatchers.Default) { GoldfishMath.of(cards) } }
 
-    if (commander) InsightRow("Bracket", "${bracket.level} · ${bracket.label}", bracket.reasons.firstOrNull()) { sheet = InsightSheet.BRACKET }
-    InsightRow("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA }
-    goldfish?.let { g ->
-        InsightRow("Goldfish", "Keep 7 ${pct(g.keepable)}", "4th land on turn 4 ${pct(g.landDrop[3])}") { sheet = InsightSheet.GOLDFISH }
+    // One compact strip of figures instead of a row each (unslop: compact stats, not equal cards). Tap one for its sheet.
+    val items = buildList {
+        if (commander) add(InsightStat("Bracket", "${bracket.level} · ${bracket.label}", bracket.reasons.firstOrNull()) { sheet = InsightSheet.BRACKET })
+        add(InsightStat("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA })
+        add(InsightStat("Goldfish", goldfish?.let { "Keep ${pct(it.keepable)}" } ?: "…", goldfish?.let { "Turn 4 land ${pct(it.landDrop[3])}" }) { if (goldfish != null) sheet = InsightSheet.GOLDFISH })
     }
+    InsightStrip(items)
     when (sheet) {
         InsightSheet.BRACKET -> BracketSheet(bracket, onDismiss = { sheet = null })
         InsightSheet.MANA -> ManaBaseSheet(mana, onDismiss = { sheet = null })
@@ -122,20 +126,29 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
 }
 
 
-/** A small row on the deck page: label, value and a muted note, tapping for more. */
+internal class InsightStat(val label: String, val value: String, val note: String?, val onClick: () -> Unit)
+
+/** The deck page's insight figures side by side, split by hairlines: label, figure and a short note in each. */
 @Composable
-internal fun InsightRow(label: String, value: String, note: String?, onClick: () -> Unit) {
+internal fun InsightStrip(items: List<InsightStat>) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(start = Space.s4, end = Space.s3),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s2, vertical = Space.s2).height(IntrinsicSize.Min),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.width(INSIGHT_LABEL))
-        Text(value, style = MaterialTheme.typography.bodyMedium.merge(TabularNums), maxLines = 1)
-        if (note != null) {
-            Spacer(Modifier.width(Space.s2))
-            Text(note, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        } else Spacer(Modifier.weight(1f))
-        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+        items.forEachIndexed { i, it ->
+            if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s2), color = Palette.Rule)
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(Corners.Small)).clickable(onClickLabel = it.label, onClick = it.onClick)
+                    .padding(horizontal = Space.s2, vertical = Space.s2),
+            ) {
+                Text(it.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
+                Text(it.value, style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    it.note ?: "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
