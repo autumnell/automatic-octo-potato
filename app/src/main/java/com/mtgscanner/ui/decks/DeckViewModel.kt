@@ -306,7 +306,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         leadsJob = viewModelScope.launch {
             val s = _ui.value
             val lines = DecklistParser.parse(s.text)
-            val names = s.commanders.all + lines.filter { it.section in PLAYED || it.section == "Sideboard" }.map { it.name }
+            val names = s.commanders.all + lines.filter { it.section in PLAYED || it.section == "Sideboard" || it.section == "Maybeboard" }.map { it.name }
             val info = runCatching { repo.deckCardInfo(names, s.format) }.getOrDefault(emptyMap())
             fun rulesOf(n: String) = info[DeckNames.key(n)]?.rules()
             val leads = s.commanders.all.mapNotNull { n -> rulesOf(n)?.let { n.lowercase() to it } }.toMap()
@@ -593,7 +593,10 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     )
 
     /** Adds [delta] copies of [name] to the main deck being edited (negative takes them away). */
-    fun adjustCard(name: String, delta: Int) = _ui.update { it.copy(text = DeckText.adjust(it.text, name, delta)) }
+    fun adjustCard(name: String, delta: Int, board: String = "Main") = _ui.update { it.copy(text = DeckText.adjust(it.text, name, delta, board)) }
+
+    /** Moves every copy of [name] between the deck, the sideboard and the maybeboard of the list being edited. */
+    fun moveCard(name: String, from: String, to: String) = _ui.update { it.copy(text = DeckText.move(it.text, name, from, to)) }
 
     /** EDHREC's lists for the deck's commanders, fetched once per set of commanders. */
     fun loadEdhrec(force: Boolean = false) {

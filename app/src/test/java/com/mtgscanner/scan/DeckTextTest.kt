@@ -40,4 +40,31 @@ class DeckTextTest {
         assertEquals(emptyList<String>(), DeckText.tags("1 Forest [THB]"))
         assertEquals(listOf("#Card Draw"), DeckText.tags("1 Rhystic Study (PCY) 45 #Card Draw *F*"))
     }
+
+    @Test fun boardsGetTheirOwnSection() {
+        val text = "4 Goblin Guide\n3 Lightning Bolt"
+        val maybe = DeckText.adjust(text, "Skewer the Critics", 1, "Maybeboard")
+        assertEquals("4 Goblin Guide\n3 Lightning Bolt\n\nMaybeboard\n1 Skewer the Critics", maybe)
+        assertEquals(1, DeckText.count(maybe, "Skewer the Critics", "Maybeboard"))
+        assertEquals(0, DeckText.count(maybe, "Skewer the Critics"))
+        val more = DeckText.adjust(maybe, "Skewer the Critics", 1, "Maybeboard")
+        assertEquals(2, DeckText.count(more, "Skewer the Critics", "Maybeboard"))
+        val side = DeckText.adjust(more, "Duress", 2, "Sideboard")
+        assertEquals(2, DeckText.count(side, "Duress", "Sideboard"))
+        assertEquals(2, DeckText.count(side, "Skewer the Critics", "Maybeboard"))
+    }
+
+    @Test fun moveTakesEveryCopy() {
+        val text = "4 Goblin Guide\n3 Lightning Bolt\n\nSideboard\n2 Duress"
+        val moved = DeckText.move(text, "Lightning Bolt", "Main", "Sideboard")
+        assertEquals(0, DeckText.count(moved, "Lightning Bolt"))
+        assertEquals(3, DeckText.count(moved, "Lightning Bolt", "Sideboard"))
+        val back = DeckText.move(moved, "Duress", "Sideboard", "Main")
+        assertEquals(2, DeckText.count(back, "Duress"))
+    }
+
+    @Test fun sbPrefixListsKeepThePrefix() {
+        val text = "4 Goblin Guide\nSB: 2 Duress"
+        assertEquals("4 Goblin Guide\nSB: 2 Duress\nSB: 1 Pyroblast", DeckText.adjust(text, "Pyroblast", 1, "Sideboard"))
+    }
 }

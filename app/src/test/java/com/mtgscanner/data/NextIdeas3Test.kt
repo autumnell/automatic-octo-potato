@@ -62,11 +62,32 @@ class NextIdeas3Test {
             card(4, "Forest", type = "Basic Land — Forest"), card(5, "Arcane Signet"),
         )
         val ranked = listOf("Sol Ring", "Lightning Bolt", "Counterspell", "Forest", "Arcane Signet").map { it to null }
-        val ideas = DeckUpgradeMath.ideas(ranked, owned, setOf(com.mtgscanner.util.CardNames.key("Arcane Signet")), "UG", { "Binder" })
+        val ideas = DeckUpgradeMath.ideas(ranked, owned, setOf(com.mtgscanner.util.CardNames.key("Arcane Signet")), "UG", { "Binder" to false })
         assertEquals(listOf("Sol Ring", "Counterspell"), ideas.map { it.name })
         assertEquals(listOf("Binder"), ideas[0].where)
         assertTrue(DeckUpgradeMath.fits("", "W"))
         assertFalse(DeckUpgradeMath.fits("WB", "W"))
+    }
+
+    @Test fun upgradeIdeasKnowTheirBoxesAndGroups() {
+        val owned = listOf(card(1, "Sol Ring", box = 1, qty = 2), card(2, "Sol Ring", box = 9), card(3, "Counterspell", identity = "U", box = 9))
+        val place = { c: CollectionCard -> if (c.boxId == 9L) "Atraxa" to true else "Binder" to false }
+        val groups = DeckUpgradeMath.groupsOf(listOf(
+            EdhrecGroup("Creatures", listOf(EdhrecRec("Sol Ring", null, null))),
+            EdhrecGroup("Top Cards", listOf(EdhrecRec("Sol Ring", null, null))),
+            EdhrecGroup("Instants", listOf(EdhrecRec("Counterspell", null, null))),
+        ))
+        val ranked = listOf("Sol Ring", "Counterspell").map { it to null }
+        val ideas = DeckUpgradeMath.ideas(ranked, owned, emptySet(), "U", place, groups = groups)
+        assertEquals(DeckUpgradeMath.TOP, ideas[0].group)
+        assertEquals("Instants", ideas[1].group)
+        // Boxes come before decks, so the first choice is a box.
+        assertEquals(listOf("Binder", "Deck: Atraxa"), ideas[0].where)
+        assertEquals(listOf(false, true), ideas[0].sources.map { it.inDeck })
+        assertEquals("M10 1", ideas[0].sources[0].printing)
+        // Cards only in decks can be left out.
+        val skipped = DeckUpgradeMath.ideas(ranked, owned, emptySet(), "U", place, skipDeckOnly = true)
+        assertEquals(listOf("Sol Ring"), skipped.map { it.name })
     }
 
     @Test fun boxBecomesADeckList() {

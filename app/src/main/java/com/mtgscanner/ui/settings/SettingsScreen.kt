@@ -257,6 +257,14 @@ private fun DataTab(vm: SettingsViewModel, onScanLog: () -> Unit, onTour: () -> 
 
     DataSection(vm)
 
+    SectionLabel("Decks")
+    Card {
+        ToggleRow(
+            "Skip cards only in decks", "From your cards leaves out cards whose every copy is already in a deck",
+            AppSettings.upgradeSkipDeckOnly,
+        ) { AppSettings.updateUpgradeSkipDeckOnly(it) }
+    }
+
     if (AppSettings.scanLogUnlocked) {
         SectionLabel("Troubleshooting")
         PlainGroup(Modifier.padding(horizontal = Space.s1)) {
