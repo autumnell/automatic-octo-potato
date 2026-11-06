@@ -86,13 +86,13 @@ fun StatsStrip(
         } else Text(cards, style = style, color = Palette.Text, maxLines = 1)
         Text(" cards", style = style, color = Palette.Muted, maxLines = 1)
         if (value != null) {
-            Text("  ·  ", style = style, color = Palette.Muted)
+            Text(" · ", style = style, color = Palette.Muted)
             if (valueNumber != null && valueFormat != null) {
                 com.mtgscanner.ui.components.RollingText(valueNumber, valueFormat, style, Palette.Text)
             } else Text(value, style = style, color = Palette.Text, maxLines = 1)
         }
         if (week != null) {
-            Text("  ·  ", style = style, color = Palette.Muted)
+            Text(" · ", style = style, color = Palette.Muted)
             Text(week, style = style, color = Palette.Text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             Text(" 7d", style = style, color = Palette.Muted, maxLines = 1)
         }
