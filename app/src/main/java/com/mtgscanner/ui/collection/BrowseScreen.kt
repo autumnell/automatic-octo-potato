@@ -2,7 +2,6 @@ package com.mtgscanner.ui.collection
 
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -257,7 +256,8 @@ fun BrowseScreen(
                 com.mtgscanner.util.CopyText.copy(ctx, names.joinToString("\n"), if (names.size == 1) "Card name" else "Card names")
             },
         )
-        else Row(Modifier.fillMaxWidth().padding(end = Space.s2, top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+        // In Collection's All tab the totals line above the tabs says it all, so this row only shows once filtered.
+        else if (!embedded || f.activeCount > 0 || f.query.isNotBlank()) Row(Modifier.fillMaxWidth().padding(end = Space.s2, top = Space.s1), verticalAlignment = Alignment.CenterVertically) {
             if (!embedded) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
             else Spacer(Modifier.width(Space.s4))
             // Tap a box's name to jump to another box.
@@ -283,15 +283,6 @@ fun BrowseScreen(
                 )
             }
             if (ui.boxes.any { it.id == boxId && it.kind == "trade" }) TextButton(onClick = { onTrade(boxId) }) { Text("Trade") }
-            if (ui.totalCards > 0) TextButton(onClick = vm::startSelecting) { Text("Select") }
-            IconButton(onClick = vm::cycleView) {
-                // Shows the view you get next.
-                when {
-                    grid -> Icon(Icons.Outlined.ViewAgenda, "List view")
-                    !dense -> Icon(Icons.Outlined.ViewHeadline, "Compact list")
-                    else -> Icon(Icons.Outlined.GridView, "Grid view")
-                }
-            }
             if (ui.pagesView) Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -317,7 +308,6 @@ fun BrowseScreen(
             MoveListHost()
 
             var syntaxHelp by remember { mutableStateOf(false) }
-            var recentCards by rememberSaveable { mutableStateOf(false) }
             if (!embedded) SearchField(
                 f.query, { q -> vm.update { it.copy(query = q) } }, Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
                 placeholder = "r:rare t:creature",
@@ -356,14 +346,17 @@ fun BrowseScreen(
                     IconButton(onClick = vm::dismissTip) { Icon(Icons.Outlined.Close, "Hide tip", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
                 }
             }
+            // Sort, group and filters scroll on the left; Select and the card size stay put on the right.
+            Row(Modifier.fillMaxWidth().padding(end = Space.s2), verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s4, vertical = Space.s2),
+                Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(start = Space.s4, end = Space.s2, top = Space.s2, bottom = Space.s2),
                 horizontalArrangement = Arrangement.spacedBy(Space.s2),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 var sortMenu by remember { mutableStateOf(false) }
                 var groupMenu by remember { mutableStateOf(false) }
                 Box {
-                    ToolChip(f.sort.label, Icons.AutoMirrored.Outlined.Sort, { sortMenu = true })
+                    ToolChip(f.sort.label, Icons.AutoMirrored.Outlined.Sort, { sortMenu = true }, compact = true)
                     DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                         SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
                             DropdownMenuItem(
@@ -374,7 +367,7 @@ fun BrowseScreen(
                     }
                 }
                 Box {
-                    ToolChip(if (f.group == GroupBy.NONE) "Group" else f.group.label, Icons.AutoMirrored.Outlined.FormatListBulleted, { groupMenu = true }, active = f.group != GroupBy.NONE)
+                    ToolChip(if (f.group == GroupBy.NONE) "Group" else f.group.label, Icons.AutoMirrored.Outlined.FormatListBulleted, { groupMenu = true }, active = f.group != GroupBy.NONE, compact = true)
                     DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
                         GroupBy.entries.forEach { g ->
                             DropdownMenuItem(
@@ -385,14 +378,13 @@ fun BrowseScreen(
                     }
                 }
                 BadgedBox(badge = { if (f.activeCount > 0) Badge(containerColor = Palette.Accent) { Text("${f.activeCount}") } }) {
-                    ToolChip("Filters", Icons.Outlined.FilterAlt, { showFilters = true }, active = f.activeCount > 0)
+                    ToolChip("Filters", Icons.Outlined.FilterAlt, { showFilters = true }, active = f.activeCount > 0, compact = true)
                 }
                 if (f.query.isNotBlank() || f.activeCount > 0) {
-                    ToolChip("Save search", Icons.Outlined.StarBorder, { savingSearch = true })
+                    ToolChip("Save search", Icons.Outlined.StarBorder, { savingSearch = true }, compact = true)
                 }
                 // Saved and recent searches share this row, after the tools.
                 if (f.query.isEmpty() && f.activeCount == 0) {
-                    if (!picking) ToolChip("Recent cards", Icons.Outlined.History, { recentCards = !recentCards }, active = recentCards)
                     saved.forEach { sv ->
                         SelectPill(sv.name, false, { vm.applySaved(sv) }, leading = {
                             Icon(Icons.Filled.Star, null, tint = Palette.Gold, modifier = Modifier.size(18.dp))
@@ -406,8 +398,16 @@ fun BrowseScreen(
                     if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
                 }
             }
-            // Card pages opened last: only when asked for with the Recent cards chip.
-            if (recentCards && f.query.isEmpty() && f.activeCount == 0 && !picking) RecentCardsStrip(ui.totalCards, onOpen = { tap(it) })
+            if (ui.totalCards > 0 && !picking) TextButton(onClick = vm::startSelecting) { Text("Select") }
+            IconButton(onClick = vm::cycleView) {
+                // Shows the view you get next.
+                when {
+                    grid -> Icon(Icons.Outlined.ViewAgenda, "List view")
+                    !dense -> Icon(Icons.Outlined.ViewHeadline, "Compact list")
+                    else -> Icon(Icons.Outlined.GridView, "Grid view")
+                }
+            }
+            }
         }
 
         when {

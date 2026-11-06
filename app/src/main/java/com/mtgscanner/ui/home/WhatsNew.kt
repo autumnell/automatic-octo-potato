@@ -88,6 +88,7 @@ object WhatsNew {
         310 to "The back of a player's panel fits short panels: commander damage and counters sit side by side. Game setup tiles are calmer, and the player count shows each seat's color",
         314 to "Collection has an All tab with every card you own. The search above the tabs filters it, and Select, sorting and the views work as in Browse",
         330 to "On the back of a player's panel, commander damage is laid out like the table: each player's tile sits where they sit, and your own seat says You",
+        334 to "Sort, Group and Filters are slimmer and share one row with Select and the card size button",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
