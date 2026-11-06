@@ -96,9 +96,12 @@ private enum class InsightSheet { BRACKET, MANA, GOLDFISH }
 
 /** Bracket (Commander decks), mana base and goldfish rows under the win rate; each opens a sheet with the detail. */
 @Composable
-internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
+internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, lead: InsightStat? = null) {
     val cards = remember(ui.text, ui.cardInfo, ui.commanders, ui.format) { insightCards(ui) }
-    if (cards.sumOf { it.copies } < 20) return
+    if (cards.sumOf { it.copies } < 20) {
+        lead?.let { InsightStrip(listOf(it)) }
+        return
+    }
     val commander = DeckFormats.isCommander(ui.format)
     val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
     var sheet by remember { mutableStateOf<InsightSheet?>(null) }
@@ -112,6 +115,7 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
 
     // One compact strip of figures instead of a row each (unslop: compact stats, not equal cards). Tap one for its sheet.
     val items = buildList {
+        lead?.let { add(it) }
         if (commander) add(InsightStat("Bracket", "${bracket.level} · ${bracket.label}", bracket.reasons.firstOrNull()) { sheet = InsightSheet.BRACKET })
         add(InsightStat("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA })
         add(InsightStat("Goldfish", goldfish?.let { "Keep ${pct(it.keepable)}" } ?: "…", goldfish?.let { "Turn 4 land ${pct(it.landDrop[3])}" }) { if (goldfish != null) sheet = InsightSheet.GOLDFISH })
@@ -128,25 +132,30 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel) {
 
 internal class InsightStat(val label: String, val value: String, val note: String?, val onClick: () -> Unit)
 
-/** The deck page's insight figures side by side, split by hairlines: label, figure and a short note in each. */
+/**
+ * The deck page's insight figures in a compact grid split by hairlines: one row for up to three, two by two for
+ * four. Each cell is a label, a figure and a short note, and taps through to its detail.
+ */
 @Composable
 internal fun InsightStrip(items: List<InsightStat>) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = Space.s2, vertical = Space.s2).height(IntrinsicSize.Min),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        items.forEachIndexed { i, it ->
-            if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s2), color = Palette.Rule)
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(Corners.Small)).clickable(onClickLabel = it.label, onClick = it.onClick)
-                    .padding(horizontal = Space.s2, vertical = Space.s2),
-            ) {
-                Text(it.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
-                Text(it.value, style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    it.note ?: "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+    val rows = if (items.size <= 3) listOf(items) else items.chunked(2)
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s2, vertical = Space.s1)) {
+        rows.forEachIndexed { r, row ->
+            if (r > 0) HorizontalDivider(Modifier.padding(horizontal = Space.s2), color = Palette.Rule)
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+                row.forEachIndexed { i, it ->
+                    if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s2), color = Palette.Rule)
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(Corners.Small)).clickable(onClickLabel = it.label, onClick = it.onClick)
+                            .padding(horizontal = Space.s2, vertical = Space.s2),
+                    ) {
+                        Text(it.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
+                        Text(it.value, style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(it.note ?: "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                // A short last row keeps its cells the same width as the row above.
+                if (rows.size > 1 && row.size < 2) Spacer(Modifier.weight(1f))
             }
         }
     }

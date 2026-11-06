@@ -91,7 +91,7 @@ object WhatsNew {
         334 to "Sort, Group and Filters are slimmer and share one row with Select and the card size button",
         340 to "The game menu is one page: next turn, table, dice and game. Search has the search key on the keyboard and its tips under ?. Home can show cards you viewed recently. Tapped playtest cards stay upright, dimmed with a small turn mark. Accent colors are five muted ones that suit the look",
         344 to "A deck's Bracket, Mana base and Goldfish sheets are grouped into panels, with the big numbers on top and bars for color sources and land drops",
-        348 to "Bracket, Mana base and Goldfish sit side by side in one strip on the deck page. The Bracket sheet lists all five brackets",
+        348 to "Win rate, Bracket, Mana base and Goldfish share one small grid on the deck page. The Bracket sheet lists all five brackets",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */
