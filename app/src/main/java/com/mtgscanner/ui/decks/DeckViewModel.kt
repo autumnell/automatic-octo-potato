@@ -104,6 +104,10 @@ import com.mtgscanner.data.PrintingLookup
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.scan.DeckText
 import com.mtgscanner.ui.components.PrintingsSheet
+import com.mtgscanner.data.DeckCombos
+import com.mtgscanner.data.EdhrecGroup
+import com.mtgscanner.data.edhrecGroups
+import com.mtgscanner.data.spellbookCombos
 import com.mtgscanner.ui.components.SetSymbol
 import com.mtgscanner.data.DeckCheck
 import com.mtgscanner.data.DeckCheckLine
@@ -183,7 +187,13 @@ data class DeckUi(
     val cardTexts: Map<String, Pair<String, String>> = emptyMap(),
     /** What's known about each listed card, by [DeckNames.key], for the card sheet. */
     val cardInfo: Map<String, DeckCardInfo> = emptyMap(),
+    /** Edit mode's EDHREC lists for the commanders, and Commander Spellbook's combos for the list. */
+    val edhrecLists: Loaded<List<EdhrecGroup>> = Loaded(),
+    val combos: Loaded<DeckCombos> = Loaded(),
 )
+
+/** Something fetched for edit mode: [value] once loaded, [failed] when it couldn't be. [key] is what it was fetched for. */
+data class Loaded<T>(val value: T? = null, val loading: Boolean = false, val failed: Boolean = false, val key: String? = null)
 
 class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : ViewModel() {
     private val _ui = MutableStateFlow(DeckUi(id = deckId))
@@ -542,9 +552,9 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         checkRequest.update { CheckRequest((it?.n ?: 0) + 1, text) }
     }
 
-    /** Opens the printing picker for a line of the saved list. */
+    /** Opens the printing picker for a line of the saved list, or of the list being edited. */
     fun openPrintings(line: DeckCheckLine) {
-        if (_ui.value.id == 0L || _ui.value.editing) return
+        if (_ui.value.id == 0L && !_ui.value.editing) return
         _ui.update { it.copy(printingLine = line, printings = null) }
         viewModelScope.launch {
             val list = try {
@@ -570,7 +580,52 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         val line = _ui.value.printingLine ?: return
         val text = DeckText.setPrinting(_ui.value.text, line.name, line.setCode, line.collectorNumber, card.set, card.collectorNumber)
         _ui.update { it.copy(printingLine = null, printings = null, text = text) }
-        commit()
+        // While editing, the change waits for the save like any other edit.
+        if (!_ui.value.editing) commit()
+    }
+
+    /** The printing picker for a line of the list being edited. */
+    fun openPrintingsFor(l: com.mtgscanner.util.DeckLine) = openPrintings(
+        DeckCheckLine(
+            l.name, l.section, l.quantity, 0, emptyList(), null, null, null,
+            setCode = l.setCode, collectorNumber = l.collectorNumber, shownNumber = l.collectorNumber,
+        ),
+    )
+
+    /** Adds [delta] copies of [name] to the main deck being edited (negative takes them away). */
+    fun adjustCard(name: String, delta: Int) = _ui.update { it.copy(text = DeckText.adjust(it.text, name, delta)) }
+
+    /** EDHREC's lists for the deck's commanders, fetched once per set of commanders. */
+    fun loadEdhrec(force: Boolean = false) {
+        val leads = _ui.value.commanders.commanders
+        if (leads.isEmpty()) return
+        val key = leads.joinToString("|")
+        val cur = _ui.value.edhrecLists
+        if (!force && cur.key == key && (cur.loading || cur.value != null)) return
+        _ui.update { it.copy(edhrecLists = Loaded(cur.value.takeIf { cur.key == key }, loading = true, key = key)) }
+        viewModelScope.launch {
+            val groups = edhrecGroups(leads)
+            _ui.update { if (it.edhrecLists.key != key) it else it.copy(edhrecLists = Loaded(groups, failed = groups == null, key = key)) }
+        }
+    }
+
+    /** Commander Spellbook's combos for the list as it is now; fetched again when the list changes. */
+    fun loadCombos(force: Boolean = false) {
+        val s = _ui.value
+        val lines = DecklistParser.parse(s.text).filter { it.section in PLAYED }
+        val leads = if (DeckFormats.isCommander(s.format)) s.commanders.commanders else emptyList()
+        val leadKeys = leads.map { DeckNames.key(it) }.toSet()
+        val main = lines.filter { DeckNames.key(it.name) !in leadKeys }.groupBy { DeckNames.key(it.name) }
+            .map { (_, ls) -> ls.first().name to ls.sumOf { it.quantity } }
+        val key = (leads + main.map { "${it.second} ${it.first}" }).joinToString("|")
+        val cur = s.combos
+        if (!force && cur.key == key && (cur.loading || cur.value != null)) return
+        if (main.isEmpty() && leads.isEmpty()) return
+        _ui.update { it.copy(combos = Loaded(cur.value, loading = true, key = key)) }
+        viewModelScope.launch {
+            val found = spellbookCombos(leads, main)
+            _ui.update { if (it.combos.key != key) it else it.copy(combos = Loaded(found, failed = found == null, key = key)) }
+        }
     }
 
     /** Wants enough copies of each missing played card; tapping again doesn't add more. */

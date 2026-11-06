@@ -80,6 +80,7 @@ object WhatsNew {
         278 to "Playtest has its own button on the deck page and matches your deck's format: life to match, and only decks and precons of that format to play against. The deck menu is a tidier list with a line on each action. Pulling to refresh in a box or deck updates just those cards",
         281 to "The mana curve and colors sit on the commander art at the top of a deck. Tap a card in a deck to slide up its details. The legality footer and the cards-in-other-decks line are gone",
         286 to "Playtest starts with your opening hand: keep or mulligan, then put cards on the bottom. Drag a card up from your hand to play it, and the battlefield sorts creatures, other permanents and lands into rows. Draw odds can show 2, 3 or more of a group, like a 4-land opening hand",
+        290 to "Editing a deck has tabs. Cards: change a card's printing and count. Combos: Commander Spellbook's combos in the deck and one card away. EDHREC: how often decks play each card, with add and remove",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

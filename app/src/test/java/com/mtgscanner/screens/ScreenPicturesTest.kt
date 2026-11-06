@@ -153,6 +153,10 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.decks.DeckScreen(deckId = 1L, onBack = {}, onPlaytest = {}, startMenu = true)
     }
 
+    @Test fun deckEditCards() = shoot("05d-deck-edit-cards") {
+        com.mtgscanner.ui.decks.DeckScreen(deckId = 1L, onBack = {}, startEditTab = com.mtgscanner.ui.decks.EditTab.CARDS)
+    }
+
     @Test fun search() = shoot("06-search") {
         com.mtgscanner.ui.search.SearchScreen()
     }
