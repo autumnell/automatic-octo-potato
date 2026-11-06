@@ -70,13 +70,17 @@ object BracketMath {
     /** A card that tutors: it searches the library for something other than lands. */
     fun isTutor(oracle: String): Boolean = SEARCH.findAll(oracle).any { !LAND_SEARCH.containsMatchIn(it.groupValues[1]) }
 
-    fun of(cards: List<InsightCard>, gameChangers: Set<String>, twoCardCombos: List<List<String>>?): Bracket {
+    /**
+     * The deck's bracket. With Scryfall's tag lists ([tags]) a card counts as a tutor or mass land denial when it's on
+     * them; without (an older build or a test), its rules text decides.
+     */
+    fun of(cards: List<InsightCard>, gameChangers: Set<String>, twoCardCombos: List<List<String>>?, tags: BracketTagLists? = null): Bracket {
         val gcKeys = gameChangers.map { DeckNames.key(it) }.toSet()
         fun names(test: (InsightCard) -> Boolean) = cards.filter(test).map { it.name }.distinct()
         val gc = names { DeckNames.key(it.name) in gcKeys }
-        val mld = names { !it.isLand && MLD.containsMatchIn(it.oracleText) }
+        val mld = names { !it.isLand && (tags?.let { t -> DeckNames.key(it.name) in t.massLandDenial } ?: MLD.containsMatchIn(it.oracleText)) }
         val turns = names { EXTRA_TURN.containsMatchIn(it.oracleText) }
-        val tutors = names { !it.isLand && isTutor(it.oracleText) }
+        val tutors = names { !it.isLand && (tags?.let { t -> DeckNames.key(it.name) in t.tutors } ?: isTutor(it.oracleText)) }
         val combos = twoCardCombos.orEmpty()
         val level = when {
             gc.size > 3 || mld.isNotEmpty() -> 4

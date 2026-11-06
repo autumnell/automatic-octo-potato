@@ -92,7 +92,7 @@ object WhatsNew {
         340 to "The game menu is one page: next turn, table, dice and game. Search has the search key on the keyboard and its tips under ?. Home can show cards you viewed recently. Tapped playtest cards stay upright, dimmed with a small turn mark. Accent colors are five muted ones that suit the look",
         344 to "A deck's Bracket, Mana base and Goldfish sheets are grouped into panels, with the big numbers on top and bars for color sources and land drops",
         348 to "Win rate, Bracket, Mana base and Goldfish share one small grid on the deck page. The Bracket sheet lists all five brackets",
-        352 to "On a Commander deck the bracket sits under the commander's name: tap it to see why or set your own, EDHREC is at the top right of the art and the salt score at the bottom right. Win rate, Mana base and Goldfish share one slim row. Land searches no longer count as tutors, and Season of Gathering no longer counts as land denial",
+        352 to "On a Commander deck the bracket sits under the commander's name: tap it to see why or set your own, EDHREC is at the top right of the art and the salt score at the bottom right. Win rate, Mana base and Goldfish share one slim row. Tutors and mass land denial now come from Scryfall's card tags, so land searches and Season of Gathering no longer count",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

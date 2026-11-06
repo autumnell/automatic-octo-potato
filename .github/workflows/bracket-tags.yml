@@ -1,0 +1,38 @@
+# Builds the mass land denial and tutor lists for the bracket check from Scryfall's card tags and keeps them on the
+# "models" release as bracket-tags.json; the app build puts it in the APK. Wizards publishes no such lists.
+name: Bracket tags
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+  push:
+    paths:
+      - .github/workflows/bracket-tags.yml
+      - .github/bracket/build_bracket_tags.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bracket-tags
+  cancel-in-progress: false
+
+jobs:
+  tags:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the lists
+        run: |
+          python3 .github/bracket/build_bracket_tags.py bracket-tags.json
+          ls -l bracket-tags.json
+      - name: Publish to the models release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view models >/dev/null 2>&1 || gh release create models --prerelease --latest=false \
+            --title "Scan models" --notes "Optional model files the app downloads. Not an app build."
+          gh release upload models bracket-tags.json --clobber
