@@ -217,43 +217,6 @@ private fun TileGrid(count: Int, minTile: Int = 170, modifier: Modifier = Modifi
     }
 }
 
-/** A counter with big minus and plus buttons. Hold a button to change it by [HOLD_STEP]. */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun CounterTile(
-    label: String, value: Int, onChange: (Int) -> Unit, modifier: Modifier, note: String? = null, warn: Boolean = false,
-    icon: ImageVector? = null,
-) {
-    Surface(
-        modifier, shape = RoundedCornerShape(Corners.Medium), color = Palette.StagePanel,
-        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
-    ) {
-        Column(Modifier.padding(vertical = Space.s3, horizontal = Space.s2), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (icon != null) {
-                    Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(Space.s2))
-                }
-                Text(label, color = Color.White, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                listOf(-1, 1).forEach { sign ->
-                    if (sign > 0) Text(
-                        "$value", color = if (warn) Palette.Danger else Color.White, fontSize = 36.sp, fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center, modifier = Modifier.width(56.dp),
-                    )
-                    Box(
-                        Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
-                            .combinedClickable(onClick = { onChange(sign) }, onLongClick = { onChange(sign * HOLD_STEP) }),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(if (sign < 0) "−" else "+", color = Color.White, fontSize = 28.sp) }
-                }
-            }
-            if (note != null) Text(note, color = Palette.OnDarkMuted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
 /** A big button with an icon, a label and an optional line under it. */
 @Composable
 private fun ActionTile(
@@ -308,52 +271,14 @@ private fun PlayerPicker(g: GameState, question: String, current: Int?, onPick: 
     }
 }
 
-/** One player's counters, commander damage and settings, facing that player. */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * One player's name, color, art, and the table things they can take (monarch, initiative, their turn, conceding),
+ * facing that player. Commander damage and counters are on the back of their panel.
+ */
 @Composable
 fun PlayerOverlay(g: GameState, i: Int, vm: GameViewModel, onDismiss: () -> Unit) {
-    val p = g.players[i]
-    val showCommander = g.format.commanderDamage && g.players.size > 1
-    val tabs = listOfNotNull("Counters", if (showCommander) "Damage" else null, "Player")
-    var tab by remember { mutableIntStateOf(0) }
-    val name = tabs[tab.coerceIn(0, tabs.lastIndex)]
-    TableOverlay(seatRotation(g.players.size, i, g.layout), p.name, tabs, tab, { tab = it }, onDismiss) {
-        when (name) {
-            "Counters" -> {
-                val tiles = buildList<@Composable (Modifier) -> Unit> {
-                    add { m -> CounterTile("Life", p.life, { vm.life(i, it) }, m, note = "Hold for $HOLD_STEP", warn = p.life <= 5) }
-                    add { m -> CounterTile("Poison", p.poison, { vm.poison(i, it) }, m, note = "Out at ${g.format.poisonLimit}", warn = p.poison >= g.format.poisonLimit - 3, icon = com.mtgscanner.ui.components.ManaIcons.Poison) }
-                    if (g.format.usesCommander) {
-                        add { m -> CounterTile("Commander casts", p.commanderCasts, { vm.counter(i, "Commander cast", it) }, m, note = "Tax {${p.commanderTax}}", icon = com.mtgscanner.ui.components.ManaIcons.Commander) }
-                        if (g.partners) add { m -> CounterTile("Partner casts", p.partnerCasts, { vm.counter(i, "Partner cast", it) }, m, note = "Tax {${p.partnerTax}}", icon = com.mtgscanner.ui.components.ManaIcons.Commander) }
-                    }
-                    add { m -> CounterTile("Energy", p.energy, { vm.counter(i, "Energy", it) }, m, icon = com.mtgscanner.ui.components.ManaIcons.Energy) }
-                    add { m -> CounterTile("Experience", p.experience, { vm.counter(i, "Experience", it) }, m) }
-                    add { m -> CounterTile("Rad", p.rad, { vm.counter(i, "Rad", it) }, m, icon = com.mtgscanner.ui.components.ManaIcons.Rad) }
-                }
-                val scroll = rememberScrollState()
-                ScrollPage(scroll) { Column(Modifier.verticalScroll(scroll)) { TileGrid(tiles.size) { k, m -> tiles[k](m) } } }
-            }
-            "Damage" -> {
-                Text("21 from one commander and you're out",
-                    color = Palette.OnDarkMuted, fontSize = 16.sp)
-                Spacer(Modifier.height(Space.s2))
-                val sources = g.players.indices.filter { it != i }.flatMap { from -> listOf(from to false) + if (g.partners) listOf(from to true) else emptyList() }
-                val scroll = rememberScrollState()
-                ScrollPage(scroll) { Column(Modifier.verticalScroll(scroll)) {
-                    TileGrid(sources.size) { k, m ->
-                        val (from, partner) = sources[k]
-                        val dmg = p.damageFrom(from, partner)
-                        CounterTile(
-                            g.players[from].name + if (partner) " (partner)" else "", dmg,
-                            { vm.commanderDamage(i, from, it, partner) }, m,
-                            note = "${(GameState.COMMANDER_LIMIT - dmg).coerceAtLeast(0)} to go", warn = dmg >= 15,
-                        )
-                    }
-                } }
-            }
-            else -> PlayerSettings(g, i, vm)
-        }
+    TableOverlay(seatRotation(g.players.size, i, g.layout), g.players[i].name, emptyList(), 0, {}, onDismiss) {
+        PlayerSettings(g, i, vm)
     }
 }
 

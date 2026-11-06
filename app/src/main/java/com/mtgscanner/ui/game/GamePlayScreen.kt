@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -165,46 +166,48 @@ fun GamePlayScreen(onExit: () -> Unit) {
             PlayerPanel(
                 g, i, rot, style, mod,
                 onLife = { d -> vm.life(i, d) },
-                onCommander = { from, d -> vm.commanderDamage(i, from, d, partner = false) },
-                onMore = { playerSheet = i },
+                onCommander = { from, partner, d -> vm.commanderDamage(i, from, d, partner) },
+                onPoison = { d -> vm.poison(i, d) },
+                onCounter = { kind, d -> vm.counter(i, kind, d) },
+                onPlayer = { playerSheet = i },
             )
         }
         TableSeats(g.players.size, g.layout, 4.dp) { i, rot, mod -> panel(i, rot, mod) }
 
-        // The middle: the game menu and undo. Day or night shows as a small chip once it's in play.
-        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-                Box(
-                    Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black)
-                        .border(2.dp, Palette.Accent, CircleShape)
-                        .clickable(onClickLabel = "Open game menu") { menu = true }
-                        // Read out as what it is, not just "T3".
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = if (g.active != null) "Game menu, turn ${g.turn}" else "Game menu"
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.SemiBold)
-                    else Icon(Icons.Outlined.MoreHoriz, "Game menu", tint = Palette.Accent)
-                }
-                QuickButton(Icons.AutoMirrored.Outlined.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
-            }
-            if (g.dayNight != null) {
-                Spacer(Modifier.height(Space.s2))
-                Row(
-                    Modifier.clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.85f))
-                        .border(1.dp, Palette.Gold, RoundedCornerShape(Corners.Small))
-                        .clickable { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
-                        .padding(horizontal = Space.s3, vertical = Space.s1),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(dayNightIcon(g.dayNight), null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(Space.s1))
-                    Text(dayNightLabel(g.dayNight), color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
-                }
+        // The middle: the game menu sits dead center, undo just to its right, and day or night (once it's in
+        // play) as a small chip just below.
+        Box(
+            Modifier
+                .align(Alignment.Center)
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(Color.Black)
+                .border(2.dp, Palette.Accent, CircleShape)
+                .clickable(onClickLabel = "Open game menu") { menu = true }
+                // Read out as what it is, not just "T3".
+                .semantics(mergeDescendants = true) {
+                    contentDescription = if (g.active != null) "Game menu, turn ${g.turn}" else "Game menu"
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (g.active != null) Text("T${g.turn}", color = Palette.Accent, fontWeight = FontWeight.SemiBold)
+            else Icon(Icons.Outlined.MoreHoriz, "Game menu", tint = Palette.Accent)
+        }
+        Box(Modifier.align(Alignment.Center).offset(x = 26.dp + Space.s2 + 20.dp)) {
+            QuickButton(Icons.AutoMirrored.Outlined.Undo, "Undo", enabled = g.undoStack.isNotEmpty()) { vm.undo() }
+        }
+        if (g.dayNight != null) {
+            Row(
+                Modifier.align(Alignment.Center).offset(y = 26.dp + Space.s2 + 12.dp)
+                    .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.85f))
+                    .border(1.dp, Palette.Gold, RoundedCornerShape(Corners.Small))
+                    .clickable { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
+                    .padding(horizontal = Space.s3, vertical = Space.s1),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(dayNightIcon(g.dayNight), null, tint = Palette.Gold, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(Space.s1))
+                Text(dayNightLabel(g.dayNight), color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
             }
         }
 

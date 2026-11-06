@@ -98,12 +98,39 @@ import com.mtgscanner.ui.theme.Palette
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import com.mtgscanner.ui.theme.Corners
+import com.mtgscanner.ui.theme.Motion
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun PlayerPanel(
     g: GameState, i: Int, rotation: Int, style: TableStyle, modifier: Modifier,
-    onLife: (Int) -> Unit, onCommander: (from: Int, delta: Int) -> Unit, onMore: () -> Unit,
+    onLife: (Int) -> Unit,
+    onCommander: (from: Int, partner: Boolean, delta: Int) -> Unit,
+    onPoison: (Int) -> Unit,
+    onCounter: (kind: String, delta: Int) -> Unit,
+    onPlayer: () -> Unit,
+) {
+    // ⋯ flips the panel over to its back: commander damage and counters. ✓ flips it back.
+    var flipped by remember { mutableStateOf(false) }
+    val turn by animateFloatAsState(if (flipped) 180f else 0f, animationSpec = tween(Motion.slow, easing = Motion.ease), label = "flip")
+    val density = LocalDensity.current.density
+    Box(modifier.graphicsLayer { rotationY = turn; cameraDistance = 12f * density }) {
+        if (turn > 90f) {
+            PlayerBack(
+                g, i, Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }.clip(RoundedCornerShape(Corners.Medium)).rotateLayout(rotation),
+                onCommander = onCommander, onPoison = onPoison, onCounter = onCounter,
+                onPlayer = onPlayer, onDone = { flipped = false },
+            )
+        } else PanelFront(g, i, rotation, style, Modifier.fillMaxSize(), onLife, onFlip = { flipped = true })
+    }
+}
+
+/** The front of a player's panel: life, name, the counters that matter, and ⋯ to flip it over. */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+@Composable
+private fun PanelFront(
+    g: GameState, i: Int, rotation: Int, style: TableStyle, modifier: Modifier,
+    onLife: (Int) -> Unit, onFlip: () -> Unit,
 ) {
     val p = g.players[i]
     val out = g.outReason(i)
@@ -234,35 +261,15 @@ internal fun PlayerPanel(
                 if (g.monarch == i) Badge("Monarch", com.mtgscanner.ui.components.ManaIcons.Monarch, gold = true)
                 if (g.initiative == i) Badge("Initiative", com.mtgscanner.ui.components.ManaIcons.Initiative, gold = true)
                 if (p.poison > 0) Badge("${p.poison}", com.mtgscanner.ui.components.ManaIcons.Poison)
-                // Commanders show as dots at the bottom; with partners the highest still shows here.
+                // The most commander damage from any one commander; the back of the panel has each.
                 val maxCmd = p.commanderDamage.maxOrNull() ?: 0
-                if (g.format.commanderDamage && g.partners && maxCmd > 0) Badge("$maxCmd", com.mtgscanner.ui.components.ManaIcons.Commander)
+                if (g.format.commanderDamage && maxCmd > 0) Badge("$maxCmd", com.mtgscanner.ui.components.ManaIcons.Commander)
                 if (p.commanderCasts > 0) Badge("Tax +${p.commanderTax}")
                 if (p.partnerCasts > 0) Badge("Partner +${p.partnerTax}")
-                if (p.energy > 0) Badge("${p.energy}", com.mtgscanner.ui.components.ManaIcons.Energy)
-                if (p.experience > 0) Badge("XP ${p.experience}")
                 if (p.rad > 0) Badge("${p.rad}", com.mtgscanner.ui.components.ManaIcons.Rad)
             }
-            // Commander damage: one dot per opponent, in their color. Tap +1, hold −1.
-            Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = Space.s1),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.s2),
-            ) {
-                if (g.format.commanderDamage && g.players.size > 1) {
-                    g.players.forEachIndexed { from, o ->
-                        if (from != i) CommanderDot(
-                            color = PLAYER_COLORS[o.color % PLAYER_COLORS.size],
-                            damage = p.damageFrom(from),
-                            name = o.name,
-                            onAdd = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onCommander(from, 1) },
-                            onRemove = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onCommander(from, -1) },
-                        )
-                    }
-                }
-                IconButton(onClick = onMore) {
-                    Icon(Icons.Outlined.MoreHoriz, "${p.name}: counters and commander damage", tint = Color.White)
-                }
+            IconButton(onClick = onFlip, modifier = Modifier.align(Alignment.BottomCenter)) {
+                Icon(Icons.Outlined.MoreHoriz, "${p.name}: commander damage and counters", tint = Color.White)
             }
         }
     }
@@ -276,35 +283,6 @@ private const val RUN_PAUSE_MS = 2000L
 
 /** Drag distance for one life point. */
 private val SWIPE_STEP = 24.dp
-
-/** Commander damage from one opponent, in their color. A red ring at 21. */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun CommanderDot(color: Color, damage: Int, name: String, onAdd: () -> Unit, onRemove: () -> Unit) {
-    val lethal = damage >= GameState.COMMANDER_LIMIT
-    Box(
-        Modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .background(if (lethal) Color.Black else color)
-            .border(if (lethal) 3.dp else 1.5.dp, if (lethal) Color(0xFFFF5252) else Color.White.copy(alpha = 0.8f), CircleShape)
-            .semantics { contentDescription = "Commander damage from $name: $damage" }
-            .combinedClickable(
-                onClickLabel = "+1 from $name",
-                onLongClickLabel = "−1 from $name",
-                onLongClick = onRemove,
-                onClick = onAdd,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (damage > 0) Text(
-            "$damage",
-            color = if (lethal) Color(0xFFFF5252) else Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
 
 @Composable
 private fun Badge(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, gold: Boolean = false) {
