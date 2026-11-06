@@ -47,6 +47,18 @@ import com.mtgscanner.ui.theme.TabularNums
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreconsSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
+        PreconBrowser(vm, Modifier.padding(horizontal = Space.s4).navigationBarsPadding(), listHeight = 0.75f)
+    }
+}
+
+/**
+ * Every preconstructed deck MTGJSON lists, newest first, with a search and a Commander filter. Opening one shows how
+ * much of it you own, and saves it as a deck. Used in the Decks › New sheet and as Search's Precons tab.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PreconBrowser(vm: DecksViewModel, modifier: Modifier = Modifier, listHeight: Float = 1f, title: Boolean = true) {
     LaunchedEffect(Unit) { vm.loadPrecons() }
     val list by vm.precons.collectAsStateWithLifecycle()
     val open by vm.precon.collectAsStateWithLifecycle()
@@ -56,10 +68,12 @@ fun PreconsSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
         val q = query.trim()
         list.orEmpty().filter { (!onlyCommander || it.isCommander) && (q.isEmpty() || it.name.contains(q, true) || it.code.equals(q, true)) }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
-            Text("Precon decks", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(Space.s2))
+    run {
+        Column(modifier) {
+            if (title) {
+                Text("Precon decks", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(Space.s2))
+            }
             SearchField(query, { query = it }, placeholder = "Search precons")
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Commander", onlyCommander, { onlyCommander = true })
@@ -70,7 +84,7 @@ fun PreconsSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
                 l == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
                 l.isEmpty() -> EmptyState("Couldn't get the precon list", Modifier.padding(vertical = Space.s6), action = "Try again", onAction = { vm.loadPrecons(fresh = true) })
                 shown.isEmpty() -> EmptyState("No precons found", Modifier.padding(vertical = Space.s6))
-                else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.75f)) {
+                else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(listHeight)) {
                     items(shown, key = { it.fileName }) { e ->
                         Column(Modifier.fillMaxWidth().clickable { vm.openPrecon(e) }.padding(vertical = Space.s3)) {
                             Text(e.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)

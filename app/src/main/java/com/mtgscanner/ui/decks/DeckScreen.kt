@@ -402,6 +402,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 if (AppSettings.showPrices && primaryValue(value, valueEur) > 0) "Value ${formatMoney(value, valueEur)}" else null,
                 if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
             )
+            if (ui.id != 0L) DeckRecordRow(ui.id)
             if (small.isNotEmpty()) {
                 Text(
                     small.joinToString(" · "),
@@ -548,5 +549,64 @@ private fun DeckLineRow(
             )
         }
         else Icon(Icons.Outlined.CheckCircle, null, tint = if (l.inDeck >= l.needed) Palette.Success else Palette.Gold, modifier = Modifier.size(18.dp))
+    }
+}
+
+/**
+ * The deck's wins, losses and draws from games where a seat picked it (Game tab), with Edit to set them by hand.
+ */
+@Composable
+private fun DeckRecordRow(deckId: Long) {
+    val ctx = LocalContext.current
+    var version by remember { mutableIntStateOf(0) }
+    val r = remember(deckId, version) { com.mtgscanner.game.DeckResults.of(ctx, deckId) }
+    var editing by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+        Text("Win rate", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+        Spacer(Modifier.width(Space.s3))
+        Text(
+            r.winRate?.let { "$it% · ${r.wins}–${r.losses}–${r.draws}" } ?: "No games yet",
+            style = MaterialTheme.typography.bodyMedium.merge(TabularNums),
+            color = if (r.games > 0) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = { editing = true }) { Text("Edit") }
+    }
+    if (editing) DeckRecordDialog(r, onDismiss = { editing = false }) { new ->
+        com.mtgscanner.game.DeckResults.set(ctx, deckId, new)
+        editing = false
+        version++
+    }
+}
+
+@Composable
+private fun DeckRecordDialog(start: com.mtgscanner.game.DeckResult, onDismiss: () -> Unit, onSave: (com.mtgscanner.game.DeckResult) -> Unit) {
+    var w by remember { mutableIntStateOf(start.wins) }
+    var l by remember { mutableIntStateOf(start.losses) }
+    var d by remember { mutableIntStateOf(start.draws) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        title = { Text("Win rate") },
+        text = {
+            Column {
+                Text("Games from the Game tab count on their own when a seat picks this deck", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                Spacer(Modifier.height(Space.s2))
+                RecordStepper("Wins", w) { w = (w + it).coerceAtLeast(0) }
+                RecordStepper("Losses", l) { l = (l + it).coerceAtLeast(0) }
+                RecordStepper("Draws", d) { d = (d + it).coerceAtLeast(0) }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(com.mtgscanner.game.DeckResult(w, l, d)) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun RecordStepper(label: String, n: Int, onChange: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        TextButton(onClick = { onChange(-1) }, enabled = n > 0) { Text("−", style = MaterialTheme.typography.titleLarge) }
+        Text("$n", style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.widthIn(min = 32.dp))
+        TextButton(onClick = { onChange(1) }) { Text("+", style = MaterialTheme.typography.titleLarge) }
     }
 }

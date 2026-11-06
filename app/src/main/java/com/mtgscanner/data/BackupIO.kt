@@ -114,7 +114,7 @@ internal object BackupIO {
     val BACKED_UP_PREFS = listOf(
         "deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links", "deck_status",
         // Game stats, theme and fonts, set-completion settings and the scan bar.
-        "game_records", "appearance", "sets", "scanBar",
+        "game_records", "appearance", "sets", "scanBar", "deck_results",
     )
 
     /**

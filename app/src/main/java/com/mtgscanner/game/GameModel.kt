@@ -46,6 +46,8 @@ data class Player(
     val conceded: Boolean = false,
     /** Card art shown behind the life total, or null for a plain panel. */
     val art: String? = null,
+    /** The deck they're playing, picked at setup, so its wins and losses are counted; null for none. */
+    val deckId: Long? = null,
 ) {
     val commanderTax: Int get() = commanderCasts * 2
     val partnerTax: Int get() = partnerCasts * 2
@@ -112,6 +114,7 @@ data class GameState(
         startedAt = startedAt,
         endedAt = now,
         finalLife = players.map { it.life },
+        decks = players.map { it.deckId },
     )
 
     val playersLeft: Int get() = players.indices.count { outReason(it) == null }
@@ -265,7 +268,7 @@ object Game {
     fun restart(s: GameState): GameState {
         val first = s.firstSeat?.let { (it + 1) % s.players.size }
         return GameState.new(s.format, s.players.size, s.startingLife, s.players.map { it.name }, s.partners)
-            .let { g -> g.copy(players = g.players.mapIndexed { i, p -> p.copy(color = s.players[i].color, art = s.players[i].art) }) }
+            .let { g -> g.copy(players = g.players.mapIndexed { i, p -> p.copy(color = s.players[i].color, art = s.players[i].art, deckId = s.players[i].deckId) }) }
             .let { g -> if (first != null) g.copy(active = first, firstSeat = first, turn = 1) else g }
     }
 }
@@ -282,6 +285,8 @@ data class GameRecord(
     val startedAt: Long,
     val endedAt: Long,
     val finalLife: List<Int> = emptyList(),
+    /** Each seat's deck id, in [players] order; empty for games saved before decks could be picked. */
+    val decks: List<Long?> = emptyList(),
 ) {
     val minutes: Long get() = ((endedAt - startedAt) / 60_000).coerceAtLeast(0)
 }
