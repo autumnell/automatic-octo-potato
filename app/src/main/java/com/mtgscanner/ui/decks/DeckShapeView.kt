@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -29,11 +30,18 @@ import com.mtgscanner.ui.theme.TabularNums
 
 /** Mana curve bars (0 to 7+) and the color split of a deck's played spells, lands left out. */
 @Composable
-fun DeckShapeView(shape: DeckShape, modifier: Modifier = Modifier) {
+fun DeckShapeView(
+    shape: DeckShape, modifier: Modifier = Modifier,
+    /** Drawn over the commander art: light ink on the scrim, shorter bars, and no side margin of its own. */
+    onArt: Boolean = false,
+) {
     if (shape.isEmpty) return
     val top = shape.curve.maxOrNull()?.coerceAtLeast(1) ?: 1
-    val barMax = 44
-    Column(modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2)) {
+    val barMax = if (onArt) 32 else 44
+    val ink = if (onArt) Palette.OnDarkMuted else Palette.Muted
+    val bar = if (onArt) Color.White.copy(alpha = 0.78f) else Palette.Muted
+    val empty = if (onArt) Color.White.copy(alpha = 0.25f) else Palette.Outline
+    Column(modifier.fillMaxWidth().then(if (onArt) Modifier else Modifier.padding(horizontal = Space.s4, vertical = Space.s2))) {
         Row(
             Modifier.fillMaxWidth().semantics {
                 contentDescription = "Mana curve: " + shape.curve.mapIndexed { i, n -> "${label(i)}: $n" }.joinToString(", ")
@@ -45,16 +53,16 @@ fun DeckShapeView(shape: DeckShape, modifier: Modifier = Modifier) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         if (n > 0) "$n" else "",
-                        style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted,
+                        style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = ink,
                     )
                     Spacer(Modifier.height(Space.s1))
                     Box(
                         Modifier.fillMaxWidth().height((barMax * n / top).coerceAtLeast(if (n > 0) 3 else 1).dp)
                             .clip(RoundedCornerShape(topStart = Corners.Small, topEnd = Corners.Small))
-                            .background(if (n > 0) Palette.Muted else Palette.Outline),
+                            .background(if (n > 0) bar else empty),
                     )
                     Spacer(Modifier.height(Space.s1))
-                    Text(label(i), style = MaterialTheme.typography.labelSmall, color = Palette.Muted)
+                    Text(label(i), style = MaterialTheme.typography.labelSmall, color = ink)
                 }
             }
         }
@@ -72,7 +80,7 @@ fun DeckShapeView(shape: DeckShape, modifier: Modifier = Modifier) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ColorPip(c, 10.dp)
                         Spacer(Modifier.width(Space.s1))
-                        Text("${pct.getOrElse(i) { 0 }}%", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted)
+                        Text("${pct.getOrElse(i) { 0 }}%", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = ink)
                     }
                 }
             }
