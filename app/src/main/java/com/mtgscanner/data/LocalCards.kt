@@ -260,10 +260,16 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
 
     /** Asks Scryfall only for cards released since [since], and adds them. */
     private suspend fun addNew(since: String) {
-        val found = api.searchAll("date>=$since include:extras", unique = "prints", maxPages = 30, order = "released")
+        val found = api.searchAll("date>=$since include:extras", unique = "prints", maxPages = ADD_PAGES, order = "released")
         val today = LocalDate.now().toString()
         val d = open() ?: return
         if (found.isNotEmpty()) write(d) { found.forEach { put(d, it, today) } }
+        // Every page full: more came out than one top-up fetches (newest first, so the oldest are missing). The
+        // date stays put, so they aren't skipped for good; on Wi-Fi the whole list is fetched again instead.
+        if (found.size >= ADD_PAGES * 175) {
+            if (unmetered()) downloadAll()
+            return
+        }
         prefs.edit().putString(KEY_DAY, today).apply()
         _status.value = LocalCardsStatus(count(d), today, mb = sizeMb())
     }
@@ -387,6 +393,8 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
     companion object {
         private const val DB_NAME = "local-cards.db"
         private const val KEY_DAY = "updated"
+        /** Search pages a top-up fetches at most (175 printings each). */
+        private const val ADD_PAGES = 30
         private const val KEY_ON = "on"
         private const val KEY_ART = "art"
         private const val KEY_ART_DAY = "art_day"

@@ -44,12 +44,14 @@ class CardListWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     watch?.cancel()
                 }
             }
+            // The first download failed partway (the connection dropped): WorkManager tries again later, a few times.
+            if (!local.saved && local.status.value.failed && runAttemptCount < 3) return Result.retry()
             runCatching { repo.artForBiggestSets() }
             Result.success()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Result.success()
+            if (runAttemptCount < 3) Result.retry() else Result.success()
         }
     }
 

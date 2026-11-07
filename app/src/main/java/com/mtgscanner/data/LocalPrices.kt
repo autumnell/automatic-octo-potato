@@ -25,16 +25,22 @@ fun CollectionRepository.freshenLater(id: String) {
             while (true) {
                 // A short pause gathers the cards of a quick run into one request, and lets the card be added first.
                 delay(2000)
+                // Stopping is decided under the lock, so an id queued at the same moment starts a new run.
                 val ids = synchronized(freshQueue) {
-                    freshQueue.take(75).also { freshQueue.removeAll(it.toSet()) }
+                    freshQueue.take(75).also { freshQueue.removeAll(it.toSet()); if (it.isEmpty()) freshRunning = false }
                 }
-                if (ids.isEmpty()) break
-                val fresh = runCatching { api.collection(ids) }.getOrNull() ?: break
+                if (ids.isEmpty()) return@launch
+                val fresh = com.mtgscanner.util.suspendRunCatching { api.collection(ids) }.getOrNull()
+                if (fresh == null) {
+                    // Offline: these wait in the queue for the next card scanned.
+                    synchronized(freshQueue) { freshQueue.addAll(ids) }
+                    break
+                }
                 localCards.update(fresh)
                 savePrices(fresh)
             }
         } finally {
-            synchronized(freshQueue) { freshRunning = false; freshQueue.clear() }
+            synchronized(freshQueue) { freshRunning = false }
         }
     }
 }

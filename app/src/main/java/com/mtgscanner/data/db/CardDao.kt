@@ -315,8 +315,14 @@ interface CardDao {
     @Query("SELECT * FROM price_history WHERE day >= :day")
     suspend fun pricePointsSince(day: String): List<PricePoint>
 
-    /** Keeps one point a week (Mondays) from before [before] (yyyy-MM-dd), so history doesn't grow forever. */
-    @Query("DELETE FROM price_history WHERE day < :before AND strftime('%w', day) != '1'")
+    /**
+     * Keeps one point per card a week (the first saved) from before [before] (yyyy-MM-dd), so history doesn't grow
+     * forever. The same rule as [com.mtgscanner.data.BackupIO.prunePriceHistory]; a week with no Monday point keeps one.
+     */
+    @Query(
+        "DELETE FROM price_history WHERE day < :before AND rowid NOT IN " +
+            "(SELECT MIN(rowid) FROM price_history WHERE day < :before GROUP BY scryfallId, strftime('%Y-%W', day))",
+    )
     suspend fun thinPriceHistory(before: String): Int
 
     @Query("DELETE FROM price_history")

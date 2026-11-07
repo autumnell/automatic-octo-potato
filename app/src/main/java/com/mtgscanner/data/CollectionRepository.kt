@@ -546,13 +546,17 @@ class CollectionRepository(
         val now = System.currentTimeMillis()
         val entity = card.toEntity(foil, qty, now).copy(boxId = boxId, lang = lang, condition = condition, purchasePrice = paid)
         // One add at a time, so two copies added together (like a binder page) merge instead of clashing.
+        // The lookup and the write in one transaction too, so an import or move writing the same copy in between
+        // can't make the insert clash with the copy's unique key.
         val id = addLock.withLock {
-            val existing = twinOf(entity)
-            if (existing != null) {
-                dao.update(existing.mergedWith(entity, now = now, details = false))
-                existing.id
-            } else {
-                dao.insert(entity)
+            db.withTransaction {
+                val existing = twinOf(entity)
+                if (existing != null) {
+                    dao.update(existing.mergedWith(entity, now = now, details = false))
+                    existing.id
+                } else {
+                    dao.insert(entity)
+                }
             }
         }
         logEvent(card.id, card.name, "added", "×$qty → ${boxName(boxId)}")
@@ -608,8 +612,10 @@ class CollectionRepository(
      * Saves an edited row. When the edit makes it identical to another row (say, its condition now matches),
      * the two merge. Returns the id of the row now holding the copies.
      */
-    suspend fun update(card: CollectionCard): Long {
-        val old = dao.get(card.id)
+    suspend fun update(edited: CollectionCard): Long {
+        val old = dao.get(edited.id)
+        // Edits change details, never the count: copies added while the edit was open (a scan, +1) are kept.
+        val card = if (old != null) edited.copy(quantity = old.quantity) else edited
         if (old != null && old.condition != card.condition) logEvent(card.scryfallId, card.name, "edited", "${old.condition} → ${card.condition}")
         val now = System.currentTimeMillis()
         val twin = if (old != null && !old.sameCopyAs(card)) twinOf(card)?.takeIf { it.id != card.id } else null

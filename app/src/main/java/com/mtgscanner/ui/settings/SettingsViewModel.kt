@@ -204,9 +204,10 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     }
 
     /** Reads and checks a backup; the user then confirms with its card and box counts in front of them. */
-    fun previewRestore(ctx: android.content.Context, uri: Uri) {
+    /** Returns false when another data job is running and the preview didn't start. */
+    fun previewRestore(ctx: android.content.Context, uri: Uri): Boolean {
         val app = ctx.applicationContext
-        run("Reading backup…") {
+        return run("Reading backup…") {
             val input = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri) } ?: return@run "Couldn't open that file"
             _restore.value = RestorePreview(BackupIO.read(input, app))
             null

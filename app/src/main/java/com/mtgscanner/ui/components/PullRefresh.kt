@@ -43,7 +43,7 @@ fun PriceRefreshBox(
             if (!refreshing) {
                 refreshing = true
                 scope.launch {
-                    val msg = runCatching { if (cards != null) repo.refreshPricesOf(cards()) else repo.refreshPrices() }
+                    val msg = com.mtgscanner.util.suspendRunCatching { if (cards != null) repo.refreshPricesOf(cards()) else repo.refreshPrices() }
                         .fold({ "Updated prices for $it cards" }, { "Couldn't refresh prices: ${it.message}" })
                     refreshing = false
                     Undo.offer(msg)

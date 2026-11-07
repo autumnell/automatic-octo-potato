@@ -32,7 +32,8 @@ fun ScanViewModel.setBatch(on: Boolean) {
             status = if (on) "Batch · scan the pile, then review" else "Point your camera at a card",
         )
     }
-    if (!on && left.isNotEmpty()) _state.update { it.copy(photo = PhotoRun(loading = false, items = left, title = "Batch")) }
+    // Marked as the batch, so closing the review without adding puts the pile back instead of losing it.
+    if (!on && left.isNotEmpty()) _state.update { it.copy(photo = PhotoRun(loading = false, items = left, title = "Batch", fromBatch = true)) }
 }
 
 /** Opens the batch list to check and add: unsure matches first, so those get checked and the rest trusted. */
