@@ -157,6 +157,8 @@ import com.mtgscanner.ui.components.panelRow
 @Composable
 fun DecksTab(
     onOpenDeck: (Long) -> Unit,
+    /** Opens a new deck on its typed list, to paste a decklist into. */
+    onPasteDeck: () -> Unit = { onOpenDeck(0L) },
     query: String = "",
     cards: @Composable () -> Unit = {},
     vm: DecksViewModel = viewModel(factory = AppViewModels.Factory),
@@ -232,7 +234,9 @@ fun DecksTab(
                             Text("New")
                         }
                         DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
-                            DropdownMenuItem(text = { Text("Paste a list") }, onClick = { newMenu = false; onOpenDeck(0L) })
+                            // A blank deck to add cards to one by one; pasting a list is the next option.
+                            DropdownMenuItem(text = { Text("Create new") }, onClick = { newMenu = false; onOpenDeck(0L) })
+                            DropdownMenuItem(text = { Text("Paste a list") }, onClick = { newMenu = false; onPasteDeck() })
                             DropdownMenuItem(text = { Text("From a link") }, onClick = { newMenu = false; linking = true })
                             DropdownMenuItem(text = { Text("Decks you can almost build") }, onClick = { newMenu = false; almost = true })
                             DropdownMenuItem(text = { Text("Precon decks") }, onClick = { newMenu = false; precons = true })
@@ -245,7 +249,7 @@ fun DecksTab(
         }
         if (decks?.isEmpty() == true && shelf.folders.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
-                EmptyState("No decks yet", action = "Paste a decklist", onAction = { onOpenDeck(0L) }, fullScreen = true)
+                EmptyState("No decks yet", action = "Create new", onAction = { onOpenDeck(0L) }, fullScreen = true)
             }
         } else {
             if (tagsShown.isNotEmpty()) {

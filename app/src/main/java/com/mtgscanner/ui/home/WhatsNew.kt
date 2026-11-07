@@ -98,6 +98,7 @@ object WhatsNew {
         366 to "The scanner checks the card picture even when the name and set code read fine, so showcase, borderless and other arts of a card in the same set are told apart. A flavor text signature naming another card (Hop to It's “Ms. Bumbleflower”) is no longer read as the card's name",
         372 to "Deck editing opens on Cards: add a card by typing its name, or search all of Magic with type, format and commander color filters. A new deck can be saved empty. The scan screen's add-to menu lists your decks: scanned cards go into the deck and onto its list",
         374 to "Scanning a deck's commander into it no longer lists the commander a second time",
+        376 to "Decks › New starts with Create new for a blank deck; Paste a list is still right under it. Deck editing is tighter: name, format, card count and commander share one panel, the tabs are a single row, each card type is its own panel with mana costs, and Save stays at the bottom",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

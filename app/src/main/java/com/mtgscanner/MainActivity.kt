@@ -381,6 +381,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     onBrowse = { boxId -> nav.navigate("browse/$boxId") },
                     onSettings = { nav.navigate("settings") },
                     onOpenDeck = { id -> nav.navigate("deck/$id") },
+                    onPasteDeck = { nav.navigate("deck/0?tab=LIST") },
                     onOpenCard = { id -> nav.navigate("card/$id") },
                     onTrade = { binderId -> nav.navigate("trade/$binderId") },
                     onSets = { nav.navigate("sets") },
@@ -414,15 +415,20 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 popExitTransition = { pageOut() },
             ) { com.mtgscanner.ui.collection.ExtrasScreen(onBack = { nav.popFrom(it) }) }
             composable(
-                "deck/{id}",
-                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                "deck/{id}?tab={tab}",
+                arguments = listOf(
+                    navArgument("id") { type = NavType.LongType },
+                    // Opens edit mode on this tab: "LIST" for a new deck to paste into.
+                    navArgument("tab") { type = NavType.StringType; nullable = true; defaultValue = null },
+                ),
                 enterTransition = { pageIn() },
                 popExitTransition = { pageOut() },
             ) {
                 val id = it.arguments?.getLong("id") ?: 0L
+                val tab = it.arguments?.getString("tab")?.let { t -> com.mtgscanner.ui.decks.EditTab.entries.firstOrNull { e -> e.name == t } }
                 DeckScreen(
                     deckId = id, onBack = { nav.popFrom(it) }, onOpenSet = { code -> nav.navigate("set/$code") },
-                    onPlaytest = { nav.navigate("deck/$id/playtest") },
+                    onPlaytest = { nav.navigate("deck/$id/playtest") }, startEditTab = tab,
                 )
             }
             composable(

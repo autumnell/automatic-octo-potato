@@ -169,6 +169,10 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.decks.DeckScreen(deckId = 1L, onBack = {}, startEditTab = com.mtgscanner.ui.decks.EditTab.CARDS)
     }
 
+    @Test fun deckNew() = shoot("05d2-deck-new") {
+        com.mtgscanner.ui.decks.DeckScreen(deckId = 0L, onBack = {})
+    }
+
     /** The deck page's insight sheets, drawn as their sheet would show them, with numbers like a real deck's. */
     @Composable
     private fun InsightSheet(title: String, body: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
