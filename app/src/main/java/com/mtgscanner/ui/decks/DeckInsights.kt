@@ -129,7 +129,7 @@ object ManaBaseMath {
     private val BASICS = mapOf("plains" to 'W', "island" to 'U', "swamp" to 'B', "mountain" to 'R', "forest" to 'G')
     private val CHEAP_HELP = Regex("""add \{|search your library for (a|up to \w+) (basic )?(land|forest|plains|island|swamp|mountain)|draws? (a|two|three) cards?""", RegexOption.IGNORE_CASE)
 
-    private val BASIC_WORDS by lazy { BASICS.associate { (w, _) -> w to Regex("""\b$w\b""") } }
+    private val BASIC_WORDS: Map<String, Regex> by lazy { BASICS.keys.associateWith { w -> Regex("""\b$w\b""") } }
     private val ANY_COLOR = Regex("""any (one )?colou?r|any combination of colou?rs|mana of any""", RegexOption.IGNORE_CASE)
     private val FETCH_ANY = Regex("""search your library for an? (basic )?land""", RegexOption.IGNORE_CASE)
     private val FETCH_BASIC = Regex("""search your library for an? (basic )?(plains|island|swamp|mountain|forest)( or (plains|island|swamp|mountain|forest))?""", RegexOption.IGNORE_CASE)
