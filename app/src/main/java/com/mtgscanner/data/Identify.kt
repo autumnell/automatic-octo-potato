@@ -57,7 +57,13 @@ suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCa
     base ?: return null
     noteSet(base.card.set)
     if (base.picked) return base
-    val result = (if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess) else null) ?: base
+    val result = when {
+        skip?.invoke(base.card) == true -> null
+        // No number read, or a set and number read that matched no printing: the year, symbol and art pick it.
+        guess.collectorNumber == null || (!base.exact && guess.setCode != null) -> choosePrinting(base, guess)
+        // Name and footer agree, but a misread digit can still land on another art of the card in that set.
+        else -> checkArt(base, guess)
+    } ?: base
     // Matched from the list on the phone with prices a few days old: today's follow in the background.
     if (localCards.isStale(result.card.id)) freshenLater(result.card.id)
     return result
@@ -234,6 +240,25 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
 }
 
 /**
+ * A set often has the same card more than once (showcase, borderless, extended art), all with the same name and
+ * set code, so a footer misread by one digit can name another art of it. When the card's picture clearly shows
+ * another printing of that card in that set, that one; null keeps [base]. Done after the cache, so each copy
+ * scanned is checked by its own picture.
+ */
+private suspend fun CollectionRepository.checkArt(base: Identification, guess: CardTextGuess): Identification? {
+    val print = guess.cardPrint ?: return null
+    val card = base.card
+    val oracle = card.oracleId ?: return null
+    val printings = loadedSet(card.set) ?: runCatching { printingsCached(card) }.getOrNull() ?: return null
+    val siblings = LocalPick.realCards(printings.filter { it.oracleId == oracle && it.set.equals(card.set, ignoreCase = true) })
+    if (siblings.size < 2) return null
+    val shown = withContext(Dispatchers.Default) {
+        runCatching { com.mtgscanner.scan.CardPrints.pick(print, siblings) }.getOrNull()
+    } ?: return null
+    return if (shown.id == card.id) null else base.copy(card = shown, exact = true)
+}
+
+/**
  * Printings sharing the collector number read, narrowed by the copyright year, the set symbol and the art.
  * Returns the pick and whether it's sure (one printing left, or the art matched).
  */
@@ -307,6 +332,18 @@ private suspend fun CollectionRepository.footerOnly(card: ScryfallCard, guess: C
     return Identification(shown, confident = true, exact = true)
 }
 
+/**
+ * The name read disagrees with the footer's card, but the card's picture clearly shows the footer's card. The
+ * "name" was then a line naming another card, like flavor text signed "Ms. Bumbleflower" read without its dash.
+ */
+private suspend fun pictureShows(card: ScryfallCard, guess: CardTextGuess): Boolean {
+    val print = guess.cardPrint ?: return false
+    val hit = withContext(Dispatchers.Default) {
+        runCatching { com.mtgscanner.scan.CardPrints.match(print) }.getOrNull()
+    } ?: return false
+    return com.mtgscanner.util.CardNames.key(hit.name) == com.mtgscanner.util.CardNames.key(card.name)
+}
+
 private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
     // Real card names close to what was read come first, then the raw text.
     // Comparing against every card name is heavy: keep it off the main thread.
@@ -323,7 +360,7 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
         if (number != null) {
             local.firstOrNull { it.collectorNumber.equals(number, ignoreCase = true) }?.let { c ->
                 if (names.isEmpty()) footerOnly(c, guess)?.let { return it }
-                else if (bestSimilarity(c) >= 0.6) return Identification(c, confident = true, exact = true)
+                else if (bestSimilarity(c) >= 0.6 || pictureShows(c, guess)) return Identification(c, confident = true, exact = true)
             }
         }
         if (names.isNotEmpty()) {
@@ -343,7 +380,7 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
             // If we couldn't read a name, trust the footer unless the picture shows another card; otherwise the
             // name has to agree.
             if (names.isEmpty()) footerOnly(card, guess)?.let { return it }
-            else if (sim >= 0.6) return Identification(card, confident = true, exact = true)
+            else if (sim >= 0.6 || pictureShows(card, guess)) return Identification(card, confident = true, exact = true)
         }
         // A token prints its card set's code: the number may be in the token set ("tmom") instead.
         if (names.isNotEmpty()) {

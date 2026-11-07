@@ -237,6 +237,16 @@ class CardTextParserTest {
             .forEach { assertTrue(it, !CardTextParser.looksLikeTitle(it)) }
     }
 
+    @Test fun flavorSignatureIsNotAName() {
+        // Only the bottom of the card read: the signature under a flavor quote, its dash lost, is not the title.
+        val lines = listOf(
+            line("\u201cEveryone, hop to it!\u201d", 100, height = 10),
+            line("Ms. Bumbleflower", 112, height = 10),
+            line("0123 U BLB EN", 300, height = 10),
+        )
+        assertTrue(CardTextParser.parse(lines).nameCandidates.isEmpty())
+    }
+
     @Test fun keywordLinesAreNotNames() {
         listOf("Flying", "First strike, trample", "Deathtouch, lifelink.", "Hexproof")
             .forEach { assertTrue(it, CardTextParser.isKeywordLine(it)) }

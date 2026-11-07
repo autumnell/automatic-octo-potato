@@ -370,6 +370,9 @@ object CardTextParser {
         val out = LinkedHashSet<String>()
         for (line in topLines) {
             if (!looksLikeTitle(line.text) || isKeywordLine(line.text)) continue
+            // Right under a quote: flavor text's signature ("Ms. Bumbleflower" with its dash not read), not a title.
+            val above = sorted.lastOrNull { it.bottom <= line.top + line.height / 2 && it !== line }
+            if (above != null && above.text.trim().let { t -> t.endsWith('”') || t.endsWith('"') }) continue
             val name = cleanName(line.text) ?: continue
             out += name
             if (out.size >= 3) break
