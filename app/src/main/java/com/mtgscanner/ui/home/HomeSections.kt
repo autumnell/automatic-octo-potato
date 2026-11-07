@@ -3,6 +3,7 @@ package com.mtgscanner.ui.home
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.theme.Corners
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -162,7 +163,7 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                     Text("Under the value", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(end = Space.s3))
                 }
                 HorizontalDivider(color = Palette.Rule)
-                rows.forEachIndexed { i, (section, on) ->
+                rows.forEachIndexed { i, (section, on) -> key(section) {
                     val lifted = i == dragging
                     Row(
                         Modifier
@@ -208,7 +209,7 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                                 },
                         )
                     }
-                }
+                } }
                 TextButton(onClick = { rows = HomeOrder.DEFAULT.map { it to true } + HomeSection.entries.filter { it !in HomeOrder.DEFAULT }.map { it to false }; colorBar = true }) {
                     Text("Reset to default", color = Palette.Muted)
                 }

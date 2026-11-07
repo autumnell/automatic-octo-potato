@@ -110,9 +110,12 @@ class ArtMatcher(
         val target = embedding?.takeIf { model != null && it.model == model.id && embedder?.ready == true }
         if (hash == null && target == null) return@coroutineScope null
         val wantModel = if (target != null) model else null
-        val seen = printings.take(MAX_PRINTINGS).map { card ->
+        val asked = printings.take(MAX_PRINTINGS)
+        val seen = asked.map { card ->
             async { seenFor(card, wantModel)?.let { card to it } }
         }.awaitAll().filterNotNull()
+        // A printing whose picture didn't load can't be compared, so the others mustn't win by default.
+        if (seen.size != asked.size) return@coroutineScope null
         if (target != null && wantModel != null) {
             val withEmb = seen.mapNotNull { (card, s) -> s.embedding?.takeIf { it.model == wantModel.id }?.let { card to it.values } }
             // Only when every printing could be embedded, so one missing picture can't win by default.

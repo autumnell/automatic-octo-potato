@@ -157,17 +157,23 @@ class ArtIndexStore(
                     if (file.model == current) file.entries else file.entries.map { it.copy(embedding = null) }
                 }.getOrDefault(emptyList())
             }
-            if (gen == generation) index = ArtIndex(all)
+            val built = ArtIndex(all)
+            // Checked and set under the same lock as [changed], so a change in between can't be overwritten.
+            synchronized(indexLock) { if (gen == generation) index = built }
         } finally {
             loading.set(false)
         }
     }
 
     /** Drops the loaded index so the next match reads the files again. */
+    private val indexLock = Any()
+
     private fun changed() {
-        generation++
+        synchronized(indexLock) {
+            generation++
+            index = null
+        }
         refreshList()
-        index = null
     }
 
     /** Downloads these sets one after another, in the background. Ones already here or queued are left alone. */

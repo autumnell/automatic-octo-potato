@@ -145,6 +145,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) { sessionStore.load() }
             if (saved != null && !saved.isEmpty) restoreSession(saved)
+            sessionRead = true
             // From now on, every change is written a moment after it settles. Compared by reference, so reading,
             // glare and torch changes don't deep-compare the whole pile.
             _state.map { SavedScanSession.of(it) }.distinctUntilChanged { a, b -> a.sameAs(b) }.collectLatest { s ->
@@ -184,10 +185,17 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         if (saved.boxCheck != null && _state.value.target == ScanTarget.COLLECTION) changeMode { it.copy(target = ScanTarget.BOX) }
     }
 
+    /** Whether the saved session has been read back; until then, saving would overwrite it with an empty one. */
+    @Volatile private var sessionRead = false
+    /** The box check being compared; a newer one replaces it so an old result can't land last. */
+    internal var boxCheckJob: kotlinx.coroutines.Job? = null
+
     override fun onCleared() {
-        // Written now: the delayed write may not get its turn.
-        val s = SavedScanSession.of(_state.value)
-        runCatching { sessionStore.save(s) }
+        // Written now, off the main thread: the delayed write may not get its turn.
+        if (sessionRead) {
+            val s = SavedScanSession.of(_state.value)
+            repo.appScope.launch(Dispatchers.IO) { runCatching { sessionStore.save(s) } }
+        }
         super.onCleared()
     }
 
@@ -673,9 +681,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                     UnsureAction.ASIDE -> {
                         val fresh = !alreadyHandled(card, id.exact) && _state.value.review.none { it.card.id == card.id }
                         markHandled(card, art, id.exact)
-                        val photo = if (fresh) runCatching {
-                            com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "review-${card.id}-${System.currentTimeMillis()}")
-                        }.getOrNull() else null
+                        // Writing the picture is file work, so it stays off the main thread.
+                        val photo = if (fresh) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "review-${card.id}-${System.currentTimeMillis()}") }.getOrNull()
+                        } else null
                         _state.update {
                             it.copy(
                                 lookingUp = false,

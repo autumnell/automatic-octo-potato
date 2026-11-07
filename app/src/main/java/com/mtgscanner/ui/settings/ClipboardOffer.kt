@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.settings
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalWindowInfo
 import com.mtgscanner.ui.theme.Space
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -71,6 +73,9 @@ fun ClipboardOffer(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     var clipAt by remember { mutableStateOf<Long?>(null) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { clipAt = ClipboardWatch.newClip(ctx) }
+    // Android 10+ only lets an app see the clipboard once its window has focus, which comes after resume.
+    val focused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(focused) { if (focused) clipAt = ClipboardWatch.newClip(ctx) }
     val at = clipAt ?: return
     fun done() { ClipboardWatch.markSeen(ctx, at); clipAt = null }
     Surface(

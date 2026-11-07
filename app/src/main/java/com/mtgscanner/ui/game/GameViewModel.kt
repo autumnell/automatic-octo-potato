@@ -139,7 +139,12 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
         }
     }
 
-    fun deleteRecord(r: GameRecord) = saveRecords(_records.value - r)
+    /** Deletes one saved game, with Undo (it's one tap on a small icon). */
+    fun deleteRecord(r: GameRecord) {
+        val before = _records.value
+        saveRecords(before - r)
+        com.mtgscanner.ui.components.Undo.offer("Game deleted") { saveRecords(before) }
+    }
     fun clearRecords() = saveRecords(emptyList())
 
     private fun addRecord(r: GameRecord) = saveRecords((listOf(r) + _records.value).take(200))

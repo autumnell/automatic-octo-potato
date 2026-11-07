@@ -87,19 +87,24 @@ object DriveBackup {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("offerRestore", false).apply()
     }
 
-    /** Remembers [target] (keeping access after restarts) and starts the weekly job. */
-    fun enable(context: Context, target: Uri) {
-        runCatching {
+    /**
+     * Remembers [target] (keeping access after restarts) and starts the weekly job. False when the place picked
+     * can't keep access after a restart: weekly backups there would stop by themselves, so it isn't turned on.
+     */
+    fun enable(context: Context, target: Uri): Boolean {
+        val kept = runCatching {
             context.contentResolver.takePersistableUriPermission(
                 target, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
-        }
+        }.isSuccess
+        if (!kept) return false
         uri = target
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("uri", target.toString()).apply()
         val req = PeriodicWorkRequestBuilder<DriveBackupWorker>(7, TimeUnit.DAYS)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.UPDATE, req)
+        return true
     }
 
     fun disable(context: Context) {

@@ -244,6 +244,8 @@ fun ScanViewModel.closePhoto() {
 fun ScanViewModel.addPhoto() {
     val st = _state.value
     val items = st.photo?.items.orEmpty().filter { it.card != null }
+    // Just checking prices adds nothing, so a reviewed batch goes back on its list rather than being dropped.
+    if (st.target == ScanTarget.CHECK) { closePhoto(); return }
     // A batch reviewed and added starts a fresh list, still in batch mode.
     _state.update { it.copy(photo = null, batch = if (st.photo?.fromBatch == true) emptyList() else it.batch) }
     if (st.target == ScanTarget.CHECK || items.isEmpty()) return

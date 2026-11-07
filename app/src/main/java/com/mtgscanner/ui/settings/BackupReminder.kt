@@ -62,8 +62,8 @@ fun BackupReminder(hasCards: Boolean, modifier: Modifier = Modifier) {
     // No weekly backup yet: pick where it goes (Drive shows in the picker), then save the first one.
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
-            DriveBackup.enable(app, uri)
-            backUp()
+            if (DriveBackup.enable(app, uri)) backUp()
+            else Undo.offer("That place can't keep weekly backups: pick a folder on Drive or the phone")
         }
     }
     // Turning on weekly backup: ask for notifications first (Android 13+), so a failed one can say so.

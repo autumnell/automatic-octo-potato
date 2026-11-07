@@ -20,9 +20,9 @@ suspend fun CollectionRepository.addToDeckList(deckId: Long, name: String, delta
     return DeckText.count(text, name)
 }
 
-/** Rows holding copies of a card, any printing (by oracle id, else by name). Read from the shared card list. */
+/** Rows holding copies of a card, any printing (by oracle id, else by name), read fresh from the database. */
 suspend fun CollectionRepository.copiesOf(oracleId: String?, name: String): List<com.mtgscanner.data.db.CollectionCard> =
-    observeAll().first().filter { if (oracleId != null) it.oracleId == oracleId else it.name.equals(name, ignoreCase = true) }
+    if (oracleId != null) dao.byOracleId(oracleId) else dao.byName(name)
 
 /** Where copies of a card are kept: box id to copies, most first. */
 suspend fun CollectionRepository.keptIn(oracleId: String?): List<Pair<Long, Int>> {

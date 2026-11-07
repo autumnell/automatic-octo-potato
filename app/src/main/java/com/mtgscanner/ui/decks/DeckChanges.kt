@@ -140,10 +140,12 @@ class DeckChangesHost(
     fun confirm() {
         val u = ui ?: return
         if (u.busy) return
+        // An empty list isn't saved (the save step skips it), which would leave this sheet waiting for good.
+        if (u.newText.isBlank()) { ui = null; Undo.offer("The new list is empty, so nothing was saved"); return }
         ui = u.copy(busy = true)
         scope.launch {
             val before = repo.observeDeck(u.deckId).first()
-            saveList(u.newText) { _ ->
+            saveList(u.newText) after@{ _ ->
                 val rowIds = u.leaving.flatMap { l -> l.moves.map { it.first } }
                 val snap = repo.snapshot(rowIds)
                 try {
@@ -152,6 +154,14 @@ class DeckChangesHost(
                         DeckDiffs.REMOVE -> repo.remove(rowId, n)
                         else -> repo.moveCopies(rowId, n, l.dest)
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // The list is saved; put the cards back as they were rather than leave some moved.
+                    repo.restore(snap)
+                    Undo.offer("List saved, but the cards couldn't be moved")
+                    ui = null
+                    return@after
                 } finally {
                     ui = null
                 }

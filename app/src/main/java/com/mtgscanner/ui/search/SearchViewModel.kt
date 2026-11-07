@@ -264,7 +264,7 @@ class SearchViewModel(private val repo: CollectionRepository) : ViewModel() {
             runCatching { repo.api.searchPage(q, order, page + 1, unique) }
                 .onSuccess { r ->
                     page++
-                    _ui.update { it.copy(results = it.results + r.data, hasMore = r.hasMore, loading = false) }
+                    _ui.update { it.copy(results = (it.results + r.data).distinctBy { c -> c.id }, hasMore = r.hasMore, loading = false) }
                 }
                 .onFailure { e -> if (e is kotlinx.coroutines.CancellationException) throw e; _ui.update { it.copy(loading = false, moreFailed = true) } }
         }

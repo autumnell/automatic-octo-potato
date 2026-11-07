@@ -56,7 +56,8 @@ class CardNameMatcher(names: Collection<String>, extras: Collection<String> = em
                 // An extra needs to be strictly closer than the best card name so far; a card name wins ties.
                 val limit = minOf(bestDist + if (!isExtra && bestName != null && bestName in extraNorms) 1 else 0, slack + 1)
                 val d = boundedLevenshtein(q, n, limit)
-                val better = d < bestDist || (d == bestDist && d < limit && !isExtra && bestName != null && bestName in extraNorms)
+                // d == limit means the search gave up (the real distance is larger), so it never counts as a match.
+                val better = d < limit && (d < bestDist || (d == bestDist && !isExtra && bestName != null && bestName in extraNorms))
                 if (better) {
                     bestDist = d; bestName = n; bestLen = maxOf(q.length, n.length)
                     if (d == 0) break

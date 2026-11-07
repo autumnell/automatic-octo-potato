@@ -1,5 +1,6 @@
 package com.mtgscanner.data
 
+import androidx.room.withTransaction
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
@@ -25,10 +26,11 @@ suspend fun CollectionRepository.allPlaces(): List<Box> = dao.allPlaces()
 suspend fun CollectionRepository.deckSlot(deckId: Long): Box? = dao.deckSlot(deckId)
 
 /** The row holding [deckId]'s cards, made the first time it's needed. */
-suspend fun CollectionRepository.deckSlotId(deckId: Long): Long {
-    dao.deckSlot(deckId)?.let { return it.id }
+suspend fun CollectionRepository.deckSlotId(deckId: Long): Long = db.withTransaction {
+    // Checked and made in one transaction, so two deck actions at once can't make two slots for one deck.
+    dao.deckSlot(deckId)?.let { return@withTransaction it.id }
     val name = dao.deck(deckId)?.name ?: "Deck"
-    return dao.insertBox(Box(name = name, kind = "deck", deckId = deckId))
+    dao.insertBox(Box(name = name, kind = "deck", deckId = deckId))
 }
 
 /** The box Auto-sort picks for a card, or an Anything box when none fits. */

@@ -307,7 +307,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val s = _ui.value
             val lines = DecklistParser.parse(s.text)
             val names = s.commanders.all + lines.filter { it.section in PLAYED || it.section == "Sideboard" || it.section == "Maybeboard" }.map { it.name }
-            val info = runCatching { repo.deckCardInfo(names, s.format) }.getOrDefault(emptyMap())
+            val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(names, s.format) }.getOrDefault(emptyMap())
             fun rulesOf(n: String) = info[DeckNames.key(n)]?.rules()
             val leads = s.commanders.all.mapNotNull { n -> rulesOf(n)?.let { n.lowercase() to it } }.toMap()
             val art = s.commanders.commanders.mapNotNull { artCropUrl(info[DeckNames.key(it)]?.imageUrl) }
@@ -358,12 +358,12 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val q = s.pickerQuery.trim()
             val options = if (q.isEmpty()) {
                 val names = DecklistParser.parse(s.text).map { it.name }.distinct()
-                val info = runCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
+                val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
                 names.mapNotNull { info[DeckNames.key(it)]?.option() }.distinctBy { it.name }
                     .filter { CommanderRules.fits(it.rules, slot, s.format, first) }
             } else {
                 val filter = CommanderRules.searchFilter(slot, s.format, first)
-                runCatching { repo.api.search("$filter $q", order = "edhrec") }.getOrNull()?.take(40)?.map { it.option() }?.distinctBy { it.name }
+                com.mtgscanner.util.suspendRunCatching { repo.api.search("$filter $q", order = "edhrec") }.getOrNull()?.take(40)?.map { it.option() }?.distinctBy { it.name }
             }
             _ui.update { it.copy(pickerLoading = false, pickerOptions = options.orEmpty()) }
             if (options == null) _ui.update { it.copy(message = "Couldn't reach Scryfall") }

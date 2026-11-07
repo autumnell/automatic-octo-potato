@@ -36,8 +36,8 @@ object AppViewModels {
         initializer { com.mtgscanner.ui.home.MoneyViewModel((this[AppKey] as MtgApp).repository) }
     }
 
-    fun browse(boxId: Long) = viewModelFactory {
-        initializer { BrowseViewModel((this[AppKey] as MtgApp).repository, boxId) }
+    fun browse(boxId: Long, embedded: Boolean = false) = viewModelFactory {
+        initializer { BrowseViewModel((this[AppKey] as MtgApp).repository, boxId, embedded) }
     }
 
     fun deck(id: Long) = viewModelFactory {

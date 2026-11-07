@@ -20,6 +20,7 @@ import com.mtgscanner.util.CsvImport
 import com.mtgscanner.util.Incoming
 import com.mtgscanner.util.IncomingShare
 import com.mtgscanner.work.DriveBackup
+import kotlinx.coroutines.flow.first
 
 /**
  * Drawn over every screen: imports shared to the app or opened with it (CSV, decklist, Moxfield or
@@ -32,6 +33,8 @@ fun DataHost(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory))
     val incoming by IncomingShare.pending.collectAsStateWithLifecycle()
     LaunchedEffect(incoming) {
         val i = incoming ?: return@LaunchedEffect
+        // Another data job (a backup, an import) runs one at a time: wait for it, so this share isn't dropped.
+        DataJobs.busy.first { it == null }
         IncomingShare.pending.value = null
         when (i) {
             is Incoming.File -> vm.readCsv(ctx, i.uri)
@@ -42,6 +45,9 @@ fun DataHost(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory))
             }
         }
     }
+    // This host's own messages ("Wait for … to finish" and the like) show in the app-wide snackbar.
+    val message by vm.message.collectAsStateWithLifecycle()
+    LaunchedEffect(message) { message?.let { com.mtgscanner.ui.components.Undo.offer(it); vm.messageShown() } }
     RestoreOffer(vm)
     ImportDialogs(vm)
     RestorePreviewDialog(vm)
@@ -56,8 +62,8 @@ private fun RestoreOffer(vm: SettingsViewModel) {
     val empty by produceState<Boolean?>(null) { value = runCatching { vm.isEmpty() }.getOrDefault(false) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            DriveBackup.dismissRestoreOffer(app)
-            vm.previewRestore(app, uri)
+            // Dismissed only once the preview starts, so a busy moment doesn't lose the offer.
+            if (vm.previewRestore(app, uri)) DriveBackup.dismissRestoreOffer(app)
         }
     }
     when (empty) {

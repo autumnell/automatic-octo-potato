@@ -101,7 +101,9 @@ object CsvImport {
                 condition = condText?.let { conditionCode(it.trim().removeSuffix(" Foil").removeSuffix(" foil"), cardmarketScale) },
                 language = get(iLang)?.let { if (cardmarketFile) cardmarketLanguage(it) ?: languageCode(it) else languageCode(it) },
                 purchasePrice = get(iPaid)?.let(::money),
-                setName = if (code == null) (get(iSetName) ?: setValue?.takeIf { !cardmarketFile }) else null,
+                // A short all-letters word like "Theros" may be a set name, not a code: keep both and let the set list decide.
+                setName = if (code == null) (get(iSetName) ?: setValue?.takeIf { !cardmarketFile })
+                    else setValue?.takeIf { it.length >= 5 && it.all(Char::isLetter) },
                 signed = flag(iSigned),
                 altered = flag(iAltered),
                 proxy = flag(iProxy),

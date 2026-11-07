@@ -404,8 +404,13 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     }
 
     fun removeWish(item: WishlistItem) = viewModelScope.launch {
+        // The ordered mark is dropped with the card, so Undo puts it back too.
+        val wasOrdered = item.oracleId in com.mtgscanner.data.WishStages.ordered
         repo.removeWish(item.id)
-        Undo.offer("Removed ${item.name}") { repo.restoreWish(item) }
+        Undo.offer("Removed ${item.name}") {
+            repo.restoreWish(item)
+            if (wasOrdered) com.mtgscanner.data.WishStages.setOrdered(item.oracleId, true)
+        }
     }
 
     fun setWanted(item: WishlistItem, wanted: Int) = viewModelScope.launch { repo.setWishWanted(item, wanted) }

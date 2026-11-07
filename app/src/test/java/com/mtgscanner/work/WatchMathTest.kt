@@ -22,7 +22,7 @@ class WatchMathTest {
         val q = WatchMath.reprintQueries(List(25) { "id$it" }, "2026-10-01")
         assertEquals(2, q.size)
         assertTrue(q[0].startsWith("(oracleid:id0 or oracleid:id1"))
-        assertTrue(q[0].endsWith("date>=2026-10-01 game:paper"))
+        assertTrue(q[0].endsWith("date>=2026-10-01 game:paper is:reprint"))
     }
 
     @Test fun newestNonPromoPrintingSince() {

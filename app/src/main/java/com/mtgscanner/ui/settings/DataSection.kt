@@ -134,8 +134,8 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     // Picked once; Google Drive shows up in the picker. The weekly job then overwrites this file.
     val weeklyLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
-            DriveBackup.enable(ctx.applicationContext, uri)
-            vm.backupNow(ctx)
+            if (DriveBackup.enable(ctx.applicationContext, uri)) vm.backupNow(ctx)
+            else com.mtgscanner.ui.components.Undo.offer("That place can't keep weekly backups: pick a folder on Drive or the phone")
         }
     }
     // Ask for notifications first (Android 13+), or a failed weekly backup could never say so.

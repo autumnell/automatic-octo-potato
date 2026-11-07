@@ -91,15 +91,21 @@ class CardTextAnalyzer(
         }
     }
 
-    /** The CJK readers, each made the first time it's needed (each loads its own model). Analysis thread only. */
+    /** The CJK readers, each made the first time it's needed (each loads its own model). Used under its own lock. */
     private val cjkReaders = HashMap<CjkScript, TextRecognizer>()
 
-    private fun reader(script: CjkScript): TextRecognizer = cjkReaders.getOrPut(script) {
+    /** Set by [close]; frames that arrive after it are dropped. */
+    @Volatile private var closed = false
+
+    private fun reader(script: CjkScript): TextRecognizer = synchronized(cjkReaders) {
+        check(!closed) { "Scanner closed" }
+        cjkReaders.getOrPut(script) {
         when (script) {
             CjkScript.JAPANESE -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
             CjkScript.CHINESE -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
             CjkScript.KOREAN -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
         }
+    }
     }
 
     /**
@@ -203,7 +209,7 @@ class CardTextAnalyzer(
             gate.reset()
             pageWaitSince = 0L
         }
-        if (isPaused() || busy.get()) {
+        if (closed || isPaused() || busy.get()) {
             image.close()
             return
         }
@@ -639,7 +645,8 @@ class CardTextAnalyzer(
      * [glare] and two frames or more, returns the combined strip as a picture to read; otherwise null.
      */
     private fun fusedStrip(stack: GlareStack, key: Long, strip: Bitmap, glare: Boolean): Bitmap? {
-        val sized = if (stack.size > 0 && (strip.width != stack.width || strip.height != stack.height)) {
+        // Only frames of the same card are scaled to match; a new card's strip keeps its own size.
+        val sized = if (stack.holds(key) && (strip.width != stack.width || strip.height != stack.height)) {
             Bitmap.createScaledBitmap(strip, stack.width, stack.height, true)
         } else strip
         try {
@@ -916,9 +923,13 @@ class CardTextAnalyzer(
     }
 
     fun close() {
+        closed = true
         scope.cancel()
         recognizer.close()
-        cjkReaders.values.forEach { runCatching { it.close() } }
+        synchronized(cjkReaders) {
+            cjkReaders.values.forEach { runCatching { it.close() } }
+            cjkReaders.clear()
+        }
         // The OpenCV buffer is left to the garbage collector: a frame still being read may be using it.
     }
 

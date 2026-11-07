@@ -20,6 +20,8 @@ object VideoCards {
     private const val MIN_STEP_MS = 350L
     /** Frames are read at most this big on their long side. */
     private const val MAX_PX = 1600
+    /** Bits two picture keys may differ by and still be the same card (of 64). */
+    private const val PRINT_KEY_BITS = 6
 
     /**
      * Every card read from the video at [uri], each card once (twice when two copies showed together). [onProgress]
@@ -37,6 +39,8 @@ object VideoCards {
             val step = maxOf(MIN_STEP_MS, length / MAX_FRAMES)
             val tracks = CardTracks<Pair<Long, CardTextGuess>>(maxMissed = 3)
             val count = VideoCount<PhotoRead>()
+            // Picture keys already seen in this video: a near one (a few values flipped by noise) is the same card.
+            val prints = ArrayList<Long>()
             val all = ArrayList<PhotoRead>()
             var sharpest = 0.0
             var t = 0L
@@ -51,7 +55,7 @@ object VideoCards {
                         if (sharp >= sharpest * 0.45) {
                             val reads = PhotoCards.read(frame, embed, wantsArt, tracks)
                             all += reads
-                            count.frame(reads.map { r -> keyOf(r) to r })
+                            count.frame(reads.map { r -> keyOf(r, prints) to r })
                         } else count.frame(emptyList(), skipped = true)
                     } finally {
                         frame.recycle()
@@ -71,14 +75,17 @@ object VideoCards {
     }
 
     /** What makes two reads the same card: the name and printing read, else the card's picture fingerprint. */
-    private fun keyOf(r: PhotoRead): String? {
+    private fun keyOf(r: PhotoRead, prints: MutableList<Long>): String? {
         val g = r.guess
         g.key?.let { return it }
         val p = g.artOnlyPrints.firstOrNull() ?: return g.artOnly.firstOrNull()?.let { "art:$it" }
-        // A coarse picture key: the signs of the first 64 values of the fingerprint.
+        // A coarse picture key: the signs of the first 64 values of the fingerprint. Values near zero flip from
+        // frame to frame, so a key within a few bits of one already seen is taken as that card.
         var bits = 0L
         for (i in 0 until minOf(64, p.size)) if (p[i] > 0) bits = bits or (1L shl i)
-        return "print:$bits"
+        val known = prints.firstOrNull { java.lang.Long.bitCount(it xor bits) <= PRINT_KEY_BITS }
+        if (known == null) prints += bits
+        return "print:${known ?: bits}"
     }
 
     private fun frameAt(mmr: MediaMetadataRetriever, ms: Long): Bitmap? = runCatching {

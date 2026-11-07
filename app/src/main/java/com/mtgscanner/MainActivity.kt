@@ -1,6 +1,7 @@
 package com.mtgscanner
 
 import com.mtgscanner.ui.theme.Motion
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
@@ -251,6 +252,9 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
     // A message saved before a restart (restoring a backup), with its Undo.
     com.mtgscanner.ui.settings.RestartNoticeEffect()
     LaunchedEffect(openRequest) {
+        if (openRequest == null) return@LaunchedEffect
+        // On a cold start the NavHost may not have set its graph yet; navigating before then crashes.
+        nav.currentBackStackEntryFlow.first()
         // From the widget, app shortcuts and notifications.
         when (openRequest) {
             "scan" -> nav.goToTab("scan")
@@ -261,7 +265,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             "settings" -> nav.navigate("settings") { launchSingleTop = true }
             else -> openRequest?.takeIf { (it.startsWith("card/") || it.startsWith("browse/")) && it.substringAfter('/').toLongOrNull() != null }?.let { nav.navigate(it) }
         }
-        if (openRequest != null) onOpened()
+        onOpened()
     }
 
     // Small counts on the tabs: cards waiting to be sorted, and scans saved until there's a connection.
