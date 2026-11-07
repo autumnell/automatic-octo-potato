@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.data.suggestNames
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -469,7 +470,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     /** Saves the list. A saved deck's changed list opens the Changes sheet first. */
     fun save() {
         val s = _ui.value
-        if (s.text.isBlank() || saving) return
+        if (saving) return
+        // A new deck can be saved empty, to fill from the Cards tab or by scanning into it.
         if (s.id != 0L && s.text.trim() != savedText.trim()) changes.review(s.id, savedText, s.text) else commit()
     }
 
@@ -500,7 +502,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     private fun commit(after: suspend (Long) -> Unit = {}) {
         val s = _ui.value
         // A second tap while the first save runs would save a new deck twice.
-        if (s.text.isBlank() || saving) return
+        if (saving) return
         saving = true
         viewModelScope.launch {
             try {
@@ -595,6 +597,31 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     /** Adds [delta] copies of [name] to the main deck being edited (negative takes them away). */
     fun adjustCard(name: String, delta: Int, board: String = "Main", set: String? = null, number: String? = null) =
         _ui.update { it.copy(text = DeckText.adjust(it.text, name, delta, board, set, number)) }
+
+    /** Adds one copy of [name] from quick add or search, and looks up its picture and type soon after. */
+    fun addCard(name: String, board: String = "Main") {
+        adjustCard(name, 1, board)
+        infoSoon()
+    }
+
+    private var infoJob: Job? = null
+
+    /** Card pictures, types and the curve for the list being edited, once adds settle. */
+    private fun infoSoon() {
+        infoJob?.cancel()
+        infoJob = viewModelScope.launch {
+            delay(500)
+            refreshLeads()
+        }
+    }
+
+    /** Names for quick add as you type: the phone's card list first, then Scryfall. */
+    suspend fun suggestNames(text: String): List<String> =
+        com.mtgscanner.util.suspendRunCatching { repo.suggestNames(text) }.getOrDefault(emptyList())
+
+    /** One page of a Scryfall search for cards to add; throws IOException when Scryfall can't be reached. */
+    suspend fun searchCards(query: String, page: Int): com.mtgscanner.data.CardList =
+        repo.api.searchPage(query, order = "edhrec", page = page)
 
     /** Moves every copy of [name] between the deck, the sideboard and the maybeboard of the list being edited. */
     fun moveCard(name: String, from: String, to: String) = _ui.update { it.copy(text = DeckText.move(it.text, name, from, to)) }

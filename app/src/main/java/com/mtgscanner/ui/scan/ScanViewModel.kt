@@ -15,6 +15,9 @@ import com.mtgscanner.data.SortDecision
 import com.mtgscanner.data.SortPrefs
 import com.mtgscanner.data.SortReason
 import com.mtgscanner.data.addToDeckList
+import com.mtgscanner.data.deckById
+import com.mtgscanner.data.deckSlotId
+import com.mtgscanner.scan.DeckText
 import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
 import com.mtgscanner.data.identify
@@ -878,7 +881,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         val updated = if (!cur.inCollection) cur.copy(card = card, foil = foil) else {
             repo.remove(cur.rowId, cur.count)
             val facts = card.facts(foil)
-            val chosen = chooseBox(card, facts, _state.value.boxId)
+            // A deck's copies stay in the deck; others let auto-sort pick the box anew.
+            val chosen = if (cur.deckId != 0L) null else chooseBox(card, facts, _state.value.boxId)
             val boxId = chosen?.first ?: cur.boxId
             val row = repo.add(card, foil, cur.count, boxId, lang = rowLang(card, cur.lang), condition = cur.condition)
             val box = boxes.value?.firstOrNull { it.id == boxId }
@@ -1059,24 +1063,40 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         )
     }
 
-    /** Scan to a deck: the card goes on the deck list, not into the collection. */
-    private suspend fun addToDeck(card: ScryfallCard, qty: Int, foil: Boolean, deck: Deck, fromReview: Boolean, auto: Boolean) {
-        val listed = runCatching { repo.addToDeckList(deck.id, card.name, qty) }.getOrNull()
-        if (listed == null) {
+    /**
+     * Scan into a deck: the copies go into the deck's own slot in the collection, and onto its list when the list
+     * doesn't already ask for them (a card planned on the list and now scanned isn't listed twice).
+     */
+    private suspend fun addToDeck(card: ScryfallCard, qty: Int, foil: Boolean, lang: String?, deck: Deck, fromReview: Boolean, auto: Boolean) {
+        val fresh = runCatching { repo.deckById(deck.id) }.getOrNull()
+        if (fresh == null) {
             changeMode { it.copy(target = ScanTarget.COLLECTION, deck = null, status = "Deck not found") }
             return
         }
+        val slot = runCatching { repo.deckSlotId(deck.id) }.getOrNull() ?: return
+        val same: (com.mtgscanner.data.db.CollectionCard) -> Boolean = { c ->
+            if (card.oracleId != null) c.oracleId == card.oracleId else c.name.equals(card.name, ignoreCase = true)
+        }
+        val heldBefore = runCatching { repo.cardsInBox(slot).filter(same).sumOf { it.quantity } }.getOrDefault(0)
+        val listedBefore = DeckText.count(fresh.text, card.name)
+        val toList = (heldBefore + qty - listedBefore).coerceIn(0, qty)
+        val listed = if (toList > 0) runCatching { repo.addToDeckList(deck.id, card.name, toList) }.getOrNull() ?: listedBefore else listedBefore
+        val condition = ScanBarPrefs.condition
+        val rowId = repo.add(card, foil, qty, slot, lang = rowLang(card, lang), condition = condition)
         val owned = runCatching { repo.ownedCopies(card.oracleId) }.getOrDefault(0)
         val s = _state.value
         val merge = mergeTarget(s, card, foil, 0, deck.id, 0)
-        val entry = merge?.copy(count = merge.count + qty, at = System.currentTimeMillis())
-            ?: ScanEntry(++entryKeys, 0, card, foil, qty, deck.name, 0, note = "own $owned", deckId = deck.id)
+        val entry = merge?.copy(count = merge.count + qty, at = System.currentTimeMillis(), rowId = rowId, boxId = slot, listed = merge.listedCopies + toList)
+            ?: ScanEntry(
+                ++entryKeys, rowId, card, foil, qty, deck.name, slot, note = "own $owned", deckId = deck.id,
+                lang = lang.takeIf { card.lang == "en" }, condition = condition, listed = toList,
+            )
         latest[entry.key] = entry
         _state.update {
             it.copy(
                 session = if (merge != null) replaceIn(it.session, entry) else listOf(entry) + it.session,
                 addedPulse = it.addedPulse + 1,
-                status = "${card.name} → ${deck.name} ×$listed · own $owned",
+                status = "${card.name} → ${deck.name}" + (if (toList == 0) " · already on the list" else " ×$listed"),
                 error = null,
                 wish = null,
                 lastBoxName = null,
@@ -1142,7 +1162,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                 ScanTarget.DECK -> {
                     val deck = s.deck
                     if (deck != null) {
-                        addToDeck(card, qty, isFoil, deck, fromReview, auto)
+                        addToDeck(card, qty, isFoil, lang, deck, fromReview, auto)
                         return null
                     }
                 }
@@ -1257,10 +1277,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             val inPack = st.pack?.entries?.any { it.key == e.key } == true
             removeEntry(e)
             Undo.offer("Removed ${e.card.name}") {
+                if (e.listedCopies > 0) repo.addToDeckList(e.deckId, e.card.name, e.listedCopies)
                 when {
-                    e.deckId != 0L -> repo.addToDeckList(e.deckId, e.card.name, e.count)
                     e.toWishlist -> repo.addToWishlist(e.card, e.count)
-                    else -> putBack(before, mapOf(e.rowId to e.count))
+                    e.rowId != 0L -> putBack(before, mapOf(e.rowId to e.count))
                 }
                 if (e.wished > 0) runCatching { repo.fulfilWish(e.card.oracleId, e.wished) }
                 removedKeys.remove(e.key)
@@ -1301,10 +1321,13 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
 
     /** Takes copies back out of wherever they went: the collection or the deck list. */
     private suspend fun unstore(e: ScanEntry, qty: Int) {
+        if (e.deckId != 0L) {
+            val off = minOf(qty, e.listedCopies)
+            if (off > 0) runCatching { repo.addToDeckList(e.deckId, e.card.name, -off) }
+        }
         when {
-            e.deckId != 0L -> runCatching { repo.addToDeckList(e.deckId, e.card.name, -qty) }
             e.toWishlist -> runCatching { repo.fulfilWish(e.card.oracleId, qty) }
-            else -> repo.remove(e.rowId, qty)
+            e.rowId != 0L -> repo.remove(e.rowId, qty)
         }
         giveBackWish(e, qty)
     }
@@ -1329,7 +1352,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             return
         }
         unstore(cur, qty)
-        val n = cur.copy(count = cur.count - qty, wished = cur.wished - minOf(qty, cur.wished))
+        val n = cur.copy(
+            count = cur.count - qty, wished = cur.wished - minOf(qty, cur.wished),
+            listed = if (cur.deckId != 0L) cur.listedCopies - minOf(qty, cur.listedCopies) else cur.listed,
+        )
         latest[key] = n
         replaceEverywhere(n)
         _state.update { it.copy(status = "Removed ${cur.card.name}") }
@@ -1412,7 +1438,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                     runCatching { repo.addToWishlist(e.card, picks.first { p -> p.first.key == e.key }.second) }
                 }
                 olds.filter { it.deckId != 0L }.forEach { e ->
-                    runCatching { repo.addToDeckList(e.deckId, e.card.name, picks.first { p -> p.first.key == e.key }.second) }
+                    val back = minOf(picks.first { p -> p.first.key == e.key }.second, e.listedCopies)
+                    if (back > 0) runCatching { repo.addToDeckList(e.deckId, e.card.name, back) }
                 }
                 picks.forEach { (e, q) -> if (minOf(q, e.wished) > 0) runCatching { repo.fulfilWish(e.card.oracleId, minOf(q, e.wished)) } }
                 olds.forEach { removedKeys.remove(it.key); latest[it.key] = it }
@@ -1663,6 +1690,9 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             status = "Adding to ${deck.name}",
         )
     }
+
+    /** Picking a box in the header while scanning into a deck goes back to adding to the collection. */
+    fun leaveDeck() { if (_state.value.target == ScanTarget.DECK) stopTarget() }
 
     /** Makes an empty deck list and scans into it. */
     fun newDeck(name: String) {

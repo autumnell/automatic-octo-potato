@@ -62,7 +62,7 @@ import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.util.DecklistParser
 
 /** What edit mode shows under the deck's name, format and commanders. */
-enum class EditTab(val label: String) { LIST("List"), CARDS("Cards"), COMBOS("Combos"), EDHREC("EDHREC") }
+enum class EditTab(val label: String) { CARDS("Cards"), LIST("List"), COMBOS("Combos"), EDHREC("EDHREC") }
 
 /** The tabs this deck has: EDHREC only for a commander deck with its commander picked. */
 fun editTabs(format: String, commanders: DeckCommanders): List<EditTab> =
@@ -104,18 +104,20 @@ fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
         Board.entries.forEach { b -> SelectPill("${b.label} (${counts[b] ?: 0})", board == b.section, { board = b.section }) }
     }
     val lines = parsed.filter { it.section == board && (board != "Main" || DeckNames.key(it.name) !in leads) }
+    DeckQuickAdd(ui, vm, board)
     if (lines.isEmpty()) {
         Text(
             when (board) {
-                "Main" -> "No cards yet: add them in List, Combos or EDHREC"
-                "Sideboard" -> "No sideboard cards yet: move a card here from the deck with its menu"
-                else -> "Nothing you're considering yet: move a card here from the deck, or add one from EDHREC"
+                "Main" -> "No cards yet: add them by name above, search for them, or scan them into this deck"
+                "Sideboard" -> "No sideboard cards yet: add them above, or move one here from the deck with its menu"
+                else -> "Nothing you're considering yet: add cards above, or move one here from the deck"
             },
             style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s6),
         )
         return
     }
-    SearchField(query, { query = it }, placeholder = "Find in deck")
+    // A long list gets its own filter; a short one is easy to scan by eye, and one search box is enough.
+    if (lines.size > 15 || query.isNotEmpty()) SearchField(query, { query = it }, placeholder = "Find in deck")
     val q = query.trim()
     val shown = if (q.isEmpty()) lines else lines.filter { it.name.contains(q, ignoreCase = true) }
     Text(

@@ -385,8 +385,9 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
         }
         Spacer(Modifier.height(Space.s3))
         val tabs = editTabs(ui.format, ui.commanders)
-        var picked by rememberSaveable { mutableStateOf(startTab ?: EditTab.LIST) }
-        val tab = if (picked in tabs) picked else EditTab.LIST
+        // Cards first: add by name or search; the typed list is one tab over.
+        var picked by rememberSaveable { mutableStateOf(startTab ?: EditTab.CARDS) }
+        val tab = if (picked in tabs) picked else EditTab.CARDS
         EditTabRow(tabs, tab) { picked = it }
         Spacer(Modifier.height(Space.s3))
         when (tab) {
@@ -408,7 +409,7 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
             EditTab.EDHREC -> EdhrecTab(ui, vm)
         }
         Spacer(Modifier.height(Space.s2))
-        GradientButton("Check my collection", vm::save, Modifier.fillMaxWidth(), enabled = ui.text.isNotBlank())
+        GradientButton(if (ui.text.isBlank()) "Save deck" else "Check my collection", vm::save, Modifier.fillMaxWidth())
         Spacer(Modifier.height(Space.s6))
     }
     ui.printingLine?.let { line ->
