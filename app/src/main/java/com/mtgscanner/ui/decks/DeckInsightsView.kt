@@ -537,7 +537,7 @@ private fun CompareView(ui: DeckUi, leads: List<String>, w: CompareWith, onBack:
         return
     }
     if (o.second.isEmpty()) {
-        SheetLine("Couldn't reach EDHREC", muted = true)
+        SheetLine(if (w is CompareWith.Saved) "That deck has no cards to compare" else "Couldn't reach EDHREC", muted = true)
         return
     }
     val diff = remember(mine, o) { DeckCompare.diff(mine, o.second) }

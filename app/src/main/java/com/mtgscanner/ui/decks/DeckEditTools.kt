@@ -268,7 +268,11 @@ fun EdhrecTab(ui: DeckUi, vm: DeckViewModel) {
         (if (all) cards else cards.take(PER_GROUP)).forEachIndexed { i, rec ->
             if (i > 0) HorizontalDivider(color = Palette.Rule)
             val maybe = DeckText.count(ui.text, rec.name, "Maybeboard")
-            EdhrecRow(rec, DeckText.count(ui.text, rec.name), maybe > 0, onMaybe = { on -> vm.adjustCard(rec.name, if (on) 1 else -maybe, "Maybeboard") }) { d -> vm.adjustCard(rec.name, d) }
+            EdhrecRow(rec, DeckText.count(ui.text, rec.name), maybe > 0, onMaybe = { on -> vm.adjustCard(rec.name, if (on) 1 else -maybe, "Maybeboard") }) { d ->
+                vm.adjustCard(rec.name, d)
+                // Added to the deck: it's no longer just being considered, so it leaves the maybeboard.
+                if (d > 0 && maybe > 0) vm.adjustCard(rec.name, -maybe, "Maybeboard")
+            }
         }
         if (!all && cards.size > PER_GROUP) TextButton(onClick = { all = true }) { Text("Show ${cards.size - PER_GROUP} more") }
     }

@@ -69,9 +69,9 @@ object DeckText {
         if (delta == 0 || name.isBlank()) return text
         val target = board
         if (text.isBlank()) return if (delta <= 0) text else if (target == "Main") "$delta $name" else "$target\n$delta $name"
-        val lines = text.lines().toMutableList()
+        val lines = withSideboardHeader(text).lines().toMutableList()
         var section = "Main"
-        var found = -1
+        val found = mutableListOf<Int>()
         var lastMain = -1
         val want = com.mtgscanner.util.CardNames.key(name)
         for ((i, line) in lines.withIndex()) {
@@ -89,16 +89,21 @@ object DeckText {
             val lineSection = if (l.section == "Main") section else l.section
             if (lineSection != target) continue
             lastMain = i
-            if (found < 0 && com.mtgscanner.util.CardNames.key(l.name) == want) found = i
+            if (com.mtgscanner.util.CardNames.key(l.name) == want) found += i
         }
-        if (found >= 0) {
-            val line = lines[found]
-            val qty = DecklistParser.parse(line).first().quantity
-            val n = qty + delta
-            if (n <= 0) lines.removeAt(found)
-            else {
-                val m = LEADING_QTY.find(line)
-                lines[found] = if (m != null) line.replaceRange(m.groups[2]!!.range, n.toString()) else "$n ${line.trim()}"
+        if (found.isNotEmpty()) {
+            if (delta > 0) {
+                lines[found.first()] = withQty(lines[found.first()], DecklistParser.parse(lines[found.first()]).first().quantity + delta)
+                return lines.joinToString("\n")
+            }
+            // Taking copies away: from each line of the card in turn (two printings are two lines), last line first.
+            var left = -delta
+            for (i in found.asReversed()) {
+                if (left == 0) break
+                val qty = DecklistParser.parse(lines[i]).first().quantity
+                val take = minOf(qty, left)
+                left -= take
+                if (qty - take <= 0) lines.removeAt(i) else lines[i] = withQty(lines[i], qty - take)
             }
             return lines.joinToString("\n")
         }
@@ -108,6 +113,33 @@ object DeckText {
         val sb = target == "Sideboard" && lines[lastMain].trim().startsWith("SB:", ignoreCase = true)
         lines.add(lastMain + 1, if (sb) "SB: $delta $name" else "$delta $name")
         return lines.joinToString("\n")
+    }
+
+    private fun withQty(line: String, n: Int): String {
+        val m = LEADING_QTY.find(line)
+        return if (m != null) line.replaceRange(m.groups[2]!!.range, n.toString()) else "$n ${line.trim()}"
+    }
+
+    /**
+     * An MTGO list (no headers, the sideboard as the last blank-line block) with a "Sideboard" header put before
+     * that block, so an edit that adds a header elsewhere doesn't turn the old sideboard into main-deck cards.
+     * Other lists come back as they were.
+     */
+    fun withSideboardHeader(text: String): String {
+        if (DecklistParser.parse(text).none { it.section == "Sideboard" }) return text
+        val lines = text.lines()
+        val explicit = lines.any { line ->
+            val t = line.trim()
+            if (t.isEmpty() || t.startsWith("#")) return@any false
+            val parsed = DecklistParser.parse(line)
+            if (parsed.isEmpty()) DecklistParser.parse("$line\n1 Zz").lastOrNull()?.section.let { it != null && it != "Main" }
+            else parsed.first().section != "Main"
+        }
+        if (explicit) return text
+        // The last blank line that has cards after it starts the sideboard block.
+        val lastCard = lines.indexOfLast { it.isNotBlank() }
+        val blank = (lastCard downTo 0).firstOrNull { lines[it].isBlank() } ?: return text
+        return (lines.subList(0, blank + 1) + "Sideboard" + lines.subList(blank + 1, lines.size)).joinToString("\n")
     }
 
     /** Moves every copy of [name] from section [from] to [to]. */

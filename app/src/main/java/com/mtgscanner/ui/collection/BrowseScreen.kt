@@ -282,6 +282,10 @@ fun BrowseScreen(
                     color = Palette.Muted,
                 )
             }
+            // A saved or recent search picked on the All tab isn't in the page search box, so it gets its own way out.
+            if (embedded && f.query.isNotBlank() && f.query != pageQuery) TextButton(onClick = { vm.update { it.copy(query = pageQuery) } }) {
+                Text("Clear ${f.query.take(24)}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             if (ui.boxes.any { it.id == boxId && it.kind == "trade" }) TextButton(onClick = { onTrade(boxId) }) { Text("Trade") }
             if (ui.pagesView) Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "More") }
