@@ -25,7 +25,8 @@ object VoiceCommands {
 
     /** The command in [heard] (one of the recognizer's guesses), or null when it isn't one. */
     fun parse(heard: String): VoiceCommand? {
-        val t = heard.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+        // Apostrophes go without a space, so "it's foil" reads as "its foil" rather than "it s foil".
+        val t = heard.lowercase().replace("'", "").replace("’", "").replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
         if (t.isEmpty()) return null
         val words = t.split(' ')
         return when {

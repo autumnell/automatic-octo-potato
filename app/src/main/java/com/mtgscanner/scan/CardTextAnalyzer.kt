@@ -645,7 +645,8 @@ class CardTextAnalyzer(
      * [glare] and two frames or more, returns the combined strip as a picture to read; otherwise null.
      */
     private fun fusedStrip(stack: GlareStack, key: Long, strip: Bitmap, glare: Boolean): Bitmap? {
-        val sized = if (stack.size > 0 && (strip.width != stack.width || strip.height != stack.height)) {
+        // Only frames of the same card are scaled to match; a new card's strip keeps its own size.
+        val sized = if (stack.holds(key) && (strip.width != stack.width || strip.height != stack.height)) {
             Bitmap.createScaledBitmap(strip, stack.width, stack.height, true)
         } else strip
         try {

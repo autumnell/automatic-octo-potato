@@ -220,6 +220,9 @@ class ArtEmbedder(private val context: Context) {
             .setQuantize(false)
             .build()
         ImageEmbedder.createFromOptions(context, options).also { if (background) bgEmbedder = it else embedder = it }
+    } catch (e: OutOfMemoryError) {
+        // Short of memory for a moment (often the background copy): the file is fine, so it's kept and tried again.
+        null
     } catch (t: Throwable) {
         // A damaged file: delete it so the next session downloads it again, and use hashes for now.
         broken = true
