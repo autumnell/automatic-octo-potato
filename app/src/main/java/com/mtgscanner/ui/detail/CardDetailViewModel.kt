@@ -223,7 +223,14 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
      * When it does, offers Undo so the rows can be pulled apart again.
      */
     private fun edit(change: suspend (CollectionCard) -> Long) = viewModelScope.launch {
-        val c = card.value ?: return@launch
+        quantityLock.withLock { editNow(change) }
+    }
+
+    /** The stored row, not the shown one, so quick edits in a row don't undo each other. */
+    private suspend fun fresh(): CollectionCard? = repo.cardOnce(currentId.value) ?: card.value
+
+    private suspend fun editNow(change: suspend (CollectionCard) -> Long) {
+        val c = fresh() ?: return
         val from = currentId.value
         val before = repo.snapshot(listOf(from))
         val id = change(c)
@@ -264,20 +271,19 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     fun addTag(tag: String) = viewModelScope.launch { repo.addTag(listOf(currentId.value), tag) }
     fun removeTag(tag: String) = viewModelScope.launch { repo.removeTag(currentId.value, tag) }
 
-    fun setPaid(p: Double?) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(purchasePrice = p)) } }
-    fun setFrom(f: String) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(acquiredFrom = f.trim().take(30))) } }
+    fun setPaid(p: Double?) = edit { repo.update(it.copy(purchasePrice = p)) }
+    fun setFrom(f: String) = edit { repo.update(it.copy(acquiredFrom = f.trim().take(30))) }
     fun setProxy(on: Boolean) = edit {
         val id = repo.update(it.copy(proxy = on))
         repo.logEvent(it.scryfallId, it.name, "edited", if (on) "Proxy" else "Not proxy")
         id
     }
-    fun setForSale(on: Boolean) = viewModelScope.launch {
-        card.value?.let {
-            currentId.value = repo.update(it.copy(forSale = on))
-            repo.logEvent(it.scryfallId, it.name, "edited", if (on) "For sale" else "Not for sale")
-        }
+    fun setForSale(on: Boolean) = edit {
+        val id = repo.update(it.copy(forSale = on))
+        repo.logEvent(it.scryfallId, it.name, "edited", if (on) "For sale" else "Not for sale")
+        id
     }
-    fun setAsk(p: Double?) = viewModelScope.launch { card.value?.let { currentId.value = repo.update(it.copy(askPrice = p, forSale = it.forSale || p != null)) } }
+    fun setAsk(p: Double?) = edit { repo.update(it.copy(askPrice = p, forSale = it.forSale || p != null)) }
 
     /** Saves the picture at [uri] as this copy's photo; [temp] is a camera target to delete afterwards. */
     fun attachPhoto(uri: android.net.Uri, temp: Boolean) = viewModelScope.launch {
@@ -357,8 +363,15 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     fun useStackCount() {
         val n = stackCount.value?.count ?: return
         stackCount.value = null
-        val cur = card.value?.quantity ?: return
-        changeQuantity(n - cur)
+        // Sets the count outright from the stored row, so a tap still saving can't skew it.
+        viewModelScope.launch {
+            quantityLock.withLock {
+                val id = currentId.value
+                val cur = repo.cardOnce(id)?.quantity ?: return@withLock
+                val next = n.coerceAtLeast(1)
+                if (next != cur) repo.setQuantity(id, next)
+            }
+        }
     }
 
     /** What happened to this printing: added, moved, edited, removed (newest first). */

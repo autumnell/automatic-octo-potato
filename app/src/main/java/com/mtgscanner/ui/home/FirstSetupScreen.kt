@@ -81,8 +81,9 @@ fun FirstSetupScreen(onDone: () -> Unit) {
                     CardPrints.State.Off -> SetupStep("Card pictures", false)
                 },
                 SetupStep(
-                    "Card finder (YOLO)", done = prints == CardPrints.State.Ready && finder == null,
-                    failed = finder == -1, note = if (finder == -1) "Not in this build" else null,
+                    // -1 means this build has no finder model: nothing to wait for, so it counts as done.
+                    "Card finder (YOLO)", done = prints == CardPrints.State.Ready && (finder == null || finder == -1),
+                    note = if (finder == -1) "Not in this build" else null,
                 ),
                 SetupStep(
                     "Art model", done = art.model == ArtModel.ADVANCED && art.ready, failed = art.failed.value,

@@ -15,6 +15,9 @@ class GlareStack(private val keep: Int = 4) {
     val width: Int get() = w
     val height: Int get() = h
 
+    /** Whether the frames held are of [key]: a new card starts over at its own strip size. */
+    fun holds(key: Long): Boolean = this.key == key && frames.isNotEmpty()
+
     fun reset() {
         frames.clear()
         key = null

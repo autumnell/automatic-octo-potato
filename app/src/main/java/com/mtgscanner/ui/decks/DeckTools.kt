@@ -161,11 +161,11 @@ class DeckTools(
         upgrade = UpgradeUi()
         scope.launch {
             val names = DecklistParser.parse(text).map { it.name }.toSet()
-            val colors = identity ?: runCatching {
+            val colors = identity ?: com.mtgscanner.util.suspendRunCatching {
                 val found = commanders.map { n -> repo.api.named(n) ?: error("no commander") }
                 "WUBRG".filter { c -> found.any { card -> card.colorIdentity.any { it.equals(c.toString(), ignoreCase = true) } } }
             }.getOrNull()
-            val ideas = colors?.let { runCatching { repo.upgradeIdeas(commanders, it, names, AppSettings.upgradeSkipDeckOnly) }.getOrNull() }
+            val ideas = colors?.let { com.mtgscanner.util.suspendRunCatching { repo.upgradeIdeas(commanders, it, names, AppSettings.upgradeSkipDeckOnly) }.getOrNull() }
             upgrade = upgrade?.copy(loading = false, ideas = ideas.orEmpty(), failed = ideas == null)
         }
     }

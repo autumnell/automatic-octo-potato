@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -140,7 +141,7 @@ private fun PreconDeckSheet(name: String, deck: PreconDeck?, failed: Boolean, vm
                         }
                         val all = deck.cards.filter { it.section != "Sideboard" }
                         item(key = "a") { Label("The deck · ${deck.total}") }
-                        items(all, key = { "a" + it.section + it.name + it.set + it.number }) { c ->
+                        itemsIndexed(all, key = { i, c -> "a$i" + c.section + c.name + c.set + c.number + c.foil }) { _, c ->
                             Text(
                                 (if (c.count > 1) "${c.count} " else "") + c.name + if (c.section == "Commander") " · commander" else "",
                                 style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s1),

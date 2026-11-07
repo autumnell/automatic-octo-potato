@@ -89,7 +89,7 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
         val lines = DecklistParser.parse(d.text)
         val leads = (DeckCommanders.decode(d.commanders).takeUnless { it.isEmpty } ?: DeckCommanders.fromLines(lines)).commanders
         val played = lines.filter { it.section in DeckCheck.PLAYED }.map { it.name to it.quantity }
-        val info = runCatching { repo.deckCardInfo(played.map { it.first } + leads) }.getOrDefault(emptyMap())
+        val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(played.map { it.first } + leads) }.getOrDefault(emptyMap())
         return build(d.name.ifBlank { "Deck" }, played, leads, info, d.format)
     }
 
@@ -101,7 +101,7 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
         val p = Precons.deck(repo.appContext, entry) ?: return null
         val leads = p.commanders.map { it.name }
         val played = p.cards.filter { it.section != "Sideboard" }.map { it.name to it.count }
-        val info = runCatching { repo.deckCardInfo(p.cards.map { it.name }, format) }.getOrDefault(emptyMap())
+        val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(p.cards.map { it.name }, format) }.getOrDefault(emptyMap())
         if (format.isNotEmpty()) {
             val lines = p.cards.map { DeckLine(it.count, it.name, section = it.section) }
             val issues = CommanderRules.issues(lines, format, DeckCommanders(leads)) { n -> info[DeckNames.key(n)]?.rules() }

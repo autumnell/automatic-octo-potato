@@ -108,6 +108,8 @@ class ScanSessionStore(dir: File) {
         if (!file.exists()) null else json.decodeFromString(SavedScanSession.serializer(), file.readText()).expanded()
     }.getOrNull()
 
+    /** One write at a time: the delayed save and the save on close share the temp file. */
+    @Synchronized
     fun save(s: SavedScanSession) {
         runCatching {
             if (s.isEmpty) { file.delete(); return }

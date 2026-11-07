@@ -230,7 +230,7 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = e.deckId == 0L) { vm.showList(false); onOpenCard(e.rowId) }
+                        .clickable(enabled = e.inCollection && e.rowId != 0L) { vm.showList(false); onOpenCard(e.rowId) }
                         .padding(horizontal = Space.s4).ruleBelow().padding(vertical = Space.s3),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

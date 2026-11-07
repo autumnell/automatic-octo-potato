@@ -104,7 +104,8 @@ class CollectionRepository(
 
     /** One shared read of the cards table for every screen; kept 5 s after the last screen stops watching. */
     private val allCards: Flow<List<CollectionCard>> =
-        dao.observeAll().shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+        // The replay is dropped once nobody watches, so a later one-off read can't get an old list.
+        dao.observeAll().shareIn(appScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), replay = 1)
 
     fun observeAll(): Flow<List<CollectionCard>> = allCards
 
@@ -546,13 +547,17 @@ class CollectionRepository(
         val now = System.currentTimeMillis()
         val entity = card.toEntity(foil, qty, now).copy(boxId = boxId, lang = lang, condition = condition, purchasePrice = paid)
         // One add at a time, so two copies added together (like a binder page) merge instead of clashing.
+        // The lookup and the write in one transaction too, so an import or move writing the same copy in between
+        // can't make the insert clash with the copy's unique key.
         val id = addLock.withLock {
-            val existing = twinOf(entity)
-            if (existing != null) {
-                dao.update(existing.mergedWith(entity, now = now, details = false))
-                existing.id
-            } else {
-                dao.insert(entity)
+            db.withTransaction {
+                val existing = twinOf(entity)
+                if (existing != null) {
+                    dao.update(existing.mergedWith(entity, now = now, details = false))
+                    existing.id
+                } else {
+                    dao.insert(entity)
+                }
             }
         }
         logEvent(card.id, card.name, "added", "×$qty → ${boxName(boxId)}")
@@ -568,7 +573,7 @@ class CollectionRepository(
      * Notes a change to the collection. The value snapshot (and widget) runs once
      * things go quiet for [CHANGE_IDLE_MS], or after [CHANGE_BATCH] changes, not once per card.
      */
-    private fun afterChange() { changes.trySend(Unit) }
+    internal fun afterChange() { changes.trySend(Unit) }
 
     init {
         appScope.launch {
@@ -608,8 +613,10 @@ class CollectionRepository(
      * Saves an edited row. When the edit makes it identical to another row (say, its condition now matches),
      * the two merge. Returns the id of the row now holding the copies.
      */
-    suspend fun update(card: CollectionCard): Long {
-        val old = dao.get(card.id)
+    suspend fun update(edited: CollectionCard): Long {
+        val old = dao.get(edited.id)
+        // Edits change details, never the count: copies added while the edit was open (a scan, +1) are kept.
+        val card = if (old != null) edited.copy(quantity = old.quantity) else edited
         if (old != null && old.condition != card.condition) logEvent(card.scryfallId, card.name, "edited", "${old.condition} → ${card.condition}")
         val now = System.currentTimeMillis()
         val twin = if (old != null && !old.sameCopyAs(card)) twinOf(card)?.takeIf { it.id != card.id } else null
@@ -939,7 +946,8 @@ class CollectionRepository(
     /** Saves today's collection value for the value chart, and the totals for the widget. Summed in SQL, not by reading every card. */
     suspend fun recordSnapshot() = snapshotLock.withLock {
         val t = dao.collectionTotal()
-        if (t.n > 0) dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), t.value, t.n))
+        // An emptied collection still records its zero, once there's a chart to put it on.
+        if (t.n > 0 || dao.snapshotCount() > 0) dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), t.value, t.n))
         com.mtgscanner.widget.CollectionWidget.publish(appContext, t.value, t.n, t.valueEur)
     }
 

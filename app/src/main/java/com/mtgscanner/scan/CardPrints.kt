@@ -170,6 +170,7 @@ object CardPrints {
         scope.launch {
             lock.withLock {
                 close()
+                extraSaved = null
                 runCatching { File(ctx.applicationContext.filesDir, "prints").deleteRecursively() }
             }
         }
@@ -385,7 +386,7 @@ object CardPrints {
      */
     suspend fun addNewPrintings(
         ctx: Context, missingIds: suspend () -> List<String>, byId: suspend (String) -> ScryfallCard?, onWifi: () -> Boolean,
-        batch: Int = 200,
+        batch: Int = 500,
     ) {
         if (!ready || !onWifi()) return
         val p = prefs(ctx)
@@ -418,14 +419,19 @@ object CardPrints {
         if (done == missing.size) p.edit().putString(KEY_TOPPED, today.toString()).apply()
     }
 
+    /** The extra gallery as last saved, so [save] doesn't read it back each batch. */
+    private var extraSaved: CardGallery? = null
+
     /** Adds [rows] to the saved extra gallery and to the one in use. */
     private suspend fun save(rows: List<CardGallery.Row>) {
         if (rows.isEmpty()) return
         val add = CardGallery.of(rows)
         lock.withLock {
             val file = File(dir, EXTRA)
-            val old = file.takeIf { it.exists() }?.let { f -> runCatching { f.inputStream().use { CardGallery.Codec.read(it) } }.getOrNull() }
+            // Read from disk once, then kept: re-reading the growing file every batch made a long pass slow.
+            val old = extraSaved ?: file.takeIf { it.exists() }?.let { f -> runCatching { f.inputStream().use { CardGallery.Codec.read(it) } }.getOrNull() }
             val extra = old?.let { CardGallery.merge(it, add) } ?: add
+            extraSaved = extra
             val part = File(dir, "$EXTRA.part")
             part.outputStream().use { CardGallery.Codec.write(extra, it) }
             part.renameTo(file)

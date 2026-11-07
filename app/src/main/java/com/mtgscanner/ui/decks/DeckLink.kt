@@ -23,6 +23,12 @@ suspend fun CollectionRepository.saveDeckFromLink(url: String) {
     } catch (e: java.io.IOException) {
         Undo.offer(e.message ?: "Couldn't get that deck")
         return
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        // A page that isn't the deck's data (an error page, a changed site) can't be read.
+        Undo.offer("Couldn't read that deck")
+        return
     }
     // The format the site has, and the commanders from the list's Commander and Companion sections.
     val lines = com.mtgscanner.util.DecklistParser.parse(deck.text)

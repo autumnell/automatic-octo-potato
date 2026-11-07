@@ -75,13 +75,20 @@ fun PriceListSheet(owned: Map<String, Owned>, onDismiss: () -> Unit) {
             try {
                 val wants = lines.map { PrintingLookup.Wanted(it.name, it.setCode, it.collectorNumber) }
                 val cards = PrintingLookup.resolve(wants) { ids -> repo.api.identify(ids.map(PrintingLookup::json)) }
+                // Owned copies are shared out across lines of the same card, so two printings don't both count them.
+                val used = HashMap<String, Int>()
                 rows = lines.zip(cards).map { (l, c) ->
+                    val have = c?.let { owned.of(it)?.count } ?: 0
+                    val key = c?.let { it.oracleId ?: it.name }.orEmpty()
+                    val left = (have - (used[key] ?: 0)).coerceAtLeast(0)
+                    val mine = minOf(left, l.quantity)
+                    if (c != null) used[key] = (used[key] ?: 0) + mine
                     PriceRow(
                         PricedLine(
                             name = c?.name ?: l.name,
                             quantity = l.quantity,
                             unitPrice = c?.price(l.foil)?.toDoubleOrNull(),
-                            owned = c?.let { owned.of(it)?.count } ?: 0,
+                            owned = mine,
                             found = c != null,
                         ),
                         c,

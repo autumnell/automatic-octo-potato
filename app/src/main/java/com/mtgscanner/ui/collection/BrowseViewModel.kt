@@ -139,7 +139,7 @@ data class BrowseUi(
 
 /** The card list for one box, or the whole collection when [boxId] is -1. */
 @OptIn(FlowPreview::class)
-class BrowseViewModel(private val repo: CollectionRepository, private val boxId: Long) : ViewModel() {
+class BrowseViewModel(private val repo: CollectionRepository, private val boxId: Long, embedded: Boolean = false) : ViewModel() {
     private val prefs: SharedPreferences? = try {
         repo.appContext.getSharedPreferences("browse", Context.MODE_PRIVATE)
     } catch (e: Exception) { null }
@@ -147,9 +147,12 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
     private val json = Json { ignoreUnknownKeys = true }
     private val stickyKey = "filters-$boxId"
 
-    /** Opened from Home or a smart list with its own filters, rather than plain. */
-    private val launched: Boolean = BrowseLaunch.pendingFor(boxId) ||
-        (boxId < 0 && BrowseLaunch.filters == null && (BrowseLaunch.sort != null || BrowseLaunch.color != null))
+    /**
+     * Opened from Home or a smart list with its own filters, rather than plain. Collection's All tab never takes
+     * these: they're meant for the Browse page opened right after it.
+     */
+    private val launched: Boolean = !embedded && (BrowseLaunch.pendingFor(boxId) ||
+        (boxId < 0 && BrowseLaunch.filters == null && (BrowseLaunch.sort != null || BrowseLaunch.color != null)))
 
     /** A smart list's name, when one was opened. */
     private val listTitle: String? = if (launched) BrowseLaunch.takeTitle() else null

@@ -77,6 +77,7 @@ class OnnxNet(file: File, threads: Int = 2, xnnpack: Boolean = false) : Closeabl
     /** Runs [input] shaped [shape]; each output as floats, by name. One call at a time. */
     @Synchronized
     fun run(input: FloatArray, shape: LongArray): Map<String, FloatArray> {
+        check(!closed) { "This model was closed" }
         val tensor = if (inputHalf) {
             val buf = ByteBuffer.allocateDirect(input.size * 2).order(ByteOrder.nativeOrder())
             for (v in input) buf.putShort(Half.fromFloat(v))
@@ -105,7 +106,13 @@ class OnnxNet(file: File, threads: Int = 2, xnnpack: Boolean = false) : Closeabl
         FloatArray(fb.remaining()).also { fb.get(it) }
     }
 
+    @Volatile private var closed = false
+
+    /** Waits for a run in progress (both hold this lock), so the native session is never freed mid-run. */
+    @Synchronized
     override fun close() {
+        if (closed) return
+        closed = true
         runCatching { session.close() }
     }
 }

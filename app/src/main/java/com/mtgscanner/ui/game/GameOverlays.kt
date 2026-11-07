@@ -354,10 +354,11 @@ fun MenuOverlay(
     var rollKind by remember { mutableStateOf<DieKind?>(null) }
     var rollResult by remember { mutableStateOf<String?>(null) }
     var rollKey by remember { mutableIntStateOf(0) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
+    // The clock shows minutes, so the menu only redraws when the minute turns, not every second.
+    var clock by remember(g.startedAt) { mutableStateOf(elapsed(System.currentTimeMillis() - g.startedAt)) }
+    LaunchedEffect(g.startedAt) { while (true) { clock = elapsed(System.currentTimeMillis() - g.startedAt); delay(1000) } }
 
-    TableOverlay(0, "${g.format.label} · ${elapsed(now - g.startedAt)}", emptyList(), 0, {}, onDismiss) {
+    TableOverlay(0, "${g.format.label} · $clock", emptyList(), 0, {}, onDismiss) {
         val marker = picking
         val pageScroll = remember(marker, choosingFirst) { ScrollState(0) }
         when {

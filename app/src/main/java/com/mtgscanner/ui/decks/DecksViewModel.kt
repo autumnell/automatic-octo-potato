@@ -251,7 +251,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
             Triple(played, coverName, second)
         }
         val names = byDeck.values.flatMap { (played, coverName, second) -> played.map { it.name } + listOfNotNull(coverName, second) }.toSet()
-        val info = runCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
+        val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(names) }.getOrDefault(emptyMap())
         val done = HashMap<Long, DeckMeta>()
         val partial = HashMap<Long, DeckMeta>()
         for ((d, pc) in byDeck) {

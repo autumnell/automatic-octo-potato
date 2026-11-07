@@ -93,7 +93,7 @@ fun rememberArtTint(imageUrl: String?): Color? {
     LaunchedEffect(url) {
         if (TintCache.known(url)) return@LaunchedEffect
         val request = ImageRequest.Builder(context).data(url).size(ArtTint.PX, ArtTint.PX).allowHardware(false).build()
-        val drawable = (runCatching { context.imageLoader.execute(request) }.getOrNull() as? SuccessResult)?.drawable
+        val drawable = (com.mtgscanner.util.suspendRunCatching { context.imageLoader.execute(request) }.getOrNull() as? SuccessResult)?.drawable
         val found = drawable?.let { d ->
             withContext(Dispatchers.Default) {
                 val bmp = Bitmap.createBitmap(ArtTint.PX, ArtTint.PX, Bitmap.Config.ARGB_8888)
@@ -108,7 +108,8 @@ fun rememberArtTint(imageUrl: String?): Color? {
                 }
             }
         }
-        TintCache.put(url, found)
+        // A picture that didn't load (offline) isn't remembered as grey: the next visit tries again.
+        if (drawable != null) TintCache.put(url, found)
         tint = found
     }
     return tint
