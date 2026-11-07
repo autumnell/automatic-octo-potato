@@ -139,7 +139,7 @@ private fun EdhrecCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     rec.share?.let { ShareRing(it.toFloat()) }
                     Spacer(Modifier.width(Space.s1))
-                    Text(rec.share?.let { pct(it) } ?: "–", style = MaterialTheme.typography.labelLarge.merge(TabularNums))
+                    Text(rec.share?.let { sharePct(it) } ?: "–", style = MaterialTheme.typography.labelLarge.merge(TabularNums))
                 }
             }
             CellRule()
@@ -205,7 +205,7 @@ private fun ShareRing(share: Float) {
     }
 }
 
-private fun pct(share: Double): String {
+private fun sharePct(share: Double): String {
     val p = share * 100
     return if (p < 10) "${(p * 10).roundToInt() / 10.0}%" else "${p.roundToInt()}%"
 }
