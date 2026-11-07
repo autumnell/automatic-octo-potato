@@ -174,13 +174,13 @@ fun LastCardBar(
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .glass(RoundedCornerShape(Corners.Medium))
-            .clickable(enabled = e != null) { if (e != null && e.deckId == 0L && e.rowId != 0L) onOpenCard(e.rowId) else onOpenList() }
+            .clickable(enabled = e != null) { if (e != null && e.inCollection) onOpenCard(e.rowId) else onOpenList() }
             .padding(horizontal = Space.s2, vertical = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (e == null) return@Row
         // Grows into the card page when tapped.
-        CardImage(e.card.smallImageUrl, Modifier.height(40.dp).sharedCard(if (e.deckId == 0L) e.rowId else 0L))
+        CardImage(e.card.smallImageUrl, Modifier.height(40.dp).sharedCard(if (e.inCollection) e.rowId else 0L))
         Spacer(Modifier.width(Space.s3))
         SetIcon(e.card.set, size = 16.dp)
         Spacer(Modifier.width(Space.s2))

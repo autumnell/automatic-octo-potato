@@ -96,6 +96,7 @@ object WhatsNew {
         358 to "Bug fixes: moving a card listed in two printings moves both, MTGO sideboards stay sideboards when edited, the game screen keeps its upright lock between pages, win rates never go negative, and hand-set brackets are saved in backups",
         362 to "Bug fixes from a full review: stopping batch scanning keeps the pile, quick edits on a card page no longer undo each other, a removed wishlist card keeps its Ordered mark on Undo, the first setup finishes without the card finder, Home sections drag smoothly, the weekly watch skips brand-new cards, set names like Theros import right, and opening the app from a widget no longer crashes",
         366 to "The scanner checks the card picture even when the name and set code read fine, so showcase, borderless and other arts of a card in the same set are told apart. A flavor text signature naming another card (Hop to It's “Ms. Bumbleflower”) is no longer read as the card's name",
+        372 to "Deck editing opens on Cards: add a card by typing its name, or search all of Magic with type, format and commander color filters. A new deck can be saved empty. The scan screen's add-to menu lists your decks: scanned cards go into the deck and onto its list",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import androidx.compose.material.icons.outlined.Style
 import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
@@ -138,6 +139,7 @@ import com.mtgscanner.ui.components.ruleBelow
 @Composable
 internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewModel) {
     var boxMenu by remember { mutableStateOf(false) }
+    val decks by vm.decks.collectAsStateWithLifecycle()
     val box = boxes.firstOrNull { it.id == state.boxId }
     Row(
         Modifier.fillMaxWidth()
@@ -153,7 +155,7 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     val auto = state.boxId == CardBox.AUTO_SORT || box == null
-                    Icon(if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
+                    Icon(if (state.target == ScanTarget.DECK) Icons.Outlined.Style else if (auto) Icons.AutoMirrored.Outlined.Sort else boxIcon(box!!.kind), null, tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(Space.s1))
                     val where = when (state.target) {
                         ScanTarget.CHECK -> "Just checking · not adding"
@@ -181,7 +183,7 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                             }
                         },
                         leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null) },
-                        onClick = { vm.setBox(CardBox.AUTO_SORT); boxMenu = false },
+                        onClick = { vm.setBox(CardBox.AUTO_SORT); vm.leaveDeck(); boxMenu = false },
                     )
                     HorizontalDivider(color = Palette.Rule)
                     boxes.forEach { b ->
@@ -193,14 +195,32 @@ internal fun ScanHeader(state: ScanUiState, boxes: List<CardBox>, vm: ScanViewMo
                                 }
                             },
                             leadingIcon = { Icon(boxIcon(b.kind), null, tint = com.mtgscanner.ui.components.boxColor(b.color)) },
-                            onClick = { vm.setBox(b.id); boxMenu = false },
+                            onClick = { vm.setBox(b.id); vm.leaveDeck(); boxMenu = false },
                         )
                     }
-                    HorizontalDivider(color = Palette.Rule)
                     DropdownMenuItem(
                         text = { Text("New box…") },
                         leadingIcon = { Icon(Icons.Outlined.Add, null, tint = Palette.Icon) },
                         onClick = { boxMenu = false; vm.showNewBox(true) },
+                    )
+                    // Decks hold cards too: scanned copies go into the deck and onto its list.
+                    HorizontalDivider(color = Palette.Rule)
+                    Text(
+                        "Decks", style = MaterialTheme.typography.labelLarge, color = Palette.Muted,
+                        modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
+                    )
+                    decks.forEach { d ->
+                        val on = state.target == ScanTarget.DECK && state.deck?.id == d.id
+                        DropdownMenuItem(
+                            text = { Text(d.name, color = if (on) Palette.AccentText else Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingIcon = { Icon(Icons.Outlined.Style, null, tint = if (on) Palette.AccentText else Palette.Icon) },
+                            onClick = { vm.scanToDeck(d); boxMenu = false },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text("New deck…") },
+                        leadingIcon = { Icon(Icons.Outlined.Add, null, tint = Palette.Icon) },
+                        onClick = { boxMenu = false; vm.showDeckPick(true) },
                     )
                 }
             }

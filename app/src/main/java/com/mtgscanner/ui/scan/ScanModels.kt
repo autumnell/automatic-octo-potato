@@ -73,7 +73,10 @@ data class ScanEntry(
     /** Short note when the box wasn't picked by plain rules ("Extra copy"). */
     val note: String? = null,
     val full: Boolean = false,
-    /** Set when the card went to a deck list instead of the collection ([rowId] is then 0). */
+    /**
+     * Set when the card was scanned into a deck: the copies are in the deck's own slot ([rowId], in [boxId]) and on
+     * its list. Lines saved before decks held cards have [rowId] 0: they only went on the list.
+     */
     val deckId: Long = 0,
     /** Language recorded for it, when not English. */
     val lang: String? = null,
@@ -87,9 +90,14 @@ data class ScanEntry(
     val wished: Int = 0,
     /** Set when the card went on the wishlist instead of into the collection ([rowId] is then 0). */
     val toWishlist: Boolean = false,
+    /** Copies of a deck line added to the deck's list; -1 (lines saved before this) means all of them. */
+    val listed: Int = -1,
 ) {
-    /** The copies went into the collection (not a deck list or the wishlist). */
-    val inCollection: Boolean get() = deckId == 0L && !toWishlist
+    /** The copies went into the collection, in a box or a deck's slot (not only on a list or the wishlist). */
+    val inCollection: Boolean get() = rowId != 0L && !toWishlist
+
+    /** Copies this line put on its deck's list. */
+    val listedCopies: Int get() = if (deckId == 0L) 0 else if (listed < 0) count else listed
 
     /** "Rares → Blue" */
     val where: String get() = if (spot != null && boxName.isNotEmpty()) "$boxName → $spot" else boxName
