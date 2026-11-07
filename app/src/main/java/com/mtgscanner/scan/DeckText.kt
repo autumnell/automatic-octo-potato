@@ -151,6 +151,13 @@ object DeckText {
         return adjust(adjust(text, name, -n, from), name, n, to)
     }
 
+    /** Copies of [name] the deck plays: the main deck plus its commander, companion and signature spell lines. */
+    fun countPlayed(text: String, name: String): Int {
+        val want = com.mtgscanner.util.CardNames.key(name)
+        return DecklistParser.parse(text).filter { it.section in com.mtgscanner.data.DeckCheck.PLAYED && com.mtgscanner.util.CardNames.key(it.name) == want }
+            .sumOf { it.quantity }
+    }
+
     /** Copies of [name] in [section], the main deck unless named. */
     fun count(text: String, name: String, section: String = "Main"): Int {
         val want = com.mtgscanner.util.CardNames.key(name)

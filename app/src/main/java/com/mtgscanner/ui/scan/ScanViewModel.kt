@@ -1078,7 +1078,11 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
             if (card.oracleId != null) c.oracleId == card.oracleId else c.name.equals(card.name, ignoreCase = true)
         }
         val heldBefore = runCatching { repo.cardsInBox(slot).filter(same).sumOf { it.quantity } }.getOrDefault(0)
-        val listedBefore = DeckText.count(fresh.text, card.name)
+        // A commander already on the list (its own Commander line) counts: scanning it in doesn't list it again.
+        val played = DeckText.countPlayed(fresh.text, card.name)
+        val cardKey = com.mtgscanner.util.CardNames.key(card.name)
+        val isLead = com.mtgscanner.data.DeckCommanders.decode(fresh.commanders).all.any { com.mtgscanner.util.CardNames.key(it) == cardKey }
+        val listedBefore = if (played == 0 && isLead) 1 else played
         val toList = (heldBefore + qty - listedBefore).coerceIn(0, qty)
         val listed = if (toList > 0) runCatching { repo.addToDeckList(deck.id, card.name, toList) }.getOrNull() ?: listedBefore else listedBefore
         val condition = ScanBarPrefs.condition
