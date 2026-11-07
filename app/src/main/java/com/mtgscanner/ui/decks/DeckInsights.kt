@@ -67,12 +67,19 @@ object BracketMath {
     /** Ramp, not a tutor: the search finds a land, by name, type or basic land type. */
     private val LAND_SEARCH = Regex("""\b(lands?|basic|plains|island|swamp|mountain|forest|gate|desert|cave|town)\b""", RegexOption.IGNORE_CASE)
 
+    /** Another card type in the same search: "a creature or land card" still tutors. */
+    private val OTHER_TYPE = Regex("""\b(creature|artifact|enchantment|instant|sorcery|planeswalker|battle|equipment|aura|named)\b""", RegexOption.IGNORE_CASE)
+
     /** A card that tutors: it searches the library for something other than lands. */
-    fun isTutor(oracle: String): Boolean = SEARCH.findAll(oracle).any { !LAND_SEARCH.containsMatchIn(it.groupValues[1]) }
+    fun isTutor(oracle: String): Boolean = SEARCH.findAll(oracle).any {
+        val what = it.groupValues[1]
+        !LAND_SEARCH.containsMatchIn(what) || OTHER_TYPE.containsMatchIn(what)
+    }
 
     /**
-     * The deck's bracket. With Scryfall's tag lists ([tags]) a card counts as a tutor or mass land denial when it's on
-     * them; without (an older build or a test), its rules text decides.
+     * The deck's bracket. With Scryfall's tag lists ([tags]) a card counts as mass land denial when it's on them, and
+     * as a tutor when it's on them and its text searches for more than lands (the tag includes ramp); without (an
+     * older build or a test), its rules text decides.
      */
     fun of(cards: List<InsightCard>, gameChangers: Set<String>, twoCardCombos: List<List<String>>?, tags: BracketTagLists? = null): Bracket {
         val gcKeys = gameChangers.map { DeckNames.key(it) }.toSet()
@@ -80,7 +87,7 @@ object BracketMath {
         val gc = names { DeckNames.key(it.name) in gcKeys }
         val mld = names { !it.isLand && (tags?.let { t -> DeckNames.key(it.name) in t.massLandDenial } ?: MLD.containsMatchIn(it.oracleText)) }
         val turns = names { EXTRA_TURN.containsMatchIn(it.oracleText) }
-        val tutors = names { !it.isLand && (tags?.let { t -> DeckNames.key(it.name) in t.tutors } ?: isTutor(it.oracleText)) }
+        val tutors = names { !it.isLand && ((tags == null || DeckNames.key(it.name) in tags.tutors) && isTutor(it.oracleText)) }
         val combos = twoCardCombos.orEmpty()
         val level = when {
             gc.size > 3 || mld.isNotEmpty() -> 4
@@ -122,6 +129,12 @@ object ManaBaseMath {
     private val BASICS = mapOf("plains" to 'W', "island" to 'U', "swamp" to 'B', "mountain" to 'R', "forest" to 'G')
     private val CHEAP_HELP = Regex("""add \{|search your library for (a|up to \w+) (basic )?(land|forest|plains|island|swamp|mountain)|draws? (a|two|three) cards?""", RegexOption.IGNORE_CASE)
 
+    private val BASIC_WORDS by lazy { BASICS.associate { (w, _) -> w to Regex("""\b$w\b""") } }
+    private val ANY_COLOR = Regex("""any (one )?colou?r|any combination of colou?rs|mana of any""", RegexOption.IGNORE_CASE)
+    private val FETCH_ANY = Regex("""search your library for an? (basic )?land""", RegexOption.IGNORE_CASE)
+    private val FETCH_BASIC = Regex("""search your library for an? (basic )?(plains|island|swamp|mountain|forest)( or (plains|island|swamp|mountain|forest))?""", RegexOption.IGNORE_CASE)
+    private val PIP = Regex("""\{([WUBRG])(/[WUBRGP])?\}""")
+
     fun colorName(c: Char): String = when (c) { 'W' -> "white"; 'U' -> "blue"; 'B' -> "black"; 'R' -> "red"; 'G' -> "green"; else -> "colorless" }
 
     /** The colors a land (or a card that fetches a land) can make, within the deck's [identity]. */
@@ -129,16 +142,15 @@ object ManaBaseMath {
         val text = card.oracleText
         val type = card.typeLine.substringBefore("//").lowercase()
         val out = HashSet<Char>()
-        BASICS.forEach { (word, c) -> if (Regex("""\b$word\b""").containsMatchIn(type)) out += c }
+        BASICS.forEach { (word, c) -> if (BASIC_WORDS.getValue(word).containsMatchIn(type)) out += c }
         ADD.findAll(text).forEach { m ->
             val clause = m.value
             "WUBRG".forEach { c -> if ("{$c}" in clause) out += c }
-            if (Regex("""any (one )?colou?r|any combination of colou?rs|mana of any""", RegexOption.IGNORE_CASE).containsMatchIn(clause)) out += identity
+            if (ANY_COLOR.containsMatchIn(clause)) out += identity
         }
         // Fetch lands and the like: any basic of the deck's colors.
-        if (Regex("""search your library for an? (basic )?land""", RegexOption.IGNORE_CASE).containsMatchIn(text)) out += identity
-        Regex("""search your library for an? (basic )?(plains|island|swamp|mountain|forest)( or (plains|island|swamp|mountain|forest))?""", RegexOption.IGNORE_CASE)
-            .findAll(text).forEach { m -> BASICS.forEach { (w, c) -> if (w in m.value.lowercase()) out += c } }
+        if (FETCH_ANY.containsMatchIn(text)) out += identity
+        FETCH_BASIC.findAll(text).forEach { m -> BASICS.forEach { (w, c) -> if (w in m.value.lowercase()) out += c } }
         return out.filter { it in identity }.toSet()
     }
 
@@ -159,10 +171,11 @@ object ManaBaseMath {
             else -> null
         }
         val landCount = lands.sumOf { it.copies }
-        val sources = identity.associateWith { c -> cards.filter { it.isLand || it.cmc == 0.0 }.filter { c in colorsOf(it, identity) }.sumOf { it.copies } }
+        val makers = cards.filter { it.isLand || it.cmc == 0.0 }.map { it to colorsOf(it, identity) }
+        val sources = identity.associateWith { c -> makers.filter { c in it.second }.sumOf { it.first.copies } }
             .filterKeys { it in "WUBRG" }
         val pips = HashMap<Char, Int>()
-        spells.forEach { s -> Regex("""\{([WUBRG])(/[WUBRGP])?\}""").findAll(s.manaCost).forEach { m -> val c = m.groupValues[1][0]; pips[c] = (pips[c] ?: 0) + s.copies } }
+        spells.forEach { s -> PIP.findAll(s.manaCost).forEach { m -> val c = m.groupValues[1][0]; pips[c] = (pips[c] ?: 0) + s.copies } }
         val pipTotal = pips.values.sum()
         val base = suggested ?: landCount
         // Each color gets its share of the lands, and at least a third of them when it's played at all.

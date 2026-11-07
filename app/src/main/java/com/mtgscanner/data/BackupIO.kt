@@ -114,7 +114,7 @@ internal object BackupIO {
     val BACKED_UP_PREFS = listOf(
         "deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links", "deck_status",
         // Game stats, theme and fonts, set-completion settings and the scan bar.
-        "game_records", "appearance", "sets", "scanBar", "deck_results",
+        "game_records", "appearance", "sets", "scanBar", "deck_results", "deck_brackets",
     )
 
     /**
@@ -122,7 +122,7 @@ internal object BackupIO {
      * ([LastChecked]) and deck links. A restore keeps the backup's ids, so these must come from the backup too.
      * They're saved even when empty, so a backup without them is from an older version.
      */
-    private val ID_PREFS = listOf("boxes", "box_checked", "deck_links", "deck_status")
+    private val ID_PREFS = listOf("boxes", "box_checked", "deck_links", "deck_status", "deck_brackets")
 
     /** What the app held just before the last restore, so a restore can be undone. */
     private const val SAFETY_FILE = "before-restore.json"
@@ -315,6 +315,7 @@ internal object BackupIO {
         com.mtgscanner.ui.theme.AppSettings.init(context)
         com.mtgscanner.work.CardAlertStore.reload(context)
         com.mtgscanner.ui.decks.DeckStatusStore.reload(context)
+        com.mtgscanner.ui.decks.BracketChoice.reload(context)
     }
 
     /**
@@ -338,6 +339,7 @@ internal object BackupIO {
         BoxPrefs.reload(context)
         LastChecked.reload(context)
         com.mtgscanner.ui.decks.DeckStatusStore.reload(context)
+        com.mtgscanner.ui.decks.BracketChoice.reload(context)
     }
 
     /** Whether restoring [b] changes settings that some screens only read at start-up. */

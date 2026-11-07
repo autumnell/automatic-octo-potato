@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
@@ -62,6 +63,13 @@ fun DeckArtHeader(
     val f = DeckFormats.of(format)
     if (!hasArtHeader(format, commanders, art)) {
         DeckHeader(format, commanders, art, issues, onEdhrec, salt)
+        // Without the art, the bracket still shows (and opens its sheet) under the plain header.
+        if (bracket != null) Text(
+            bracket, style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted, maxLines = 1,
+            modifier = Modifier.fillMaxWidth()
+                .then(if (onBracket != null) Modifier.clickable(onClickLabel = "Bracket", onClick = onBracket) else Modifier)
+                .heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically).padding(horizontal = Space.s4),
+        )
         if (totals != null) Text(
             totals, style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
             modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
@@ -86,7 +94,8 @@ fun DeckArtHeader(
                 // The deck's bracket where the card count used to be; it opens the bracket sheet.
                 if (bracket != null) Text(
                     bracket, style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.OnDarkMuted, maxLines = 1,
-                    modifier = if (onBracket != null) Modifier.clickable(onClickLabel = "Bracket", onClick = onBracket) else Modifier,
+                    modifier = if (onBracket != null) Modifier.clickable(onClickLabel = "Bracket", onClick = onBracket)
+                        .heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically) else Modifier,
                 )
                 val saltTag: (@Composable () -> Unit)? = salt?.let { st ->
                     { Text("Salt %.1f".format(st.total), style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.OnDarkMuted, maxLines = 1) }
@@ -100,12 +109,12 @@ fun DeckArtHeader(
             if (onEdhrec != null) Row(
                 Modifier.align(Alignment.TopEnd).padding(Space.s2).clip(RoundedCornerShape(Corners.Small))
                     .background(Color.Black.copy(alpha = 0.55f)).clickable(onClick = onEdhrec)
-                    .heightIn(min = 40.dp).padding(horizontal = Space.s3),
+                    .heightIn(min = 48.dp).padding(horizontal = Space.s3),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("EDHREC", style = MaterialTheme.typography.labelLarge, color = Color.White)
                 Spacer(Modifier.width(Space.s1))
-                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, tint = Color.White, modifier = Modifier.size(18.dp))
             }
         }
         if (!issues.isEmpty) DeckIssuesLine(issues)

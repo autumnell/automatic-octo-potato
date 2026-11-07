@@ -238,7 +238,7 @@ fun DeckScreen(
                         ui.format, ui.commanders, ui.leadArt, ui.issues,
                         onEdhrec = if (edhrec == null) null else ({ openLink(ctx, edhrec) }),
                         salt = salt, totals = totals, shape = ui.shape,
-                        bracket = shownBracket?.let { "Bracket $it: ${bracketName(it)}" }, onBracket = { bracketOpen = true },
+                        bracket = shownBracket?.let { "Bracket $it: ${bracketName(it)}" }, onBracket = if (bracket != null) ({ bracketOpen = true }) else null,
                     )
                 }
                 if (bracketOpen && bracket != null) BracketSheet(

@@ -47,6 +47,20 @@ class DeckInsightsTest {
         assertEquals(listOf("Armageddon"), b.massLandDenial)
     }
 
+    @Test fun emptyTagListsFallBackToCardText() {
+        assertEquals(null, BracketTags.parse("""{"tutor":[],"mld":["Armageddon"]}"""))
+        assertEquals(null, BracketTags.parse("""{"mld":["Armageddon"]}"""))
+    }
+
+    @Test fun taggedRampIsNotATutorButCreatureOrLandIs() {
+        val tags = BracketTags.parse("""{"tutor":["Cultivate","Traverse the Ulvenwald"],"mld":["Armageddon"]}""")
+        val cards = filler(58) +
+            spell("Cultivate", 3.0, "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.") +
+            spell("Traverse the Ulvenwald", 1.0, "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.\nDelirium — If there are four or more card types among cards in your graveyard, instead search your library for a creature or land card, reveal it, put it into your hand, then shuffle.") +
+            land("Forest", 40)
+        assertEquals(listOf("Traverse the Ulvenwald"), BracketMath.of(cards, emptySet(), null, tags).tutors)
+    }
+
     @Test fun rampIsNotATutor() {
         assertEquals(false, BracketMath.isTutor("Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield, then shuffle."))
         assertEquals(false, BracketMath.isTutor("Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle."))

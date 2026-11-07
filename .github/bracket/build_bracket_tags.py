@@ -7,7 +7,6 @@ import json, sys, time, urllib.parse, urllib.request
 
 CANDIDATES = {
     "tutor": ["tutor"],
-    "land_tutor": ["tutor-land"],
     "mld": ["mass-land-denial"],
 }
 
@@ -39,9 +38,8 @@ def main(out):
             print(f"otag:{t}: {len(names)} cards; e.g. {names[:6]}")
             found |= set(names)
         result[key] = sorted(found)
-    # A tutor that only finds lands is ramp, not a tutor (Wizards: "tutors for things other than lands").
-    lands = set(result.pop("land_tutor"))
-    result["tutor"] = [n for n in result["tutor"] if n not in lands]
+    # Land-only searches (ramp) are left in: the app drops them by card text, so a card that finds "a creature or
+    # land card" (Traverse the Ulvenwald) still counts as a tutor.
     print({k: len(v) for k, v in result.items()})
     with open(out, "w") as f:
         json.dump(result, f, separators=(",", ":"))

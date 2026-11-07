@@ -79,15 +79,18 @@ fun DeckShapeView(
             }
             Spacer(Modifier.height(Space.s1))
             val pct = DeckShapeMath.percents(shape.pips.map { it.second })
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s3), verticalAlignment = Alignment.CenterVertically) {
-                shape.pips.forEachIndexed { i, (c, _) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ColorPip(c, 10.dp)
-                        Spacer(Modifier.width(Space.s1))
-                        Text("${pct.getOrElse(i) { 0 }}%", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = ink)
+            // The percents take what's left after [trailing], so a five-color deck doesn't push the salt off the edge.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Space.s3), verticalAlignment = Alignment.CenterVertically) {
+                    shape.pips.forEachIndexed { i, (c, _) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ColorPip(c, 10.dp)
+                            Spacer(Modifier.width(Space.s1))
+                            Text("${pct.getOrElse(i) { 0 }}%", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = ink, maxLines = 1, softWrap = false)
+                        }
                     }
                 }
-                if (trailing != null) { Spacer(Modifier.weight(1f)); trailing() }
+                if (trailing != null) { Spacer(Modifier.width(Space.s2)); trailing() }
             }
         } else if (trailing != null) {
             Spacer(Modifier.height(Space.s1))
