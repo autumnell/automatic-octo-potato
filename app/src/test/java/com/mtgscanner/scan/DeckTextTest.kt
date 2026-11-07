@@ -85,4 +85,10 @@ class DeckTextTest {
         assertEquals(0, DeckText.count(edited, "Duress"))
         assertEquals(60, com.mtgscanner.util.DecklistParser.parse(edited).filter { it.section == "Main" }.sumOf { it.quantity })
     }
+
+    @Test fun stepperChangesOnlyItsOwnPrinting() {
+        val text = "1 Sol Ring (CMR) 263\n1 Sol Ring (C21) 125"
+        assertEquals("1 Sol Ring (CMR) 263", DeckText.adjust(text, "Sol Ring", -1, set = "c21", number = "125"))
+        assertEquals("1 Sol Ring (CMR) 263\n2 Sol Ring (C21) 125", DeckText.adjust(text, "Sol Ring", 1, set = "c21", number = "125"))
+    }
 }

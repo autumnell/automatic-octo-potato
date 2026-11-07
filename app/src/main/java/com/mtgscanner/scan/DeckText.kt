@@ -63,9 +63,10 @@ object DeckText {
 
     /**
      * Adds [delta] copies of [name] to [board] ("Main", "Sideboard" or "Maybeboard"; negative takes copies away).
-     * A section the list doesn't have yet gets its header at the end.
+     * A section the list doesn't have yet gets its header at the end. With [set] (and [number]) only the lines of that
+     * printing change, so a card listed in two printings keeps the other one.
      */
-    fun adjust(text: String, name: String, delta: Int, board: String = "Main"): String {
+    fun adjust(text: String, name: String, delta: Int, board: String = "Main", set: String? = null, number: String? = null): String {
         if (delta == 0 || name.isBlank()) return text
         val target = board
         if (text.isBlank()) return if (delta <= 0) text else if (target == "Main") "$delta $name" else "$target\n$delta $name"
@@ -89,7 +90,8 @@ object DeckText {
             val lineSection = if (l.section == "Main") section else l.section
             if (lineSection != target) continue
             lastMain = i
-            if (com.mtgscanner.util.CardNames.key(l.name) == want) found += i
+            val samePrinting = set == null || (l.setCode.equals(set, ignoreCase = true) && l.collectorNumber.equals(number, ignoreCase = true))
+            if (com.mtgscanner.util.CardNames.key(l.name) == want && samePrinting) found += i
         }
         if (found.isNotEmpty()) {
             if (delta > 0) {

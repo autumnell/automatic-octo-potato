@@ -144,7 +144,7 @@ fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Stepper(l.quantity) { d -> vm.adjustCard(l.name, d, board) }
+                Stepper(l.quantity) { d -> vm.adjustCard(l.name, d, board, l.setCode, l.collectorNumber) }
                 MoveMenu(board) { to -> com.mtgscanner.util.Haptics.tick(); vm.moveCard(l.name, board, to) }
             }
         }
@@ -260,15 +260,20 @@ fun EdhrecTab(ui: DeckUi, vm: DeckViewModel) {
         SelectPill("All", !missingOnly, { missingOnly = false })
         SelectPill("Not in the deck", missingOnly, { missingOnly = true })
     }
+    // Counts by card, from one read of the list: a page has hundreds of cards, and each count re-read the list.
+    val counts = remember(ui.text) {
+        DecklistParser.parse(ui.text).groupBy { it.section to DeckNames.key(it.name) }.mapValues { (_, ls) -> ls.sumOf { it.quantity } }
+    }
+    fun count(name: String, section: String = "Main") = counts[section to DeckNames.key(name)] ?: 0
     groups.forEach { g ->
-        val cards = if (missingOnly) g.cards.filter { DeckText.count(ui.text, it.name) == 0 } else g.cards
+        val cards = if (missingOnly) g.cards.filter { count(it.name) == 0 } else g.cards
         if (cards.isEmpty()) return@forEach
         var all by rememberSaveable(g.header) { mutableStateOf(false) }
         Text(g.header, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s4, bottom = Space.s1))
         (if (all) cards else cards.take(PER_GROUP)).forEachIndexed { i, rec ->
             if (i > 0) HorizontalDivider(color = Palette.Rule)
-            val maybe = DeckText.count(ui.text, rec.name, "Maybeboard")
-            EdhrecRow(rec, DeckText.count(ui.text, rec.name), maybe > 0, onMaybe = { on -> vm.adjustCard(rec.name, if (on) 1 else -maybe, "Maybeboard") }) { d ->
+            val maybe = count(rec.name, "Maybeboard")
+            EdhrecRow(rec, count(rec.name), maybe > 0, onMaybe = { on -> vm.adjustCard(rec.name, if (on) 1 else -maybe, "Maybeboard") }) { d ->
                 vm.adjustCard(rec.name, d)
                 // Added to the deck: it's no longer just being considered, so it leaves the maybeboard.
                 if (d > 0 && maybe > 0) vm.adjustCard(rec.name, -maybe, "Maybeboard")
