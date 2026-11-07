@@ -167,6 +167,8 @@ fun CollectionScreen(
     onBrowse: (boxId: Long) -> Unit,
     onSettings: () -> Unit,
     onOpenDeck: (deckId: Long) -> Unit,
+    /** Opens a new deck on its typed list, to paste a decklist into. */
+    onPasteDeck: () -> Unit = { onOpenDeck(0L) },
     onOpenCard: (Long) -> Unit = {},
     /** Opens the trade screen for a trade binder. */
     onTrade: (binderId: Long) -> Unit = {},
@@ -303,7 +305,7 @@ fun CollectionScreen(
                 CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true }, query = shownSearch, onQuery = { search = it })
                 // Every card, as Browse shows them; the page search filters them.
                 CollectionTab.ALL -> BrowseScreen(boxId = -1L, onBack = {}, onOpenCard = onOpenCard, onTrade = onTrade, embedded = true, pageQuery = shownSearch)
-                CollectionTab.DECKS -> DecksTab(onOpenDeck, query = shownSearch, cards = { CardsFound(shownSearch, vm, onBrowse, onOpenCard) })
+                CollectionTab.DECKS -> DecksTab(onOpenDeck, onPasteDeck = onPasteDeck, query = shownSearch, cards = { CardsFound(shownSearch, vm, onBrowse, onOpenCard) })
                 CollectionTab.WISHLIST -> WishlistTab(vm)
                 CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE), onOpenCard = onOpenCard)
             }

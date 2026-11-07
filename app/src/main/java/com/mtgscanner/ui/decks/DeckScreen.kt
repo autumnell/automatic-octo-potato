@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -57,6 +58,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -370,47 +372,42 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
 @Composable
 private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
     val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Palette.Text, unfocusedBorderColor = Palette.Outline, cursorColor = Palette.Text)
-    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Space.s4)) {
-        OutlinedTextField(
-            value = ui.name, onValueChange = vm::setName, label = { Text("Deck name") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), colors = colors,
-        )
-        Spacer(Modifier.height(Space.s3))
-        Text("Format", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Spacer(Modifier.height(Space.s2))
-        FormatPicker(ui.format, vm::setFormat)
-        if (DeckFormats.isCommander(ui.format)) {
-            Spacer(Modifier.height(Space.s3))
-            CommanderSlots(ui.format, ui.commanders, ui.leadInfo, vm::openPicker, vm::clearSlot)
-        }
-        Spacer(Modifier.height(Space.s3))
-        val tabs = editTabs(ui.format, ui.commanders)
-        // Cards first: add by name or search; the typed list is one tab over.
-        var picked by rememberSaveable { mutableStateOf(startTab ?: EditTab.CARDS) }
-        val tab = if (picked in tabs) picked else EditTab.CARDS
-        EditTabRow(tabs, tab) { picked = it }
-        Spacer(Modifier.height(Space.s3))
-        when (tab) {
-            EditTab.LIST -> {
-                OutlinedTextField(
-                    value = ui.text, onValueChange = vm::setText,
-                    placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 420.dp),
-                    shape = RoundedCornerShape(Corners.Medium), colors = colors,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("One card per line", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
-                    // A photo of a printed list: its lines join what's here, to check before saving.
-                    FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
+    val tabs = editTabs(ui.format, ui.commanders)
+    // Cards first: add by name or search; the typed list is one tab over.
+    var picked by rememberSaveable { mutableStateOf(startTab ?: EditTab.CARDS) }
+    val tab = if (picked in tabs) picked else EditTab.CARDS
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            // Name, format, count and commanders in one panel, then the tabs for the cards.
+            DeckEditHeader(ui, vm, Modifier.padding(horizontal = Space.s4))
+            Spacer(Modifier.height(Space.s2))
+            UnderlineTabs(tabs.map { it.label }, tabs.indexOf(tab), { picked = tabs[it] }, horizontalPadding = Space.s4)
+            Column(Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s3, bottom = Space.s4)) {
+                when (tab) {
+                    EditTab.LIST -> {
+                        OutlinedTextField(
+                            value = ui.text, onValueChange = vm::setText,
+                            placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 260.dp, max = 420.dp),
+                            shape = RoundedCornerShape(Corners.Medium), colors = colors,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("One card per line", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                            // A photo of a printed list: its lines join what's here, to check before saving.
+                            FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
+                        }
+                    }
+                    EditTab.CARDS -> DeckCardsTab(ui, vm, onPaste = { picked = EditTab.LIST })
+                    EditTab.COMBOS -> CombosTab(ui, vm)
+                    EditTab.EDHREC -> EdhrecTab(ui, vm)
                 }
             }
-            EditTab.CARDS -> DeckCardsTab(ui, vm)
-            EditTab.COMBOS -> CombosTab(ui, vm)
-            EditTab.EDHREC -> EdhrecTab(ui, vm)
         }
-        Spacer(Modifier.height(Space.s2))
-        GradientButton(if (ui.text.isBlank()) "Save deck" else "Check my collection", vm::save, Modifier.fillMaxWidth())
-        Spacer(Modifier.height(Space.s6))
+        // Save stays in reach at the bottom however long the list gets.
+        HorizontalDivider(color = Palette.Rule)
+        Box(Modifier.fillMaxWidth().background(Palette.Background).navigationBarsPadding().padding(horizontal = Space.s4, vertical = Space.s2)) {
+            GradientButton(if (ui.text.isBlank()) "Save deck" else "Check my collection", vm::save, Modifier.fillMaxWidth())
+        }
     }
     ui.printingLine?.let { line ->
         val chosen = ui.printings?.firstOrNull { p ->

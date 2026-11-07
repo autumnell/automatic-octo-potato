@@ -67,11 +67,10 @@ private fun boardCounts(text: String, board: String): Map<String, Int> =
  * The box stays put after an add, so cards can be added one after another.
  */
 @Composable
-fun DeckQuickAdd(ui: DeckUi, vm: DeckViewModel, board: String) {
+fun DeckQuickAdd(ui: DeckUi, vm: DeckViewModel, board: String, searching: Boolean, onSearching: (Boolean) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var suggestions by remember { mutableStateOf(emptyList<String>()) }
     var added by remember { mutableStateOf<String?>(null) }
-    var searching by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(query) {
         val q = query.trim()
         if (q.length < 2) { suggestions = emptyList(); return@LaunchedEffect }
@@ -83,7 +82,7 @@ fun DeckQuickAdd(ui: DeckUi, vm: DeckViewModel, board: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         SearchField(query, { query = it; added = null }, Modifier.weight(1f), placeholder = "Add a card by name")
         Spacer(Modifier.width(Space.s2))
-        TextButton(onClick = { searching = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+        TextButton(onClick = { onSearching(true) }, modifier = Modifier.heightIn(min = 48.dp)) {
             Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.padding(end = Space.s1).size(18.dp))
             Text("Search")
         }
@@ -113,7 +112,7 @@ fun DeckQuickAdd(ui: DeckUi, vm: DeckViewModel, board: String) {
         )
     }
     Spacer(Modifier.height(Space.s2))
-    if (searching) DeckCardSearchSheet(ui, vm, board, onDismiss = { searching = false })
+    if (searching) DeckCardSearchSheet(ui, vm, board, onDismiss = { onSearching(false) })
 }
 
 /** Card types to narrow a search by, as Scryfall's "t:" words. */

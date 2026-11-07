@@ -28,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -56,6 +58,7 @@ import com.mtgscanner.scan.DeckText
 import com.mtgscanner.ui.collection.SearchField
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.SelectPill
+import com.mtgscanner.ui.components.panelRow
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.theme.TabularNums
@@ -67,13 +70,6 @@ enum class EditTab(val label: String) { CARDS("Cards"), LIST("List"), COMBOS("Co
 /** The tabs this deck has: EDHREC only for a commander deck with its commander picked. */
 fun editTabs(format: String, commanders: DeckCommanders): List<EditTab> =
     EditTab.entries.filter { it != EditTab.EDHREC || (DeckFormats.isCommander(format) && commanders.commanders.isNotEmpty()) }
-
-@Composable
-fun EditTabRow(tabs: List<EditTab>, tab: EditTab, onTab: (EditTab) -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-        tabs.forEach { t -> SelectPill(t.label, t == tab, { onTab(t) }) }
-    }
-}
 
 /** Steppers on one row: − count +. */
 @Composable
@@ -93,18 +89,33 @@ private fun Stepper(count: Int, onChange: (Int) -> Unit) {
  * Changes go into the list and are saved with it.
  */
 @Composable
-fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
+fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel, onPaste: () -> Unit) {
+    var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var board by rememberSaveable { mutableStateOf("Main") }
     val leads = remember(ui.commanders) { ui.commanders.all.map { DeckNames.key(it) }.toSet() }
     val parsed = remember(ui.text) { DecklistParser.parse(ui.text) }
     val counts = Board.entries.associateWith { b -> parsed.filter { it.section == b.section && (b != Board.MAIN || DeckNames.key(it.name) !in leads) }.sumOf { it.quantity } }
     // The deck, the sideboard and the maybeboard (cards you're considering: not counted, not played in playtest).
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-        Board.entries.forEach { b -> SelectPill("${b.label} (${counts[b] ?: 0})", board == b.section, { board = b.section }) }
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = Space.s3), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+        Board.entries.forEach { b ->
+            val n = counts[b] ?: 0
+            SelectPill(if (n > 0) "${b.label} $n" else b.label, board == b.section, { board = b.section })
+        }
     }
     val lines = parsed.filter { it.section == board && (board != "Main" || DeckNames.key(it.name) !in leads) }
-    DeckQuickAdd(ui, vm, board)
+    DeckQuickAdd(ui, vm, board, searching) { searching = it }
+    if (lines.isEmpty() && board == "Main") {
+        // A blank deck: the ways to fill it, so the page starts with something to do.
+        Text("Start the deck", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s2))
+        StartRow(Icons.Outlined.Search, "Search all cards", "By name, type, format and commander colors", first = true, last = false) { searching = true }
+        StartRow(Icons.Outlined.ContentPaste, "Paste a list", "From Moxfield, Archidekt or any text list", first = false, last = true, onClick = onPaste)
+        Text(
+            "Or scan cards into it: pick this deck in the Scan screen's add-to menu",
+            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3),
+        )
+        return
+    }
     if (lines.isEmpty()) {
         Text(
             when (board) {
@@ -112,43 +123,67 @@ fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
                 "Sideboard" -> "No sideboard cards yet: add them above, or move one here from the deck with its menu"
                 else -> "Nothing you're considering yet: add cards above, or move one here from the deck"
             },
-            style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s6),
+            style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s4),
         )
         return
     }
     // A long list gets its own filter; a short one is easy to scan by eye, and one search box is enough.
-    if (lines.size > 15 || query.isNotEmpty()) SearchField(query, { query = it }, placeholder = "Find in deck")
+    if (lines.size > 15 || query.isNotEmpty()) SearchField(query, { query = it }, Modifier.padding(bottom = Space.s2), placeholder = "Find in deck")
     val q = query.trim()
     val shown = if (q.isEmpty()) lines else lines.filter { it.name.contains(q, ignoreCase = true) }
-    Text(
-        when {
-            q.isNotEmpty() -> "${shown.size} of ${lines.size} cards"
-            board == "Main" -> "${lines.sumOf { it.quantity }} cards, not counting commanders"
-            board == "Maybeboard" -> "${lines.sumOf { it.quantity }} cards, not counted in the deck"
-            else -> "${lines.sumOf { it.quantity }} cards"
-        },
-        style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s2),
+    // The total is in the header; a filter says how many it kept.
+    if (q.isNotEmpty()) Text(
+        "${shown.size} of ${lines.size} cards",
+        style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted, modifier = Modifier.padding(bottom = Space.s1),
     )
+    // Each card type is one panel under a small heading with its count on the right.
     DeckTypes.group(shown) { ui.cardInfo[DeckNames.key(it.name)]?.typeLine }.forEach { (type, group) ->
-        Text(
-            "${if (group.sumOf { it.quantity } == 1) type.one else type.many} (${group.sumOf { it.quantity }})",
-            style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s1),
-        )
-        group.forEachIndexed { i, l ->
-            if (i > 0) HorizontalDivider(color = Palette.Rule)
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-                CardImage(ui.cardInfo[DeckNames.key(l.name)]?.imageUrl, Modifier.width(36.dp), zoom = true)
-                Spacer(Modifier.width(Space.s3))
-                Column(Modifier.weight(1f).clickable { vm.openPrintingsFor(l) }.padding(vertical = Space.s1)) {
-                    Text(l.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        l.setCode?.let { s -> s.uppercase() + (l.collectorNumber?.let { " #$it" } ?: "") + " · Change printing" } ?: "Pick a printing",
-                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Stepper(l.quantity) { d -> vm.adjustCard(l.name, d, board, l.setCode, l.collectorNumber) }
-                MoveMenu(board) { to -> com.mtgscanner.util.Haptics.tick(); vm.moveCard(l.name, board, to) }
+        val n = group.sumOf { it.quantity }
+        Row(Modifier.fillMaxWidth().padding(top = Space.s3, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (n == 1) type.one else type.many, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+            Text("$n", style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted)
+        }
+        group.forEachIndexed { i, l -> EditCardRow(ui, vm, l, board, first = i == 0, last = i == group.lastIndex) }
+    }
+}
+
+/** One card in Edit › Cards: its picture, name, mana cost and printing (tap to change it), − count +, and ⋮ to move it. */
+@Composable
+private fun EditCardRow(ui: DeckUi, vm: DeckViewModel, l: com.mtgscanner.util.DeckLine, board: String, first: Boolean, last: Boolean) {
+    val info = ui.cardInfo[DeckNames.key(l.name)]
+    Row(
+        Modifier.fillMaxWidth().panelRow(first, last).heightIn(min = 56.dp).padding(start = Space.s3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CardImage(info?.imageUrl, Modifier.width(32.dp), zoom = info?.imageUrl != null)
+        Spacer(Modifier.width(Space.s3))
+        Column(Modifier.weight(1f).clickable { vm.openPrintingsFor(l) }.padding(vertical = Space.s2)) {
+            Text(l.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+                info?.manaCost?.takeIf { it.isNotBlank() }?.let { com.mtgscanner.ui.components.ManaCost(it, 14.dp) }
+                Text(
+                    l.setCode?.let { s -> s.uppercase() + (l.collectorNumber?.let { " #$it" } ?: "") } ?: "Any printing",
+                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
+        }
+        Stepper(l.quantity) { d -> vm.adjustCard(l.name, d, board, l.setCode, l.collectorNumber) }
+        MoveMenu(board) { to -> com.mtgscanner.util.Haptics.tick(); vm.moveCard(l.name, board, to) }
+    }
+}
+
+/** One way to start a blank deck: an icon, what it does and a line on how, in one panel with the others. */
+@Composable
+private fun StartRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String, first: Boolean, last: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().panelRow(first, last).clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = Space.s3, vertical = Space.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(Space.s3))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
