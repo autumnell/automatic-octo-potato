@@ -99,6 +99,7 @@ object WhatsNew {
         372 to "Deck editing opens on Cards: add a card by typing its name, or search all of Magic with type, format and commander color filters. A new deck can be saved empty. The scan screen's add-to menu lists your decks: scanned cards go into the deck and onto its list",
         374 to "Scanning a deck's commander into it no longer lists the commander a second time",
         376 to "Decks › New starts with Create new for a blank deck; Paste a list is still right under it. Deck editing is tighter: name, format, card count and commander share one panel, the tabs are a single row, each card type is its own panel with mana costs, and Save stays at the bottom",
+        380 to "The deck page has a tool bar along the bottom: Search, Quick add, Layout, Filter and More. Layout adds a Grid of whole cards with + and − on each, saved straight away, and each card type has a heading with its count and value. Edit › EDHREC shows its lists as tabs over a grid of card pictures with how often each is played, in how many decks and its synergy",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

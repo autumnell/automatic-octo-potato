@@ -73,7 +73,7 @@ fun editTabs(format: String, commanders: DeckCommanders): List<EditTab> =
 
 /** Steppers on one row: − count +. */
 @Composable
-private fun Stepper(count: Int, onChange: (Int) -> Unit) {
+internal fun Stepper(count: Int, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(-1) }, enabled = count > 0) {
             Icon(Icons.Outlined.Remove, "One fewer", tint = if (count > 0) Palette.Icon else Palette.Faint, modifier = Modifier.size(20.dp))
@@ -212,7 +212,7 @@ private fun MoveMenu(from: String, onMove: (String) -> Unit) {
 
 /** A load in progress, or why it failed with a way to try again. */
 @Composable
-private fun LoadState(loading: Boolean, failed: Boolean, failText: String, onRetry: () -> Unit) {
+internal fun LoadState(loading: Boolean, failed: Boolean, failText: String, onRetry: () -> Unit) {
     if (loading) Box(Modifier.fillMaxWidth().padding(vertical = Space.s6), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(color = Palette.Text, modifier = Modifier.size(Space.s6))
     } else if (failed) Row(Modifier.fillMaxWidth().padding(vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
@@ -275,77 +275,6 @@ private fun ComboGroup(title: String, combos: List<Combo>, emptyText: String, on
             IconButton(onClick = { onOpen(combo) }) {
                 Icon(Icons.AutoMirrored.Outlined.OpenInNew, "Open on Commander Spellbook", tint = Palette.Icon, modifier = Modifier.size(18.dp))
             }
-        }
-    }
-}
-
-/** Cards shown per EDHREC list before "Show more". */
-private const val PER_GROUP = 15
-
-/**
- * Edit › EDHREC: the commander page's lists with the share of decks that play each card. Cards already in the
- * deck show their count with −; the rest have + to add them.
- */
-@Composable
-fun EdhrecTab(ui: DeckUi, vm: DeckViewModel) {
-    LaunchedEffect(ui.commanders) { vm.loadEdhrec() }
-    val e = ui.edhrecLists
-    var missingOnly by rememberSaveable { mutableStateOf(false) }
-    LoadState(e.loading && e.value == null, e.failed, "Couldn't reach EDHREC") { vm.loadEdhrec(force = true) }
-    val groups = e.value ?: return
-    Row(Modifier.padding(top = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-        SelectPill("All", !missingOnly, { missingOnly = false })
-        SelectPill("Not in the deck", missingOnly, { missingOnly = true })
-    }
-    // Counts by card, from one read of the list: a page has hundreds of cards, and each count re-read the list.
-    val counts = remember(ui.text) {
-        DecklistParser.parse(ui.text).groupBy { it.section to DeckNames.key(it.name) }.mapValues { (_, ls) -> ls.sumOf { it.quantity } }
-    }
-    fun count(name: String, section: String = "Main") = counts[section to DeckNames.key(name)] ?: 0
-    groups.forEach { g ->
-        val cards = if (missingOnly) g.cards.filter { count(it.name) == 0 } else g.cards
-        if (cards.isEmpty()) return@forEach
-        var all by rememberSaveable(g.header) { mutableStateOf(false) }
-        Text(g.header, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s4, bottom = Space.s1))
-        (if (all) cards else cards.take(PER_GROUP)).forEachIndexed { i, rec ->
-            if (i > 0) HorizontalDivider(color = Palette.Rule)
-            val maybe = count(rec.name, "Maybeboard")
-            EdhrecRow(rec, count(rec.name), maybe > 0, onMaybe = { on -> vm.adjustCard(rec.name, if (on) 1 else -maybe, "Maybeboard") }) { d ->
-                vm.adjustCard(rec.name, d)
-                // Added to the deck: it's no longer just being considered, so it leaves the maybeboard.
-                if (d > 0 && maybe > 0) vm.adjustCard(rec.name, -maybe, "Maybeboard")
-            }
-        }
-        if (!all && cards.size > PER_GROUP) TextButton(onClick = { all = true }) { Text("Show ${cards.size - PER_GROUP} more") }
-    }
-}
-
-@Composable
-private fun EdhrecRow(rec: EdhrecRec, inDeck: Int, considering: Boolean, onMaybe: (Boolean) -> Unit, onChange: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-        CardImage(rec.imageUrl, Modifier.width(36.dp), zoom = rec.imageUrl != null)
-        Spacer(Modifier.width(Space.s3))
-        Column(Modifier.weight(1f).padding(vertical = Space.s1)) {
-            Text(rec.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOfNotNull(
-                    rec.share?.let { "In ${(it * 100).toInt()}% of decks" },
-                    rec.synergy?.takeIf { kotlin.math.abs(it) >= 0.01 }?.let { "${if (it > 0) "+" else "−"}${(kotlin.math.abs(it) * 100).toInt()}% synergy" },
-                    if (considering) "In the maybeboard" else null,
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted, maxLines = 1,
-            )
-        }
-        // The maybeboard: cards you're considering, not counted and not played in playtest.
-        if (inDeck == 0) IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onMaybe(!considering) }) {
-            if (considering) Icon(Icons.Filled.Bookmark, "Take out of the maybeboard", tint = Palette.Text, modifier = Modifier.size(20.dp))
-            else Icon(Icons.Outlined.BookmarkBorder, "Add to the maybeboard", tint = Palette.Icon, modifier = Modifier.size(20.dp))
-        }
-        if (inDeck > 0) Stepper(inDeck, onChange)
-        else TextButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) {
-            Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(Space.s1))
-            Text("Add")
         }
     }
 }

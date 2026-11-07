@@ -24,6 +24,7 @@ class DeckIdeasMathTest {
         assertEquals("Sanctum Lurker", lurker.name)
         assertEquals(580.0 / 5648, lurker.share!!, 1e-9)
         assertEquals(0.0418, lurker.synergy!!, 1e-9)
+        assertEquals(580, lurker.decks)
         assertEquals("https://cards.scryfall.io/small/front/2/1/2185c08f-bb4d-49d5-8b6c-c629a48bb61c.jpg", lurker.imageUrl)
         assertTrue(DeckIdeasMath.edhrecGroups("not json").isEmpty())
     }

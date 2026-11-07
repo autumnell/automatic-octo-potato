@@ -599,9 +599,29 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         _ui.update { it.copy(text = DeckText.adjust(it.text, name, delta, board, set, number)) }
 
     /** Adds one copy of [name] from quick add or search, and looks up its picture and type soon after. */
-    fun addCard(name: String, board: String = "Main") {
-        adjustCard(name, 1, board)
-        infoSoon()
+    fun addCard(name: String, board: String = "Main") = changeNow(name, 1, board)
+
+    private var quickJob: Job? = null
+
+    /**
+     * Adds or takes away copies of [name]. While editing it only changes the list being edited; on the deck page it
+     * saves soon after, so a run of taps saves once.
+     */
+    fun changeNow(name: String, delta: Int, board: String = "Main") {
+        adjustCard(name, delta, board)
+        if (delta > 0) infoSoon()
+        val s = _ui.value
+        if (s.editing || s.id == 0L) return
+        quickJob?.cancel()
+        quickJob = viewModelScope.launch {
+            delay(400)
+            while (saving) delay(50)
+            val now = _ui.value
+            if (now.editing || now.text.trim() == savedText.trim()) return@launch
+            changes.quick(now.id, savedText, now.text) {
+                viewModelScope.launch { repo.observeDeck(now.id).first()?.let { showSaved(it) } }
+            }
+        }
     }
 
     private var infoJob: Job? = null

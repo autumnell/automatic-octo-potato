@@ -135,11 +135,26 @@ class DeckChangesHost(
         ui = ui?.let { u -> u.copy(leaving = u.leaving.map { it.copy(dest = dest) }) }
     }
 
-    fun cancel() { ui = null }
+    /** Runs when the sheet closes without saving: a quick change from the deck page puts the list back. */
+    private var onCancel: (() -> Unit)? = null
+
+    fun cancel() { ui = null; onCancel?.invoke(); onCancel = null }
+
+    /**
+     * A change made on the deck page itself (+, −, quick add): saved at once, unless the deck holds copies of a
+     * removed card, which then need a place to go (the sheet). Closing the sheet runs [revert].
+     */
+    fun quick(deckId: Long, oldText: String, newText: String, revert: () -> Unit) {
+        scope.launch {
+            val u = prepare(deckId, oldText, newText)
+            if (u == null || u.leaving.isEmpty()) saveList(newText) { } else { onCancel = revert; ui = u }
+        }
+    }
 
     fun confirm() {
         val u = ui ?: return
         if (u.busy) return
+        onCancel = null
         // An empty list isn't saved (the save step skips it), which would leave this sheet waiting for good.
         if (u.newText.isBlank()) { ui = null; Undo.offer("The new list is empty, so nothing was saved"); return }
         ui = u.copy(busy = true)
