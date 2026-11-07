@@ -187,6 +187,8 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
 
     /** Whether the saved session has been read back; until then, saving would overwrite it with an empty one. */
     @Volatile private var sessionRead = false
+    /** The box check being compared; a newer one replaces it so an old result can't land last. */
+    internal var boxCheckJob: kotlinx.coroutines.Job? = null
 
     override fun onCleared() {
         // Written now, off the main thread: the delayed write may not get its turn.
@@ -679,9 +681,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
                     UnsureAction.ASIDE -> {
                         val fresh = !alreadyHandled(card, id.exact) && _state.value.review.none { it.card.id == card.id }
                         markHandled(card, art, id.exact)
-                        val photo = if (fresh) runCatching {
-                            com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "review-${card.id}-${System.currentTimeMillis()}")
-                        }.getOrNull() else null
+                        // Writing the picture is file work, so it stays off the main thread.
+                        val photo = if (fresh) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "review-${card.id}-${System.currentTimeMillis()}") }.getOrNull()
+                        } else null
                         _state.update {
                             it.copy(
                                 lookingUp = false,

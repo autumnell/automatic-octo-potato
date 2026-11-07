@@ -104,7 +104,8 @@ class CollectionRepository(
 
     /** One shared read of the cards table for every screen; kept 5 s after the last screen stops watching. */
     private val allCards: Flow<List<CollectionCard>> =
-        dao.observeAll().shareIn(appScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+        // The replay is dropped once nobody watches, so a later one-off read can't get an old list.
+        dao.observeAll().shareIn(appScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), replay = 1)
 
     fun observeAll(): Flow<List<CollectionCard>> = allCards
 
@@ -572,7 +573,7 @@ class CollectionRepository(
      * Notes a change to the collection. The value snapshot (and widget) runs once
      * things go quiet for [CHANGE_IDLE_MS], or after [CHANGE_BATCH] changes, not once per card.
      */
-    private fun afterChange() { changes.trySend(Unit) }
+    internal fun afterChange() { changes.trySend(Unit) }
 
     init {
         appScope.launch {
@@ -945,7 +946,8 @@ class CollectionRepository(
     /** Saves today's collection value for the value chart, and the totals for the widget. Summed in SQL, not by reading every card. */
     suspend fun recordSnapshot() = snapshotLock.withLock {
         val t = dao.collectionTotal()
-        if (t.n > 0) dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), t.value, t.n))
+        // An emptied collection still records its zero, once there's a chart to put it on.
+        if (t.n > 0 || dao.snapshotCount() > 0) dao.putSnapshot(ValueSnapshot(LocalDate.now().toString(), t.value, t.n))
         com.mtgscanner.widget.CollectionWidget.publish(appContext, t.value, t.n, t.valueEur)
     }
 

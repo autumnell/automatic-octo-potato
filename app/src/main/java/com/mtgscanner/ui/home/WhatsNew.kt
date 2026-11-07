@@ -94,6 +94,7 @@ object WhatsNew {
         348 to "Win rate, Bracket, Mana base and Goldfish share one small grid on the deck page. The Bracket sheet lists all five brackets",
         352 to "On a Commander deck the bracket sits under the commander's name: tap it to see why or set your own, EDHREC is at the top right of the art and the salt score at the bottom right. Win rate, Mana base and Goldfish share one slim row. Tutors and mass land denial now come from Scryfall's card tags, so land searches and Season of Gathering no longer count",
         358 to "Bug fixes: moving a card listed in two printings moves both, MTGO sideboards stay sideboards when edited, the game screen keeps its upright lock between pages, win rates never go negative, and hand-set brackets are saved in backups",
+        362 to "Bug fixes from a full review: stopping batch scanning keeps the pile, quick edits on a card page no longer undo each other, a removed wishlist card keeps its Ordered mark on Undo, the first setup finishes without the card finder, Home sections drag smoothly, the weekly watch skips brand-new cards, set names like Theros import right, and opening the app from a widget no longer crashes",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

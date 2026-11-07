@@ -245,6 +245,15 @@ interface CardDao {
     @Query("SELECT * FROM value_snapshots ORDER BY day")
     suspend fun allSnapshots(): List<ValueSnapshot>
 
+    @Query("SELECT COUNT(*) FROM value_snapshots")
+    suspend fun snapshotCount(): Int
+
+    @Query("SELECT * FROM cards WHERE oracleId = :oracleId")
+    suspend fun byOracleId(oracleId: String): List<CollectionCard>
+
+    @Query("SELECT * FROM cards WHERE name = :name COLLATE NOCASE")
+    suspend fun byName(name: String): List<CollectionCard>
+
     @Upsert
     suspend fun putSnapshots(s: List<ValueSnapshot>)
 

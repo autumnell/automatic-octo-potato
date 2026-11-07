@@ -175,7 +175,7 @@ fun BrowseScreen(
     embedded: Boolean = false,
     pageQuery: String = "",
 ) {
-    val vm: BrowseViewModel = viewModel(key = "browse-$boxId", factory = AppViewModels.browse(boxId))
+    val vm: BrowseViewModel = viewModel(key = if (embedded) "browse-all-tab" else "browse-$boxId", factory = AppViewModels.browse(boxId, embedded))
     val ui by vm.ui.collectAsStateWithLifecycle()
     val f by vm.filters.collectAsStateWithLifecycle()
     val grid by vm.grid.collectAsStateWithLifecycle()
@@ -309,7 +309,8 @@ fun BrowseScreen(
         }
         // Everything above the cards slides away while scrolling down, and comes back on scrolling up.
         CollapsingHeader(collapse) {
-            MoveListHost()
+            // Collection draws its own move strip above the tabs.
+            if (!embedded) MoveListHost()
 
             var syntaxHelp by remember { mutableStateOf(false) }
             if (!embedded) SearchField(

@@ -392,11 +392,13 @@ internal object BackupIO {
 
     /** Fills in set codes for rows that only have a full set name (Deckbox, Cardmarket), from Scryfall's set list. */
     private suspend fun withSetCodes(repo: CollectionRepository, rows: List<ImportRow>): List<ImportRow> {
-        if (rows.none { it.setCode == null && !it.setName.isNullOrBlank() }) return rows
+        if (rows.all { it.setName.isNullOrBlank() }) return rows
         val sets = runCatching { repo.sets() }.getOrNull() ?: return rows
         val byName = SetNames.index(sets.map { it.name to it.code })
+        val codes = sets.mapTo(HashSet()) { it.code.lowercase() }
         return rows.map { r ->
-            if (r.setCode != null || r.setName.isNullOrBlank()) r
+            // A row with a real set code keeps it; one whose "code" is really a set name gets the name's code.
+            if (r.setName.isNullOrBlank() || (r.setCode != null && r.setCode.lowercase() in codes)) r
             else SetNames.codeFor(r.setName, byName)?.let { r.copy(setCode = it) } ?: r
         }
     }

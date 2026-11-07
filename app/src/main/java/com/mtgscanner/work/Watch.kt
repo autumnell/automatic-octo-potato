@@ -58,10 +58,10 @@ object WatchMath {
             if (added.isEmpty()) null else deck to added
         }.toMap()
 
-    /** Scryfall searches for printings of [oracleIds] released on or after [since], a few cards per search. */
+    /** Scryfall searches for reprints of [oracleIds] released on or after [since] (a brand-new card is not a reprint), a few cards per search. */
     fun reprintQueries(oracleIds: List<String>, since: String, chunk: Int = 20): List<String> =
         oracleIds.distinct().chunked(chunk).map { ids ->
-            "(" + ids.joinToString(" or ") { "oracleid:$it" } + ") date>=$since game:paper"
+            "(" + ids.joinToString(" or ") { "oracleid:$it" } + ") date>=$since game:paper is:reprint"
         }
 
     /**

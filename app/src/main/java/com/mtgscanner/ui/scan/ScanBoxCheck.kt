@@ -95,7 +95,8 @@ fun ScanViewModel.endBoxCheck() {
 
 fun ScanViewModel.refreshBoxCheck() {
     val run = _state.value.boxCheck ?: return
-    viewModelScope.launch {
+    boxCheckJob?.cancel()
+    boxCheckJob = viewModelScope.launch {
         val rows = runCatching { repo.cardsInBox(run.boxId) }.getOrDefault(emptyList())
             .map { com.mtgscanner.data.BoxRow(it.id, it.scryfallId, it.oracleId, it.name, it.foil, it.quantity) }
         val cur = _state.value.boxCheck ?: return@launch
