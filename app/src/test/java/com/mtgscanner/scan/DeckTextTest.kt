@@ -67,4 +67,28 @@ class DeckTextTest {
         val text = "4 Goblin Guide\nSB: 2 Duress"
         assertEquals("4 Goblin Guide\nSB: 2 Duress\nSB: 1 Pyroblast", DeckText.adjust(text, "Pyroblast", 1, "Sideboard"))
     }
+
+    @Test fun movingACardWithTwoPrintingsMovesBoth() {
+        val text = "1 Sol Ring (CMR) 263\n1 Sol Ring (C21) 125\n1 Arcane Signet"
+        val moved = DeckText.move(text, "Sol Ring", "Main", "Maybeboard")
+        assertEquals(0, DeckText.count(moved, "Sol Ring"))
+        assertEquals(2, DeckText.count(moved, "Sol Ring", "Maybeboard"))
+        assertEquals(1, DeckText.count(moved, "Arcane Signet"))
+    }
+
+    @Test fun mtgoSideboardStaysASideboardAfterAnEdit() {
+        val main = (1..15).joinToString("\n") { "4 Card $it" }
+        val text = "$main\n\n2 Duress\n1 Pyroblast"
+        val edited = DeckText.adjust(text, "Duress", 1, "Sideboard")
+        assertEquals(3, DeckText.count(edited, "Duress", "Sideboard"))
+        assertEquals(1, DeckText.count(edited, "Pyroblast", "Sideboard"))
+        assertEquals(0, DeckText.count(edited, "Duress"))
+        assertEquals(60, com.mtgscanner.util.DecklistParser.parse(edited).filter { it.section == "Main" }.sumOf { it.quantity })
+    }
+
+    @Test fun stepperChangesOnlyItsOwnPrinting() {
+        val text = "1 Sol Ring (CMR) 263\n1 Sol Ring (C21) 125"
+        assertEquals("1 Sol Ring (CMR) 263", DeckText.adjust(text, "Sol Ring", -1, set = "c21", number = "125"))
+        assertEquals("1 Sol Ring (CMR) 263\n2 Sol Ring (C21) 125", DeckText.adjust(text, "Sol Ring", 1, set = "c21", number = "125"))
+    }
 }

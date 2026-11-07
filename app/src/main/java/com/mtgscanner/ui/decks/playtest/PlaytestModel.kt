@@ -12,10 +12,12 @@ data class PlayCard(
     val toughness: String? = null,
     val token: Boolean = false,
 ) {
-    val isLand: Boolean get() = "Land" in typeLine
-    val isCreature: Boolean get() = "Creature" in typeLine
+    /** The front face's types: a double-faced card is played as its front ("Instant // Land" is an instant). */
+    private val front: String get() = typeLine.substringBefore("//")
+    val isLand: Boolean get() = "Land" in front
+    val isCreature: Boolean get() = "Creature" in front
     /** Instants and sorceries go to the graveyard when cast; everything else stays on the battlefield. */
-    val isPermanent: Boolean get() = typeLine.isNotBlank() && "Instant" !in typeLine && "Sorcery" !in typeLine
+    val isPermanent: Boolean get() = front.isNotBlank() && "Instant" !in front && "Sorcery" !in front
 }
 
 /**

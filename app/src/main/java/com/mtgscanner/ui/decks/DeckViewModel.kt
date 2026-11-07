@@ -593,7 +593,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     )
 
     /** Adds [delta] copies of [name] to the main deck being edited (negative takes them away). */
-    fun adjustCard(name: String, delta: Int, board: String = "Main") = _ui.update { it.copy(text = DeckText.adjust(it.text, name, delta, board)) }
+    fun adjustCard(name: String, delta: Int, board: String = "Main", set: String? = null, number: String? = null) =
+        _ui.update { it.copy(text = DeckText.adjust(it.text, name, delta, board, set, number)) }
 
     /** Moves every copy of [name] between the deck, the sideboard and the maybeboard of the list being edited. */
     fun moveCard(name: String, from: String, to: String) = _ui.update { it.copy(text = DeckText.move(it.text, name, from, to)) }

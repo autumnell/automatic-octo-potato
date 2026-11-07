@@ -297,11 +297,13 @@ fun CollectionScreen(
             MoveListHost()
             // Pull down to refresh prices, same as the refresh button.
             com.mtgscanner.ui.components.PriceRefreshBox(refreshing, vm::refreshPrices, Modifier.fillMaxSize()) {
+            // With the search hidden, text typed earlier would keep filtering with no field to clear it.
+            val shownSearch = if (layout.shows(CollectionPart.BROWSE)) search else ""
             when (tab) {
-                CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true }, query = search, onQuery = { search = it })
+                CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true }, query = shownSearch, onQuery = { search = it })
                 // Every card, as Browse shows them; the page search filters them.
-                CollectionTab.ALL -> BrowseScreen(boxId = -1L, onBack = {}, onOpenCard = onOpenCard, onTrade = onTrade, embedded = true, pageQuery = search)
-                CollectionTab.DECKS -> DecksTab(onOpenDeck, query = search, cards = { CardsFound(search, vm, onBrowse, onOpenCard) })
+                CollectionTab.ALL -> BrowseScreen(boxId = -1L, onBack = {}, onOpenCard = onOpenCard, onTrade = onTrade, embedded = true, pageQuery = shownSearch)
+                CollectionTab.DECKS -> DecksTab(onOpenDeck, query = shownSearch, cards = { CardsFound(shownSearch, vm, onBrowse, onOpenCard) })
                 CollectionTab.WISHLIST -> WishlistTab(vm)
                 CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE), onOpenCard = onOpenCard)
             }

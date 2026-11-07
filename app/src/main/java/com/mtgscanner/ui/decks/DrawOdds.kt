@@ -52,13 +52,20 @@ enum class OddsGroup(val label: String) {
         return when (this) {
             LANDS -> land
             // Mana rocks and dorks, and spells that fetch lands.
-            RAMP -> !land && (Regex("""add \{|add one mana|adds? (two|three) mana|mana of any""").containsMatchIn(text) ||
-                Regex("""search your library for (a|up to \w+) (basic )?(land|forest|plains|island|swamp|mountain)""").containsMatchIn(text))
+            RAMP -> !land && (OddsText.MANA.containsMatchIn(text) || OddsText.FETCH.containsMatchIn(text))
             CREATURES -> front.contains("Creature", ignoreCase = true)
-            DRAW -> !land && Regex("""draws? (a|two|three|x|that many) cards?""").containsMatchIn(text)
-            REMOVAL -> !land && Regex("""(destroy|exile) (target|all|each)|deals? \S+ damage to (any target|target creature)|return target \S+ (creature|permanent) to its owner's hand""").containsMatchIn(text)
+            DRAW -> !land && OddsText.DRAW.containsMatchIn(text)
+            REMOVAL -> !land && OddsText.REMOVAL.containsMatchIn(text)
         }
     }
+}
+
+/** The patterns [OddsGroup.has] reads card text with, compiled once. */
+private object OddsText {
+    val MANA = Regex("""add \{|add one mana|adds? (two|three) mana|mana of any""")
+    val FETCH = Regex("""search your library for (a|up to \w+) (basic )?(land|forest|plains|island|swamp|mountain)""")
+    val DRAW = Regex("""draws? (a|two|three|x|that many) cards?""")
+    val REMOVAL = Regex("""(destroy|exile) (target|all|each)|deals? \S+ damage to (any target|target creature)|return target \S+ (creature|permanent) to its owner's hand""")
 }
 
 /** Chances of drawing cards by a turn; pure, for tests. */

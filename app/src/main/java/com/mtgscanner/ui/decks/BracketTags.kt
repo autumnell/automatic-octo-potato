@@ -19,16 +19,24 @@ object BracketTags {
     private const val FILE = "bracket-tags.json"
     @Volatile private var cached: BracketTagLists? = null
 
+    /** The lists if already read, for a first frame without waiting. */
+    fun cachedOrNull(): BracketTagLists? = cached
+
     /** The lists from the APK, or null in a build without them (the check then reads card text). */
     suspend fun load(ctx: Context): BracketTagLists? = cached ?: withContext(Dispatchers.IO) {
         runCatching { ctx.applicationContext.assets.open(FILE).bufferedReader().use { parse(it.readText()) } }.getOrNull()
             ?.also { cached = it }
     }
 
-    /** {"tutor": [names], "mld": [names]}. Pure, for tests. */
-    fun parse(text: String): BracketTagLists {
+    /**
+     * {"tutor": [names], "mld": [names]}. Pure, for tests. Null when either list is missing or empty (a renamed
+     * Scryfall tag would publish an empty list), so the check falls back to card text instead of finding nothing.
+     */
+    fun parse(text: String): BracketTagLists? {
         val o = Json.parseToJsonElement(text).jsonObject
         fun keys(k: String) = o[k]?.jsonArray?.map { DeckNames.key(it.jsonPrimitive.content) }?.toSet().orEmpty()
-        return BracketTagLists(keys("tutor"), keys("mld"))
+        val tutors = keys("tutor")
+        val mld = keys("mld")
+        return if (tutors.isEmpty() || mld.isEmpty()) null else BracketTagLists(tutors, mld)
     }
 }

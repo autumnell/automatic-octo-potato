@@ -93,6 +93,7 @@ object WhatsNew {
         344 to "A deck's Bracket, Mana base and Goldfish sheets are grouped into panels, with the big numbers on top and bars for color sources and land drops",
         348 to "Win rate, Bracket, Mana base and Goldfish share one small grid on the deck page. The Bracket sheet lists all five brackets",
         352 to "On a Commander deck the bracket sits under the commander's name: tap it to see why or set your own, EDHREC is at the top right of the art and the salt score at the bottom right. Win rate, Mana base and Goldfish share one slim row. Tutors and mass land denial now come from Scryfall's card tags, so land searches and Season of Gathering no longer count",
+        358 to "Bug fixes: moving a card listed in two printings moves both, MTGO sideboards stay sideboards when edited, the game screen keeps its upright lock between pages, win rates never go negative, and hand-set brackets are saved in backups",
     )
 
     /** The newest line for a build newer than [seen] (the last build whose line was closed), or null. */

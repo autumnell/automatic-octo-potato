@@ -455,7 +455,13 @@ object ScryfallQuery {
 
     /** Lower case without accents, so "Lim-Dûl" is found by "lim-dul". */
     fun fold(s: String): String =
-        Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "").lowercase()
+        if (s.all { it.code < 128 }) s.lowercase() else Normalizer.normalize(s, Normalizer.Form.NFD).replace(MARKS, "").lowercase()
+
+    // Compiled once: these run for every card on every keystroke of a search.
+    private val MARKS = Regex("\\p{Mn}+")
+    private val NUMBER = Regex("-?\\d+(\\.\\d+)?")
+    private val wordRegexes = java.util.concurrent.ConcurrentHashMap<String, Regex>()
+    private fun wordRegex(w: String): Regex = wordRegexes.getOrPut(w) { Regex("\\b$w\\b") }
 
     private fun faces(name: String): List<String> = name.split(" // ").map { it.trim() }
 
@@ -575,7 +581,7 @@ object ScryfallQuery {
 
     private fun isMatch(c: CollectionCard, v: String, env: SearchEnv): Boolean {
         val type = c.typeLine.lowercase()
-        fun has(w: String) = Regex("\\b$w\\b").containsMatchIn(type)
+        fun has(w: String) = wordRegex(w).containsMatchIn(type)
         return when (v) {
             "foil" -> c.foil
             "nonfoil" -> !c.foil
@@ -684,7 +690,7 @@ object ScryfallQuery {
     /** Power and toughness as numbers; "*" counts as 0, as on Scryfall. Null when the card has none. */
     private fun statNumber(s: String?): Double? {
         val t = s?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        Regex("-?\\d+(\\.\\d+)?").find(t)?.let { return it.value.toDouble() }
+        NUMBER.find(t)?.let { return it.value.toDouble() }
         return if (t.contains('*') || t.contains('X', ignoreCase = true) || t.contains('?')) 0.0 else null
     }
 

@@ -94,24 +94,47 @@ internal fun deckIdentity(ui: DeckUi): Set<Char> {
 
 private enum class InsightSheet { MANA, GOLDFISH }
 
-/** A bracket the player set by hand for a deck (1 to 5), kept on the phone; none means use the worked-out one. */
+/**
+ * A bracket the player set by hand for a deck (1 to 5), by deck id in the "deck_brackets" prefs (saved in backups);
+ * none means use the worked-out one. The file is read once, so composition never writes the state it reads.
+ */
 internal object BracketChoice {
-    private const val FILE = "deck_brackets"
-    private val cache = androidx.compose.runtime.mutableStateMapOf<Long, Int?>()
+    const val FILE = "deck_brackets"
+    private val levels = androidx.compose.runtime.mutableStateMapOf<Long, Int>()
+    private var loaded = false
+
+    @Synchronized
+    private fun load(ctx: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        ctx.applicationContext.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).all.forEach { (k, v) ->
+            val id = k.toLongOrNull() ?: return@forEach
+            (v as? Int)?.takeIf { it in 1..5 }?.let { levels[id] = it }
+        }
+    }
+
+    /** Reads the file again, after a backup restore replaced or cleared it. */
+    @Synchronized
+    fun reload(ctx: android.content.Context) {
+        levels.clear()
+        loaded = false
+        load(ctx)
+    }
 
     fun get(ctx: android.content.Context, deckId: Long): Int? {
-        if (deckId !in cache) {
-            cache[deckId] = ctx.applicationContext.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE)
-                .getInt(deckId.toString(), 0).takeIf { it in 1..5 }
-        }
-        return cache[deckId]
+        load(ctx)
+        return levels[deckId]
     }
 
     fun set(ctx: android.content.Context, deckId: Long, level: Int?) {
-        cache[deckId] = level
-        ctx.applicationContext.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).edit().apply {
-            if (level == null) remove(deckId.toString()) else putInt(deckId.toString(), level)
-        }.apply()
+        load(ctx)
+        val e = ctx.applicationContext.getSharedPreferences(FILE, android.content.Context.MODE_PRIVATE).edit()
+        if (level == null || level !in 1..5) {
+            levels.remove(deckId); e.remove(deckId.toString())
+        } else {
+            levels[deckId] = level; e.putInt(deckId.toString(), level)
+        }
+        e.apply()
     }
 }
 
@@ -131,7 +154,8 @@ internal fun rememberBracket(ui: DeckUi, vm: DeckViewModel): Bracket? {
     val gameChangers by produceState(BracketMath.GAME_CHANGERS) { GameChangers.fetch(repo.api)?.let { value = it } }
     val twoCard = ui.combos.takeIf { !it.failed }?.value?.included?.filter { it.cards.size == 2 }?.map { it.cards }
     val ctx = LocalContext.current
-    val tags by produceState<BracketTagLists?>(null) { value = BracketTags.load(ctx) }
+    // Seeded from the cache, so a deck opened after the first doesn't show a text-check bracket for a frame.
+    val tags by produceState(BracketTags.cachedOrNull()) { if (value == null) value = BracketTags.load(ctx) }
     val bracket = remember(cards, gameChangers, twoCard, tags) { BracketMath.of(cards, gameChangers, twoCard, tags) }
     return bracket.takeIf { commander && cards.sumOf { it.copies } >= 20 }
 }
@@ -513,7 +537,7 @@ private fun CompareView(ui: DeckUi, leads: List<String>, w: CompareWith, onBack:
         return
     }
     if (o.second.isEmpty()) {
-        SheetLine("Couldn't reach EDHREC", muted = true)
+        SheetLine(if (w is CompareWith.Saved) "That deck has no cards to compare" else "Couldn't reach EDHREC", muted = true)
         return
     }
     val diff = remember(mine, o) { DeckCompare.diff(mine, o.second) }

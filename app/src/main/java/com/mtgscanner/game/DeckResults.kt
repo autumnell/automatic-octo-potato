@@ -24,11 +24,12 @@ object DeckResults {
     fun tally(records: List<GameRecord>, deckId: Long): DeckResult {
         var w = 0; var l = 0; var d = 0
         for (r in records) {
-            val seat = r.decks.indexOf(deckId)
-            if (seat < 0) continue
+            // Every seat that played the deck: the same deck at two seats wins if either seat won.
+            val seats = r.decks.indices.filter { r.decks[it] == deckId }
+            if (seats.isEmpty()) continue
             when {
                 r.winner == null -> d++
-                r.players.getOrNull(seat)?.trim().equals(r.winner.trim(), ignoreCase = true) -> w++
+                seats.any { r.players.getOrNull(it)?.trim().equals(r.winner.trim(), ignoreCase = true) } -> w++
                 else -> l++
             }
         }
@@ -48,7 +49,15 @@ object DeckResults {
     }
 
     /** A deck's numbers: its games plus any change made by hand. */
-    fun of(ctx: Context, deckId: Long): DeckResult = tally(records(ctx), deckId) + adjust(ctx, deckId)
+    fun of(ctx: Context, deckId: Long): DeckResult = combine(tally(records(ctx), deckId), adjust(ctx, deckId))
+
+    /**
+     * Games plus the hand-set difference, never below zero: if games the difference was worked out against are
+     * deleted later, the numbers bottom out instead of going negative. Pure, for tests.
+     */
+    fun combine(games: DeckResult, byHand: DeckResult): DeckResult = (games + byHand).let {
+        DeckResult(it.wins.coerceAtLeast(0), it.losses.coerceAtLeast(0), it.draws.coerceAtLeast(0))
+    }
 
     /** Sets a deck's numbers by hand; games played after this still add to them. */
     fun set(ctx: Context, deckId: Long, result: DeckResult) {

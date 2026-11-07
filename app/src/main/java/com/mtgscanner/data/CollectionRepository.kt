@@ -598,8 +598,10 @@ class CollectionRepository(
 
     /** Deletes a row whose copies left the collection, and any loan of them, so a loan never moves to another copy. */
     private suspend fun deleteRow(c: CollectionCard) {
-        dao.delete(c)
-        dao.deleteLoansOf(listOf(c.id))
+        db.withTransaction {
+            dao.delete(c)
+            dao.deleteLoansOf(listOf(c.id))
+        }
     }
 
     /**

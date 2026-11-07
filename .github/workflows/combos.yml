@@ -31,7 +31,9 @@ jobs:
           python3 .github/scripts/build_combos.py variants.json combos.tsv.gz
           ls -l combos.tsv.gz
           zcat combos.tsv.gz | head -3
+      # Only main publishes: a branch that changes the script must not replace the list phones download.
       - name: Publish to the models release
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

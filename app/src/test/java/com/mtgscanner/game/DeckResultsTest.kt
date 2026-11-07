@@ -22,6 +22,17 @@ class DeckResultsTest {
         assertEquals(DeckResult(), DeckResults.tally(records, 1L))
     }
 
+    @Test fun sameDeckAtTwoSeatsWinsIfEitherWon() {
+        val records = listOf(game(listOf("Rae", "Sam"), listOf(7L, 7L), "Sam"))
+        assertEquals(DeckResult(1, 0, 0), DeckResults.tally(records, 7L))
+    }
+
+    @Test fun handSetNumbersNeverGoNegative() {
+        // Set to 2-0-0 over a 5-0-0 tally (difference -3), then those games were deleted.
+        assertEquals(DeckResult(0, 0, 0), DeckResults.combine(DeckResult(), DeckResult(-3, 0, 0)))
+        assertEquals(DeckResult(2, 1, 0), DeckResults.combine(DeckResult(5, 1, 0), DeckResult(-3, 0, 0)))
+    }
+
     @Test fun winRate() {
         assertNull(DeckResult().winRate)
         assertEquals(62, DeckResult(5, 3, 0).winRate)
