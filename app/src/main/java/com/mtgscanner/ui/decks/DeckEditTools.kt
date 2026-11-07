@@ -28,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -87,7 +89,8 @@ private fun Stepper(count: Int, onChange: (Int) -> Unit) {
  * Changes go into the list and are saved with it.
  */
 @Composable
-fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
+fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel, onPaste: () -> Unit) {
+    var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var board by rememberSaveable { mutableStateOf("Main") }
     val leads = remember(ui.commanders) { ui.commanders.all.map { DeckNames.key(it) }.toSet() }
@@ -101,7 +104,18 @@ fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel) {
         }
     }
     val lines = parsed.filter { it.section == board && (board != "Main" || DeckNames.key(it.name) !in leads) }
-    DeckQuickAdd(ui, vm, board)
+    DeckQuickAdd(ui, vm, board, searching) { searching = it }
+    if (lines.isEmpty() && board == "Main") {
+        // A blank deck: the ways to fill it, so the page starts with something to do.
+        Text("Start the deck", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s2))
+        StartRow(Icons.Outlined.Search, "Search all cards", "By name, type, format and commander colors", first = true, last = false) { searching = true }
+        StartRow(Icons.Outlined.ContentPaste, "Paste a list", "From Moxfield, Archidekt or any text list", first = false, last = true, onClick = onPaste)
+        Text(
+            "Or scan cards into it: pick this deck in the Scan screen's add-to menu",
+            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3),
+        )
+        return
+    }
     if (lines.isEmpty()) {
         Text(
             when (board) {
@@ -155,6 +169,22 @@ private fun EditCardRow(ui: DeckUi, vm: DeckViewModel, l: com.mtgscanner.util.De
         }
         Stepper(l.quantity) { d -> vm.adjustCard(l.name, d, board, l.setCode, l.collectorNumber) }
         MoveMenu(board) { to -> com.mtgscanner.util.Haptics.tick(); vm.moveCard(l.name, board, to) }
+    }
+}
+
+/** One way to start a blank deck: an icon, what it does and a line on how, in one panel with the others. */
+@Composable
+private fun StartRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String, first: Boolean, last: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().panelRow(first, last).clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = Space.s3, vertical = Space.s2),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(Space.s3))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

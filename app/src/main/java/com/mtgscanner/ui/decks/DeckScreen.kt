@@ -397,7 +397,7 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
                             FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
                         }
                     }
-                    EditTab.CARDS -> DeckCardsTab(ui, vm)
+                    EditTab.CARDS -> DeckCardsTab(ui, vm, onPaste = { picked = EditTab.LIST })
                     EditTab.COMBOS -> CombosTab(ui, vm)
                     EditTab.EDHREC -> EdhrecTab(ui, vm)
                 }
