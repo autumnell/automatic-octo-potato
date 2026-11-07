@@ -57,7 +57,13 @@ suspend fun CollectionRepository.identify(raw: CardTextGuess, skip: ((ScryfallCa
     base ?: return null
     noteSet(base.card.set)
     if (base.picked) return base
-    val result = (if (guess.collectorNumber == null && skip?.invoke(base.card) != true) choosePrinting(base, guess) else null) ?: base
+    val result = when {
+        skip?.invoke(base.card) == true -> null
+        // No number read, or a set and number read that matched no printing: the year, symbol and art pick it.
+        guess.collectorNumber == null || (!base.exact && guess.setCode != null) -> choosePrinting(base, guess)
+        // Name and footer agree, but a misread digit can still land on another art of the card in that set.
+        else -> checkArt(base, guess)
+    } ?: base
     // Matched from the list on the phone with prices a few days old: today's follow in the background.
     if (localCards.isStale(result.card.id)) freshenLater(result.card.id)
     return result
@@ -231,6 +237,25 @@ private suspend fun CollectionRepository.choosePrinting(base: Identification, gu
     if (!narrowed) return null
     val pick = pool.first()
     return base.copy(card = pick, exact = base.exact || (bySymbol && pool.size == 1))
+}
+
+/**
+ * A set often has the same card more than once (showcase, borderless, extended art), all with the same name and
+ * set code, so a footer misread by one digit can name another art of it. When the card's picture clearly shows
+ * another printing of that card in that set, that one; null keeps [base]. Done after the cache, so each copy
+ * scanned is checked by its own picture.
+ */
+private suspend fun CollectionRepository.checkArt(base: Identification, guess: CardTextGuess): Identification? {
+    val print = guess.cardPrint ?: return null
+    val card = base.card
+    val oracle = card.oracleId ?: return null
+    val printings = loadedSet(card.set) ?: runCatching { printingsCached(card) }.getOrNull() ?: return null
+    val siblings = LocalPick.realCards(printings.filter { it.oracleId == oracle && it.set.equals(card.set, ignoreCase = true) })
+    if (siblings.size < 2) return null
+    val shown = withContext(Dispatchers.Default) {
+        runCatching { com.mtgscanner.scan.CardPrints.pick(print, siblings) }.getOrNull()
+    } ?: return null
+    return if (shown.id == card.id) null else base.copy(card = shown, exact = true)
 }
 
 /**
