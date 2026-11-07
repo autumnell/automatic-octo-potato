@@ -134,24 +134,21 @@ private fun EdhrecCard(
             val url = rec.normalImageUrl ?: rec.imageUrl
             CardImage(url, Modifier.fillMaxWidth(), zoom = url != null, grey = false)
         }
-        Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-            StatCell("Played", Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    rec.share?.let { ShareRing(it.toFloat()) }
-                    Spacer(Modifier.width(Space.s1))
-                    Text(rec.share?.let { sharePct(it) } ?: "–", style = MaterialTheme.typography.labelLarge.merge(TabularNums))
-                }
+        // One line per number, label left and value right, so large text still fits half a screen's width.
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s3, vertical = Space.s2)) {
+            StatLine("Played") {
+                rec.share?.let { ShareRing(it.toFloat()) }
+                Spacer(Modifier.width(Space.s1))
+                Text(rec.share?.let { sharePct(it) } ?: "–", style = MaterialTheme.typography.labelLarge.merge(TabularNums), maxLines = 1)
             }
-            CellRule()
-            StatCell("Decks", Modifier.weight(1f)) {
-                Text(rec.decks?.let { shortCount(it) } ?: "–", style = MaterialTheme.typography.labelLarge.merge(TabularNums))
+            StatLine("Decks") {
+                Text(rec.decks?.let { shortCount(it) } ?: "–", style = MaterialTheme.typography.labelLarge.merge(TabularNums), maxLines = 1)
             }
-            CellRule()
-            StatCell("Synergy", Modifier.weight(1f)) {
+            StatLine("Synergy") {
                 val s = rec.synergy
                 Text(
                     if (s == null || abs(s) < 0.005) "0%" else "${if (s > 0) "+" else "−"}${(abs(s) * 100).roundToInt()}%",
-                    style = MaterialTheme.typography.labelLarge.merge(TabularNums),
+                    style = MaterialTheme.typography.labelLarge.merge(TabularNums), maxLines = 1,
                     color = when { s == null || abs(s) < 0.005 -> Palette.Text; s > 0 -> Palette.Success; else -> Palette.Danger },
                 )
             }
@@ -177,18 +174,13 @@ private fun EdhrecCard(
     }
 }
 
-/** A number over its small label, centered in its third of the card. */
+/** A small label on the left and its value on the right. */
 @Composable
-private fun StatCell(label: String, modifier: Modifier, value: @Composable () -> Unit) {
-    Column(modifier.heightIn(min = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+private fun StatLine(label: String, value: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = Space.s6), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1, modifier = Modifier.weight(1f))
         value()
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.Muted, textAlign = TextAlign.Center, maxLines = 1)
     }
-}
-
-@Composable
-private fun CellRule() {
-    Box(Modifier.width(1.dp).height(Space.s8).background(Palette.Rule))
 }
 
 /** A small ring filled to [share] of the way round, for the share of decks playing a card. */
