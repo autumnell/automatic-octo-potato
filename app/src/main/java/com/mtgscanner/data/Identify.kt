@@ -332,6 +332,18 @@ private suspend fun CollectionRepository.footerOnly(card: ScryfallCard, guess: C
     return Identification(shown, confident = true, exact = true)
 }
 
+/**
+ * The name read disagrees with the footer's card, but the card's picture clearly shows the footer's card. The
+ * "name" was then a line naming another card, like flavor text signed "Ms. Bumbleflower" read without its dash.
+ */
+private suspend fun pictureShows(card: ScryfallCard, guess: CardTextGuess): Boolean {
+    val print = guess.cardPrint ?: return false
+    val hit = withContext(Dispatchers.Default) {
+        runCatching { com.mtgscanner.scan.CardPrints.match(print) }.getOrNull()
+    } ?: return false
+    return com.mtgscanner.util.CardNames.key(hit.name) == com.mtgscanner.util.CardNames.key(card.name)
+}
+
 private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: ((ScryfallCard) -> Boolean)? = null): Identification? {
     // Real card names close to what was read come first, then the raw text.
     // Comparing against every card name is heavy: keep it off the main thread.
@@ -348,7 +360,7 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
         if (number != null) {
             local.firstOrNull { it.collectorNumber.equals(number, ignoreCase = true) }?.let { c ->
                 if (names.isEmpty()) footerOnly(c, guess)?.let { return it }
-                else if (bestSimilarity(c) >= 0.6) return Identification(c, confident = true, exact = true)
+                else if (bestSimilarity(c) >= 0.6 || pictureShows(c, guess)) return Identification(c, confident = true, exact = true)
             }
         }
         if (names.isNotEmpty()) {
@@ -368,7 +380,7 @@ private suspend fun CollectionRepository.doIdentify(guess: CardTextGuess, skip: 
             // If we couldn't read a name, trust the footer unless the picture shows another card; otherwise the
             // name has to agree.
             if (names.isEmpty()) footerOnly(card, guess)?.let { return it }
-            else if (sim >= 0.6) return Identification(card, confident = true, exact = true)
+            else if (sim >= 0.6 || pictureShows(card, guess)) return Identification(card, confident = true, exact = true)
         }
         // A token prints its card set's code: the number may be in the token set ("tmom") instead.
         if (names.isNotEmpty()) {
