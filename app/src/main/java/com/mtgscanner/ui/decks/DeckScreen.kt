@@ -503,7 +503,8 @@ private fun Results(
             if (!hasArtHeader(ui.format, ui.commanders, ui.leadArt)) ui.shape?.let { DeckShapeView(it) }
             // Owned, the cost to finish, win rate, mana base and goldfish share one table (unslop: one stat style).
             // A complete deck has nothing missing, so it leaves out the owned and missing figures.
-            val where = if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null
+            // Short enough for a third of the width: where the owned copies sit when not all are in the deck.
+            val where = if (have > 0 && inDeck < needed) "${have - inDeck} elsewhere" else null
             val leadStats = buildList {
                 if (have < needed) {
                     add(InsightStat("Owned", "$have / $needed", where, null))
