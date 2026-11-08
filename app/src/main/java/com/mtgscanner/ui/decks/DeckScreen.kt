@@ -413,15 +413,20 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
     // Cards first: add by name or search; the typed list is one tab over.
     var picked by rememberSaveable { mutableStateOf(startTab ?: EditTab.CARDS) }
     val tab = if (picked in tabs) picked else EditTab.CARDS
+    val cards = remember { CardsTabState() }
+    val parsed = remember(ui.text) { com.mtgscanner.util.DecklistParser.parse(ui.text) }
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            // Name, format, count and commanders in one panel, then the tabs for the cards.
-            DeckEditHeader(ui, vm, Modifier.padding(horizontal = Space.s4))
-            Spacer(Modifier.height(Space.s2))
-            UnderlineTabs(tabs.map { it.label }, tabs.indexOf(tab), { picked = tabs[it] }, horizontalPadding = Space.s4)
-            Column(Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s3, bottom = Space.s4)) {
-                when (tab) {
-                    EditTab.LIST -> {
+        // A lazy list: only the rows on screen are drawn, so a 100-card deck scrolls smoothly.
+        LazyColumn(Modifier.weight(1f)) {
+            // Name, format and count, then commander and companion, in one panel of cells; then the tabs.
+            item(key = "header") { DeckEditHeader(ui, vm, Modifier.padding(horizontal = Space.s4)) }
+            item(key = "tabs") {
+                UnderlineTabs(tabs.map { it.label }, tabs.indexOf(tab), { picked = tabs[it] }, Modifier.padding(top = Space.s2, bottom = Space.s3), horizontalPadding = Space.s4)
+            }
+            when (tab) {
+                EditTab.CARDS -> deckCardsItems(ui, vm, cards, parsed, onPaste = { picked = EditTab.LIST })
+                EditTab.LIST -> item(key = "list") {
+                    Column(Modifier.padding(horizontal = Space.s4)) {
                         OutlinedTextField(
                             value = ui.text, onValueChange = vm::setText,
                             placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
@@ -434,16 +439,16 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
                             FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
                         }
                     }
-                    EditTab.CARDS -> DeckCardsTab(ui, vm, onPaste = { picked = EditTab.LIST })
-                    EditTab.COMBOS -> CombosTab(ui, vm)
-                    EditTab.EDHREC -> EdhrecTab(ui, vm)
                 }
+                EditTab.COMBOS -> item(key = "combos") { Column(Modifier.padding(horizontal = Space.s4)) { CombosTab(ui, vm) } }
+                EditTab.EDHREC -> item(key = "edhrec") { Column(Modifier.padding(horizontal = Space.s4)) { EdhrecTab(ui, vm) } }
             }
+            item(key = "end") { Spacer(Modifier.height(Space.s4)) }
         }
         // Save stays in reach at the bottom however long the list gets.
         HorizontalDivider(color = Palette.Rule)
         Box(Modifier.fillMaxWidth().background(Palette.Background).navigationBarsPadding().padding(horizontal = Space.s4, vertical = Space.s2)) {
-            GradientButton(if (ui.text.isBlank()) "Save deck" else "Check my collection", vm::save, Modifier.fillMaxWidth())
+            GradientButton("Save", vm::save, Modifier.fillMaxWidth())
         }
     }
     ui.printingLine?.let { line ->

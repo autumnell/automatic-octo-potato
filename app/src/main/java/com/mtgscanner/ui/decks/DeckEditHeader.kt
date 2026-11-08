@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -62,9 +63,8 @@ internal fun deckTarget(format: String): Int? {
 }
 
 /**
- * The top of edit mode, as one panel: the name (typed in place), the format, the card count against the format's
- * size, and for commander formats the commander slots. Empty optional slots (partner, companion) sit on one line
- * of small buttons instead of a panel each.
+ * The top of edit mode, one panel cut into cells: name and format with the card count on the first row, then
+ * commander and companion (and a partner or signature spell where the format has one), two to a row.
  */
 @Composable
 fun DeckEditHeader(ui: DeckUi, vm: DeckViewModel, modifier: Modifier = Modifier) {
@@ -77,53 +77,83 @@ fun DeckEditHeader(ui: DeckUi, vm: DeckViewModel, modifier: Modifier = Modifier)
     val count = mainCount + if (commander) ui.commanders.commanders.size else 0
     val target = deckTarget(ui.format)
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface)) {
-        NameField(ui.name, vm::setName)
-        HorizontalDivider(color = Palette.Rule)
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = Space.s1, end = Space.s3),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FormatMenu(ui.format, vm::setFormat)
-            Spacer(Modifier.weight(1f))
-            Text(
-                if (target != null) "$count / $target cards" else if (count == 1) "1 card" else "$count cards",
-                style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted,
-            )
+        CellRow {
+            NameCell(ui.name, vm::setName, Modifier.weight(1f))
+            CellRule()
+            FormatCell(ui.format, count, target, vm::setFormat, Modifier.weight(1f))
         }
-        if (target != null) CountBar(count, target, Modifier.padding(start = Space.s3, end = Space.s3, bottom = Space.s3))
         if (commander) {
-            HorizontalDivider(color = Palette.Rule)
-            EditSlots(ui, vm)
+            val c = ui.commanders
+            val first = c.commanders.firstOrNull()?.let { ui.leadInfo[it.lowercase()] }
+            val second = c.commanders.getOrNull(1)
+            val image = { n: String -> ui.cardInfo[DeckNames.key(n)]?.imageUrl }
+            val slots = buildList {
+                add(CommanderSlot.COMMANDER to c.commanders.firstOrNull())
+                add(CommanderSlot.COMPANION to c.companion)
+                if (second != null || (first != null && CommanderRules.allowsSecond(first))) add(CommanderSlot.SECOND to second)
+                if (ui.format == "oathbreaker") add(CommanderSlot.SIGNATURE to c.signature)
+            }
+            slots.chunked(2).forEach { pair ->
+                HorizontalDivider(color = Palette.Rule)
+                CellRow {
+                    pair.forEachIndexed { i, (slot, name) ->
+                        if (i > 0) CellRule()
+                        SlotCell(
+                            slotLabel(slot, ui.format, first), name, name?.let(image), Modifier.weight(1f),
+                            onOpen = { vm.openPicker(slot) }, onClear = { vm.clearSlot(slot) },
+                        )
+                    }
+                    if (pair.size == 1) { CellRule(); Spacer(Modifier.weight(1f)) }
+                }
+            }
         }
     }
 }
 
-/** The deck name, typed straight into the panel in the heading face. */
+/** A row of cells that share its height, so the rules between them run top to bottom. */
 @Composable
-private fun NameField(name: String, onName: (String) -> Unit) {
-    val style = MaterialTheme.typography.titleLarge
-    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s3, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f)) {
-            if (name.isEmpty()) Text("Deck name", style = style, color = Palette.Faint, maxLines = 1)
+private fun CellRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), content = content)
+}
+
+@Composable
+private fun CellRule() {
+    Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.Rule))
+}
+
+/** The deck name, typed straight into its cell in the heading face. */
+@Composable
+private fun NameCell(name: String, onName: (String) -> Unit, modifier: Modifier) {
+    val style = MaterialTheme.typography.titleMedium
+    Column(modifier.padding(Space.s3)) {
+        Text("Deck name", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+        Box(Modifier.fillMaxWidth().padding(top = Space.s1)) {
+            if (name.isEmpty()) Text("Untitled", style = style, color = Palette.Faint, maxLines = 1)
             BasicTextField(
-                value = name, onValueChange = onName, singleLine = true,
+                value = name, onValueChange = onName, maxLines = 2,
                 textStyle = style.copy(color = Palette.Text), cursorBrush = SolidColor(Palette.Text),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        Icon(Icons.Outlined.Edit, null, tint = Palette.Faint, modifier = Modifier.padding(start = Space.s2).size(18.dp))
     }
 }
 
-/** The format as a small menu button: common formats first, then the rest, then None. */
+/** The format (tap the cell to change it) over the card count and a thin bar toward the format's size. */
 @Composable
-private fun FormatMenu(format: String, onPick: (String) -> Unit) {
+private fun FormatCell(format: String, count: Int, target: Int?, onPick: (String) -> Unit, modifier: Modifier) {
     var open by remember { mutableStateOf(false) }
     val current = DeckFormats.of(format)
-    Box {
-        TextButton(onClick = { open = true }) {
-            Text(if (current.id.isEmpty()) "No format" else current.label, style = MaterialTheme.typography.labelLarge, color = Palette.Text)
-            Icon(Icons.Outlined.ArrowDropDown, "Change format", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+    Box(modifier) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight().clickable { open = true }.padding(Space.s3)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (current.id.isEmpty()) "No format" else current.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+                Icon(Icons.Outlined.ArrowDropDown, "Change format", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+            }
+            Text(
+                if (target != null) "$count / $target" else if (count == 1) "1 card" else "$count cards",
+                style = MaterialTheme.typography.titleMedium.merge(TabularNums), modifier = Modifier.padding(top = Space.s1),
+            )
+            if (target != null) CountBar(count, target, Modifier.padding(top = Space.s2))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             val (common, rest) = DeckFormats.ALL.partition { it.common }
@@ -151,66 +181,25 @@ private fun CountBar(count: Int, target: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * The commander slots inside the header panel: the commander (and a partner or signature spell once set) as rows
- * with their card, and empty optional slots as small add buttons on one line.
- */
+/** One slot as a cell: its card, the slot's name over the card's, and × to clear it. Empty, it offers Add. */
 @Composable
-private fun EditSlots(ui: DeckUi, vm: DeckViewModel) {
-    val c = ui.commanders
-    val firstName = c.commanders.firstOrNull()
-    val first = firstName?.let { ui.leadInfo[it.lowercase()] }
-    val second = c.commanders.getOrNull(1)
-    val oath = ui.format == "oathbreaker"
-    val image = { n: String -> ui.cardInfo[DeckNames.key(n)]?.imageUrl }
-    SlotLine(slotLabel(CommanderSlot.COMMANDER, ui.format, null), firstName, firstName?.let(image), { vm.openPicker(CommanderSlot.COMMANDER) }) {
-        vm.clearSlot(CommanderSlot.COMMANDER)
-    }
-    val secondAllowed = second != null || (first != null && CommanderRules.allowsSecond(first))
-    val extras = buildList {
-        if (secondAllowed) add(CommanderSlot.SECOND to second)
-        if (oath) add(CommanderSlot.SIGNATURE to c.signature)
-        add(CommanderSlot.COMPANION to c.companion)
-    }
-    extras.filter { it.second != null }.forEach { (slot, name) ->
-        HorizontalDivider(color = Palette.Rule)
-        SlotLine(slotLabel(slot, ui.format, first), name, name?.let(image), { vm.openPicker(slot) }) { vm.clearSlot(slot) }
-    }
-    val empty = extras.filter { it.second == null }.map { it.first }
-    if (empty.isNotEmpty()) {
-        HorizontalDivider(color = Palette.Rule)
-        Row(Modifier.fillMaxWidth().padding(horizontal = Space.s1), horizontalArrangement = Arrangement.spacedBy(Space.s1)) {
-            empty.forEach { slot ->
-                TextButton(onClick = { vm.openPicker(slot) }) {
-                    Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(Space.s1))
-                    Text(slotLabel(slot, ui.format, first), style = MaterialTheme.typography.labelLarge, color = Palette.Text)
-                }
-            }
-        }
-    }
-}
-
-/** One slot: its card, the slot's name over the card's, and × to clear it. Empty, it asks for a card. */
-@Composable
-private fun SlotLine(label: String, value: String?, imageUrl: String?, onOpen: () -> Unit, onClear: () -> Unit) {
+private fun SlotCell(label: String, value: String?, imageUrl: String?, modifier: Modifier, onOpen: () -> Unit, onClear: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).heightIn(min = 56.dp).padding(start = Space.s3, end = Space.s1, top = Space.s2, bottom = Space.s2),
+        modifier.fillMaxHeight().clickable(onClick = onOpen).heightIn(min = 56.dp).padding(start = Space.s3, top = Space.s2, bottom = Space.s2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (value != null) CardImage(imageUrl, Modifier.width(32.dp), zoom = imageUrl != null)
-        else Box(
-            Modifier.width(32.dp).aspectRatio(0.716f).clip(RoundedCornerShape(Corners.Small)).background(Palette.SurfaceHigh),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
-        Spacer(Modifier.width(Space.s3))
+        if (value != null) {
+            CardImage(imageUrl, Modifier.width(28.dp), zoom = imageUrl != null)
+            Spacer(Modifier.width(Space.s2))
+        }
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
             Text(
-                value ?: "Pick a ${label.lowercase()}", style = MaterialTheme.typography.bodyLarge,
-                color = if (value == null) Palette.AccentText else Palette.Text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                value ?: "Add", style = MaterialTheme.typography.bodyMedium,
+                color = if (value == null) Palette.AccentText else Palette.Text, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
         }
-        if (value != null) IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear $label", tint = Palette.Icon) }
+        if (value != null) IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear $label", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
+        else Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.padding(end = Space.s3).size(18.dp))
     }
 }
