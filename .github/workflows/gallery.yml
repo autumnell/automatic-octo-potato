@@ -48,6 +48,8 @@ jobs:
       - name: Add missing printings
         run: python .github/scripts/build_gallery.py g g/card-gallery.bin g/new.bin 25000
       - name: Publish to the models release
+        # Only main publishes: every app build ships this file, so a branch must not replace it.
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

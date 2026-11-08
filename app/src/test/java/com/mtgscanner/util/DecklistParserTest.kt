@@ -76,6 +76,9 @@ class DecklistParserTest {
         // Commander-sized last block is not a sideboard.
         val big = DecklistParser.parse("60 Mountain\n\n40 Island")
         assertEquals("Main", big.first { it.name == "Island" }.section)
+        // A 100-card list in groups whose last group is small is still all deck.
+        val grouped = DecklistParser.parse("1 Sol Ring\n91 Forest\n\n8 Llanowar Elves")
+        assertEquals("Main", grouped.first { it.name == "Llanowar Elves" }.section)
     }
 
     @Test fun samePrintingsStaySeparate() {

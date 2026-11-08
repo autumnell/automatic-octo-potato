@@ -11,4 +11,16 @@
     <exclude domain="file" path="scan-log.jsonl" />
     <exclude domain="file" path="before-restore.json" />
     <exclude domain="file" path="house-sync" />
+    <exclude domain="file" path="auto-backups" />
+    <exclude domain="file" path="card-lists" />
+    <exclude domain="file" path="prints" />
+    <exclude domain="file" path="precons" />
+    <exclude domain="file" path="scan-photos" />
+    <exclude domain="file" path="test-photos" />
+    <exclude domain="file" path="combos.tsv.gz" />
+    <exclude domain="file" path="salt.tsv" />
+    <exclude domain="database" path="local-cards.db" />
+    <exclude domain="database" path="local-cards.db-wal" />
+    <exclude domain="database" path="local-cards.db-shm" />
+    <exclude domain="database" path="local-cards.db.tmp" />
 </full-backup-content>

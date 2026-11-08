@@ -1,5 +1,6 @@
 package com.mtgscanner.scan
 
+import kotlinx.coroutines.ensureActive
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
@@ -45,6 +46,8 @@ object VideoCards {
             var sharpest = 0.0
             var t = 0L
             while (t <= length) {
+                // Closing the sheet or starting another video cancels this one: stop at the next frame.
+                kotlin.coroutines.coroutineContext.ensureActive()
                 onProgress(t.toFloat() / length.coerceAtLeast(1))
                 val frame = frameAt(mmr, t)
                 if (frame != null) {

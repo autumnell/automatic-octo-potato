@@ -66,6 +66,16 @@ private data class SavedMoves(val lines: List<SavedLine>, val done: List<Int> = 
  * to tick off while moving the real cards. App-wide and kept across restarts; cleared by hand.
  */
 object MoveList {
+    /** Adds cards leaving their boxes ([moves]: card, box it goes to) to the move list; returns the lines added. */
+    suspend fun record(
+        repo: com.mtgscanner.data.CollectionRepository, moves: List<Pair<com.mtgscanner.data.db.CollectionCard, Long>>, show: Boolean,
+    ): List<com.mtgscanner.data.MoveLine> {
+        if (moves.isEmpty()) return emptyList()
+        val ids = (moves.map { it.first.boxId } + moves.map { it.second }).distinct()
+        val info = ids.mapNotNull { id -> repo.box(id)?.let { id to Triple(it.name, it.kind, it.divider) } }.toMap()
+        return add(linesFor(moves) { info[it] }, show)
+    }
+
     var lines by mutableStateOf<List<MoveLine>>(emptyList())
         private set
     /** Indexes of ticked lines. */

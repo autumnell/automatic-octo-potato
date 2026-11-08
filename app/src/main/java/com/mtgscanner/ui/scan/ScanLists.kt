@@ -151,7 +151,7 @@ fun BoxCheckChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
                 Text(run.boxName, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${run.scans.sumOf { it.count }} scanned", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
             }
-            TextButton(onClick = { vm.showBoxCheck(true) }) { Text("Result", color = Palette.Text) }
+            TextButton(onClick = { vm.showBoxCheck(true) }) { Text("Result", color = Color.White) }
         }
     }
 }
@@ -166,7 +166,7 @@ fun RemoveChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modif
                 Text("Removing", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 Text("${state.removedCount} out", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
             }
-            TextButton(onClick = vm::stopTarget) { Text("Done", color = Palette.Text) }
+            TextButton(onClick = vm::stopTarget) { Text("Done", color = Color.White) }
         }
     }
 }

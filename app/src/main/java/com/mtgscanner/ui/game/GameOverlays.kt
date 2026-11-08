@@ -379,7 +379,7 @@ fun MenuOverlay(
             choosingFirst -> ScrollPage(pageScroll) {
                 Column(Modifier.verticalScroll(pageScroll)) {
                     PlayerPicker(
-                        g, "Who goes first?", g.active,
+                        g, "Who goes first?", g.firstSeat,
                         onPick = { who -> if (who != null) vm.update { Game.setFirst(it, who) }; choosingFirst = false },
                         onBack = { choosingFirst = false }, allowNobody = false,
                         onRandom = { vm.update { Game.setFirst(it, Random.nextInt(it.players.size)) }; choosingFirst = false },
@@ -396,7 +396,7 @@ fun MenuOverlay(
                         ) { vm.nextTurn() }
                         ActionTile(
                             Icons.AutoMirrored.Outlined.Undo, "Undo", Modifier.weight(1f),
-                            g.history.lastOrNull()?.let { describe(g, it) }, enabled = g.undoStack.isNotEmpty(),
+                            (if (with(Game) { g.lastStepHasNoLine() }) "Turn order" else g.history.lastOrNull()?.let { describe(g, it) }), enabled = g.undoStack.isNotEmpty(),
                         ) { vm.undo() }
                     }
                     MenuSection("Table")
@@ -413,10 +413,10 @@ fun MenuOverlay(
                         }
                         add { m ->
                             SmallTile(dayNightIcon(g.dayNight), dayNightLabel(g.dayNight), m, "Tap to change",
-                                tint = if (g.dayNight != null) Palette.Gold else Color.White) { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
+                                tint = if (g.dayNight != null) Palette.Gold else Color.White) { vm.update { Game.dayNight(it, nextDayNight(it.dayNight, allowOff = true)) } }
                         }
                         if (g.players.size > 1) add { m ->
-                            SmallTile(Icons.Outlined.SkipNext, "First player", m, g.active?.let { g.players[it].name } ?: "Pick or random") { choosingFirst = true }
+                            SmallTile(Icons.Outlined.SkipNext, "First player", m, g.firstSeat?.let { g.players.getOrNull(it)?.name } ?: "Pick or random") { choosingFirst = true }
                         }
                     }
                     TileGrid(table.size, minTile = 150) { k, m -> table[k](m) }
@@ -491,10 +491,11 @@ private fun describe(g: GameState, e: com.mtgscanner.game.GameEvent): String {
     return "$who · ${e.what}$change"
 }
 
-fun nextDayNight(v: String?): String? = when (v) {
+/** Day, then night. From the menu ([allowOff]) the round goes on to off; the chip on the table only flips day and night. */
+fun nextDayNight(v: String?, allowOff: Boolean = false): String? = when (v) {
     null -> "day"
     "day" -> "night"
-    else -> "day"
+    else -> if (allowOff) null else "day"
 }
 
 fun dayNightIcon(v: String?): ImageVector = when (v) {

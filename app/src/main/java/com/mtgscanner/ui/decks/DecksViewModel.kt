@@ -301,7 +301,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
         val text = deck.asText()
         val lines = com.mtgscanner.util.DecklistParser.parse(text)
         val id = repo.saveDeck(0L, deck.commander, text, "commander", com.mtgscanner.data.DeckCommanders.fromLines(lines).encode())
-        Undo.offer("Saved deck: ${deck.commander}") { repo.deleteDeck(id) }
+        Undo.offer("Saved deck: ${deck.commander}") { repo.deleteDeckAndCards(id, false) }
     }
 
     /** Adds the cards [deck] is missing to the wishlist, one of each (never on top of what's wanted). */
@@ -362,7 +362,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
         val format = if (deck.entry.isCommander) "commander" else null
         val leads = if (deck.entry.isCommander) com.mtgscanner.data.DeckCommanders.fromLines(lines).encode() else null
         val id = repo.saveDeck(0L, deck.entry.name, text, format, leads)
-        Undo.offer("Saved deck: ${deck.entry.name}") { repo.deleteDeck(id) }
+        Undo.offer("Saved deck: ${deck.entry.name}") { repo.deleteDeckAndCards(id, false) }
     }
 
     /** Puts what a precon is missing on the wishlist. */

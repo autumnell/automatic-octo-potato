@@ -146,13 +146,20 @@ data class GameState(
 object Game {
     private fun GameState.record(player: Int, what: String, delta: Int, now: Long, next: GameState): GameState {
         val last = history.lastOrNull()
-        val merged = if (last != null && last.player == player && last.what == what && now - last.at < GameState.MERGE_MS) {
-            // Keep one line and one undo step for a run of quick taps.
-            history.dropLast(1) + last.copy(delta = last.delta + delta, at = now)
-        } else history + GameEvent(player, what, delta, now)
-        val stack = if (last != null && last.player == player && last.what == what && now - last.at < GameState.MERGE_MS) undoStack
-        else (undoStack + this.copy(undoStack = emptyList())).takeLast(GameState.MAX_UNDO)
+        // A run of quick taps keeps one line and one undo step, unless something else (a turn change, which has
+        // no line of its own) was saved as an undo step since that line: then the newest step already holds it.
+        val merge = last != null && last.player == player && last.what == what && now - last.at < GameState.MERGE_MS &&
+            !lastStepHasNoLine()
+        val merged = if (merge) history.dropLast(1) + last!!.copy(delta = last.delta + delta, at = now)
+        else history + GameEvent(player, what, delta, now)
+        val stack = if (merge) undoStack else (undoStack + this.copy(undoStack = emptyList())).takeLast(GameState.MAX_UNDO)
         return next.copy(history = merged.takeLast(300), undoStack = stack)
+    }
+
+    /** True when the newest undo step was saved without a history line (turn order, first player). */
+    fun GameState.lastStepHasNoLine(): Boolean {
+        val step = undoStack.lastOrNull() ?: return false
+        return history.isNotEmpty() && step.history.lastOrNull() == history.last()
     }
 
     /** Saves the current state as an undo step without a history line. */

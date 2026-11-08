@@ -247,11 +247,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     suspend fun allCards(): List<CollectionCard> = repo.allCards().sortedBy { it.name }
 
     /** Adds cards leaving their boxes to the physical move list; returns the lines added. */
-    private suspend fun recordMoves(moves: List<Pair<CollectionCard, Long>>, show: Boolean): List<com.mtgscanner.data.MoveLine> {
-        val ids = (moves.map { it.first.boxId } + moves.map { it.second }).distinct()
-        val info = ids.mapNotNull { id -> repo.box(id)?.let { id to Triple(it.name, it.kind, it.divider) } }.toMap()
-        return MoveList.add(MoveList.linesFor(moves) { info[it] }, show)
-    }
+    private suspend fun recordMoves(moves: List<Pair<CollectionCard, Long>>, show: Boolean) = MoveList.record(repo, moves, show)
 
     /** A whole system of boxes, tried as a plan first; "Set boxes" is built from the sets you own. */
     fun tryTemplate(t: BoxTemplate) = viewModelScope.launch {
@@ -382,21 +378,25 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun observeDecks() = repo.observeDecks()
 
-    /** Sorts a catch-all box: cards that fit another box's rules move there. */
+    /** Sorts a catch-all box: cards that fit another box's rules move there, onto the move list. */
     fun sortBox(id: Long, name: String) = viewModelScope.launch {
         val before = repo.snapshot(repo.cardsInBox(id).map { it.id })
-        val moved = repo.sortBox(id)
+        val moves = repo.sortBox(id)
+        val moved = moves.sumOf { it.first.quantity }
+        val added = recordMoves(moves, show = moves.size > 1)
         if (moved == 0) _message.value = "None of the cards in $name fit another box's rules. Make a box with rules first."
-        else Undo.offer("Sorted $moved cards out of $name") { repo.restore(before) }
+        else Undo.offer("Sorted $moved cards out of $name") { repo.restore(before); MoveList.remove(added) }
     }
 
-    /** Makes a new box from [d] and moves the cards in [sourceId] that fit its rules into it. */
+    /** Makes a new box from [d] and moves the cards in [sourceId] that fit its rules into it, onto the move list. */
     fun sortIntoNew(sourceId: Long, name: String, d: BoxDraft) = viewModelScope.launch {
         val before = repo.snapshot(repo.cardsInBox(sourceId).map { it.id })
         val newId = repo.createBox(d.name, d.kind, d.rules, d.color)
-        val moved = repo.sortInto(sourceId, newId, d.rules)
+        val cards = repo.sortInto(sourceId, newId, d.rules)
+        val moved = cards.sumOf { it.quantity }
+        val added = recordMoves(cards.map { it to newId }, show = cards.size > 1)
         if (moved == 0) _message.value = "Made ${d.name}, but no cards in $name fit its rules"
-        else Undo.offer("Moved $moved cards from $name to ${d.name}") { repo.restore(before); repo.deleteBox(newId, CardBox.AUTO_SORT) }
+        else Undo.offer("Moved $moved cards from $name to ${d.name}") { repo.restore(before); MoveList.remove(added); repo.deleteBox(newId, CardBox.AUTO_SORT) }
     }
 
     companion object {

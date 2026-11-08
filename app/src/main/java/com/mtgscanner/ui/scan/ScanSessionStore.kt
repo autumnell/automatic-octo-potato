@@ -35,7 +35,7 @@ data class SavedScanSession(
 
     /** The batch list to put back. */
     val batchCards: List<BatchCard>
-        get() = batch ?: batchItems.orEmpty().mapNotNull { i -> i.card?.let { BatchCard(it.forSession(), i.lang, i.foil, i.unsure) } }
+        get() = batch ?: batchItems.orEmpty().mapNotNull { i -> i.card?.let { BatchCard(it.forSession(), i.lang, i.foil, i.unsure, i.count) } }
 
     /** The form written to disk: each line once, by key. */
     fun compact(): SavedScanSession {
@@ -75,16 +75,22 @@ data class SavedScanSession(
     /** Same lists as [other], by reference: a cheap check that nothing worth saving changed. */
     fun sameAs(other: SavedScanSession): Boolean =
         session === other.session && sort === other.sort && review === other.review && pack === other.pack &&
-            boxCheck === other.boxCheck && batchItems === other.batchItems
+            boxCheck === other.boxCheck && (batchItems === other.batchItems || batchItems == other.batchItems)
 
     companion object {
-        fun of(s: ScanUiState) = SavedScanSession(s.session, s.sort, s.review, s.pack, s.boxCheck, batchItems = s.batch)
+        fun of(s: ScanUiState): SavedScanSession {
+            // A batch being reviewed has left the batch list for the review sheet: save it too, so the pile comes
+            // back if Android closes the app mid-review.
+            val reviewing = s.photo?.takeIf { it.fromBatch }?.items.orEmpty()
+            val batch = if (reviewing.isEmpty()) s.batch else s.batch.orEmpty() + reviewing
+            return SavedScanSession(s.session, s.sort, s.review, s.pack, s.boxCheck, batchItems = batch)
+        }
     }
 }
 
 /** One card on the batch list, as saved. */
 @Serializable
-data class BatchCard(val card: ScryfallCard, val lang: String? = null, val foil: Boolean? = null, val unsure: Boolean = false)
+data class BatchCard(val card: ScryfallCard, val lang: String? = null, val foil: Boolean? = null, val unsure: Boolean = false, val count: Int? = null)
 
 /**
  * A scan list line's card without what the scanner never reads back: store and site links, flavor text, and the

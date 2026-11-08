@@ -122,15 +122,24 @@ object Precons {
     suspend fun list(ctx: Context, fresh: Boolean = false): List<PreconEntry>? = withContext(Dispatchers.IO) {
         val f = File(dir(ctx), "DeckList.json")
         val young = f.exists() && System.currentTimeMillis() - f.lastModified() < LIST_DAYS * 86_400_000L
-        val text = if (young && !fresh) f.readText() else fetch("$BASE/DeckList.json")?.also { f.writeText(it) } ?: f.takeIf { it.exists() }?.readText()
-        text?.let { runCatching { PreconJson.list(it) }.getOrNull() }
+        val saved = { f.takeIf { it.exists() }?.readText()?.let { t -> runCatching { PreconJson.list(t) }.getOrNull() } }
+        // A saved copy that doesn't read (cut off mid-write by an older version) is fetched again, not trusted.
+        (if (young && !fresh) saved() else null)
+            ?: fetch("$BASE/DeckList.json")?.let { t -> runCatching { PreconJson.list(t) }.getOrNull()?.also { save(f, t) } }
+            ?: saved()
     }
 
     /** One precon's cards. */
     suspend fun deck(ctx: Context, entry: PreconEntry): PreconDeck? = withContext(Dispatchers.IO) {
         val safe = entry.fileName.replace(Regex("[^A-Za-z0-9_.-]"), "_")
         val f = File(dir(ctx), "$safe.json")
-        val text = if (f.exists()) f.readText() else fetch("$BASE/decks/${entry.fileName}.json")?.also { f.writeText(it) }
-        text?.let { runCatching { PreconJson.deck(entry, it) }.getOrNull() }
+        f.takeIf { it.exists() }?.readText()?.let { t -> runCatching { PreconJson.deck(entry, t) }.getOrNull() }
+            ?: fetch("$BASE/decks/${entry.fileName}.json")?.let { t -> runCatching { PreconJson.deck(entry, t) }.getOrNull()?.also { save(f, t) } }
+    }
+
+    /** Writes beside [f], then swaps it in, so a write cut off part way never leaves half a file. */
+    private fun save(f: File, text: String) {
+        val part = File(f.parentFile, f.name + ".part")
+        runCatching { part.writeText(text); if (!part.renameTo(f)) { f.delete(); part.renameTo(f) } }
     }
 }

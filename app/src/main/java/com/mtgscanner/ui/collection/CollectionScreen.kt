@@ -78,6 +78,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.getValue
@@ -203,8 +204,11 @@ fun CollectionScreen(
     // The app's own snackbar shows messages, so they don't stack on top of an Undo.
     LaunchedEffect(message) { message?.let { Undo.offer(it); vm.messageShown() } }
     // Home's "See all" lands here when it can't open Browse itself.
+    val wishlistAsked by com.mtgscanner.ui.home.WishlistLaunch.pending.collectAsState()
+    LaunchedEffect(wishlistAsked) {
+        if (wishlistAsked) { tabName = CollectionTab.WISHLIST.name; com.mtgscanner.ui.home.WishlistLaunch.done() }
+    }
     LaunchedEffect(Unit) {
-        if (com.mtgscanner.ui.home.WishlistLaunch.take()) tabName = CollectionTab.WISHLIST.name
         if (BrowseLaunch.openAll) {
             BrowseLaunch.openAll = false
             onBrowse(-1L)

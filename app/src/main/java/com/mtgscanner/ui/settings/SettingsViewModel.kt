@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.data.Backup
+import com.mtgscanner.data.deleteDeckAndCards
 import com.mtgscanner.data.BackupIO
 import com.mtgscanner.data.BadBackupException
 import com.mtgscanner.data.CollectionRepository
@@ -287,7 +288,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
                 return@run e.message ?: "Couldn't get that deck"
             }
             val id = repo.saveDeck(0L, deck.name, deck.text)
-            com.mtgscanner.ui.components.Undo.offer("Saved deck: ${deck.name}") { repo.deleteDeck(id) }
+            com.mtgscanner.ui.components.Undo.offer("Saved deck: ${deck.name}") { repo.deleteDeckAndCards(id, false) }
             null
         }
     }

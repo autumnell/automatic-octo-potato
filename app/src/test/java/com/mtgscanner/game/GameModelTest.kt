@@ -181,6 +181,18 @@ class GameModelTest {
         assertEquals(17, Game.undo(active).players[0].life)
     }
 
+    @Test fun aTapRightAfterATurnChangeIsItsOwnUndoStep() {
+        var s = Game.life(GameState.new(GameFormat.STANDARD, 2), 0, -1, now = 1000)
+        s = Game.setActive(s, 1)
+        assertTrue(with(Game) { s.lastStepHasNoLine() })
+        s = Game.life(s, 0, -1, now = 1500)
+        assertEquals(18, s.players[0].life)
+        // One Undo takes back the second tap only; the turn change stays.
+        val back = Game.undo(s)
+        assertEquals(19, back.players[0].life)
+        assertEquals(1, back.active)
+    }
+
     @Test fun tableWideHistoryLinesHaveNoPlayer() {
         val g = GameState.new(GameFormat.COMMANDER, 4)
         val m = Game.monarch(Game.monarch(g, 1, now = 0), null, now = 10_000)

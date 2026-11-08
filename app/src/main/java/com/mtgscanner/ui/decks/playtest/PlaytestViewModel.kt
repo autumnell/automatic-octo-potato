@@ -56,6 +56,8 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
     private val _ui = MutableStateFlow(PlaytestUi())
     val ui: StateFlow<PlaytestUi> = _ui
     private val random = Random(System.nanoTime())
+    /** Set when the deck's cards couldn't be looked up (offline). */
+    private var lookupFailed = false
 
     /** Your other decks of the same format, to play against. */
     val otherDecks: StateFlow<List<Opponent.OwnDeck>> = repo.observeDecks()
@@ -72,7 +74,12 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
     init {
         viewModelScope.launch {
             val deck = loadOwn(deckId)
-            _ui.update { it.copy(deck = deck, loading = false, message = if (deck == null) "Couldn't load this deck" else null) }
+            val why = when {
+                deck != null -> null
+                lookupFailed -> "Couldn't look up the cards. Check the connection and open the playtest again"
+                else -> "Couldn't load this deck"
+            }
+            _ui.update { it.copy(deck = deck, loading = false, message = why) }
         }
     }
 
@@ -89,7 +96,9 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
         val lines = DecklistParser.parse(d.text)
         val leads = (DeckCommanders.decode(d.commanders).takeUnless { it.isEmpty } ?: DeckCommanders.fromLines(lines)).commanders
         val played = lines.filter { it.section in DeckCheck.PLAYED }.map { it.name to it.quantity }
-        val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(played.map { it.first } + leads) }.getOrDefault(emptyMap())
+        // Without the cards' details nothing is a land and the opponent plays blank cards, so don't start at all.
+        val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(played.map { it.first } + leads) }.getOrNull()
+            ?.takeIf { it.isNotEmpty() || played.isEmpty() } ?: run { lookupFailed = true; return null }
         return build(d.name.ifBlank { "Deck" }, played, leads, info, d.format)
     }
 

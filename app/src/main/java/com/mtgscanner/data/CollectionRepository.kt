@@ -290,11 +290,11 @@ class CollectionRepository(
     /**
      * Sorts a box (usually a catch-all "Anything" box) after the fact: each card that fits another
      * box's rules moves there, in Auto-sort order. Cards that fit nothing stay put, and so do cards this
-     * box's own rules take first and cards set to stay. Returns copies moved.
+     * box's own rules take first and cards set to stay. Returns each card moved with the box it went to.
      */
-    suspend fun sortBox(sourceId: Long): Int {
+    suspend fun sortBox(sourceId: Long): List<Pair<CollectionCard, Long>> {
         BackupIO.autoBackup(this, "sort out")
-        var moved = 0
+        val moved = mutableListOf<Pair<CollectionCard, Long>>()
         db.withTransaction {
             // The same choice as scanning (rules, room, bulk floor), counting cards as they move in.
             val policy = SortPrefs.policy.copy(playsetLimit = 0)
@@ -311,7 +311,7 @@ class CollectionRepository(
                     continue
                 }
                 moveToBox(c.id, d.boxId, c, names)
-                moved += c.quantity
+                moved += c to d.boxId
                 val i = boxes.indexOfFirst { it.id == d.boxId }
                 if (i >= 0) boxes[i] = boxes[i].copy(count = boxes[i].count + c.quantity)
             }
@@ -319,15 +319,15 @@ class CollectionRepository(
         return moved
     }
 
-    /** Moves every card in [sourceId] that fits [rules] into [targetId]. Returns copies moved. */
-    suspend fun sortInto(sourceId: Long, targetId: Long, rules: BoxRules): Int {
-        var moved = 0
+    /** Moves every card in [sourceId] that fits [rules] into [targetId]. Returns the cards moved. */
+    suspend fun sortInto(sourceId: Long, targetId: Long, rules: BoxRules): List<CollectionCard> {
+        val moved = mutableListOf<CollectionCard>()
         db.withTransaction {
             val names = placeNames()
             for (c in dao.inBox(sourceId)) {
                 if (!rules.matches(c.facts())) continue
                 moveToBox(c.id, targetId, c, names)
-                moved += c.quantity
+                moved += c
             }
         }
         return moved
@@ -588,16 +588,23 @@ class CollectionRepository(
 
     /** Removes [qty] copies (used for undo). Deletes the row when it reaches zero. */
     suspend fun remove(id: Long, qty: Int = 1) {
-        val c = dao.get(id) ?: return
+        // The read and the write in one transaction, like add(): a copy added to the row in between (auto-add during
+        // an Undo) can't be written over by a count read before it. No addLock here, since callers hold transactions.
+        val c = db.withTransaction {
+            val c = dao.get(id) ?: return@withTransaction null
+            if (c.quantity <= qty) deleteRow(c)
+            else dao.update(c.copy(quantity = c.quantity - qty, updatedAt = System.currentTimeMillis()))
+            c
+        } ?: return
         logEvent(c.scryfallId, c.name, "removed", "×${minOf(qty, c.quantity)}")
-        if (c.quantity <= qty) deleteRow(c)
-        else dao.update(c.copy(quantity = c.quantity - qty, updatedAt = System.currentTimeMillis()))
         afterChange()
     }
 
     suspend fun setQuantity(id: Long, qty: Int) {
-        val c = dao.get(id) ?: return
-        if (qty <= 0) deleteRow(c) else dao.update(c.copy(quantity = qty, updatedAt = System.currentTimeMillis()))
+        db.withTransaction {
+            val c = dao.get(id) ?: return@withTransaction
+            if (qty <= 0) deleteRow(c) else dao.update(c.copy(quantity = qty, updatedAt = System.currentTimeMillis()))
+        }
         afterChange()
     }
 
