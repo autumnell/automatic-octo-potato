@@ -193,6 +193,8 @@ fun BrowseScreen(
     val kinds = remember(ui.boxes) { ui.boxes.associate { it.id to it.kind } }
     val perCopy = remember(ui.boxes) { ui.boxes.filter { it.pocketPerCopy }.map { it.id }.toSet() }
     fun tap(c: CollectionCard) {
+        // Swiping on the card page follows this list, as sorted and filtered now.
+        com.mtgscanner.ui.detail.SwipeOrder.set(ui.groups.flatMap { g -> g.second.map { it.id } })
         if (wide) paneId = c.id else onOpenCard(c.id)
     }
     val saved by vm.saved.collectAsStateWithLifecycle()

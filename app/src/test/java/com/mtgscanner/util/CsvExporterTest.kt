@@ -71,4 +71,17 @@ class CsvExporterTest {
         val r = CsvImport.parse(text).single()
         assertTrue(r.altered && r.proxy && r.foil)
     }
+
+    @Test fun fullExportKeepsYourOwnData() {
+        val mine = card.copy(purchasePrice = 3.0, signed = true, graded = "PSA 9", acquiredFrom = "LGS", notes = "Gift, from Sam")
+        val text = StringWriter().also { CsvExporter.write(listOf(mine), it, CsvFormat.FULL) { "Binder" } }.toString()
+        val r = CsvImport.parse(text).single()
+        assertEquals("Binder", r.box)
+        assertEquals("trade,red", r.userTags)
+        assertEquals(3.0, r.purchasePrice!!, 0.0001)
+        assertTrue(r.signed && r.altered && !r.proxy)
+        assertEquals("PSA 9", r.graded)
+        assertEquals("LGS", r.acquiredFrom)
+        assertEquals("Gift, from Sam", r.notes)
+    }
 }

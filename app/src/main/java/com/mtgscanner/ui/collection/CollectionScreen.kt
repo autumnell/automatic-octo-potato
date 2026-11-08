@@ -57,6 +57,8 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Search
@@ -863,6 +865,12 @@ private fun WishlistTab(vm: CollectionViewModel) {
     remember { com.mtgscanner.data.WishStages.load(watchCtx) }
     val ordered = com.mtgscanner.data.WishStages.ordered
     LaunchedEffect(wishlist) { if (wishlist.isNotEmpty()) com.mtgscanner.data.WishStages.keepOnly(wishlist.mapTo(HashSet()) { it.oracleId }) }
+    // Target prices ("tell me when it's under $40"), checked by the daily price job.
+    remember { com.mtgscanner.data.WishTargets.load(watchCtx) }
+    val targets = com.mtgscanner.data.WishTargets.targets
+    LaunchedEffect(wishlist) { if (wishlist.isNotEmpty()) com.mtgscanner.data.WishTargets.keepOnly(wishlist.mapTo(HashSet()) { it.oracleId }) }
+    var targeting by remember { mutableStateOf<WishlistItem?>(null) }
+    var history by remember { mutableStateOf<WishlistItem?>(null) }
     var onlyOrdered by rememberSaveable { mutableStateOf(false) }
     val staged = if (onlyOrdered && wishlist.any { it.oracleId in ordered }) shown.filter { it.oracleId in ordered } else shown
     // "Deck" sort: one group per deck that wants cards (each card under its first deck A to Z), then the rest.
@@ -942,9 +950,9 @@ private fun WishlistTab(vm: CollectionViewModel) {
                         CardImage(w.imageUrl, Modifier.width(44.dp), zoom = true)
                         Spacer(Modifier.width(Space.s3))
                         Column(Modifier.weight(1f)) {
-                            Text(w.name, style = MaterialTheme.typography.titleSmall)
+                            Text(w.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             com.mtgscanner.work.WatchStore.tag(watch, w.oracleId)?.let { tag ->
-                                Text(tag, style = MaterialTheme.typography.labelMedium, color = Palette.AccentText, maxLines = 1)
+                                Text(tag, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
                             }
                             val decks = wishDecks[CardNames.key(w.name)].orEmpty()
                             val more = if (group != null) decks.drop(1) else decks
@@ -954,19 +962,51 @@ private fun WishlistTab(vm: CollectionViewModel) {
                                     "Want ${w.wanted}" + if (more.isNotEmpty()) " · ${if (group != null) "also " else ""}${more.joinToString(", ")}" else "",
                                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
+                            targets[w.oracleId]?.let { t ->
+                                val hit = w.priceUsd != null && w.priceUsd <= t
+                                Text(
+                                    if (hit) "At your ${formatUsd(t)} target" else "Target ${formatUsd(t)}",
+                                    style = MaterialTheme.typography.labelMedium, color = if (hit) Palette.AccentText else Palette.Muted, maxLines = 1,
+                                )
+                            }
                         }
-                        if (AppSettings.showPrices) Text(formatUsd(w.priceUsd), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
-                        // To buy → Ordered → Received: the truck marks it ordered (tap again to undo), the check receives it.
+                        if (AppSettings.showPrices) Text(
+                            formatUsd(w.priceUsd), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text,
+                            modifier = Modifier.padding(start = Space.s2),
+                        )
+                        // One menu instead of three buttons: swipes do Got it and Remove too, so the name keeps its room.
                         val isOrdered = w.oracleId in ordered
-                        IconButton(onClick = { vm.setOrdered(w, !isOrdered) }) {
-                            Icon(
-                                if (isOrdered) Icons.Filled.LocalShipping else Icons.Outlined.LocalShipping,
-                                if (isOrdered) "Ordered, tap for to buy" else "Mark ordered",
-                                tint = if (isOrdered) Palette.Text else Palette.Icon,
-                            )
+                        var rowMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { rowMenu = true }) { Icon(Icons.Outlined.MoreVert, "More for ${w.name}", tint = Palette.Icon) }
+                            DropdownMenu(expanded = rowMenu, onDismissRequest = { rowMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isOrdered) "Not ordered yet" else "Mark ordered") },
+                                    leadingIcon = { Icon(Icons.Outlined.LocalShipping, null, tint = Palette.Icon, modifier = Modifier.size(18.dp)) },
+                                    onClick = { rowMenu = false; vm.setOrdered(w, !isOrdered) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (isOrdered) "Received" else "Got it") },
+                                    leadingIcon = { Icon(Icons.Outlined.Check, null, tint = Palette.Icon, modifier = Modifier.size(18.dp)) },
+                                    onClick = { rowMenu = false; vm.startGotIt(w) },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (w.oracleId in targets) "Change target price" else "Target price") },
+                                    leadingIcon = { Icon(Icons.Outlined.NotificationsNone, null, tint = Palette.Icon, modifier = Modifier.size(18.dp)) },
+                                    onClick = { rowMenu = false; targeting = w },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Price history") },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ShowChart, null, tint = Palette.Icon, modifier = Modifier.size(18.dp)) },
+                                    onClick = { rowMenu = false; history = w },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Remove", color = Palette.Danger) },
+                                    leadingIcon = { Icon(Icons.Outlined.DeleteOutline, null, tint = Palette.Danger, modifier = Modifier.size(18.dp)) },
+                                    onClick = { rowMenu = false; vm.removeWish(w) },
+                                )
+                            }
                         }
-                        IconButton(onClick = { vm.startGotIt(w) }) { Icon(Icons.Outlined.Check, if (isOrdered) "Received" else "Got it", tint = Palette.Icon) }
-                        IconButton(onClick = { vm.removeWish(w) }) { Icon(Icons.Outlined.DeleteOutline, "Remove", tint = Palette.Icon) }
                     }
                 }
             }
@@ -981,6 +1021,13 @@ private fun WishlistTab(vm: CollectionViewModel) {
     received?.let { (_, card) -> ReceivedDialog(card, onAdd = vm::receive, onDismiss = vm::cancelReceived) }
     editing?.let { w ->
         WantedDialog(w, onSave = { n -> vm.setWanted(w, n); editing = null }, onDismiss = { editing = null })
+    }
+    targeting?.let { w ->
+        WishTargetDialog(w, targets[w.oracleId], onSave = { com.mtgscanner.data.WishTargets.set(w.oracleId, it); targeting = null }, onDismiss = { targeting = null })
+    }
+    history?.let { w ->
+        val flow = remember(w.scryfallId) { vm.priceHistory(w.scryfallId) }
+        WishHistorySheet(w, targets[w.oracleId], flow, onDismiss = { history = null })
     }
 }
 

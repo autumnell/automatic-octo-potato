@@ -117,8 +117,6 @@ object CardAlertStore {
     fun put(context: Context, alert: CardPriceAlert) {
         val rest = load(context).filterNot { it.key == alert.key }
         write(if (alert.above == null && alert.below == null) rest else listOf(alert) + rest)
-        // A new alert is set on a card on screen, so it's owned: the daily check is needed again.
-        PriceAlerts.setIdle(context, false)
         PriceAlerts.schedule(context)
     }
 

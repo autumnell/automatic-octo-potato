@@ -121,7 +121,7 @@ internal fun MoversCarousel(movers: List<PriceMover>, onOpenCard: (Long) -> Unit
                 foil = m.card.foil,
                 modifier = Modifier.width(118.dp),
                 imageModifier = if (m.card.id in shared) Modifier.sharedCard(m.card.id) else Modifier,
-                onClick = { onOpenCard(m.card.id) },
+                onClick = { com.mtgscanner.ui.detail.SwipeOrder.set(movers.map { it.card.id }); onOpenCard(m.card.id) },
             )
         }
     }

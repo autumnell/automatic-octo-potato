@@ -38,6 +38,8 @@ fun DataHost(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factory))
         IncomingShare.pending.value = null
         when (i) {
             is Incoming.File -> vm.readCsv(ctx, i.uri)
+            // Shows what the backup holds first; nothing changes until Restore is tapped.
+            is Incoming.Backup -> vm.previewRestore(ctx, i.uri)
             is Incoming.Text -> {
                 // A shared deck page is a link, often with a line of text; a pasted list is cards.
                 val link = DeckLinks.find(i.text)

@@ -173,7 +173,9 @@ fun GamePlayScreen(onExit: () -> Unit) {
                 onPlayer = { playerSheet = i },
             )
         }
-        TableSeats(g.players.size, g.layout, 4.dp) { i, rot, mod -> panel(i, rot, mod) }
+        // Each seat's turn, so the winner's banner can face them.
+        val turns = remember(g.players.size, g.layout) { IntArray(g.players.size) }
+        TableSeats(g.players.size, g.layout, 4.dp) { i, rot, mod -> if (i in turns.indices) turns[i] = rot; panel(i, rot, mod) }
 
         // The middle: the game menu sits dead center, undo just to its right, and day or night (once it's in
         // play) as a small chip just below.
@@ -213,8 +215,11 @@ fun GamePlayScreen(onExit: () -> Unit) {
         }
 
         g.winner?.let { w ->
-            WinnerBanner(g.players[w].name, Modifier.align(Alignment.Center).padding(top = 140.dp), onRestart = vm::restart,
-                onDone = { vm.end(save = true, winner = w); onExit() })
+            // Turned toward the winner and set off the middle buttons on their side of the table.
+            WinnerBanner(
+                g.players[w].name, Modifier.align(Alignment.Center).rotate(turns.getOrElse(w) { 0 }.toFloat()).padding(top = 140.dp),
+                onRestart = vm::restart, onDone = { vm.end(save = true, winner = w); onExit() },
+            )
         }
     }
 
@@ -252,7 +257,7 @@ private fun WinnerBanner(name: String, modifier: Modifier, onRestart: () -> Unit
     Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.85f)) {
         Column(Modifier.padding(horizontal = Space.s6, vertical = Space.s4), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("$name wins", color = Palette.Gold, style = MaterialTheme.typography.headlineSmall)
-            Text("Tap Done or Rematch to save",
+            Text("Saved to your stats",
                 color = Palette.OnDarkMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
             Row {
                 TextButton(onClick = onRestart) { Text("Rematch") }

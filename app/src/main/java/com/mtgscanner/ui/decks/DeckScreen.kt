@@ -197,8 +197,8 @@ fun DeckScreen(
     LaunchedEffect(ui.loaded) { if (startEditTab != null && ui.loaded && ui.id != 0L) vm.edit() }
     val dirty = ui.editing && ui.text.trim() != vm.savedText.trim()
     val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
-    val printProxies = DeckToolsLayer(vm.tools, ui, repo)
-    DeckChangesLayer(vm.changes, dirty, onDiscard = { if (ui.id == 0L) onBack() else vm.cancelEdit() }) { url ->
+    val printProxies = DeckToolsLayer(vm.tools, ui, repo, onCut = { vm.changeNow(it, -1) })
+    DeckChangesLayer(vm.changes, dirty, onDiscard = { if (ui.id == 0L) { vm.dropDraft(); onBack() } else vm.cancelEdit() }) { url ->
         vm.changes.updateFromLink(ui.id, vm.savedText, url)
     }
 
@@ -233,6 +233,8 @@ fun DeckScreen(
                 )
             }
             if (!ui.loaded) return@Column
+            val draft by vm.draft.collectAsStateWithLifecycle()
+            draft?.let { DraftOffer(it, onRestore = vm::restoreDraft, onDiscard = vm::dropDraft) }
             if (ui.editing) Editor(ui, vm, startEditTab)
             else {
               Column(Modifier.weight(1f)) {
@@ -333,7 +335,7 @@ fun DeckScreen(
         DeckActionGroup("Play")
         if (ui.id != 0L && onPlaytest != null) DeckActionRow(Icons.Outlined.PlayArrow, "Playtest", "Play turns on a table, alone or against a deck of the same format") { close(); onPlaytest() }
         DeckActionRow(Icons.Outlined.Percent, "Draw odds", "How likely you are to draw a card by a given turn") { close(); odds = true }
-        DeckActionRow(Icons.Outlined.CompareArrows, "Compare", "See the cards only in this deck, only in another, or in both") { close(); comparing = true }
+        DeckActionRow(Icons.Outlined.CompareArrows, "Compare", "With another deck or EDHREC's average: what differs, and what both need") { close(); comparing = true }
         DeckActionGroup("Cards")
         DeckActionRow(Icons.Outlined.LibraryAdd, "Add to collection", "Count the deck's cards as yours, kept in the deck") { close(); addingAll = true }
         if (ui.check?.lines?.any { it.section in PLAYED && it.missing > 0 } == true) {

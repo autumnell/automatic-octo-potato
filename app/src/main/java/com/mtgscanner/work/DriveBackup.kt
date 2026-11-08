@@ -3,6 +3,7 @@ package com.mtgscanner.work
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,13 @@ object DriveBackup {
     /** Where weekly backups go; null = off. */
     var uri by mutableStateOf<Uri?>(null)
         private set
+    /** How many dated backups a picked folder keeps. */
+    var keep by mutableStateOf(KEEP_IN_FOLDER)
+        private set
+
+    /** Whether weekly backups go to a folder (dated copies) rather than over one file. */
+    val toFolder: Boolean get() = uri?.let { DocumentsContract.isTreeUri(it) } == true
+
     /** When the last weekly or manual backup to [uri] finished (0 = never). */
     var lastBackup by mutableLongStateOf(0L)
         private set
@@ -69,6 +77,7 @@ object DriveBackup {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         uri = p.getString("uri", null)?.takeIf { it.isNotBlank() }?.let(Uri::parse)
         lastBackup = p.getLong("last", 0L)
+        keep = p.getInt("keep", KEEP_IN_FOLDER).coerceAtLeast(1)
         offerRestore = p.getBoolean("offerRestore", false)
         loaded = true
         // A setting copied by Android's own backup to a new phone points at a file this install can't write.
@@ -122,6 +131,60 @@ object DriveBackup {
 
     enum class Outcome { SAVED, FAILED, SHRANK }
 
+    /** How many dated backups a folder keeps unless changed. */
+    const val KEEP_IN_FOLDER = 8
+    private const val PREFIX = "grimoire-backup-"
+
+    fun setKeep(context: Context, n: Int) {
+        keep = n.coerceAtLeast(1)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt("keep", keep).apply()
+    }
+
+    /** One dated backup in the picked folder. */
+    data class FolderBackup(val name: String, val uri: Uri, val modified: Long, val size: Long)
+
+    /** The dated backups in the picked folder, newest first. Empty when weekly backups go to one file. */
+    suspend fun folderBackups(context: Context): List<FolderBackup> = withContext(Dispatchers.IO) {
+        val tree = uri?.takeIf { DocumentsContract.isTreeUri(it) } ?: return@withContext emptyList()
+        runCatching { listFolder(context, tree) }.getOrDefault(emptyList())
+            .filter { it.name.startsWith(PREFIX) && it.name.endsWith(".zip") }
+            .sortedWith(compareByDescending<FolderBackup> { it.name }.thenByDescending { it.modified })
+    }
+
+    private fun listFolder(context: Context, tree: Uri): List<FolderBackup> {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        val cols = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED, DocumentsContract.Document.COLUMN_SIZE,
+        )
+        val out = ArrayList<FolderBackup>()
+        context.contentResolver.query(children, cols, null, null, null)?.use { c ->
+            while (c.moveToNext()) {
+                val id = c.getString(0) ?: continue
+                out += FolderBackup(
+                    name = c.getString(1).orEmpty(), uri = DocumentsContract.buildDocumentUriUsingTree(tree, id),
+                    modified = if (c.isNull(2)) 0 else c.getLong(2), size = if (c.isNull(3)) 0 else c.getLong(3),
+                )
+            }
+        }
+        return out
+    }
+
+    /** Writes [file] into the folder as [name] (replacing a copy from the same day), then keeps the newest [keep]. */
+    private fun writeToFolder(context: Context, tree: Uri, name: String, file: File) {
+        val cr = context.contentResolver
+        val existing = listFolder(context, tree)
+        existing.filter { it.name == name }.forEach { runCatching { DocumentsContract.deleteDocument(cr, it.uri) } }
+        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        val doc = DocumentsContract.createDocument(cr, parent, "application/zip", name) ?: throw IOException("Couldn't make the backup file")
+        (cr.openOutputStream(doc, "w") ?: throw IOException("Couldn't open the backup file")).use { o -> file.inputStream().use { it.copyTo(o) } }
+        listFolder(context, tree)
+            .filter { it.name.startsWith(PREFIX) && it.name.endsWith(".zip") }
+            .sortedByDescending { it.name }
+            .drop(keep)
+            .forEach { runCatching { DocumentsContract.deleteDocument(cr, it.uri) } }
+    }
+
     /** How many dated copies are kept on the phone (filesDir/backups). */
     private const val KEEP = 4
 
@@ -129,7 +192,8 @@ object DriveBackup {
     suspend fun backupNow(context: Context): Boolean = backup(context, force = true) == Outcome.SAVED
 
     /**
-     * Writes a full backup: first a dated copy on the phone (the last [KEEP] are kept), then over the picked file.
+     * Writes a full backup: first a dated copy on the phone (the last [KEEP] are kept), then into the picked folder as a
+     * dated file (the last [keep] are kept) or over the picked file.
      * Unless [force]d, a collection that shrank to under a quarter of the last backup isn't written over it
      * ([Outcome.SHRANK]), so a wiped collection never replaces a good backup by itself.
      */
@@ -148,7 +212,9 @@ object DriveBackup {
                 if (!force && last >= 20 && n < last / 4) { shrank = true; null } else dated.outputStream()
             } ?: return if (shrank) Outcome.SHRANK else Outcome.FAILED
             dir.listFiles { f -> f.name.startsWith("grimoire-backup-") }?.sortedByDescending { it.name }?.drop(KEEP)?.forEach { it.delete() }
-            withContext(Dispatchers.IO + NonCancellable) {
+            if (DocumentsContract.isTreeUri(target)) withContext(Dispatchers.IO + NonCancellable) {
+                writeToFolder(app, target, dated.name, dated)
+            } else withContext(Dispatchers.IO + NonCancellable) {
                 // "wt" truncates the old backup; some providers only accept "w".
                 val out = runCatching { app.contentResolver.openOutputStream(target, "wt") }.getOrNull()
                     ?: app.contentResolver.openOutputStream(target, "w")

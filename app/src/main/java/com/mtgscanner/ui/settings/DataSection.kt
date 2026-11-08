@@ -38,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -138,8 +139,19 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             else com.mtgscanner.ui.components.Undo.offer("That place can't keep weekly backups: pick a folder on Drive or the phone")
         }
     }
+    // A folder keeps a dated copy each week. Google Drive can't be picked as a folder, so one file is offered too.
+    val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            if (DriveBackup.enable(ctx.applicationContext, uri)) vm.backupNow(ctx)
+            else com.mtgscanner.ui.components.Undo.offer("That folder can't keep weekly backups: pick another")
+        }
+    }
+    var choosingPlace by remember { mutableStateOf(false) }
+    /** The dated backups in the picked folder, while their list is open. */
+    var inFolder by remember { mutableStateOf<List<DriveBackup.FolderBackup>?>(null) }
+    val scope = rememberCoroutineScope()
     // Ask for notifications first (Android 13+), or a failed weekly backup could never say so.
-    val startWeekly = rememberAskNotifyThen { weeklyLauncher.launch("grimoire-backup.zip") }
+    val startWeekly = rememberAskNotifyThen { choosingPlace = true }
 
     val printsState by com.mtgscanner.scan.CardPrints.state.collectAsStateWithLifecycle()
 
@@ -172,6 +184,19 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             if (on) startWeekly() else DriveBackup.disable(ctx.applicationContext)
         }
         if (weekly) RowButton("Back up now") { vm.backupNow(ctx) }
+        if (weekly && DriveBackup.toFolder) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2),
+            ) {
+                Text("Keep the last", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                listOf(4, 8, 12).forEach { n -> SelectPill("$n", DriveBackup.keep == n, { DriveBackup.setKeep(ctx.applicationContext, n) }) }
+            }
+            HorizontalDivider(color = Palette.Rule)
+            Action(Icons.Outlined.FolderOpen, "Backups in the folder", "Open any of them to restore") {
+                scope.launch { inFolder = DriveBackup.folderBackups(ctx.applicationContext) }
+            }
+        }
         HorizontalDivider(color = Palette.Rule)
         Action(Icons.Outlined.Restore, "Restore backup", "Replaces everything in the app") {
             restoreLauncher.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "text/*"))
@@ -209,6 +234,50 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
     }
 
     RestorePreviewDialog(vm)
+
+    if (choosingPlace) AlertDialog(
+        onDismissRequest = { choosingPlace = false },
+        containerColor = Palette.Surface,
+        title = { Text("Where should weekly backups go?") },
+        text = {
+            Column {
+                Action(Icons.Outlined.FolderOpen, "A folder", "Keeps a dated copy each week") {
+                    choosingPlace = false; folderLauncher.launch(null)
+                }
+                Action(Icons.Outlined.Save, "One file", "For Google Drive, which keeps its own past versions") {
+                    choosingPlace = false; weeklyLauncher.launch("grimoire-backup.zip")
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { choosingPlace = false }) { Text("Cancel") } },
+    )
+
+    inFolder?.let { list ->
+        AlertDialog(
+            onDismissRequest = { inFolder = null },
+            containerColor = Palette.Surface,
+            title = { Text("Backups in the folder") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (list.isEmpty()) Text("None yet", color = Palette.Muted)
+                    list.forEach { b ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { inFolder = null; vm.previewRestore(ctx, b.uri) }.padding(vertical = Space.s3),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                val day = b.name.removePrefix("grimoire-backup-").removeSuffix(".zip")
+                                Text(runCatching { backupDay(LocalDate.parse(day).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), withYear = true) }.getOrDefault(b.name), style = MaterialTheme.typography.titleMedium)
+                                if (b.size > 0) Text("${(b.size + 1023) / 1024} KB", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                            }
+                            Text("Restore", style = MaterialTheme.typography.labelLarge, color = Palette.AccentText)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { inFolder = null }) { Text("Close") } },
+        )
+    }
 
     autos?.let { list ->
         AlertDialog(

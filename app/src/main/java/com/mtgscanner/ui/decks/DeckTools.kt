@@ -55,6 +55,7 @@ import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Upgrade
+import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -103,6 +104,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** What the What to cut sheet shows; [cut] holds the names taken out from it. */
+data class CutUi(val loading: Boolean = true, val ideas: List<com.mtgscanner.data.CutIdea> = emptyList(), val failed: Boolean = false, val cut: Set<String> = emptySet())
+
 /** What the Upgrade sheet shows. */
 data class UpgradeUi(val loading: Boolean = true, val ideas: List<UpgradeIdea> = emptyList(), val failed: Boolean = false, val added: Set<String> = emptySet())
 
@@ -128,6 +132,8 @@ class DeckTools(
 
     var lending by mutableStateOf(false)
     var upgrade by mutableStateOf<UpgradeUi?>(null)
+        private set
+    var cuts by mutableStateOf<CutUi?>(null)
         private set
     var pickingOther by mutableStateOf(false)
     var other by mutableStateOf<Deck?>(null)
@@ -171,6 +177,20 @@ class DeckTools(
     }
 
     fun closeUpgrade() { upgrade = null }
+
+    /** Opens What to cut: the deck's played cards (name to type line) that EDHREC's decks for [commanders] play least. */
+    fun openCuts(commanders: List<String>, deck: List<Pair<String, String>>) {
+        cuts = CutUi()
+        scope.launch {
+            val ideas = com.mtgscanner.util.suspendRunCatching { com.mtgscanner.data.cutIdeas(commanders, deck) }.getOrNull()
+            cuts = cuts?.copy(loading = false, ideas = ideas.orEmpty(), failed = ideas == null)
+        }
+    }
+
+    fun closeCuts() { cuts = null }
+
+    /** Notes [name] as cut in the open sheet (the deck page takes the copy out of the list). */
+    fun markCut(name: String) { cuts = cuts?.let { it.copy(cut = it.cut + name) } }
 
     /**
      * Adds one copy of an idea to the deck's main list, with Undo. With [from], one copy also moves out of that box
@@ -235,16 +255,20 @@ fun DeckToolsMenuItems(tools: DeckTools, ui: DeckUi, inDeck: Int, close: () -> U
             val identity = if (!known) null else "WUBRG".filter { c -> leads.any { c in ui.leadInfo[it.lowercase()]?.identity.orEmpty().uppercase() } }
             tools.openUpgrade(leads, identity, ui.text)
         }
+        DeckActionRow(Icons.Outlined.ContentCut, "What to cut", "Cards decks with this commander rarely play") {
+            close()
+            val played = DecklistParser.parse(ui.text).filter { it.section == "Main" }
+            tools.openCuts(leads, played.map { it.name to ui.cardTexts[DeckNames.key(it.name)]?.first.orEmpty() })
+        }
     }
     if (ui.check?.missingLines?.isNotEmpty() == true) {
         DeckActionRow(Icons.Outlined.Print, "Print proxies", "A PDF of the missing cards") { close(); onPrint() }
     }
-    DeckActionRow(Icons.Outlined.Layers, "Build with another deck", "Which cards both decks need") { close(); tools.pickingOther = true }
 }
 
 /** The tools' dialogs and sheets. Call [print] to ask where to save the proxies. */
 @Composable
-fun DeckToolsLayer(tools: DeckTools, ui: DeckUi, repo: CollectionRepository): () -> Unit {
+fun DeckToolsLayer(tools: DeckTools, ui: DeckUi, repo: CollectionRepository, onCut: (String) -> Unit = {}): () -> Unit {
     val ctx = LocalContext.current
     val missing = ui.check?.missingLines.orEmpty()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
@@ -252,6 +276,7 @@ fun DeckToolsLayer(tools: DeckTools, ui: DeckUi, repo: CollectionRepository): ()
     }
     if (tools.lending) LendDeckDialog(tools, ui.name)
     tools.upgrade?.let { UpgradeSheet(it, tools) }
+    tools.cuts?.let { CutSheet(it, tools) { name -> onCut(name); tools.markCut(name) } }
     if (tools.pickingOther) PickOtherDeck(tools, repo, ui.id)
     tools.other?.let { BothSheet(it, ui, repo) { tools.other = null } }
     return { launcher.launch("${ui.name.ifBlank { "Deck" }} proxies.pdf") }
@@ -335,6 +360,51 @@ private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
         }
     }
     picking?.let { idea -> TakeFromSheet(idea, onPick = { src -> picking = null; tools.add(idea, src) }, onDismiss = { picking = null }) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CutSheet(state: CutUi, tools: DeckTools, onCut: (String) -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = tools::closeCuts,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Palette.Surface,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
+            Text("What to cut", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Cards that EDHREC's decks with this commander play least, the ones they never play first",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+            )
+            Spacer(Modifier.height(Space.s2))
+            when {
+                state.loading -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
+                state.failed -> EmptyState("Couldn't reach EDHREC, or it has too little on this commander", Modifier.padding(vertical = Space.s6))
+                state.ideas.isEmpty() -> EmptyState("Nothing stands out", Modifier.padding(vertical = Space.s6))
+                else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
+                    items(state.ideas, key = { it.name }) { idea ->
+                        val gone = idea.name in state.cut
+                        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(idea.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    when {
+                                        !idea.onPage -> "Not in EDHREC's lists"
+                                        (idea.share ?: 0.0) < 0.01 -> "In under 1% of decks"
+                                        else -> "In ${((idea.share ?: 0.0) * 100).toInt()}% of decks"
+                                    } + (idea.synergy?.takeIf { idea.onPage }?.let { " · synergy ${if (it >= 0) "+" else "−"}${kotlin.math.abs((it * 100).toInt())}%" } ?: ""),
+                                    style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted, maxLines = 1,
+                                )
+                            }
+                            if (gone) Text("Cut", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s3))
+                            else TextButton(onClick = { onCut(idea.name) }) { Text("Cut") }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(Space.s4))
+        }
+    }
 }
 
 /** Ideas under their EDHREC list, Top cards first; without EDHREC, by card type. Each list most played first. */

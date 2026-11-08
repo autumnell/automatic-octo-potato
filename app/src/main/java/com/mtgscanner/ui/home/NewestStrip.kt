@@ -43,7 +43,7 @@ internal fun NewestStrip(cards: List<CollectionCard>, onOpenCard: (Long) -> Unit
                 Modifier.width(164.dp).height(120.dp)
                     .clip(RoundedCornerShape(Corners.Medium))
                     .background(Palette.SurfaceHigh)
-                    .clickable { onOpenCard(c.id) },
+                    .clickable { com.mtgscanner.ui.detail.SwipeOrder.set(cards.map { it.id }); onOpenCard(c.id) },
             ) {
                 AsyncImage(
                     model = artCropUrl(c.imageUrl),

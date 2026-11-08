@@ -149,6 +149,8 @@ import com.mtgscanner.ui.components.PlaceholderPage
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : ViewModel() {
     private val currentId = MutableStateFlow(id)
+    /** The list this page was opened from, in its order, for swiping; null to swipe through the box. */
+    private val openedFrom: List<Long>? = SwipeOrder.take(id)
     /** (loaded from the database yet, the card or null when it's gone). */
     private val state: StateFlow<Pair<Boolean, CollectionCard?>> = currentId
         .flatMapLatest { rowId -> repo.observe(rowId).map { Pair<Boolean, CollectionCard?>(true, it) } }
@@ -386,9 +388,15 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
         if (boxId == null) emptyList() else boxOrderOf(boxId, all)
     }.flowOn(Dispatchers.Default).distinctUntilChanged()
 
-    /** The other cards in the same box, in name order, for swiping. */
-    val neighbors: StateFlow<Neighbors> = combine(card.map { it?.id }.distinctUntilChanged(), boxOrder) { id, order ->
-        if (id == null) Neighbors() else neighborsIn(id, order)
+    /**
+     * The cards to swipe to: the list this card was opened from, in its order, while the card is in it (rows since
+     * removed are skipped); else the other cards in the same box, in name order.
+     */
+    val neighbors: StateFlow<Neighbors> = combine(card.map { it?.id }.distinctUntilChanged(), boxOrder, allRows) { id, order, all ->
+        if (id == null) Neighbors() else {
+            val listed = openedFrom?.let { ids -> val alive = all.mapTo(HashSet()) { it.id }; ids.filter { it in alive } }
+            neighborsIn(id, listed?.takeIf { id in it } ?: order)
+        }
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Neighbors())
 
     fun go(id: Long) { currentId.value = id }
