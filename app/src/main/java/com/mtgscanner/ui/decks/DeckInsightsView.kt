@@ -152,7 +152,9 @@ internal fun rememberBracket(ui: DeckUi, vm: DeckViewModel): Bracket? {
     val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
     if (commander) LaunchedEffect(ui.text, ui.format) { vm.loadCombos() }
     val gameChangers by produceState(BracketMath.GAME_CHANGERS) { GameChangers.fetch(repo.api)?.let { value = it } }
-    val twoCard = ui.combos.takeIf { !it.failed }?.value?.included?.filter { it.cards.size == 2 }?.map { it.cards }
+    // Only two-card combos that win or go infinite count toward Bracket 3; Spellbook also lists value combos.
+    val twoCard = ui.combos.takeIf { !it.failed }?.value?.included
+        ?.filter { it.cards.size == 2 && BracketMath.endsGames(it.produces) }?.map { it.cards }
     val ctx = LocalContext.current
     // Seeded from the cache, so a deck opened after the first doesn't show a text-check bracket for a frame.
     val tags by produceState(BracketTags.cachedOrNull()) { if (value == null) value = BracketTags.load(ctx) }
@@ -551,7 +553,40 @@ private fun CompareView(ui: DeckUi, leads: List<String>, w: CompareWith, onBack:
         1 -> diff.onlyB.map { (n, q) -> if (q > 1) "$q $n" else n }
         else -> diff.both
     }
+    // Against another saved deck, Both also says whether you own enough to have both built at once (this was
+    // "Build with another deck", now folded in here).
+    val saved = (w as? CompareWith.Saved)?.deck
+    val repo = (LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
+    val owned by produceState<Map<String, Int>>(emptyMap(), saved != null) {
+        if (saved != null) repo.observeOwnedByName().collect { value = it }
+    }
+    val shared = remember(ui.text, saved, owned) {
+        saved?.let { SharedCards.both(DecklistParser.parse(ui.text), com.mtgscanner.data.ParsedDecks.of(it), owned) }.orEmpty()
+    }
     LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
+        if (tab == 2 && saved != null) {
+            val short = shared.filter { it.short > 0 }
+            item {
+                SheetLine(
+                    when {
+                        shared.isEmpty() -> "No cards in common"
+                        short.isEmpty() -> "You own enough of each to build both"
+                        else -> "Short ${short.sumOf { it.short }} to build both at once"
+                    },
+                    muted = true,
+                )
+            }
+            items(shared, key = { it.name }) { r ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(
+                        if (r.short > 0) "Short ${r.short}" else "${r.owned} owned",
+                        style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = if (r.short > 0) Palette.Text else Palette.Muted,
+                    )
+                }
+            }
+            return@LazyColumn
+        }
         if (rows.isEmpty()) item { SheetLine("None", muted = true) }
         items(rows) { SheetLine(it) }
     }

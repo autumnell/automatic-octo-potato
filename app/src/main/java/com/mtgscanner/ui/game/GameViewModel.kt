@@ -115,6 +115,7 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
 
     fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean, layout: Int = 0) {
         saveIfWon()
+        autoRecord = null
         val clean = names.mapIndexed { i, n -> n.trim().ifEmpty { GameState.NAMES[i] } }
         val seats = TableLayouts.valid(players, layout)
         val setup = LastSetup(format, players, life, partners, seats)
@@ -149,7 +150,13 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     /** Ends the game. [winner] is saved to the stats when [save] is set and the game wasn't saved already. */
     fun end(save: Boolean = false, winner: Int? = null) {
         val g = _game.value
-        if (save && g != null && !g.recorded) addRecord(g.toRecord(winner))
+        // A game saved when its winner showed is saved again only if the winner picked is someone else.
+        val auto = autoRecord
+        autoRecord = null
+        if (save && g != null && auto != null && auto.winner != winner?.let { g.players.getOrNull(it)?.name }) {
+            saveRecords(_records.value - auto)
+            addRecord(g.toRecord(winner))
+        } else if (save && g != null && !g.recorded) addRecord(g.toRecord(winner))
         saveJob?.cancel()
         // Locked with flush, so a save already under way can't bring the ended game back.
         synchronized(this) {
@@ -191,8 +198,35 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     private val pending = java.util.concurrent.atomic.AtomicReference<GameState?>(null)
     private var saveJob: Job? = null
 
+    /** The record saved when this game's winner showed, taken back if an Undo brings a player back. */
+    private var autoRecord: GameRecord? = null
+
+    /**
+     * Saves the game to the stats the moment one player is left, so it counts without tapping Done. An Undo that
+     * brings someone back takes the record away again.
+     */
+    private fun withAutoSave(g: GameState): GameState {
+        val auto = autoRecord
+        return when {
+            g.winner != null && auto == null && !g.recorded -> {
+                val r = g.toRecord()
+                addRecord(r)
+                autoRecord = r
+                g.copy(recorded = true)
+            }
+            g.winner != null && auto != null -> g.copy(recorded = true)
+            g.winner == null && auto != null -> {
+                saveRecords(_records.value - auto)
+                autoRecord = null
+                g.copy(recorded = false)
+            }
+            else -> g
+        }
+    }
+
     /** Shows the change right away and writes it a moment later, so a swipe of 20 points is one write. */
-    private fun set(g: GameState) {
+    private fun set(g0: GameState) {
+        val g = withAutoSave(g0)
         _game.value = g
         pending.set(g)
         saveJob?.cancel()
@@ -253,7 +287,7 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun counter(i: Int, kind: String, d: Int) = update { Game.counter(it, i, kind, d) }
     fun undo() = update { Game.undo(it) }
     fun nextTurn() = update { Game.nextTurn(it) }
-    fun restart() { saveIfWon(); update { Game.restart(it) } }
+    fun restart() { saveIfWon(); autoRecord = null; update { Game.restart(it) } }
 
     private companion object {
         const val SAVE_DELAY_MS = 300L

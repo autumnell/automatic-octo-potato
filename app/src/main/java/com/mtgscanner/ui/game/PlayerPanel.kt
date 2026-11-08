@@ -249,7 +249,11 @@ private fun PanelFront(
                 }
                 Text("${p.life}", color = Color.White, fontSize = lifeSize, fontWeight = FontWeight.SemiBold)
                 Text(p.name, color = Color.White, style = MaterialTheme.typography.titleSmall)
-                if (out != null) Text(out, color = Color.White, style = MaterialTheme.typography.labelLarge)
+                // "Out", turned to face the player like the rest of their panel, with why under it.
+                if (out != null) {
+                    Text("Out", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                    Text(out, color = Palette.OnDarkMuted, style = MaterialTheme.typography.labelLarge)
+                }
             }
             // Other counters along the top, shown only when they matter. Not scrollable, so taps and
             // swipes on them still change life.

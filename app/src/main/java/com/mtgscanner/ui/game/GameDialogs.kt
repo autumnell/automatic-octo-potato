@@ -157,7 +157,7 @@ fun EndGameDialog(g: GameState, onDismiss: () -> Unit, onEnd: (save: Boolean, wi
             }
         },
         confirmButton = {
-            TextButton(onClick = { onEnd(!g.recorded, winner) }) { Text(if (g.recorded) "End game" else "Save and end") }
+            TextButton(onClick = { onEnd(true, winner) }) { Text(if (g.recorded) "End game" else "Save and end") }
         },
         dismissButton = {
             Row {

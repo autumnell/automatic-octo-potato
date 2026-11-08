@@ -18,6 +18,12 @@ data class ImportRow(
     val signed: Boolean = false,
     val altered: Boolean = false,
     val proxy: Boolean = false,
+    /** This app's own Full export: the box the copies were in, your tags, grade, where they came from and notes. */
+    val box: String? = null,
+    val userTags: String = "",
+    val graded: String = "",
+    val acquiredFrom: String = "",
+    val notes: String = "",
 )
 
 /**
@@ -71,6 +77,11 @@ object CsvImport {
         val iSigned = idx(SIGNED)
         val iAltered = idx(ALTERED)
         val iProxy = idx(PROXY)
+        val iBox = idx(BOX)
+        val iMyTags = idx(MY_TAGS)
+        val iGraded = idx(GRADED)
+        val iFrom = idx(ACQUIRED_FROM)
+        val iNotes = idx(NOTES)
         val cardmarketFile = header.any { it == "idproduct" || it == "english name" }
         val data = rows.drop(headerIndex + 1)
         // Cardmarket's grades (ManaBox, Dragon Shield, Cardmarket) put "Played" a step lower than TCGplayer's.
@@ -107,6 +118,11 @@ object CsvImport {
                 signed = flag(iSigned),
                 altered = flag(iAltered),
                 proxy = flag(iProxy),
+                box = get(iBox),
+                userTags = get(iMyTags)?.split(';', ',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.joinToString(",").orEmpty(),
+                graded = get(iGraded).orEmpty(),
+                acquiredFrom = get(iFrom).orEmpty(),
+                notes = get(iNotes).orEmpty(),
             )
         }
     }
@@ -137,6 +153,11 @@ object CsvImport {
     private val SIGNED = listOf("signed", "signed?")
     private val ALTERED = listOf("altered", "alter", "altered art", "altered?")
     private val PROXY = listOf("proxy", "proxy?")
+    private val BOX = listOf("box")
+    private val MY_TAGS = listOf("my tags")
+    private val GRADED = listOf("graded", "grade")
+    private val ACQUIRED_FROM = listOf("acquired from")
+    private val NOTES = listOf("notes")
     private val TRUE = setOf("true", "yes", "1", "x", "y", "signed", "altered", "proxy")
     private val FOIL_VALUES = setOf("foil", "true", "yes", "1", "etched", "y", "x")
     private val CARDMARKET_GRADES = setOf("excellent", "ex", "good", "gd", "light played", "lightplayed", "pl", "po")

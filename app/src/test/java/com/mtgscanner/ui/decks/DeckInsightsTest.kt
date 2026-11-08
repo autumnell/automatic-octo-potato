@@ -29,6 +29,13 @@ class DeckInsightsTest {
         assertEquals(listOf("1 two-card combo"), combo.reasons)
     }
 
+    @Test fun onlyCombosThatEndGamesCount() {
+        assertTrue(BracketMath.endsGames(listOf("Infinite colorless mana")))
+        assertTrue(BracketMath.endsGames(listOf("Win the game")))
+        assertTrue(!BracketMath.endsGames(listOf("Draw a card", "Add one mana")))
+        assertTrue(!BracketMath.endsGames(emptyList()))
+    }
+
     @Test fun manyGameChangersOrLandDenialMakeItOptimized() {
         val gc = listOf("Demonic Tutor", "Vampiric Tutor", "Rhystic Study", "Cyclonic Rift").map { spell(it) }
         assertEquals(4, BracketMath.of(filler(56) + gc + land("Forest", 40), BracketMath.GAME_CHANGERS, null).level)

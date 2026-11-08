@@ -115,6 +115,8 @@ internal object BackupIO {
         "deck_shelf", "searches", "box_covers", "sorting", "game", "scan", "app", "boxes", "box_checked", "deck_links", "deck_status",
         // Game stats, theme and fonts, set-completion settings and the scan bar.
         "game_records", "appearance", "sets", "scanBar", "deck_results", "deck_brackets",
+        // Wishlist stages and target prices.
+        "wish_stages", "wish_targets",
     )
 
     /**
@@ -450,11 +452,14 @@ internal object BackupIO {
             repo.db.withTransaction {
                 // Decks' card rows too: a deck's "Add to collection" plans its cards into the deck.
                 val boxNames = dao.allPlaces().associate { it.id to it.placeName() }.toMutableMap()
+                val byName = dao.allPlaces().filter { !it.isDeckSlot }.associate { it.name.trim().lowercase() to it.id }
                 val now = System.currentTimeMillis()
                 plan.rows.forEachIndexed { i, r ->
                     val c = plan.found.getOrNull(i)
                     if (c == null) { notFound += r.name; return@forEachIndexed }
-                    val chosen = plan.targets.getOrNull(i)?.takeIf { it != ImportPlan.NEW_BOX && it in boxNames }
+                    // A row from this app's own export names its box: with Auto-sort, a box of that name takes it back.
+                    val named = r.box?.takeIf { plan.choice == Box.AUTO_SORT }?.let { n -> byName[n.trim().lowercase()] }
+                    val chosen = named ?: plan.targets.getOrNull(i)?.takeIf { it != ImportPlan.NEW_BOX && it in boxNames }
                     val target = chosen
                         ?: fallbackBoxId
                         ?: fallbackBox?.invoke()?.also { id ->
@@ -472,6 +477,10 @@ internal object BackupIO {
                         signed = r.signed,
                         altered = r.altered,
                         proxy = r.proxy,
+                        userTags = r.userTags,
+                        graded = r.graded,
+                        acquiredFrom = r.acquiredFrom,
+                        notes = r.notes,
                     )
                     // Same printing, finish, box, language, condition and flags: add to that stack.
                     val existing = dao.find(

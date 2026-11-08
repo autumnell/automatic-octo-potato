@@ -68,6 +68,20 @@
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/csv" />
             </intent-filter>
+            <!-- "Open with": a Grimoire backup (.zip) from Files or Drive, shown as a restore preview. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+            </intent-filter>
             <!-- A box's link (grimoire://box/12), from its QR code or NFC tag. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

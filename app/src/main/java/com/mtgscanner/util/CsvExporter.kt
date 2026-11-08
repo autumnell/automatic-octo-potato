@@ -25,6 +25,8 @@ object CsvExporter {
     private val header = listOf(
         "Count", "Name", "Edition", "Condition", "Language", "Foil", "Collector Number",
         "Edition Name", "Rarity", "Type", "Mana Cost", "Mana Value", "Colors", "Price USD", "Tags", "Scryfall ID", "Price EUR",
+        // Your own data, so the export is a whole copy of the collection and reads back in the same.
+        "Box", "My Tags", "Purchase Price", "Signed", "Altered", "Graded", "Proxy", "Acquired From", "Notes", "Date Added",
     )
 
     private val manaboxHeader = listOf(
@@ -39,7 +41,8 @@ object CsvExporter {
         "Edition Code", "Multiverse Id", "Scryfall ID", "Collector Number",
     )
 
-    fun write(cards: List<CollectionCard>, out: Writer, format: CsvFormat = CsvFormat.FULL) {
+    /** [boxName] names a card's box or deck for the Full layout's Box column. */
+    fun write(cards: List<CollectionCard>, out: Writer, format: CsvFormat = CsvFormat.FULL, boxName: (Long) -> String? = { null }) {
         val head = when (format) {
             CsvFormat.FULL -> header
             CsvFormat.MANABOX -> manaboxHeader
@@ -49,7 +52,7 @@ object CsvExporter {
         out.write(head.joinToString(",") + "\n")
         for (c in cards.sortedWith(compareBy({ it.setName }, { it.name }))) {
             val row = when (format) {
-                CsvFormat.FULL -> fullRow(c)
+                CsvFormat.FULL -> fullRow(c, boxName(c.boxId))
                 CsvFormat.MANABOX -> manaboxRow(c)
                 CsvFormat.MOXFIELD -> moxfieldRow(c)
                 CsvFormat.ARCHIDEKT -> archidektRow(c)
@@ -63,12 +66,16 @@ object CsvExporter {
     /** What was paid per copy; blank when not recorded. */
     private fun paid(c: CollectionCard) = c.purchasePrice?.let { "%.2f".format(Locale.US, it) } ?: ""
 
-    private fun fullRow(c: CollectionCard) = listOf(
+    private fun fullRow(c: CollectionCard, box: String?) = listOf(
         c.quantity.toString(), c.name, c.setCode.lowercase(), conditionName(c.condition), c.lang,
         if (c.foil) "foil" else "", c.collectorNumber, c.setName, c.rarity, c.typeLine, c.manaCost,
         c.cmc.toString(), c.colors, price(c), c.tags.replace(",", "; "), c.scryfallId,
         c.unitEur()?.let { "%.2f".format(Locale.US, it) } ?: "",
+        box.orEmpty(), userTags(c).replace(",", "; "), paid(c), yes(c.signed), yes(c.altered), c.graded, yes(c.proxy),
+        c.acquiredFrom, c.notes, day(c.addedAt),
     )
+
+    private fun yes(b: Boolean) = if (b) "yes" else ""
 
     /** ManaBox: lower-case set code, "foil"/"normal", Cardmarket-style condition keys, language codes. */
     private fun manaboxRow(c: CollectionCard) = listOf(

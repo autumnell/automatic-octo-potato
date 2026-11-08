@@ -415,6 +415,9 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
 
     fun setWanted(item: WishlistItem, wanted: Int) = viewModelScope.launch { repo.setWishWanted(item, wanted) }
 
+    /** A wished printing's daily prices, for its price history. */
+    fun priceHistory(scryfallId: String) = repo.dao.observePriceHistory(scryfallId)
+
     /** Card names for the wishlist's add box: the phone's list first, then Scryfall. */
     suspend fun suggestCards(text: String): List<String> = repo.suggestNames(text)
 

@@ -81,6 +81,15 @@ object BracketMath {
      * as a tutor when it's on them and its text searches for more than lands (the tag includes ramp); without (an
      * older build or a test), its rules text decides.
      */
+    /**
+     * Whether a combo that makes [produces] (Commander Spellbook's results) wins or loops without end: the kind of
+     * two-card combo the bracket rules mean. Value combos (card draw, extra mana once) don't count.
+     */
+    fun endsGames(produces: List<String>): Boolean = produces.any { p ->
+        val t = p.lowercase()
+        "infinite" in t || "win the game" in t || "lose the game" in t || "each opponent loses" in t
+    }
+
     fun of(cards: List<InsightCard>, gameChangers: Set<String>, twoCardCombos: List<List<String>>?, tags: BracketTagLists? = null): Bracket {
         val gcKeys = gameChangers.map { DeckNames.key(it) }.toSet()
         fun names(test: (InsightCard) -> Boolean) = cards.filter(test).map { it.name }.distinct()

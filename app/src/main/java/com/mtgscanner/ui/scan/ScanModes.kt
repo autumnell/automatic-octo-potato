@@ -34,6 +34,9 @@ import androidx.compose.material.icons.outlined.GridOn
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.ExpandMore
+import com.mtgscanner.data.SortPrefs
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Sell
@@ -84,127 +87,98 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.CardShape
 
-/** The modes button over the camera: where cards go, stack, box check, sort a pile, a pack, many cards at once. */
+/**
+ * The line over the camera saying what happens to the next card. Tapping it opens "What are you doing?", where one
+ * activity is picked at a time.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModesButton(state: ScanUiState, vm: ScanViewModel) {
+fun ModesButton(state: ScanUiState, vm: ScanViewModel, boxes: List<com.mtgscanner.data.db.Box>, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
-    var into by remember { mutableStateOf(false) }
-    Box {
-        Box(
-            Modifier.size(44.dp).glass(androidx.compose.foundation.shape.CircleShape).clickable { open = true },
-            contentAlignment = Alignment.Center,
-        ) {
-            val active = state.pack != null || state.pageMode || state.sort != null || state.stack || state.batch != null || state.target != ScanTarget.COLLECTION
-            Icon(Icons.Outlined.ViewModule, "Scan modes", tint = if (active) Palette.Gold else Color.White, modifier = Modifier.size(24.dp))
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            val target = INTO.firstOrNull { it.target == state.target }
-            DropdownMenuItem(
-                text = { ModeText("Scan into", if (state.target == ScanTarget.BOX) "Box check" else target?.label.orEmpty()) },
-                leadingIcon = { Icon(target?.icon ?: Icons.Outlined.Checklist, null, tint = if (state.target != ScanTarget.COLLECTION) Palette.Gold else Palette.Text) },
-                onClick = { open = false; into = true },
-            )
-            DropdownMenuItem(
-                text = { if (state.stack) ModeText("Stop stack mode", "Back to normal") else ModeText("Stack mode", "Hands-free, beeps on each card") },
-                leadingIcon = { Icon(Icons.Outlined.Layers, null, tint = if (state.stack) Palette.Gold else Palette.Text) },
-                onClick = { open = false; vm.setStack(!state.stack) },
-            )
-            DropdownMenuItem(
-                text = { if (state.batch != null) ModeText("Stop batch", "Review what's left") else ModeText("Batch", "Scan a pile, review, add all") },
-                leadingIcon = { Icon(Icons.Outlined.Inbox, null, tint = if (state.batch != null) Palette.Gold else Palette.Text) },
-                onClick = { open = false; vm.setBatch(state.batch == null) },
-            )
-            if (state.boxCheck == null) DropdownMenuItem(
-                text = { ModeText("Box check", "Scan a box, see what's missing") },
-                leadingIcon = { Icon(Icons.Outlined.Checklist, null) },
-                onClick = { open = false; vm.showBoxPick(true) },
-            ) else {
-                DropdownMenuItem(
-                    text = { ModeText("Box check result", state.boxCheck.boxName) },
-                    leadingIcon = { Icon(Icons.Outlined.Checklist, null, tint = Palette.Icon) },
-                    onClick = { open = false; vm.showBoxCheck(true) },
-                )
-                DropdownMenuItem(
-                    text = { ModeText("End box check", "Clears the scanned list") },
-                    leadingIcon = { Icon(Icons.Outlined.Close, null) },
-                    onClick = { open = false; vm.endBoxCheck() },
+    val activity = state.activity()
+    val lock = SortPrefs.setLock
+    Row(
+        modifier.heightIn(min = 44.dp).glass(RoundedCornerShape(Corners.Medium))
+            .clickable(onClickLabel = "Change what you're doing") { open = true }
+            .padding(horizontal = Space.s3),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(activity.icon(), null, tint = if (activity != ScanActivity.ADD) Palette.Gold else Color.White, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(Space.s2))
+        Text(
+            state.nextCard({ id -> boxes.firstOrNull { it.id == id }?.name }, lock),
+            color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Spacer(Modifier.width(Space.s1))
+        Icon(Icons.Outlined.ExpandMore, null, tint = Palette.OnDarkMuted, modifier = Modifier.size(18.dp))
+    }
+    if (open) ModalBottomSheet(onDismissRequest = { open = false }, containerColor = Palette.Surface) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = Space.s4)) {
+            Text("What are you doing?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
+            ScanActivity.entries.forEach { a ->
+                val on = a == activity
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .clickable { open = false; vm.chooseActivity(a) }
+                        .padding(horizontal = Space.s4, vertical = Space.s2),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(a.icon(), null, tint = if (on) Palette.AccentText else Palette.Icon, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(Space.s4))
+                    Column(Modifier.weight(1f)) {
+                        val title = if (on && a == ScanActivity.DECK) "Adding to ${state.deck?.name?.ifBlank { null } ?: "a deck"}" else a.title
+                        Text(title, style = MaterialTheme.typography.titleMedium, color = if (on) Palette.AccentText else Palette.Text)
+                        Text(a.body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    }
+                    if (on) Icon(Icons.Filled.CheckCircle, "Now", tint = Palette.AccentText, modifier = Modifier.size(24.dp))
+                }
+            }
+            androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = Space.s2), color = Palette.Hairline)
+            Text("While scanning", style = MaterialTheme.typography.labelLarge, color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1))
+            if (activity.oneByOne) Row(
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { vm.setStack(!state.stack) }.padding(horizontal = Space.s4),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.Layers, null, tint = Palette.Icon, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(Space.s4))
+                Column(Modifier.weight(1f)) {
+                    Text("Hands-free", style = MaterialTheme.typography.titleMedium)
+                    Text("Flip cards one by one, a beep on each", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                }
+                androidx.compose.material3.Switch(
+                    checked = state.stack, onCheckedChange = { vm.setStack(it) },
+                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Palette.Text),
                 )
             }
-            if (state.sort == null) DropdownMenuItem(
-                text = { ModeText("Sort a pile", "Scan all, then file by box") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null) },
-                onClick = { open = false; vm.startSort() },
-            ) else {
-                DropdownMenuItem(
-                    text = { ModeText("Sort now", "See stacks by box") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Sort, null, tint = Palette.Icon) },
-                    onClick = { open = false; vm.showSort(true) },
-                )
-                DropdownMenuItem(
-                    text = { ModeText("Stop sorting", "Cards stay in their boxes") },
-                    leadingIcon = { Icon(Icons.Outlined.Close, null) },
-                    onClick = { open = false; vm.endSort() },
-                )
-            }
-            if (state.pack == null) DropdownMenuItem(
-                text = { ModeText("Open a pack", "Running total as you scan") },
-                leadingIcon = { Icon(Icons.Outlined.Inventory2, null) },
-                onClick = { open = false; vm.showPackStart(true) },
-            ) else {
-                DropdownMenuItem(
-                    text = { ModeText("Finish pack", "See what you pulled") },
-                    leadingIcon = { Icon(Icons.Outlined.CheckCircle, null, tint = Palette.Icon) },
-                    onClick = { open = false; vm.finishPack() },
-                )
-                DropdownMenuItem(
-                    text = { ModeText("Stop pack mode", "Cards stay added") },
-                    leadingIcon = { Icon(Icons.Outlined.Close, null) },
-                    onClick = { open = false; vm.cancelPack() },
-                )
-            }
-            DropdownMenuItem(
-                text = {
-                    if (state.pageMode) ModeText("Back to single cards", "One card at a time")
-                    else ModeText("Many cards at once", "Binder page or a photo")
-                },
-                leadingIcon = { Icon(Icons.Outlined.GridOn, null, tint = if (state.pageMode) Palette.Gold else Palette.Text) },
-                onClick = { open = false; vm.setPageMode(!state.pageMode) },
-            )
-        }
-        // Where scanned cards go.
-        DropdownMenu(expanded = into, onDismissRequest = { into = false }) {
-            INTO.forEach { t ->
-                val on = state.target == t.target
-                DropdownMenuItem(
-                    text = { Text(if (t.target == ScanTarget.DECK && on) "Deck: ${state.deck?.name.orEmpty()}" else t.label, color = if (on) Palette.AccentText else Palette.Text) },
-                    leadingIcon = { Icon(t.icon, null, tint = if (on) Palette.AccentText else Palette.Icon) },
-                    onClick = {
-                        when {
-                            t.target == ScanTarget.DECK -> vm.showDeckPick(true)
-                            on -> {}
-                            t.target == ScanTarget.CHECK -> vm.startCheck()
-                            t.target == ScanTarget.REMOVE -> vm.startRemove()
-                            t.target == ScanTarget.WISHLIST -> vm.startWishlist()
-                            else -> vm.stopTarget()
-                        }
-                        into = false
-                    },
-                )
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { open = false; vm.showSetLock(true) }.padding(horizontal = Space.s4),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.Lock, null, tint = Palette.Icon, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(Space.s4))
+                Column(Modifier.weight(1f)) {
+                    Text("Only one set", style = MaterialTheme.typography.titleMedium)
+                    Text(lock?.let { "Locked to ${it.uppercase()}" } ?: "Any set", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                }
             }
         }
     }
 }
 
-/** One "Scan into" choice. */
-private class IntoChoice(val target: ScanTarget, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+private fun ScanActivity.icon(): androidx.compose.ui.graphics.vector.ImageVector = when (this) {
+    ScanActivity.ADD -> Icons.Outlined.CollectionsBookmark
+    ScanActivity.DECK -> Icons.Outlined.Style
+    ScanActivity.WISHLIST -> Icons.Outlined.FavoriteBorder
+    ScanActivity.CHECK -> Icons.Outlined.Sell
+    ScanActivity.REMOVE -> Icons.Outlined.RemoveCircleOutline
+    ScanActivity.BOX_CHECK -> Icons.Outlined.Checklist
+    ScanActivity.SORT -> Icons.AutoMirrored.Outlined.Sort
+    ScanActivity.PACK -> Icons.Outlined.Inventory2
+    ScanActivity.BATCH -> Icons.Outlined.Inbox
+    ScanActivity.PAGE -> Icons.Outlined.GridOn
+}
 
-private val INTO = listOf(
-    IntoChoice(ScanTarget.COLLECTION, "Collection", Icons.Outlined.CollectionsBookmark),
-    IntoChoice(ScanTarget.DECK, "Deck", Icons.Outlined.Style),
-    IntoChoice(ScanTarget.WISHLIST, "Wishlist", Icons.Outlined.FavoriteBorder),
-    IntoChoice(ScanTarget.CHECK, "Just check", Icons.Outlined.Sell),
-    IntoChoice(ScanTarget.REMOVE, "Remove", Icons.Outlined.RemoveCircleOutline),
-)
 
 /** Picks the deck list that scanned cards go to, or makes a new one. */
 @Composable

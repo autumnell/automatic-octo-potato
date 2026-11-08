@@ -61,6 +61,7 @@ import com.mtgscanner.data.undoImport
 import com.mtgscanner.work.Notifications
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.PendingScan
+import com.mtgscanner.data.db.placeName
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.util.CsvExporter
@@ -176,7 +177,8 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         run("Exporting…") {
             val cards = repo.allCards()
             // Built in memory first, so a failure doesn't leave a half-written file.
-            val text = java.io.StringWriter().also { CsvExporter.write(cards, it, format) }.toString()
+            val places = repo.dao.allPlaces().associate { it.id to it.placeName() }
+            val text = java.io.StringWriter().also { CsvExporter.write(cards, it, format) { id -> places[id] } }.toString()
             val ok = withContext(Dispatchers.IO + NonCancellable) {
                 openForWrite(app, uri)?.bufferedWriter()?.use { it.write(text) } != null
             }

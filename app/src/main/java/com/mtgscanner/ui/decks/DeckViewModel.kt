@@ -142,6 +142,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
@@ -198,6 +199,9 @@ data class DeckUi(
 /** How long the deck list must sit still before combos are asked for again. */
 private const val COMBOS_WAIT_MS = 600L
 
+/** How long edits must sit still before they're kept as a draft. */
+private const val DRAFT_WAIT_MS = 1_000L
+
 /** Something fetched for edit mode: [value] once loaded, [failed] when it couldn't be. [key] is what it was fetched for. */
 data class Loaded<T>(val value: T? = null, val loading: Boolean = false, val failed: Boolean = false, val key: String? = null)
 
@@ -207,6 +211,11 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     /** The list as last saved, to tell unsaved edits and to compare a new list with. */
     var savedText = ""
         private set
+    private var savedName = ""
+
+    /** Unsaved edits kept from last time (DeckDrafts.kt), offered until restored or dropped. */
+    private val _draft = MutableStateFlow<DeckDraft?>(null)
+    val draft: StateFlow<DeckDraft?> = _draft
 
     /** The Changes sheet for a saved deck's new list (DeckChanges.kt). */
     val changes = DeckChangesHost(repo, viewModelScope, saveList = { text, after, failed -> _ui.update { it.copy(text = text) }; commit(after, failed) }, restore = ::showSaved)
@@ -225,6 +234,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         DeckShelfStore.init(repo.appContext)
         PullChecksStore.init(repo.appContext)
         DeckPageCache.init(repo.appContext)
+        DeckDrafts.init(repo.appContext)
         viewModelScope.launch {
             val deck = if (deckId != 0L) repo.observeDeck(deckId).first() else null
             val text = deck?.text ?: ""
@@ -235,6 +245,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val format = deck?.format?.ifEmpty { null } ?: DeckFormats.guess(lines)
             val commanders = DeckCommanders.decode(deck?.commanders).takeUnless { it.isEmpty } ?: DeckCommanders.fromLines(lines)
             savedText = text
+            savedName = deck?.name ?: ""
+            _draft.value = DeckDrafts.get(deckId)?.takeIf { it.text.trim() != text.trim() || it.name.trim() != savedName.trim() }
             // What the page showed last time, until the cards are looked up again.
             val cached = if (deck == null) null else DeckPageCache.get(deckId, DeckPageCache.stamp(text, format, commanders.encode()))
             _ui.update {
@@ -244,7 +256,41 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 )
             }
             if (deck != null) { check(); refreshLeads() }
+            keepDrafts()
         }
+    }
+
+    /** While editing, keeps the edits as a draft once they sit still, so closing the app doesn't lose them. */
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private suspend fun keepDrafts() {
+        _ui.map { s -> if (s.editing) DeckDraft(s.name, s.text, s.format, s.commanders.encode()) else null }
+            .distinctUntilChanged()
+            .debounce(DRAFT_WAIT_MS)
+            .collect { d ->
+                if (d == null || saving) return@collect
+                // Nothing changed yet: an old draft stays on offer.
+                if (d.text.trim() == savedText.trim() && d.name.trim() == savedName.trim()) return@collect
+                DeckDrafts.put(_ui.value.id, d.copy(at = System.currentTimeMillis()))
+                _draft.value = null
+            }
+    }
+
+    /** Puts the kept draft back into the editor. */
+    fun restoreDraft() {
+        val d = _draft.value ?: return
+        _draft.value = null
+        formatTouched = true
+        commandersTouched = true
+        _ui.update {
+            it.copy(name = d.name, text = d.text, format = d.format, commanders = DeckCommanders.decode(d.commanders), editing = true)
+        }
+        refreshLeads()
+    }
+
+    /** Forgets the draft (also when the edits are saved or thrown away). */
+    fun dropDraft() {
+        _draft.value = null
+        DeckDrafts.remove(_ui.value.id)
     }
 
     /** Boxes, then decks' card rows (see DeckSlots.kt), with this deck's own row id once it holds cards. */
@@ -499,6 +545,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         formatTouched = d.format.isNotEmpty()
         commandersTouched = d.commanders.isNotBlank()
         savedText = d.text
+        savedName = d.name
+        dropDraft()
         _ui.update {
             it.copy(
                 name = d.name, text = d.text, editing = false, format = d.format.ifEmpty { DeckFormats.guess(lines) },
@@ -523,6 +571,11 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 val text = if (commanderDeck) DeckCommanders.addMissingTo(s.text, DecklistParser.parse(s.text), leads) else s.text
                 val id = repo.saveDeck(s.id, name, text, s.format, leads.encode())
                 savedText = text
+                savedName = name
+                // A new deck's draft was kept under 0.
+                DeckDrafts.remove(s.id)
+                DeckDrafts.remove(id)
+                _draft.value = null
                 formatTouched = true
                 commandersTouched = true
                 _ui.update { it.copy(id = id, name = name, text = text, editing = false, commanders = leads) }

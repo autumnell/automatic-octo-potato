@@ -391,13 +391,14 @@ fun ScanScreen(
                     }
 
                     // Settings and modes float over the top of the camera.
+                    // The pill says what happens to the next card; tapping it picks what you're doing.
                     if (!needsBox) Row(
-                        Modifier.align(Alignment.TopCenter).padding(top = Space.s2),
+                        Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = Space.s2, start = Space.s3, end = Space.s3),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Space.s3),
+                        horizontalArrangement = Arrangement.spacedBy(Space.s3, Alignment.CenterHorizontally),
                     ) {
                         RoundIconButton(Icons.Outlined.Settings, "Scan settings", { vm.showSettings(true) }, modifier = Modifier.hintTarget("settings"))
-                        ModesButton(state, vm)
+                        ModesButton(state, vm, boxes, Modifier.weight(1f, fill = false))
                     }
 
                     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(Space.s3)) {

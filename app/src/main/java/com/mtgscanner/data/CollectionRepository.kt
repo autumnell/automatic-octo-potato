@@ -856,6 +856,8 @@ class CollectionRepository(
         if (wishes.isNotEmpty()) {
             val freshWish = runCatching { withBackoff { api.collection(wishes.map { it.scryfallId }) } }.getOrDefault(emptyList()).associateBy { it.id }
             wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.updateWish(w.copy(priceUsd = f.prices.usd?.toDoubleOrNull())) } }
+            // A price history for wished printings too, so the wishlist can show where a price has been.
+            if (freshWish.isNotEmpty()) runCatching { dao.putPricePoints(freshWish.values.map { it.pricePoint() }) }
         }
         prefs.edit().putLong("pricesAt", System.currentTimeMillis()).apply()
         recordSnapshot()
