@@ -44,7 +44,7 @@ object SimplePilot : Pilot {
             val untapped = s[Zone.BATTLEFIELD].filter { it.card.isLand && !it.tapped }
             // Cards whose details couldn't be looked up (no type line) are held, not cast for free.
             val options = s[Zone.HAND].filter { !it.card.isLand && it.card.typeLine.isNotBlank() }.map { it to false } +
-                s[Zone.COMMAND].map { it to true }
+                s[Zone.COMMAND].filter { it.card.typeLine.isNotBlank() }.map { it to true }
             val pick = options
                 .filter { (p, cmd) -> cost(p, s, cmd) <= untapped.size }
                 .maxByOrNull { (p, cmd) -> cost(p, s, cmd) } ?: break

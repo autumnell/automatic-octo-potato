@@ -216,8 +216,11 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
         if (items.isEmpty()) return@launch
         // Moving merges into rows already in the target box, so undo restores a snapshot instead of moving back.
         val before = repo.snapshot(items.map { it.card.id })
-        val n = repo.applyMoves(items.map { it.card.id to it.to }).size
-        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.restore(before) }
+        // Onto the move list too, the same as sorting from Collection, so it says what to pull from which box.
+        val added = com.mtgscanner.ui.collection.MoveList.record(repo, items.map { it.card to it.to }, show = items.size > 1)
+        repo.applyMoves(items.map { it.card.id to it.to })
+        val n = items.sumOf { it.card.quantity }
+        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.restore(before); com.mtgscanner.ui.collection.MoveList.remove(added) }
     }
 
     /** Cards matching [text]; null when Scryfall couldn't be reached (offline), so it isn't shown as "No match". */

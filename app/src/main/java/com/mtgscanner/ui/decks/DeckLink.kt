@@ -1,6 +1,7 @@
 package com.mtgscanner.ui.decks
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import com.mtgscanner.data.deleteDeckAndCards
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,7 +36,7 @@ suspend fun CollectionRepository.saveDeckFromLink(url: String) {
     val format = deck.format.ifEmpty { com.mtgscanner.data.DeckFormats.guess(lines) }
     val id = saveDeck(0L, deck.name, deck.text, format, com.mtgscanner.data.DeckCommanders.fromLines(lines).encode())
     DeckLinkStore.set(appContext, id, url.trim())
-    Undo.offer("Saved deck: ${deck.name}") { deleteDeck(id); DeckLinkStore.set(appContext, id, null) }
+    Undo.offer("Saved deck: ${deck.name}") { deleteDeckAndCards(id, false) }
 }
 
 /** Decks › New › From a link: paste a Moxfield or Archidekt link. */

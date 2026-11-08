@@ -180,7 +180,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         // A batch pile not reviewed yet comes back, in batch mode.
         val pile = saved.batchCards
         if (pile.isNotEmpty()) {
-            val items = pile.map { b -> PhotoItem(++batchKeys, b.card.name, b.card, b.lang, foil = b.foil, unsure = b.unsure) }
+            val items = pile.map { b -> PhotoItem(++batchKeys, b.card.name, b.card, b.lang, foil = b.foil, unsure = b.unsure, count = b.count) }
             if (_state.value.batch == null) setBatch(true)
             _state.update { it.copy(batch = it.batch.orEmpty() + items, status = "Batch · ${it.batch.orEmpty().size + items.size} to review") }
         }
@@ -789,7 +789,7 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         markHandled(card, art, exact)
         _state.update {
             // The foil setting as it is now, while this card is in view; an unsure match is marked to check.
-            val list = it.batch.orEmpty() + PhotoItem(++batchKeys, card.name, card, lang, foil = it.isFoil(card), unsure = unsure)
+            val list = it.batch.orEmpty() + PhotoItem(++batchKeys, card.name, card, lang, foil = it.isFoil(card), unsure = unsure, count = ScanBarPrefs.quantity)
             it.copy(lookingUp = false, current = null, batch = list, batchPulse = it.batchPulse + 1, status = "${card.name} · ${list.size} to review")
         }
     }
@@ -879,12 +879,18 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         val cur = latest[key] ?: _state.value.session.firstOrNull { it.key == key } ?: return
         if (cur.key in removedKeys) return
         val updated = if (!cur.inCollection) cur.copy(card = card, foil = foil) else {
-            repo.remove(cur.rowId, cur.count)
             val facts = card.facts(foil)
             // A deck's copies stay in the deck; others let auto-sort pick the box anew.
             val chosen = if (cur.deckId != 0L) null else chooseBox(card, facts, _state.value.boxId)
             val boxId = chosen?.first ?: cur.boxId
-            val row = repo.add(card, foil, cur.count, boxId, lang = rowLang(card, cur.lang), condition = cur.condition)
+            // The new copies go in before the old ones come out, so a failed add (say the box was deleted) loses nothing.
+            val row = com.mtgscanner.util.suspendRunCatching {
+                repo.add(card, foil, cur.count, boxId, lang = rowLang(card, cur.lang), condition = cur.condition)
+                    .also { repo.remove(cur.rowId, cur.count) }
+            }.getOrElse {
+                _state.update { s -> s.copy(status = "Couldn't change that card") }
+                return
+            }
             val box = boxes.value?.firstOrNull { it.id == boxId }
             val spot = runCatching { repo.spotFor(boxId, card.name, facts) }.getOrNull()
             cur.copy(

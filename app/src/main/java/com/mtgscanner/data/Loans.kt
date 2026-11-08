@@ -29,6 +29,23 @@ object LoanMath {
         return out
     }
 
+    /**
+     * [cards] with lent copies taken off each row, and rows with every copy out left off: what's at home to
+     * pull for a deck.
+     */
+    fun atHome(cards: List<CollectionCard>, loans: List<Loan>): List<CollectionCard> {
+        val out = outByRow(loans, cards)
+        if (out.isEmpty()) return cards
+        return cards.mapNotNull { c ->
+            val n = c.quantity - (out[c.id] ?: 0)
+            when {
+                n <= 0 -> null
+                n == c.quantity -> c
+                else -> c.copy(quantity = n)
+            }
+        }
+    }
+
     /** "Out · Kenji" when every copy is out, "2 out · Kenji, Ana" when some are; null when none. */
     fun label(card: CollectionCard, loans: List<Loan>, cards: List<CollectionCard>): String? {
         val mine = loansOf(card, loans, cards)

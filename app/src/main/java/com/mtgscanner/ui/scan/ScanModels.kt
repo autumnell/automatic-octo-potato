@@ -169,6 +169,8 @@ data class PhotoItem(
     val foil: Boolean? = null,
     /** Batch: the match wasn't sure, so it's shown first, marked, to check. */
     val unsure: Boolean = false,
+    /** Batch: copies set on the scan bar when it was scanned (null: the bar's count when added). */
+    val count: Int? = null,
 )
 
 /** Cards read from a photo, to check before adding. */

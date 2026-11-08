@@ -120,7 +120,8 @@ object DecklistParser {
             val start = starts.last()
             val main = out.subList(0, start).sumOf { it.quantity }
             val side = out.subList(start, out.size).sumOf { it.quantity }
-            if (main >= 60 && side in 1..15) {
+            // 60 + up to 15 is a constructed deck and sideboard; a 100-card list in groups (Commander) is all deck.
+            if (main >= 60 && side in 1..15 && main + side <= 75) {
                 for (i in start until out.size) out[i] = out[i].copy(section = "Sideboard")
             }
         }

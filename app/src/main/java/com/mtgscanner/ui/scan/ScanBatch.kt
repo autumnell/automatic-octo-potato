@@ -52,7 +52,7 @@ fun BatchChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifi
                 Text("Batch", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 Text(if (list.size == 1) "1 card" else "${list.size} cards", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
             }
-            TextButton(onClick = vm::reviewBatch, enabled = list.isNotEmpty()) { Text("Review", color = if (list.isNotEmpty()) Palette.Text else Palette.Muted) }
+            TextButton(onClick = vm::reviewBatch, enabled = list.isNotEmpty()) { Text("Review", color = if (list.isNotEmpty()) Color.White else Palette.OnDarkMuted) }
         }
     }
 }

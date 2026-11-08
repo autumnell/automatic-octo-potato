@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /** How the player panels look. */
@@ -47,6 +46,9 @@ data class ArtChoice(val name: String, val set: String, val art: String)
 
 /** The life counter. The game in progress is saved, so it survives leaving the app. */
 /** What random player art is drawn from: creature and planeswalker art at high resolution, no jokes or tokens. */
+/** Finished games kept for stats; each is a few hundred bytes. */
+private const val MAX_RECORDS = 2000
+
 private const val RANDOM_ART = "(t:creature or t:planeswalker) is:hires -is:funny -t:token game:paper"
 
 class GameViewModel(context: Context, private val repo: CollectionRepository) : ViewModel() {
@@ -54,7 +56,6 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     /** Finished games live in their own file, so saving the game in progress doesn't rewrite them. */
     private val recordPrefs = context.applicationContext.getSharedPreferences("game_records", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val recordsSerializer = ListSerializer(GameRecord.serializer())
 
     private val _game = MutableStateFlow(
         prefs.getString("current", null)?.let { runCatching { json.decodeFromString(GameState.serializer(), it).normalized() }.getOrNull() },
@@ -78,10 +79,29 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun tutorialDone() { tutorialSeen = true; prefs.edit().putBoolean("tutorial_seen", true).apply() }
 
     /** Finished games, newest first. */
-    private val _records = MutableStateFlow(
-        loadRecords()?.let { runCatching { json.decodeFromString(recordsSerializer, it) }.getOrNull() }.orEmpty(),
-    )
+    /**
+     * Saved games that no longer read (say a format was renamed). They're kept as they were and written back with
+     * every save, so one unreadable game never wipes the rest.
+     */
+    private var unreadable: List<kotlinx.serialization.json.JsonElement> = emptyList()
+    private val _records = MutableStateFlow(readRecords(loadRecords()))
     val records: StateFlow<List<GameRecord>> = _records
+
+    /** Reads each saved game on its own, setting aside the ones that don't read. */
+    private fun readRecords(text: String?): List<GameRecord> {
+        if (text == null) return emptyList()
+        val items = runCatching { json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonArray }.getOrNull()
+        if (items == null) {
+            // Not even a list: keep the text as it is under another key rather than overwrite it later.
+            recordPrefs.edit().putString("records_unreadable", text).apply()
+            return emptyList()
+        }
+        val read = mutableListOf<GameRecord>()
+        val bad = mutableListOf<kotlinx.serialization.json.JsonElement>()
+        items.forEach { e -> runCatching { json.decodeFromJsonElement(GameRecord.serializer(), e) }.onSuccess { read += it }.onFailure { bad += e } }
+        unreadable = bad
+        return read
+    }
 
     /** Reads saved records, moving them out of the old shared "game" file the first time. */
     private fun loadRecords(): String? {
@@ -145,13 +165,14 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
         saveRecords(before - r)
         com.mtgscanner.ui.components.Undo.offer("Game deleted") { saveRecords(before) }
     }
-    fun clearRecords() = saveRecords(emptyList())
+    fun clearRecords() { unreadable = emptyList(); saveRecords(emptyList()) }
 
-    private fun addRecord(r: GameRecord) = saveRecords((listOf(r) + _records.value).take(200))
+    private fun addRecord(r: GameRecord) = saveRecords((listOf(r) + _records.value).take(MAX_RECORDS))
 
     private fun saveRecords(list: List<GameRecord>) {
         _records.value = list
-        recordPrefs.edit().putString("records", json.encodeToString(recordsSerializer, list)).apply()
+        val all = kotlinx.serialization.json.JsonArray(list.map { json.encodeToJsonElement(GameRecord.serializer(), it) } + unreadable)
+        recordPrefs.edit().putString("records", all.toString()).apply()
     }
 
     /**

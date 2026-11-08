@@ -262,7 +262,7 @@ fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifie
                     color = Palette.Gold, style = MaterialTheme.typography.labelMedium,
                 )
             }
-            TextButton(onClick = vm::finishPack) { Text("Finish", color = Palette.Text) }
+            TextButton(onClick = vm::finishPack) { Text("Finish", color = Color.White) }
         }
     }
 }

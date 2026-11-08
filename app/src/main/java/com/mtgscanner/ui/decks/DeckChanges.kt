@@ -91,8 +91,8 @@ data class DeckChangesUi(
 class DeckChangesHost(
     private val repo: CollectionRepository,
     private val scope: CoroutineScope,
-    /** Saves [text] as the deck's list, then runs the block with the deck id. */
-    private val saveList: (text: String, after: suspend (Long) -> Unit) -> Unit,
+    /** Saves [text] as the deck's list, then runs the block with the deck id; runs the last one if it couldn't. */
+    private val saveList: (text: String, after: suspend (Long) -> Unit, failed: () -> Unit) -> Unit,
     /** Puts the deck back as it was, for Undo. */
     private val restore: suspend (Deck) -> Unit,
 ) {
@@ -109,7 +109,7 @@ class DeckChangesHost(
     fun review(deckId: Long, oldText: String, newText: String) {
         scope.launch {
             val u = prepare(deckId, oldText, newText)
-            if (u == null) saveList(newText) { } else ui = u
+            if (u == null) saveList(newText, {}, {}) else ui = u
         }
     }
 
@@ -147,7 +147,7 @@ class DeckChangesHost(
     fun quick(deckId: Long, oldText: String, newText: String, revert: () -> Unit) {
         scope.launch {
             val u = prepare(deckId, oldText, newText)
-            if (u == null || u.leaving.isEmpty()) saveList(newText) { } else { onCancel = revert; ui = u }
+            if (u == null || u.leaving.isEmpty()) saveList(newText, {}, {}) else { onCancel = revert; ui = u }
         }
     }
 
@@ -160,7 +160,7 @@ class DeckChangesHost(
         ui = u.copy(busy = true)
         scope.launch {
             val before = repo.observeDeck(u.deckId).first()
-            saveList(u.newText) after@{ _ ->
+            saveList(u.newText, after@{ _ ->
                 val rowIds = u.leaving.flatMap { l -> l.moves.map { it.first } }
                 val snap = repo.snapshot(rowIds)
                 try {
@@ -185,6 +185,9 @@ class DeckChangesHost(
                     repo.restore(snap)
                     if (before != null) restore(before)
                 }
+            }) {
+                ui = null
+                Undo.offer("Couldn't save the list")
             }
         }
     }

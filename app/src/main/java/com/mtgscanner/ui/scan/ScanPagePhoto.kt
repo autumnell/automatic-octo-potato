@@ -258,8 +258,10 @@ fun ScanViewModel.addPhoto() {
             val now = _state.value
             // A batch card keeps the foil setting it was scanned with.
             val foil = item.foil?.let { f -> f && card.hasFoil || !card.hasNonFoil } ?: now.isFoil(card)
-            addNow(card, qty, now, foil, lang, fromReview = false, auto = true, fromPage = true)
-                ?.let { added += it.key to qty }
+            // A batch card keeps the copy count it was scanned with too.
+            val copies = item.count ?: qty
+            addNow(card, copies, now, foil, lang, fromReview = false, auto = true, fromPage = true)
+                ?.let { added += it.key to copies }
         }
         if (st.target != ScanTarget.COLLECTION) return@launch
         val n = added.sumOf { it.second }

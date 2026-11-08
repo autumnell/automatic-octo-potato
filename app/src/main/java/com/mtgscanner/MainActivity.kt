@@ -263,7 +263,13 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
             "collection" -> nav.goToTab("collection")
             "check" -> { com.mtgscanner.util.OpenRequests.priceCheck.value = true; nav.goToTab("scan") }
             "settings" -> nav.navigate("settings") { launchSingleTop = true }
-            else -> openRequest?.takeIf { (it.startsWith("card/") || it.startsWith("browse/")) && it.substringAfter('/').toLongOrNull() != null }?.let { nav.navigate(it) }
+            else -> openRequest?.takeIf { (it.startsWith("card/") || it.startsWith("browse/")) && it.substringAfter('/').toLongOrNull() != null }?.let { route ->
+                // A box label (NFC or QR) can outlive its box: say so rather than open an empty page called "Box".
+                val boxId = route.takeIf { it.startsWith("browse/") }?.substringAfter('/')?.toLongOrNull()?.takeIf { it > 0 }
+                val repo = (ctx.applicationContext as MtgApp).repository
+                if (boxId != null && repo.box(boxId) == null) com.mtgscanner.ui.components.Undo.offer("That box is gone")
+                else nav.navigate(route)
+            }
         }
         onOpened()
     }

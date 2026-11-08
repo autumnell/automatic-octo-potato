@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.decks
 
+import kotlinx.coroutines.flow.catch
+import com.mtgscanner.data.observeLoans
 import com.mtgscanner.data.suggestNames
 import android.content.Intent
 import android.net.Uri
@@ -193,6 +195,9 @@ data class DeckUi(
     val combos: Loaded<DeckCombos> = Loaded(),
 )
 
+/** How long the deck list must sit still before combos are asked for again. */
+private const val COMBOS_WAIT_MS = 600L
+
 /** Something fetched for edit mode: [value] once loaded, [failed] when it couldn't be. [key] is what it was fetched for. */
 data class Loaded<T>(val value: T? = null, val loading: Boolean = false, val failed: Boolean = false, val key: String? = null)
 
@@ -204,7 +209,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         private set
 
     /** The Changes sheet for a saved deck's new list (DeckChanges.kt). */
-    val changes = DeckChangesHost(repo, viewModelScope, saveList = { text, after -> _ui.update { it.copy(text = text) }; commit(after) }, restore = ::showSaved)
+    val changes = DeckChangesHost(repo, viewModelScope, saveList = { text, after, failed -> _ui.update { it.copy(text = text) }; commit(after, failed) }, restore = ::showSaved)
 
     /** Lend, upgrade, proxies and building with another deck (DeckTools.kt). */
     val tools = DeckTools(repo, viewModelScope, deckId = { _ui.value.id }, reload = { showSaved(it) })
@@ -408,9 +413,14 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         }
     }
 
-    /** Owned copies to take out of boxes for the saved list, kept up to date with the collection. */
+    /**
+     * Owned copies to take out of boxes for the saved list, kept up to date with the collection. Lent copies
+     * aren't at home to pull, so they're left out (the deck still counts them as owned).
+     */
     val pull: StateFlow<PullList?> = combine(
-        _ui.map { it.text to it.name }.distinctUntilChanged(), repo.observeAll(), places,
+        _ui.map { it.text to it.name }.distinctUntilChanged(),
+        combine(repo.observeAll(), repo.observeLoans().catch { emit(emptyList()) }) { cards, loans -> com.mtgscanner.data.LoanMath.atHome(cards, loans) },
+        places,
     ) { (text, name), cards, (all, slot) ->
         PullListMath.build(DecklistParser.parse(text), cards, all, name, slot)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -499,10 +509,10 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         refreshLeads()
     }
 
-    private fun commit(after: suspend (Long) -> Unit = {}) {
+    private fun commit(after: suspend (Long) -> Unit = {}, failed: () -> Unit = {}) {
         val s = _ui.value
         // A second tap while the first save runs would save a new deck twice.
-        if (saving) return
+        if (saving) { failed(); return }
         saving = true
         viewModelScope.launch {
             try {
@@ -519,6 +529,11 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 check()
                 refreshLeads()
                 after(id)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Whoever waits on the save (the Changes sheet) must hear it didn't happen, or it waits for good.
+                failed()
             } finally {
                 saving = false
             }
@@ -661,6 +676,8 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     }
 
     /** Commander Spellbook's combos for the list as it is now; fetched again when the list changes. */
+    private var combosJob: kotlinx.coroutines.Job? = null
+
     fun loadCombos(force: Boolean = false) {
         val s = _ui.value
         val lines = DecklistParser.parse(s.text).filter { it.section in PLAYED }
@@ -673,7 +690,10 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
         if (!force && cur.key == key && (cur.loading || cur.value != null)) return
         if (main.isEmpty() && leads.isEmpty()) return
         _ui.update { it.copy(combos = Loaded(cur.value, loading = true, key = key)) }
-        viewModelScope.launch {
+        // One request at a time: a newer list cancels the one in flight, and quick +/- taps settle first.
+        combosJob?.cancel()
+        combosJob = viewModelScope.launch {
+            if (cur.value != null && !force) kotlinx.coroutines.delay(COMBOS_WAIT_MS)
             val found = spellbookCombos(leads, main)
             _ui.update { if (it.combos.key != key) it else it.copy(combos = Loaded(found, failed = found == null, key = key)) }
         }

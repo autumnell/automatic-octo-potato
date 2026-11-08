@@ -125,7 +125,9 @@ object PhotoCards {
                     continue
                 }
                 thumb?.recycle()
-                val read = runCatching { readCard(q, draw, recognizer, embed, wantsArt) }.getOrElse { PhotoRead(empty(), null) }
+                // A failed read is a blank card; a cancelled one (the sheet was closed) stops the whole read.
+                val read = runCatching { readCard(q, draw, recognizer, embed, wantsArt) }
+                    .getOrElse { e -> if (e is kotlinx.coroutines.CancellationException) throw e else PhotoRead(empty(), null) }
                 if (track != null && look != null && (read.guess.key != null || read.guess.pictureOnly)) tracks?.set(track, look to read.guess)
                 out += read
             }
