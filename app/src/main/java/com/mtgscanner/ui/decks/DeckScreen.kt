@@ -413,15 +413,20 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
     // Cards first: add by name or search; the typed list is one tab over.
     var picked by rememberSaveable { mutableStateOf(startTab ?: EditTab.CARDS) }
     val tab = if (picked in tabs) picked else EditTab.CARDS
+    val cards = remember { CardsTabState() }
+    val parsed = remember(ui.text) { com.mtgscanner.util.DecklistParser.parse(ui.text) }
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            // Name, format, count and commanders in one panel, then the tabs for the cards.
-            DeckEditHeader(ui, vm, Modifier.padding(horizontal = Space.s4))
-            Spacer(Modifier.height(Space.s2))
-            UnderlineTabs(tabs.map { it.label }, tabs.indexOf(tab), { picked = tabs[it] }, horizontalPadding = Space.s4)
-            Column(Modifier.padding(start = Space.s4, end = Space.s4, top = Space.s3, bottom = Space.s4)) {
-                when (tab) {
-                    EditTab.LIST -> {
+        // A lazy list: only the rows on screen are drawn, so a 100-card deck scrolls smoothly.
+        LazyColumn(Modifier.weight(1f)) {
+            // Name, format and count, then commander and companion, in one panel of cells; then the tabs.
+            item(key = "header") { DeckEditHeader(ui, vm, Modifier.padding(horizontal = Space.s4)) }
+            item(key = "tabs") {
+                UnderlineTabs(tabs.map { it.label }, tabs.indexOf(tab), { picked = tabs[it] }, Modifier.padding(top = Space.s2, bottom = Space.s3), horizontalPadding = Space.s4)
+            }
+            when (tab) {
+                EditTab.CARDS -> deckCardsItems(ui, vm, cards, parsed, onPaste = { picked = EditTab.LIST })
+                EditTab.LIST -> item(key = "list") {
+                    Column(Modifier.padding(horizontal = Space.s4)) {
                         OutlinedTextField(
                             value = ui.text, onValueChange = vm::setText,
                             placeholder = { Text("4 Lightning Bolt\n1 Sol Ring (CMR) 263\n\nSideboard\n2 Duress") },
@@ -434,16 +439,16 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
                             FromPhotoButton({ vm.setText(appendList(vm.ui.value.text, it)) })
                         }
                     }
-                    EditTab.CARDS -> DeckCardsTab(ui, vm, onPaste = { picked = EditTab.LIST })
-                    EditTab.COMBOS -> CombosTab(ui, vm)
-                    EditTab.EDHREC -> EdhrecTab(ui, vm)
                 }
+                EditTab.COMBOS -> item(key = "combos") { Column(Modifier.padding(horizontal = Space.s4)) { CombosTab(ui, vm) } }
+                EditTab.EDHREC -> item(key = "edhrec") { Column(Modifier.padding(horizontal = Space.s4)) { EdhrecTab(ui, vm) } }
             }
+            item(key = "end") { Spacer(Modifier.height(Space.s4)) }
         }
         // Save stays in reach at the bottom however long the list gets.
         HorizontalDivider(color = Palette.Rule)
         Box(Modifier.fillMaxWidth().background(Palette.Background).navigationBarsPadding().padding(horizontal = Space.s4, vertical = Space.s2)) {
-            GradientButton(if (ui.text.isBlank()) "Save deck" else "Check my collection", vm::save, Modifier.fillMaxWidth())
+            GradientButton("Save", vm::save, Modifier.fillMaxWidth())
         }
     }
     ui.printingLine?.let { line ->
@@ -496,20 +501,18 @@ private fun Results(
         item {
             // The curve sits on the commander art when there is one.
             if (!hasArtHeader(ui.format, ui.commanders, ui.leadArt)) ui.shape?.let { DeckShapeView(it) }
-            // A complete deck has nothing missing, so the owned and missing numbers would only say so.
-            // Two plain figures rather than two equal panels (unslop: compact stats).
-            if (have < needed) Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Stat("Owned", "$have / $needed")
-                if (AppSettings.showPrices) Stat("To finish", missingCostText)
-                else Stat("Missing", "${needed - have}")
+            // Owned, the cost to finish, win rate, mana base and goldfish share one table (unslop: one stat style).
+            // A complete deck has nothing missing, so it leaves out the owned and missing figures.
+            // Short enough for a third of the width: where the owned copies sit when not all are in the deck.
+            val where = if (have > 0 && inDeck < needed) "${have - inDeck} elsewhere" else null
+            val leadStats = buildList {
+                if (have < needed) {
+                    add(InsightStat("Owned", "$have / $needed", where, null))
+                    if (AppSettings.showPrices) add(InsightStat("To finish", missingCostText, if (needed - have == 1) "1 card" else "${needed - have} cards", null))
+                    else add(InsightStat("Missing", "${needed - have}", null, null))
+                }
             }
-            DeckInsights(ui, vm)
-            // Small print: where the owned copies are. The value is in the header.
-            if (have > 0 && inDeck < needed) Text(
-                "$inDeck in the deck · ${have - inDeck} elsewhere",
-                style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
-                modifier = Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2),
-            )
+            DeckInsights(ui, vm, leadStats)
             // Filter in the tool bar opens this box; closing it clears what was typed.
             if (filtering) SearchField(find, onFind, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), placeholder = "Find in deck", focusOnOpen = true)
         }
@@ -576,14 +579,6 @@ private fun Results(
 }
 
 @Composable
-private fun Stat(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Text(value, style = MaterialTheme.typography.titleLarge.merge(TabularNums))
-    }
-}
-
-@Composable
 private fun DeckLineRow(
     l: DeckCheckLine, missingView: Boolean, first: Boolean, last: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null,
 ) {
@@ -597,7 +592,7 @@ private fun DeckLineRow(
         Column(Modifier.weight(1f)) {
             Text(
                 (if (missingView) "${l.missing}× " else "${minOf(l.owned, l.needed)}/${l.needed} ") + l.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -637,7 +632,7 @@ private fun DeckLineRow(
         if (missingView) {
             // A fixed right-aligned slot so prices line up down the list.
             if (AppSettings.showPrices) Text(
-                formatMoneyShort(l.price?.times(l.missing), l.priceEur?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text,
+                formatMoneyShort(l.price?.times(l.missing), l.priceEur?.times(l.missing)), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = Space.s2).widthIn(min = 64.dp),
             )
         }
@@ -649,7 +644,7 @@ private fun DeckLineRow(
  * The deck's wins, losses and draws from games where a seat picked it (Game tab), with Edit to set them by hand.
  */
 @Composable
-private fun DeckInsights(ui: DeckUi, vm: DeckViewModel) {
+private fun DeckInsights(ui: DeckUi, vm: DeckViewModel, leads: List<InsightStat>) {
     val ctx = LocalContext.current
     var version by remember { mutableIntStateOf(0) }
     val r = remember(ui.id, version) { com.mtgscanner.game.DeckResults.of(ctx, ui.id) }
@@ -660,7 +655,7 @@ private fun DeckInsights(ui: DeckUi, vm: DeckViewModel) {
         r.winRate?.let { "$it%" } ?: "No games",
         if (r.games > 0) "${r.wins}–${r.losses}–${r.draws}" else "Tap to add",
     ) { editing = true }
-    DeckInsightRows(ui, vm, win)
+    DeckInsightRows(ui, vm, leads + listOfNotNull(win))
     if (editing) DeckRecordDialog(r, onDismiss = { editing = false }) { new ->
         com.mtgscanner.game.DeckResults.set(ctx, ui.id, new)
         editing = false

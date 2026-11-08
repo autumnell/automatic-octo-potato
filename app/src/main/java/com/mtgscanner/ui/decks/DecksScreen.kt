@@ -388,7 +388,7 @@ private fun DeckTile(row: DeckRow, lentTo: String?, onOpen: () -> Unit, onMove: 
             Row(Modifier.padding(start = Space.s3, top = Space.s2), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        row.deck.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium,
+                        row.deck.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
@@ -455,7 +455,7 @@ private fun FolderTile(folder: DeckFolder, decks: List<DeckRow>, modifier: Modif
             }
             Column(Modifier.padding(Space.s3)) {
                 Text(
-                    folder.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium,
+                    folder.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(if (decks.size == 1) "1 deck" else "${decks.size} decks", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)

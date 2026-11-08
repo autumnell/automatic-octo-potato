@@ -76,7 +76,7 @@ fun DeckShortagesSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Short ${r.short}", style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.AccentText)
+                            Text("Short ${r.short}", style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.AccentText)
                             Text("own ${r.owned} of ${r.needed}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                         }
                     }

@@ -28,6 +28,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.mtgscanner.util.DeckLine
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,99 +80,137 @@ fun editTabs(format: String, commanders: DeckCommanders): List<EditTab> =
 internal fun Stepper(count: Int, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(-1) }, enabled = count > 0) {
-            Icon(Icons.Outlined.Remove, "One fewer", tint = if (count > 0) Palette.Icon else Palette.Faint, modifier = Modifier.size(20.dp))
+            Icon(Icons.Outlined.Remove, "One fewer", tint = if (count > 0) Palette.Icon else Palette.Faint, modifier = Modifier.size(24.dp))
         }
         Text("$count", style = MaterialTheme.typography.bodyLarge.merge(TabularNums), modifier = Modifier.width(Space.s6))
-        IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.Icon, modifier = Modifier.size(24.dp)) }
+    }
+}
+
+/** What the Cards tab remembers while edit mode is open: the board shown, the find box and the search sheet. */
+class CardsTabState {
+    var board by mutableStateOf("Main")
+    var query by mutableStateOf("")
+    var finding by mutableStateOf(false)
+    var searching by mutableStateOf(false)
+}
+
+/**
+ * Edit › Cards as rows of the page's lazy list, so only the cards on screen are drawn: the boards with a find
+ * button, quick add, then each card type as a panel under a small heading. The commanders have their own cells
+ * above, so they're left out. Changes go into the list and are saved with it.
+ */
+fun LazyListScope.deckCardsItems(ui: DeckUi, vm: DeckViewModel, st: CardsTabState, parsed: List<DeckLine>, onPaste: () -> Unit) {
+    val leads = ui.commanders.all.map { DeckNames.key(it) }.toSet()
+    val counts = Board.entries.associateWith { b -> parsed.filter { it.section == b.section && (b != Board.MAIN || DeckNames.key(it.name) !in leads) }.sumOf { it.quantity } }
+    val board = st.board
+    val lines = parsed.filter { it.section == board && (board != "Main" || DeckNames.key(it.name) !in leads) }
+    item(key = "boards") {
+        // The deck, the sideboard and the maybeboard (cards you're considering: not counted, not played in playtest).
+        Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+                Board.entries.forEach { b ->
+                    val n = counts[b] ?: 0
+                    SelectPill(if (n > 0) "${b.label} $n" else b.label, board == b.section, { st.board = b.section })
+                }
+            }
+            if (lines.isNotEmpty()) IconButton(onClick = { st.finding = !st.finding; if (!st.finding) st.query = "" }) {
+                Icon(Icons.Outlined.FilterList, "Find in deck", tint = if (st.finding) Palette.Text else Palette.Icon)
+            }
+        }
+    }
+    item(key = "add") {
+        Column(Modifier.padding(horizontal = Space.s4)) {
+            if (st.finding) SearchField(st.query, { st.query = it }, Modifier.padding(bottom = Space.s2), placeholder = "Find in deck", focusOnOpen = true)
+            else DeckQuickAdd(ui, vm, board, st.searching) { st.searching = it }
+        }
+    }
+    if (lines.isEmpty()) {
+        item(key = "empty") {
+            Column(Modifier.padding(horizontal = Space.s4)) {
+                if (board == "Main") {
+                    // A blank deck: the ways to fill it, so the page starts with something to do.
+                    Text("Start the deck", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s2))
+                    StartRow(Icons.Outlined.Search, "Search all cards", "By name, type, format and commander colors", first = true, last = false) { st.searching = true }
+                    StartRow(Icons.Outlined.ContentPaste, "Paste a list", "From Moxfield, Archidekt or any text list", first = false, last = true, onClick = onPaste)
+                    Text(
+                        "Or scan cards into it: pick this deck in the Scan screen's add-to menu",
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3),
+                    )
+                } else Text(
+                    if (board == "Sideboard") "No sideboard cards yet: add them above, or move one here from the deck with its menu"
+                    else "Nothing you're considering yet: add cards above, or move one here from the deck",
+                    style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s4),
+                )
+            }
+        }
+        return
+    }
+    val q = st.query.trim()
+    val shown = if (q.isEmpty()) lines else lines.filter { it.name.contains(q, ignoreCase = true) }
+    if (q.isNotEmpty()) item(key = "found") {
+        Text(
+            "${shown.size} of ${lines.size} cards",
+            style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
+        )
+    }
+    // Each card type is one panel under a small heading with its count on the right.
+    DeckTypes.group(shown) { ui.cardInfo[DeckNames.key(it.name)]?.typeLine }.forEach { (type, group) ->
+        val n = group.sumOf { it.quantity }
+        item(key = "h-${type.name}") {
+            Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s4, top = Space.s3, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (n == 1) type.one else type.many, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
+                Text("$n", style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted)
+            }
+        }
+        // Keys by position: the same card can be listed twice (two printings).
+        itemsIndexed(group, key = { i, l -> "c-${type.name}-$i-${l.name}" }) { i, l ->
+            EditCardRow(ui, vm, l, board, first = i == 0, last = i == group.lastIndex)
+        }
     }
 }
 
 /**
- * Edit › Cards: the main deck grouped by card type, each row with a picture, the printing (tap to change it) and
- * − / + for the count. The commanders have their own slots above, so they're left out. A Find box narrows the list.
- * Changes go into the list and are saved with it.
+ * One card in Edit › Cards: its picture, name, mana cost and printing, and − count +. Tapping the row opens a
+ * short menu: change printing, move to another board, or remove.
  */
 @Composable
-fun DeckCardsTab(ui: DeckUi, vm: DeckViewModel, onPaste: () -> Unit) {
-    var searching by rememberSaveable { mutableStateOf(false) }
-    var query by rememberSaveable { mutableStateOf("") }
-    var board by rememberSaveable { mutableStateOf("Main") }
-    val leads = remember(ui.commanders) { ui.commanders.all.map { DeckNames.key(it) }.toSet() }
-    val parsed = remember(ui.text) { DecklistParser.parse(ui.text) }
-    val counts = Board.entries.associateWith { b -> parsed.filter { it.section == b.section && (b != Board.MAIN || DeckNames.key(it.name) !in leads) }.sumOf { it.quantity } }
-    // The deck, the sideboard and the maybeboard (cards you're considering: not counted, not played in playtest).
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = Space.s3), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-        Board.entries.forEach { b ->
-            val n = counts[b] ?: 0
-            SelectPill(if (n > 0) "${b.label} $n" else b.label, board == b.section, { board = b.section })
-        }
-    }
-    val lines = parsed.filter { it.section == board && (board != "Main" || DeckNames.key(it.name) !in leads) }
-    DeckQuickAdd(ui, vm, board, searching) { searching = it }
-    if (lines.isEmpty() && board == "Main") {
-        // A blank deck: the ways to fill it, so the page starts with something to do.
-        Text("Start the deck", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s2))
-        StartRow(Icons.Outlined.Search, "Search all cards", "By name, type, format and commander colors", first = true, last = false) { searching = true }
-        StartRow(Icons.Outlined.ContentPaste, "Paste a list", "From Moxfield, Archidekt or any text list", first = false, last = true, onClick = onPaste)
-        Text(
-            "Or scan cards into it: pick this deck in the Scan screen's add-to menu",
-            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3),
-        )
-        return
-    }
-    if (lines.isEmpty()) {
-        Text(
-            when (board) {
-                "Main" -> "No cards yet: add them by name above, search for them, or scan them into this deck"
-                "Sideboard" -> "No sideboard cards yet: add them above, or move one here from the deck with its menu"
-                else -> "Nothing you're considering yet: add cards above, or move one here from the deck"
-            },
-            style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s4),
-        )
-        return
-    }
-    // A long list gets its own filter; a short one is easy to scan by eye, and one search box is enough.
-    if (lines.size > 15 || query.isNotEmpty()) SearchField(query, { query = it }, Modifier.padding(bottom = Space.s2), placeholder = "Find in deck")
-    val q = query.trim()
-    val shown = if (q.isEmpty()) lines else lines.filter { it.name.contains(q, ignoreCase = true) }
-    // The total is in the header; a filter says how many it kept.
-    if (q.isNotEmpty()) Text(
-        "${shown.size} of ${lines.size} cards",
-        style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted, modifier = Modifier.padding(bottom = Space.s1),
-    )
-    // Each card type is one panel under a small heading with its count on the right.
-    DeckTypes.group(shown) { ui.cardInfo[DeckNames.key(it.name)]?.typeLine }.forEach { (type, group) ->
-        val n = group.sumOf { it.quantity }
-        Row(Modifier.fillMaxWidth().padding(top = Space.s3, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (n == 1) type.one else type.many, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
-            Text("$n", style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted)
-        }
-        group.forEachIndexed { i, l -> EditCardRow(ui, vm, l, board, first = i == 0, last = i == group.lastIndex) }
-    }
-}
-
-/** One card in Edit › Cards: its picture, name, mana cost and printing (tap to change it), − count +, and ⋮ to move it. */
-@Composable
-private fun EditCardRow(ui: DeckUi, vm: DeckViewModel, l: com.mtgscanner.util.DeckLine, board: String, first: Boolean, last: Boolean) {
+private fun EditCardRow(ui: DeckUi, vm: DeckViewModel, l: DeckLine, board: String, first: Boolean, last: Boolean) {
     val info = ui.cardInfo[DeckNames.key(l.name)]
+    var menu by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().panelRow(first, last).heightIn(min = 56.dp).padding(start = Space.s3),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s4).panelRow(first, last).heightIn(min = 56.dp).padding(start = Space.s3),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CardImage(info?.imageUrl, Modifier.width(32.dp), zoom = info?.imageUrl != null)
-        Spacer(Modifier.width(Space.s3))
-        Column(Modifier.weight(1f).clickable { vm.openPrintingsFor(l) }.padding(vertical = Space.s2)) {
-            Text(l.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
-                info?.manaCost?.takeIf { it.isNotBlank() }?.let { com.mtgscanner.ui.components.ManaCost(it, 14.dp) }
-                Text(
-                    l.setCode?.let { s -> s.uppercase() + (l.collectorNumber?.let { " #$it" } ?: "") } ?: "Any printing",
-                    style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        Box(Modifier.weight(1f)) {
+            Column(Modifier.fillMaxWidth().clickable { menu = true }.padding(start = Space.s3, top = Space.s2, bottom = Space.s2)) {
+                Text(l.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+                    info?.manaCost?.takeIf { it.isNotBlank() }?.let { com.mtgscanner.ui.components.ManaCost(it, 14.dp) }
+                    l.setCode?.let { s ->
+                        Text(
+                            s.uppercase() + (l.collectorNumber?.let { " #$it" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Faint, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text("Change printing") }, onClick = { menu = false; vm.openPrintingsFor(l) })
+                Board.entries.filter { it.section != board }.forEach { b ->
+                    DropdownMenuItem(
+                        text = { Text(if (b == Board.MAIN) "Move to the deck" else "Move to the ${b.label.lowercase()}") },
+                        onClick = { menu = false; com.mtgscanner.util.Haptics.tick(); vm.moveCard(l.name, board, b.section) },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Remove", color = Palette.Danger) },
+                    onClick = { menu = false; vm.adjustCard(l.name, -l.quantity, board, l.setCode, l.collectorNumber) },
                 )
             }
         }
         Stepper(l.quantity) { d -> vm.adjustCard(l.name, d, board, l.setCode, l.collectorNumber) }
-        MoveMenu(board) { to -> com.mtgscanner.util.Haptics.tick(); vm.moveCard(l.name, board, to) }
     }
 }
 
@@ -191,23 +233,6 @@ private fun StartRow(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 /** The parts of a list a card can be in while editing. */
 enum class Board(val section: String, val label: String) {
     MAIN("Main", "Deck"), SIDE("Sideboard", "Sideboard"), MAYBE("Maybeboard", "Maybeboard"),
-}
-
-/** A card row's ⋮: move it to one of the other boards. */
-@Composable
-private fun MoveMenu(from: String, onMove: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Outlined.MoreVert, "Move card", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Board.entries.filter { it.section != from }.forEach { b ->
-                DropdownMenuItem(
-                    text = { Text(if (b == Board.MAIN) "Move to the deck" else "Move to the ${b.label.lowercase()}") },
-                    onClick = { open = false; onMove(b.section) },
-                )
-            }
-        }
-    }
 }
 
 /** A load in progress, or why it failed with a way to try again. */
