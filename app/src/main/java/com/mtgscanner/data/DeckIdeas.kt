@@ -18,9 +18,16 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /** A card EDHREC suggests for a commander: the share of its decks that play it (0..1) and its synergy (-1..1). */
-data class EdhrecRec(val name: String, val share: Double?, val synergy: Double?, val scryfallId: String? = null) {
+data class EdhrecRec(
+    val name: String, val share: Double?, val synergy: Double?, val scryfallId: String? = null,
+    /** How many of the commander's decks on EDHREC play it. */
+    val decks: Int? = null,
+) {
     /** Scryfall's small picture of the card, from its id; null without one. */
-    val imageUrl: String? get() = scryfallId?.takeIf { it.length > 2 }?.let { "https://cards.scryfall.io/small/front/${it[0]}/${it[1]}/$it.jpg" }
+    val imageUrl: String? get() = picture("small")
+    /** The larger picture, for card grids. */
+    val normalImageUrl: String? get() = picture("normal")
+    private fun picture(size: String) = scryfallId?.takeIf { it.length > 2 }?.let { "https://cards.scryfall.io/$size/front/${it[0]}/${it[1]}/$it.jpg" }
 }
 
 /** One list on an EDHREC commander page ("Top Cards", "Creatures"…). */
@@ -58,7 +65,7 @@ object DeckIdeasMath {
                 val n = c.num("num_decks") ?: c.num("inclusion")
                 val pot = c.num("potential_decks")
                 val share = if (n != null && pot != null && pot > 0) (n / pot).coerceIn(0.0, 1.0) else null
-                EdhrecRec(name, share, c.num("synergy"), c.str("id"))
+                EdhrecRec(name, share, c.num("synergy"), c.str("id"), c.num("num_decks")?.toInt())
             }
             if (cards.isEmpty()) null else EdhrecGroup(o.str("header") ?: "Cards", cards)
         }

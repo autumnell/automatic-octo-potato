@@ -173,6 +173,27 @@ class ScreenPicturesTest {
         com.mtgscanner.ui.decks.DeckScreen(deckId = 0L, onBack = {})
     }
 
+    @Test fun deckGrid() = shoot("05b2-deck-grid") {
+        com.mtgscanner.ui.decks.DeckScreen(deckId = 1L, onBack = {}, startLayout = com.mtgscanner.ui.decks.DeckLayout.GRID)
+    }
+
+    /** Edit › EDHREC with numbers like a real commander page's (EDHREC itself isn't reached in tests). */
+    @Test fun deckEdhrec() = shoot("05d3-deck-edhrec") {
+        val recs = listOf(
+            com.mtgscanner.data.EdhrecRec("Kindred Judgment", 77.0 / 975, 0.39, decks = 77),
+            com.mtgscanner.data.EdhrecRec("Vigorbloom Charm", 52.0 / 1040, -0.04, decks = 52),
+            com.mtgscanner.data.EdhrecRec("Flickering Hound", 45.0 / 978, 0.12, decks = 45),
+            com.mtgscanner.data.EdhrecRec("Yoshimaru, Beloved Companion", 33.0 / 970, 0.17, decks = 33),
+        )
+        val groups = listOf(
+            com.mtgscanner.data.EdhrecGroup("Top Cards", recs), com.mtgscanner.data.EdhrecGroup("High Synergy Cards", recs),
+            com.mtgscanner.data.EdhrecGroup("Creatures", recs),
+        )
+        androidx.compose.foundation.layout.Column(
+            Modifier.fillMaxSize().background(com.mtgscanner.ui.theme.Palette.Background).padding(Space.s4),
+        ) { com.mtgscanner.ui.decks.EdhrecLists(groups, "1 Flickering Hound") { _, _, _ -> } }
+    }
+
     /** The deck page's insight sheets, drawn as their sheet would show them, with numbers like a real deck's. */
     @Composable
     private fun InsightSheet(title: String, body: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {

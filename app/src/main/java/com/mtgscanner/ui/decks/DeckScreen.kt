@@ -168,6 +168,8 @@ fun DeckScreen(
     startMenu: Boolean = false,
     /** Opens in edit mode on this tab, for the screen pictures. */
     startEditTab: EditTab? = null,
+    /** Opens on this layout, for the screen pictures. */
+    startLayout: DeckLayout? = null,
 ) {
     val vm: DeckViewModel = viewModel(key = "deck$deckId", factory = AppViewModels.deck(deckId))
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -180,6 +182,16 @@ fun DeckScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var odds by remember { mutableStateOf(false) }
     var comparing by remember { mutableStateOf(false) }
+    val ctx0 = LocalContext.current
+    // The layout picked last on any deck; until one is picked a complete deck shows stacks and others the list.
+    var layoutPick by remember { mutableStateOf(startLayout ?: startPictures?.let { if (it) DeckLayout.STACKS else DeckLayout.LIST } ?: DeckLayoutPref.get(ctx0)) }
+    var filtering by rememberSaveable { mutableStateOf(false) }
+    var find by rememberSaveable { mutableStateOf("") }
+    var sharing by remember { mutableStateOf(false) }
+    var quickAdding by remember { mutableStateOf(false) }
+    var searchingCards by remember { mutableStateOf(false) }
+    val complete = ui.check?.lines?.filter { it.section in PLAYED }?.let { p -> p.isNotEmpty() && p.all { it.inDeck >= it.needed } } == true
+    val layout = layoutPick ?: if (complete) DeckLayout.STACKS else DeckLayout.LIST
     val inDeck by vm.inDeck.collectAsStateWithLifecycle()
     LaunchedEffect(ui.message) { ui.message?.let { snackbar.showSnackbar(it); vm.messageShown() } }
     LaunchedEffect(ui.loaded) { if (startEditTab != null && ui.loaded && ui.id != 0L) vm.edit() }
@@ -211,7 +223,6 @@ fun DeckScreen(
                     IconButton(onClick = vm::edit) { Icon(Icons.Outlined.Edit, "Edit list") }
                     // Playtest sits in the bar, one tap from the deck.
                     if (ui.id != 0L && onPlaytest != null) IconButton(onClick = onPlaytest) { Icon(Icons.Outlined.PlayArrow, "Playtest") }
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Deck options") }
                 }
             }
             val lentTo by vm.tools.lentTo.collectAsStateWithLifecycle()
@@ -224,6 +235,7 @@ fun DeckScreen(
             if (!ui.loaded) return@Column
             if (ui.editing) Editor(ui, vm, startEditTab)
             else {
+              Column(Modifier.weight(1f)) {
                 val ctx = LocalContext.current
                 val edhrec = ui.edhrec
                 LaunchedEffect(Unit) { runCatching { com.mtgscanner.data.SaltScores.load(ctx) } }
@@ -262,12 +274,33 @@ fun DeckScreen(
                             val keys = ui.check?.lines.orEmpty().map { DeckNames.key(it.name) }.toSet()
                             repo.observeAll().first().filter { DeckNames.key(it.name) in keys }.map { it.scryfallId }
                         },
-                    ) { Results(ui, vm, onOpenSet, startPictures) }
+                    ) {
+                        Results(
+                            ui, vm, onOpenSet, layout, find, filtering, { find = it },
+                            sharing = sharing, onSharing = { sharing = it },
+                        )
+                    }
                 }
+              }
+              // Search, Quick add, Layout, Filter and More, along the bottom like a deck site's tool bar.
+              if (ui.id != 0L) DeckToolBar(
+                  layout = layout,
+                  filtering = filtering,
+                  onSearch = { searchingCards = true },
+                  onQuickAdd = { quickAdding = true },
+                  onLayout = { layoutPick = it; DeckLayoutPref.set(ctx0, it) },
+                  onFilter = { filtering = !filtering; if (!filtering) find = "" },
+                  onMore = { menu = true },
+              )
             }
         }
-        com.mtgscanner.ui.components.SlimSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+        // Above the tool bar on the deck page.
+        com.mtgscanner.ui.components.SlimSnackbarHost(
+            snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = if (!ui.editing && ui.id != 0L) Space.s12 + Space.s4 else Space.s1),
+        )
     }
+    if (quickAdding) QuickAddSheet(ui, vm, onDismiss = { quickAdding = false })
+    if (searchingCards) DeckCardSearchSheet(ui, vm, "Main", onDismiss = { searchingCards = false })
     ui.picker?.let { slot ->
         val first = ui.commanders.commanders.firstOrNull()?.let { ui.leadInfo[it.lowercase()] }
         CommanderPickerSheet(
@@ -303,6 +336,10 @@ fun DeckScreen(
         DeckActionRow(Icons.Outlined.CompareArrows, "Compare", "See the cards only in this deck, only in another, or in both") { close(); comparing = true }
         DeckActionGroup("Cards")
         DeckActionRow(Icons.Outlined.LibraryAdd, "Add to collection", "Count the deck's cards as yours, kept in the deck") { close(); addingAll = true }
+        if (ui.check?.lines?.any { it.section in PLAYED && it.missing > 0 } == true) {
+            DeckActionRow(Icons.Outlined.FavoriteBorder, "Wishlist missing", "Put the cards you don't own on your wishlist") { close(); vm.wishlistMissing() }
+            DeckActionRow(Icons.Outlined.Share, "Share missing cards", "As a list, or as a cart at a card shop") { close(); sharing = true }
+        }
         DeckToolsMenuItems(vm.tools, ui, inDeck, close = close, onPrint = { printProxies() })
         DeckActionGroup("List")
         DeckActionRow(Icons.Outlined.Link, "Update from link", "Get the newest list from Moxfield or Archidekt") { close(); vm.changes.updateFromLink(ui.id, vm.savedText) }
@@ -418,12 +455,12 @@ private fun Editor(ui: DeckUi, vm: DeckViewModel, startTab: EditTab? = null) {
 }
 
 @Composable
-private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)?, startPictures: Boolean? = null) {
+private fun Results(
+    ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)?, layout: DeckLayout,
+    find: String, filtering: Boolean, onFind: (String) -> Unit,
+    sharing: Boolean, onSharing: (Boolean) -> Unit,
+) {
     val scope = rememberCoroutineScope()
-    var sharing by remember { mutableStateOf(false) }
-    var find by rememberSaveable { mutableStateOf("") }
-    // Pictures by type, or the list by what's owned. A complete deck starts on pictures.
-    var picturesPick by rememberSaveable { mutableStateOf(startPictures) }
     // Tapping a card slides up its details; Other printings there opens the picker.
     var tapped by remember { mutableStateOf<DeckCheckLine?>(null) }
     val open: (DeckCheckLine) -> Unit = { tapped = it }
@@ -455,8 +492,6 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
     val otherMissing = rest.filter { it.section !in PLAYED && it.section != MAYBE && it.missing > 0 }
     val owned = rest.filter { it.owned > 0 && it.section != MAYBE }
     val inDeck = played.sumOf { minOf(it.inDeck, it.needed) }
-    val complete = played.isNotEmpty() && played.all { it.inDeck >= it.needed }
-    val pictures = picturesPick ?: complete
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             // The curve sits on the commander art when there is one.
@@ -468,55 +503,35 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
                 if (AppSettings.showPrices) Stat("To finish", missingCostText)
                 else Stat("Missing", "${needed - have}")
             }
-            // Small print: where the owned copies are. The value is in the header.
-            val small = listOfNotNull(
-                if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null,
-            )
             DeckInsights(ui, vm)
-            if (small.isNotEmpty()) {
-                Text(
-                    small.joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
-                    modifier = Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2),
-                )
-            }
-            if (played.any { it.missing > 0 }) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
-                    com.mtgscanner.ui.components.QuietButton(
-                        onClick = vm::wishlistMissing,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(Corners.Medium),
-                    ) {
-                        Icon(Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(Space.s2))
-                        Text("Wishlist missing")
-                    }
-                    IconButton(onClick = { sharing = true }) { Icon(Icons.Outlined.Share, "Share missing cards", tint = Palette.Icon) }
-                }
-            }
-            Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-                SearchField(find, { find = it }, Modifier.weight(1f).padding(vertical = Space.s2), placeholder = "Find in deck")
-                // Shows the view you get next.
-                IconButton(onClick = { picturesPick = !pictures }) {
-                    if (pictures) Icon(Icons.Outlined.ViewAgenda, "List view", tint = Palette.Icon)
-                    else Icon(Icons.Outlined.GridView, "Pictures by type", tint = Palette.Icon)
-                }
-            }
+            // Small print: where the owned copies are. The value is in the header.
+            if (have > 0 && inDeck < needed) Text(
+                "$inDeck in the deck · ${have - inDeck} elsewhere",
+                style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
+                modifier = Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2),
+            )
+            // Filter in the tool bar opens this box; closing it clears what was typed.
+            if (filtering) SearchField(find, onFind, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), placeholder = "Find in deck", focusOnOpen = true)
         }
         if (leads.isEmpty() && missing.isEmpty() && otherMissing.isEmpty() && owned.isEmpty() && maybe.isEmpty() && find.isNotBlank()) {
             item { EmptyState("No matches") }
         }
-        if (pictures) {
+        if (layout != DeckLayout.LIST) {
             val typeOf = { l: DeckCheckLine -> ui.cardTexts[DeckNames.key(l.name)]?.first }
             val leadTitle = if (ui.commanders.commanders.size > 1) "Commanders" else "Commander"
-            if (leads.isNotEmpty()) item(key = "p-lead") { DeckPiles(leadTitle, leads, open) }
+            // Grid cards have + and − that change the saved deck at once; commanders are set in edit mode.
+            val change = { l: DeckCheckLine, d: Int -> vm.changeNow(l.name, d, l.section) }
+            val block: @Composable (String, List<DeckCheckLine>, Boolean) -> Unit = { title, lines, editable ->
+                if (layout == DeckLayout.GRID) DeckGrid(title, lines, open, if (editable) change else null) else DeckPiles(title, lines, open)
+            }
+            if (leads.isNotEmpty()) item(key = "p-lead") { block(leadTitle, leads, false) }
             val groups = DeckTypes.group(rest.filter { it.section in PLAYED }.sortedBy { it.name.lowercase() }, typeOf)
-            groups.forEach { (t, lines) -> item(key = "p-${t.name}") { DeckPiles(t.many, lines, open) } }
+            groups.forEach { (t, lines) -> item(key = "p-${t.name}") { block(t.many, lines, true) } }
             val side = rest.filter { it.section == "Sideboard" }
-            if (side.isNotEmpty()) item(key = "p-side") { DeckPiles("Sideboard", side, open) }
-            if (maybe.isNotEmpty()) item(key = "p-maybe") { DeckPiles("Maybeboard", maybe, open) }
+            if (side.isNotEmpty()) item(key = "p-side") { block("Sideboard", side, true) }
+            if (maybe.isNotEmpty()) item(key = "p-maybe") { block("Maybeboard", maybe, true) }
             val others = rest.filter { it.section !in PLAYED && it.section != "Sideboard" && it.section != MAYBE }
-            if (others.isNotEmpty()) item(key = "p-other") { DeckPiles("Tokens and more", others, open) }
+            if (others.isNotEmpty()) item(key = "p-other") { block("Tokens and more", others, false) }
         } else {
             if (leads.isNotEmpty()) {
                 item { SectionHeader(if (ui.commanders.commanders.size > 1) "Commanders" else "Commander") }
@@ -542,7 +557,7 @@ private fun Results(ui: DeckUi, vm: DeckViewModel, onOpenSet: ((String) -> Unit)
         }
         item { Spacer(Modifier.height(Space.s6)) }
     }
-    if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { sharing = false }) {
+    if (sharing) ShareDialog("${ui.name.ifBlank { "Deck" }} missing", scope, carts = true, onDismiss = { onSharing(false) }) {
         played.filter { it.missing > 0 }.map { it.shareLine() }
     }
     tapped?.let { l ->

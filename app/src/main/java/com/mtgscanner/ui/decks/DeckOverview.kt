@@ -131,7 +131,7 @@ private const val PILES = 3
  */
 @Composable
 fun DeckPiles(title: String, lines: List<DeckCheckLine>, onOpen: (DeckCheckLine) -> Unit) {
-    SectionHeader("$title (${lines.sumOf { it.needed }})")
+    CategoryHeader(title, lines)
     Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
         DeckTypes.piles(lines, PILES).forEach { pile ->
             BoxWithConstraints(Modifier.weight(1f)) {
