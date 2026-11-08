@@ -452,7 +452,7 @@ internal object BackupIO {
             repo.db.withTransaction {
                 // Decks' card rows too: a deck's "Add to collection" plans its cards into the deck.
                 val boxNames = dao.allPlaces().associate { it.id to it.placeName() }.toMutableMap()
-                val byName = dao.allPlaces().filter { !it.isDeckSlot }.associate { it.name.trim().lowercase() to it.id }
+                val byName = dao.allPlaces().filter { it.deckId == 0L }.associate { it.name.trim().lowercase() to it.id }
                 val now = System.currentTimeMillis()
                 plan.rows.forEachIndexed { i, r ->
                     val c = plan.found.getOrNull(i)
