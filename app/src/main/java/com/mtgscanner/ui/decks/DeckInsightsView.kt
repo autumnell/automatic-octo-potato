@@ -162,10 +162,10 @@ internal fun rememberBracket(ui: DeckUi, vm: DeckViewModel): Bracket? {
 
 /** Bracket (Commander decks), mana base and goldfish rows under the win rate; each opens a sheet with the detail. */
 @Composable
-internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, lead: InsightStat? = null) {
+internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, leads: List<InsightStat> = emptyList()) {
     val cards = remember(ui.text, ui.cardInfo, ui.commanders, ui.format) { insightCards(ui) }
     if (cards.sumOf { it.copies } < 20) {
-        lead?.let { InsightStrip(listOf(it)) }
+        if (leads.isNotEmpty()) InsightStrip(leads)
         return
     }
     var sheet by remember { mutableStateOf<InsightSheet?>(null) }
@@ -175,7 +175,7 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, lead: InsightStat? =
 
     // One compact strip of figures instead of a row each (unslop: compact stats, not equal cards). Tap one for its sheet.
     val items = buildList {
-        lead?.let { add(it) }
+        addAll(leads)
         add(InsightStat("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA })
         add(InsightStat("Goldfish", goldfish?.let { "Keep ${pct(it.keepable)}" } ?: "…", goldfish?.let { "Turn 4 land ${pct(it.landDrop[3])}" }) { if (goldfish != null) sheet = InsightSheet.GOLDFISH })
     }
@@ -188,15 +188,17 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, lead: InsightStat? =
 }
 
 
-internal class InsightStat(val label: String, val value: String, val note: String?, val onClick: () -> Unit)
+/** One figure in the strip; [onClick] null for a figure with nothing behind it. */
+internal class InsightStat(val label: String, val value: String, val note: String?, val onClick: (() -> Unit)?)
 
 /**
- * The deck page's insight figures in a compact grid split by hairlines: one row for up to three, two by two for
- * four. Each cell is a label, a figure and a short note, and taps through to its detail.
+ * The deck page's figures in one compact table split by hairlines: one row for up to three, two by two for four,
+ * rows of three for more. Each cell is a label, a figure and a short note, and taps through to its detail.
  */
 @Composable
 internal fun InsightStrip(items: List<InsightStat>) {
-    val rows = if (items.size <= 3) listOf(items) else items.chunked(2)
+    val width = if (items.size == 4) 2 else 3
+    val rows = items.chunked(width)
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s2)) {
         rows.forEachIndexed { r, row ->
             if (r > 0) HorizontalDivider(Modifier.padding(horizontal = Space.s2), color = Palette.Rule)
@@ -204,7 +206,8 @@ internal fun InsightStrip(items: List<InsightStat>) {
                 row.forEachIndexed { i, it ->
                     if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s1), color = Palette.Rule)
                     Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(Corners.Small)).clickable(onClickLabel = it.label, onClick = it.onClick)
+                        Modifier.weight(1f).clip(RoundedCornerShape(Corners.Small))
+                            .then(it.onClick?.let { go -> Modifier.clickable(onClickLabel = it.label, onClick = go) } ?: Modifier)
                             .padding(horizontal = Space.s2, vertical = Space.s1),
                     ) {
                         Text(it.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
@@ -213,7 +216,7 @@ internal fun InsightStrip(items: List<InsightStat>) {
                     }
                 }
                 // A short last row keeps its cells the same width as the row above.
-                if (rows.size > 1 && row.size < 2) Spacer(Modifier.weight(1f))
+                if (rows.size > 1 && row.size < width) repeat(width - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

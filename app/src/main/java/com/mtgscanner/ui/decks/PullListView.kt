@@ -160,7 +160,7 @@ fun PullListView(
 private fun MissingRow(m: PullMissing, note: String? = null) {
     Text(
         "${m.qty}× ${m.name}" + (note?.let { " · $it" } ?: ""),
-        style = MaterialTheme.typography.titleSmall,
+        style = MaterialTheme.typography.titleMedium,
         color = Palette.Muted,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -182,7 +182,7 @@ private fun PullRow(p: PullItem, ticked: Boolean, first: Boolean, last: Boolean,
         Column(Modifier.weight(1f)) {
             Text(
                 p.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 textDecoration = if (ticked) TextDecoration.LineThrough else null,
                 color = if (ticked) Palette.Muted else Palette.Text,
                 maxLines = 1,
@@ -196,6 +196,6 @@ private fun PullRow(p: PullItem, ticked: Boolean, first: Boolean, last: Boolean,
             }
             Text(bits.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1)
         }
-        Text("×${p.qty}", style = MaterialTheme.typography.titleSmall.merge(TabularNums), fontWeight = FontWeight.Medium, color = if (ticked) Palette.Muted else Palette.Text)
+        Text("×${p.qty}", style = MaterialTheme.typography.titleMedium.merge(TabularNums), fontWeight = FontWeight.Medium, color = if (ticked) Palette.Muted else Palette.Text)
     }
 }

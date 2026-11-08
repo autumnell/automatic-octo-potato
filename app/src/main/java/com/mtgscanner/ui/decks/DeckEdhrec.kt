@@ -20,7 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import com.mtgscanner.data.EdhrecRec
 import com.mtgscanner.ui.components.CardImage
 import com.mtgscanner.ui.components.SelectPill
-import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Space
@@ -58,7 +60,7 @@ import kotlin.math.roundToInt
 private const val PER_PAGE = 20
 
 /**
- * Edit › EDHREC: the commander page's lists as tabs, each a two-column grid of card pictures. Under every card:
+ * Edit › EDHREC: the commander page's lists, picked from a menu, each a two-column grid of card pictures. Under every card:
  * the share of decks that play it, how many decks that is, and its synergy, then + to add it (or − count + once
  * it's in) and a bookmark for the maybeboard.
  */
@@ -71,7 +73,7 @@ fun EdhrecTab(ui: DeckUi, vm: DeckViewModel) {
     EdhrecLists(groups, ui.text) { name, delta, board -> vm.adjustCard(name, delta, board) }
 }
 
-/** The lists as tabs over the card grid; [text] is the list being edited, [adjust] adds or takes away copies. */
+/** The list picker and filters over the card grid; [text] is the list being edited, [adjust] adds or takes away copies. */
 @Composable
 fun EdhrecLists(groups: List<com.mtgscanner.data.EdhrecGroup>, text: String, adjust: (name: String, delta: Int, board: String) -> Unit) {
     if (groups.isEmpty()) return
@@ -80,11 +82,25 @@ fun EdhrecLists(groups: List<com.mtgscanner.data.EdhrecGroup>, text: String, adj
     var missingOnly by rememberSaveable { mutableStateOf(false) }
     var bySynergy by rememberSaveable { mutableStateOf(false) }
     var shownCount by rememberSaveable(index) { mutableIntStateOf(PER_PAGE) }
-    UnderlineTabs(groups.map { it.header }, index, { picked = it }, horizontalPadding = 0.dp)
+    var listMenu by remember { mutableStateOf(false) }
+    // The list is picked from a menu, so edit mode's tabs stay the only tab row on the screen (unslop: one nav level).
     Row(
         Modifier.horizontalScroll(rememberScrollState()).padding(vertical = Space.s3),
         horizontalArrangement = Arrangement.spacedBy(Space.s2),
     ) {
+        Box {
+            SelectPill(groups[index].header, true, { listMenu = true }) {
+                Icon(Icons.Outlined.ArrowDropDown, "Pick a list", tint = Palette.Icon, modifier = Modifier.size(18.dp))
+            }
+            DropdownMenu(expanded = listMenu, onDismissRequest = { listMenu = false }) {
+                groups.forEachIndexed { i, g ->
+                    DropdownMenuItem(
+                        text = { Text(g.header, color = if (i == index) Palette.Text else Palette.Muted) },
+                        onClick = { listMenu = false; picked = i },
+                    )
+                }
+            }
+        }
         SelectPill("Not in the deck", missingOnly, { missingOnly = !missingOnly })
         SelectPill("Highest synergy", bySynergy, { bySynergy = !bySynergy })
     }
@@ -166,8 +182,8 @@ private fun EdhrecCard(
                 }
                 // The maybeboard: cards you're considering, not counted and not played in playtest.
                 IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onMaybe(!considering) }) {
-                    if (considering) Icon(Icons.Filled.Bookmark, "Take out of the maybeboard", tint = Palette.Text, modifier = Modifier.size(20.dp))
-                    else Icon(Icons.Outlined.BookmarkBorder, "Add to the maybeboard", tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                    if (considering) Icon(Icons.Filled.Bookmark, "Take out of the maybeboard", tint = Palette.Text, modifier = Modifier.size(24.dp))
+                    else Icon(Icons.Outlined.BookmarkBorder, "Add to the maybeboard", tint = Palette.Icon, modifier = Modifier.size(24.dp))
                 }
             }
         }

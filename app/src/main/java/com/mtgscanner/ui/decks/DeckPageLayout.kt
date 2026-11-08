@@ -79,7 +79,7 @@ fun CategoryHeader(title: String, lines: List<DeckCheckLine>, modifier: Modifier
         modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s2)
             .clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = Space.s3, vertical = Space.s2),
     ) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(title, style = MaterialTheme.typography.titleMedium)
         Row(Modifier.fillMaxWidth()) {
             Text("Qty $qty", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted, modifier = Modifier.weight(1f))
             if (AppSettings.showPrices && primaryValue(usd, eur) > 0) {
@@ -123,11 +123,11 @@ private fun GridCard(l: DeckCheckLine, modifier: Modifier, onOpen: (DeckCheckLin
                 .background(Color.Black.copy(alpha = 0.72f)),
         ) {
             IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(l, 1) }) {
-                Icon(Icons.Outlined.Add, "One more ${l.name}", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.Add, "One more ${l.name}", tint = Color.White, modifier = Modifier.size(24.dp))
             }
             HorizontalDivider(Modifier.padding(horizontal = Space.s2), color = Color.White.copy(alpha = 0.2f))
             IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(l, -1) }) {
-                Icon(Icons.Outlined.Remove, "One fewer ${l.name}", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.Remove, "One fewer ${l.name}", tint = Color.White, modifier = Modifier.size(24.dp))
             }
         }
     }

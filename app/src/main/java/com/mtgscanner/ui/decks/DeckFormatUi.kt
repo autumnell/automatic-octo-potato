@@ -151,7 +151,7 @@ private fun SlotRow(label: String, value: String?, onOpen: () -> Unit, onClear: 
         if (value != null) {
             IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Clear", tint = Palette.Icon) }
         } else {
-            Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.padding(Space.s3).size(20.dp))
+            Icon(Icons.Outlined.Add, null, tint = Palette.Icon, modifier = Modifier.padding(Space.s3).size(18.dp))
         }
     }
 }
@@ -203,7 +203,7 @@ fun CommanderPickerSheet(
                             CardImage(o.imageUrl, Modifier.width(40.dp))
                             Spacer(Modifier.width(Space.s3))
                             Column(Modifier.weight(1f)) {
-                                Text(o.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(o.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(o.typeLine, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
@@ -239,7 +239,7 @@ fun DeckHeader(
             val who = if (f.commander) commanders.commanders.joinToString(" & ") else ""
             Text(
                 listOf(f.label.takeIf { f.id.isNotEmpty() }, who.ifEmpty { null }).filterNotNull().joinToString(" · "),
-                style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             DeckIssuesLine(issues)
             if (f.commander && salt != null) {
@@ -275,7 +275,7 @@ fun AddDeckSheet(
         Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Add to collection", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(Space.s3))
-            Text("Cards", style = MaterialTheme.typography.titleSmall)
+            Text("Cards", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(Space.s2))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                 SelectPill("Only missing" + (counts?.let { " (${it.second})" } ?: ""), onlyMissing, { onlyMissing = true })

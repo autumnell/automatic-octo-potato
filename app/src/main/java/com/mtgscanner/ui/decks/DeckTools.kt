@@ -268,7 +268,7 @@ private fun LendDeckDialog(tools: DeckTools, deckName: String) {
         title = { Text("Lend deck", maxLines = 1) },
         text = {
             Column {
-                Text(deckName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(deckName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(Space.s3))
                 OutlinedTextField(
                     value = who,
@@ -370,7 +370,7 @@ private fun PlacesLine(sources: List<UpgradeSource>) {
     val decks = sources.filter { it.inDeck }.map { it.place }.distinct()
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (boxes.isNotEmpty()) {
-            Icon(Icons.Outlined.Inventory2, null, tint = Palette.Icon, modifier = Modifier.size(14.dp))
+            Icon(Icons.Outlined.Inventory2, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s1))
             Text(
                 boxes.joinToString(", ") { (p, n) -> if (n > 1) "$p ×$n" else p },
@@ -380,7 +380,7 @@ private fun PlacesLine(sources: List<UpgradeSource>) {
         }
         if (boxes.isNotEmpty() && decks.isNotEmpty()) Spacer(Modifier.width(Space.s3))
         if (decks.isNotEmpty()) {
-            Icon(Icons.Outlined.Style, null, tint = Palette.Muted, modifier = Modifier.size(14.dp))
+            Icon(Icons.Outlined.Style, null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s1))
             Text(
                 if (decks.size == 1) "In ${decks[0]}" else "In ${decks.size} decks",

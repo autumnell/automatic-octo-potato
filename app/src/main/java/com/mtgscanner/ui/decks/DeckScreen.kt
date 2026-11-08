@@ -501,20 +501,17 @@ private fun Results(
         item {
             // The curve sits on the commander art when there is one.
             if (!hasArtHeader(ui.format, ui.commanders, ui.leadArt)) ui.shape?.let { DeckShapeView(it) }
-            // A complete deck has nothing missing, so the owned and missing numbers would only say so.
-            // Two plain figures rather than two equal panels (unslop: compact stats).
-            if (have < needed) Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Stat("Owned", "$have / $needed")
-                if (AppSettings.showPrices) Stat("To finish", missingCostText)
-                else Stat("Missing", "${needed - have}")
+            // Owned, the cost to finish, win rate, mana base and goldfish share one table (unslop: one stat style).
+            // A complete deck has nothing missing, so it leaves out the owned and missing figures.
+            val where = if (have > 0 && inDeck < needed) "$inDeck in the deck · ${have - inDeck} elsewhere" else null
+            val leadStats = buildList {
+                if (have < needed) {
+                    add(InsightStat("Owned", "$have / $needed", where, null))
+                    if (AppSettings.showPrices) add(InsightStat("To finish", missingCostText, if (needed - have == 1) "1 card" else "${needed - have} cards", null))
+                    else add(InsightStat("Missing", "${needed - have}", null, null))
+                }
             }
-            DeckInsights(ui, vm)
-            // Small print: where the owned copies are. The value is in the header.
-            if (have > 0 && inDeck < needed) Text(
-                "$inDeck in the deck · ${have - inDeck} elsewhere",
-                style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted,
-                modifier = Modifier.padding(start = Space.s4, end = Space.s4, bottom = Space.s2),
-            )
+            DeckInsights(ui, vm, leadStats)
             // Filter in the tool bar opens this box; closing it clears what was typed.
             if (filtering) SearchField(find, onFind, Modifier.padding(horizontal = Space.s4, vertical = Space.s2), placeholder = "Find in deck", focusOnOpen = true)
         }
@@ -581,14 +578,6 @@ private fun Results(
 }
 
 @Composable
-private fun Stat(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
-        Text(value, style = MaterialTheme.typography.titleLarge.merge(TabularNums))
-    }
-}
-
-@Composable
 private fun DeckLineRow(
     l: DeckCheckLine, missingView: Boolean, first: Boolean, last: Boolean, onClick: () -> Unit, onOpenSet: ((String) -> Unit)? = null,
 ) {
@@ -602,7 +591,7 @@ private fun DeckLineRow(
         Column(Modifier.weight(1f)) {
             Text(
                 (if (missingView) "${l.missing}× " else "${minOf(l.owned, l.needed)}/${l.needed} ") + l.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -642,7 +631,7 @@ private fun DeckLineRow(
         if (missingView) {
             // A fixed right-aligned slot so prices line up down the list.
             if (AppSettings.showPrices) Text(
-                formatMoneyShort(l.price?.times(l.missing), l.priceEur?.times(l.missing)), style = MaterialTheme.typography.titleSmall.merge(TabularNums), color = Palette.Text,
+                formatMoneyShort(l.price?.times(l.missing), l.priceEur?.times(l.missing)), style = MaterialTheme.typography.titleMedium.merge(TabularNums), color = Palette.Text,
                 textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.padding(start = Space.s2).widthIn(min = 64.dp),
             )
         }
@@ -654,7 +643,7 @@ private fun DeckLineRow(
  * The deck's wins, losses and draws from games where a seat picked it (Game tab), with Edit to set them by hand.
  */
 @Composable
-private fun DeckInsights(ui: DeckUi, vm: DeckViewModel) {
+private fun DeckInsights(ui: DeckUi, vm: DeckViewModel, leads: List<InsightStat>) {
     val ctx = LocalContext.current
     var version by remember { mutableIntStateOf(0) }
     val r = remember(ui.id, version) { com.mtgscanner.game.DeckResults.of(ctx, ui.id) }
@@ -665,7 +654,7 @@ private fun DeckInsights(ui: DeckUi, vm: DeckViewModel) {
         r.winRate?.let { "$it%" } ?: "No games",
         if (r.games > 0) "${r.wins}–${r.losses}–${r.draws}" else "Tap to add",
     ) { editing = true }
-    DeckInsightRows(ui, vm, win)
+    DeckInsightRows(ui, vm, leads + listOfNotNull(win))
     if (editing) DeckRecordDialog(r, onDismiss = { editing = false }) { new ->
         com.mtgscanner.game.DeckResults.set(ctx, ui.id, new)
         editing = false

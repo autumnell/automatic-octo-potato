@@ -80,10 +80,10 @@ fun editTabs(format: String, commanders: DeckCommanders): List<EditTab> =
 internal fun Stepper(count: Int, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(-1) }, enabled = count > 0) {
-            Icon(Icons.Outlined.Remove, "One fewer", tint = if (count > 0) Palette.Icon else Palette.Faint, modifier = Modifier.size(20.dp))
+            Icon(Icons.Outlined.Remove, "One fewer", tint = if (count > 0) Palette.Icon else Palette.Faint, modifier = Modifier.size(24.dp))
         }
         Text("$count", style = MaterialTheme.typography.bodyLarge.merge(TabularNums), modifier = Modifier.width(Space.s6))
-        IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.Icon, modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = { com.mtgscanner.util.Haptics.tick(); onChange(1) }) { Icon(Icons.Outlined.Add, "One more", tint = Palette.Icon, modifier = Modifier.size(24.dp)) }
     }
 }
 
@@ -130,7 +130,7 @@ fun LazyListScope.deckCardsItems(ui: DeckUi, vm: DeckViewModel, st: CardsTabStat
             Column(Modifier.padding(horizontal = Space.s4)) {
                 if (board == "Main") {
                     // A blank deck: the ways to fill it, so the page starts with something to do.
-                    Text("Start the deck", style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s2))
+                    Text("Start the deck", style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.padding(top = Space.s3, bottom = Space.s2))
                     StartRow(Icons.Outlined.Search, "Search all cards", "By name, type, format and commander colors", first = true, last = false) { st.searching = true }
                     StartRow(Icons.Outlined.ContentPaste, "Paste a list", "From Moxfield, Archidekt or any text list", first = false, last = true, onClick = onPaste)
                     Text(
@@ -159,7 +159,7 @@ fun LazyListScope.deckCardsItems(ui: DeckUi, vm: DeckViewModel, st: CardsTabStat
         val n = group.sumOf { it.quantity }
         item(key = "h-${type.name}") {
             Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s4, top = Space.s3, bottom = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (n == 1) type.one else type.many, style = MaterialTheme.typography.titleSmall, color = Palette.Muted, modifier = Modifier.weight(1f))
+                Text(if (n == 1) type.one else type.many, style = MaterialTheme.typography.titleMedium, color = Palette.Muted, modifier = Modifier.weight(1f))
                 Text("$n", style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted)
             }
         }
