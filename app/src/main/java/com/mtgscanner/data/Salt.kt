@@ -83,7 +83,10 @@ object SaltScores {
         try {
             val f = File(ctx.applicationContext.filesDir, "salt.tsv")
             val stale = !f.exists() || System.currentTimeMillis() - f.lastModified() > DAYS * 86_400_000L
-            val fresh = if (stale) withContext(Dispatchers.IO) { fetch() } else null
+            val fetched = if (stale) withContext(Dispatchers.IO) { fetch() } else null
+            // A fetch cut short by a failed page doesn't replace a longer list saved before.
+            val savedCount = if (fetched.isNullOrEmpty() || !f.exists()) 0 else withContext(Dispatchers.IO) { runCatching { f.readLines().size }.getOrDefault(0) }
+            val fresh = fetched?.takeIf { it.size >= savedCount }
             if (!fresh.isNullOrEmpty()) withContext(Dispatchers.IO) {
                 runCatching { f.writeText(fresh.joinToString("\n") { "${it.first}\t${it.second}" }) }
             }
@@ -103,7 +106,7 @@ object SaltScores {
         for (page in 0 until PAGES) {
             val path = if (page == 0) "top/salt" else "top/salt--$page"
             val req = Request.Builder().url("https://json.edhrec.com/pages/$path.json")
-                .header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
+                .header("User-Agent", com.mtgscanner.util.UserAgent.value).build()
             val text = runCatching { client.newCall(req).execute().use { if (it.isSuccessful) it.body?.string() else null } }.getOrNull() ?: break
             out += SaltMath.parse(text)
         }

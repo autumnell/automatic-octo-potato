@@ -19,7 +19,6 @@ import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,7 +39,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,7 +48,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Replay
@@ -72,7 +69,6 @@ import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.DeckFormats
 import com.mtgscanner.data.DeckLoanMath
 import com.mtgscanner.data.LoanMath
-import com.mtgscanner.data.ParsedDecks
 import com.mtgscanner.data.UpgradeIdea
 import com.mtgscanner.data.addToDeckList
 import com.mtgscanner.data.cancelLoan
@@ -135,8 +131,6 @@ class DeckTools(
         private set
     var cuts by mutableStateOf<CutUi?>(null)
         private set
-    var pickingOther by mutableStateOf(false)
-    var other by mutableStateOf<Deck?>(null)
     var printing by mutableStateOf(false)
         private set
 
@@ -277,8 +271,6 @@ fun DeckToolsLayer(tools: DeckTools, ui: DeckUi, repo: CollectionRepository, onC
     if (tools.lending) LendDeckDialog(tools, ui.name)
     tools.upgrade?.let { UpgradeSheet(it, tools) }
     tools.cuts?.let { CutSheet(it, tools) { name -> onCut(name); tools.markCut(name) } }
-    if (tools.pickingOther) PickOtherDeck(tools, repo, ui.id)
-    tools.other?.let { BothSheet(it, ui, repo) { tools.other = null } }
     return { launcher.launch("${ui.name.ifBlank { "Deck" }} proxies.pdf") }
 }
 
@@ -487,68 +479,3 @@ private fun TakeFromSheet(idea: UpgradeIdea, onPick: (UpgradeSource?) -> Unit, o
     }
 }
 
-@Composable
-private fun PickOtherDeck(tools: DeckTools, repo: CollectionRepository, selfId: Long) {
-    val flow = remember(repo) { repo.observeDecks() }
-    val decks by flow.collectAsStateWithLifecycle(emptyList())
-    val others = decks.filter { it.id != selfId }.sortedBy { it.name.lowercase() }
-    AlertDialog(
-        onDismissRequest = { tools.pickingOther = false },
-        containerColor = Palette.Surface,
-        title = { Text("Build with", maxLines = 1) },
-        text = {
-            if (others.isEmpty()) Text("No other decks", color = Palette.Muted)
-            else LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                items(others, key = { it.id }) { d ->
-                    Text(
-                        d.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth().clickable { tools.pickingOther = false; tools.other = d }.padding(vertical = Space.s3),
-                    )
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = { tools.pickingOther = false }) { Text("Cancel") } },
-    )
-}
-
-/** Cards this deck and [other] both play, and how many you're short to have both built at once. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BothSheet(other: Deck, ui: DeckUi, repo: CollectionRepository, onDismiss: () -> Unit) {
-    val ownedFlow = remember(repo) { repo.observeOwnedByName() }
-    val owned by ownedFlow.collectAsStateWithLifecycle(emptyMap())
-    val rows = remember(ui.text, other, owned) { SharedCards.both(DecklistParser.parse(ui.text), ParsedDecks.of(other), owned) }
-    val short = rows.filter { it.short > 0 }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Palette.Surface,
-    ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
-            Text("With ${other.name}", style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                when {
-                    rows.isEmpty() -> "No cards in common"
-                    short.isEmpty() -> "${rows.size} in common · enough of each to build both"
-                    else -> "${rows.size} in common · short ${short.sumOf { it.short }} to build both"
-                },
-                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-            )
-            Spacer(Modifier.height(Space.s2))
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
-                items(rows, key = { it.name }) { r ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = Space.s2), verticalAlignment = Alignment.CenterVertically) {
-                        Text(r.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Text(
-                            if (r.short > 0) "Short ${r.short}" else "${r.owned} owned",
-                            style = MaterialTheme.typography.bodySmall.merge(TabularNums),
-                            color = if (r.short > 0) Palette.AccentText else Palette.Muted,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(Space.s4))
-        }
-    }
-}

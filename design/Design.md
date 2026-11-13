@@ -54,7 +54,8 @@ background.
 | `Success` / `Danger` / `Gold` / `Info` | | | Price up / down, foil and warnings, links in help |
 
 Always-dark surfaces (the camera, card art, the game table) use `Stage`, `StagePanel`, `ArtBase` and the
-`OnDark*` colors in both modes. Colors with a meaning in Magic (mana, rarity, foil, player colors, dice) are not
+`OnDark*` colors in both modes. Chips over the camera use `CameraChip` (black at 75%) with white text, through the one
+`CameraChip` composable in `ui/scan`. Colors with a meaning in Magic (mana, rarity, foil, player colors, dice) are not
 themed; they stay next to the component that draws them.
 
 Rules:
@@ -250,3 +251,4 @@ Each of these is a choice Rae made for this app. unslop's own rule is to keep a 
 | 2026-11-05 | Screen-picture review: switches, checkboxes, radio buttons, focused fields, cursors, spinners, progress bars, the deck curve and stats bars moved from the accent to ink or `Muted`; the game setup line uses Lexend instead of shrunken Cinzel. |
 | 2026-11-05 | unslop made the default philosophy. Direction written. Copy: 2 exclamation marks and 89 trailing periods removed, "Search" placeholder. Type: no 700 (Cinzel Medium added, Cinzel Bold removed), prices Medium, label tracking 0.1, nothing under 11sp. One easing curve; press 0.97 without a spring; card zoom settles without bounce. Scan's accent glow and the art color wash on box and deck pages removed. Icons 18/24. Six build checks added. |
 | 2026-11-05 | Full pass over both rule sets. Always-dark and domain colors named; hard-coded dark colors replaced with `Stage`, `StagePanel`, `ArtBase`, `OnDarkSuccess` and `OnDarkDanger`. Four 36–40dp icon buttons raised to 48dp. Game setup has one main button. The scanned-card fan drops its border and keeps its shadow (one edge treatment). Em dashes removed from shared text. Token sync and contrast tests added. |
+| 2026-11-13 | Review pass: the five run chips over the camera share one `CameraChip` (the Sort chip's text was ink, unreadable in light mode); camera glass hairline 12% → 10%; scan spinner white over the camera; Search and game-stats icons back to 18/24; the Look preview shows the real collection value instead of $1,234.56; empty Stats cells muted instead of green. |

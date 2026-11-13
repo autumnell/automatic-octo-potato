@@ -36,7 +36,8 @@ object BackupArchive {
             prices { w.write(line(it)) }
             w.flush()
             zip.closeEntry()
-            // Photos are JPEGs already: stored, not compressed again.
+            // Photos are JPEGs already: written without compressing them again, which only cost time.
+            zip.setLevel(java.util.zip.Deflater.NO_COMPRESSION)
             photos.filter { it.isFile }.distinctBy { it.name }.forEach { f ->
                 zip.putNextEntry(ZipEntry(PHOTOS + f.name))
                 f.inputStream().use { it.copyTo(zip) }

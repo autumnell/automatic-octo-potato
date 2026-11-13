@@ -306,6 +306,10 @@ interface CardDao {
     @Update
     suspend fun updateWish(item: WishlistItem)
 
+    /** Only the price, so a count or note changed while prices download isn't written over. */
+    @Query("UPDATE wishlist SET priceUsd = :price WHERE id = :id")
+    suspend fun setWishPrice(id: Long, price: Double?)
+
     @Query("DELETE FROM wishlist")
     suspend fun deleteWishlist()
 

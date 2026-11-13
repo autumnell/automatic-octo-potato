@@ -46,13 +46,5 @@ fun ScanViewModel.reviewBatch() = _state.update {
 @Composable
 fun BatchChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val list = state.batch ?: return
-    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text("Batch", color = Color.White, style = MaterialTheme.typography.labelLarge)
-                Text(if (list.size == 1) "1 card" else "${list.size} cards", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
-            }
-            TextButton(onClick = vm::reviewBatch, enabled = list.isNotEmpty()) { Text("Review", color = if (list.isNotEmpty()) Color.White else Palette.OnDarkMuted) }
-        }
-    }
+    CameraChip("Batch", if (list.size == 1) "1 card" else "${list.size} cards", "Review", vm::reviewBatch, modifier, enabled = list.isNotEmpty())
 }

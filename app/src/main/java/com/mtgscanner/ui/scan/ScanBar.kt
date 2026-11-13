@@ -160,7 +160,7 @@ fun NextCardsChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mo
 
 /** The see-through dark panel used for everything floating over the camera. */
 fun Modifier.glass(shape: androidx.compose.ui.graphics.Shape): Modifier =
-    this.clip(shape).background(Color.Black.copy(alpha = 0.58f)).border(1.dp, Color.White.copy(alpha = 0.12f), shape)
+    this.clip(shape).background(Color.Black.copy(alpha = 0.58f)).border(1.dp, Color.White.copy(alpha = 0.10f), shape)
 
 /** The last card scanned: image, set, name and price. Tap to open it. [onSameAgain] shows "+1" for another copy. */
 @Composable

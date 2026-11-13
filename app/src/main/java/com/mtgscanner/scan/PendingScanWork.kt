@@ -14,7 +14,8 @@ import com.mtgscanner.MtgApp
 class PendingScanWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val repo = (applicationContext as MtgApp).repository
-        return runCatching { repo.resolvePending() }.fold({ Result.success() }, { Result.retry() })
+        // A few tries with WorkManager's growing pause. The saved scans stay put, and opening the app tries again.
+        return runCatching { repo.resolvePending() }.fold({ Result.success() }, { if (runAttemptCount < 5) Result.retry() else Result.success() })
     }
 }
 

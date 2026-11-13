@@ -70,7 +70,7 @@ private val almostClient by lazy { sharedHttpClient.newBuilder().callTimeout(15,
 
 private suspend fun edhrecJson(path: String): String? = withContext(Dispatchers.IO) {
     val req = Request.Builder().url("https://json.edhrec.com/pages/$path.json")
-        .header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
+        .header("User-Agent", com.mtgscanner.util.UserAgent.value).build()
     runCatching { almostClient.newCall(req).execute().use { if (it.isSuccessful) it.body?.string() else null } }.getOrNull()
 }
 

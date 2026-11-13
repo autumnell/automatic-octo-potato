@@ -209,7 +209,7 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
         val file = api.bulkDownloadUri("default_cards") ?: error("Scryfall's card list wasn't found")
         _status.value = _status.value.copy(progress = 0f, failed = false)
         val client = sharedHttpClient.newBuilder().readTimeout(60, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
-        val req = Request.Builder().url(file.uri).header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
+        val req = Request.Builder().url(file.uri).header("User-Agent", com.mtgscanner.util.UserAgent.value).build()
         tmpFile.parentFile?.mkdirs()
         val d = SQLiteDatabase.openOrCreateDatabase(tmpFile, null)
         val day = LocalDate.now().toString()

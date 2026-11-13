@@ -361,9 +361,27 @@ internal fun PlainFace(title: String, sub: String?, modifier: Modifier) {
         modifier.clip(CardShape).background(Palette.StagePanel).padding(Space.s1),
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // A long word that won't fit a small card breaks with a hyphen, "Llano-war", not mid-word with none.
-        Text(title, style = MaterialTheme.typography.labelSmall.copy(hyphens = androidx.compose.ui.text.style.Hyphens.Auto, lineBreak = androidx.compose.ui.text.style.LineBreak.Paragraph), color = Color.White, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        if (sub != null && !sub.equals(title, true)) Text(sub, style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        // Words are packed into up to three short lines, each shrunk to fit, so a long word like "Gravecrawler"
+        // gets smaller instead of breaking mid-word ("Grave / crawl") on a small card. Battlefield tiles are tiny, so
+        // a name may shrink well below the usual size; tapping the card shows it in full.
+        PlainFaceLines.of(title).forEach { line ->
+            com.mtgscanner.ui.components.AutoSizeText(line, MaterialTheme.typography.labelSmall, color = Color.White, textAlign = TextAlign.Center, minScale = 0.4f)
+        }
+        // The type ("Zombie", "Elf Druid") on one line, shrunk to fit like the name.
+        if (sub != null && !sub.equals(title, true)) com.mtgscanner.ui.components.AutoSizeText(sub, MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, minScale = 0.6f)
+    }
+}
+
+/** How a card name is split for [PlainFace]. Pure, for tests. */
+internal object PlainFaceLines {
+    /** Words packed greedily into lines of about [width] letters, at most [max] lines (the rest join the last). */
+    fun of(title: String, width: Int = 9, max: Int = 3): List<String> {
+        val lines = mutableListOf<String>()
+        title.split(' ').filter { it.isNotBlank() }.forEach { w ->
+            val last = lines.lastOrNull()
+            if (last != null && (last.length + 1 + w.length <= width || lines.size == max)) lines[lines.size - 1] = "$last $w" else lines += w
+        }
+        return lines
     }
 }
 

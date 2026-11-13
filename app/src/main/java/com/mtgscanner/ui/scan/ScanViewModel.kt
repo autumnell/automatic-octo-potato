@@ -3,7 +3,6 @@ package com.mtgscanner.ui.scan
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mtgscanner.data.matchPicture
-import com.mtgscanner.data.BoxRules
 import com.mtgscanner.data.CardFacts
 import com.mtgscanner.data.CollectionRepository
 import com.mtgscanner.data.OfflineRead
@@ -13,12 +12,10 @@ import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.ScryfallException
 import com.mtgscanner.data.SortDecision
 import com.mtgscanner.data.SortPrefs
-import com.mtgscanner.data.SortReason
 import com.mtgscanner.data.addToDeckList
 import com.mtgscanner.data.deckById
 import com.mtgscanner.data.deckSlotId
 import com.mtgscanner.scan.DeckText
-import com.mtgscanner.data.alsoFits
 import com.mtgscanner.data.facts
 import com.mtgscanner.data.identify
 import com.mtgscanner.data.printingsFor
@@ -31,7 +28,6 @@ import com.mtgscanner.data.ownedCopies
 import com.mtgscanner.data.db.Box
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Deck
-import com.mtgscanner.data.db.WishlistItem
 import com.mtgscanner.scan.CardTextGuess
 import com.mtgscanner.scan.ImageHash
 import com.mtgscanner.scan.FrameLight
@@ -43,21 +39,17 @@ import com.mtgscanner.scan.ScanSound
 import com.mtgscanner.scan.UnsureAction
 import com.mtgscanner.ui.components.Undo
 import com.mtgscanner.ui.theme.AppSettings
-import com.mtgscanner.data.copiesOf
 import com.mtgscanner.data.keptIn
 import com.mtgscanner.data.rowToRemove
 import com.mtgscanner.scan.FramePool
 import com.mtgscanner.scan.LeaveTracker
 import com.mtgscanner.scan.sameCardInView
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
@@ -815,12 +807,14 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         noMatchSince = 0L
         noMatchGuess = null
         _state.update { it.copy(unknownRead = null, status = "Saved for later") }
-        // The photo is taken now, while it's fresh, and named once the scan has its id.
-        val tmp = runCatching { com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "unsaved") }.getOrNull()
+        // The photo is taken now, while it's fresh, and written off the main thread under the scan's id.
+        val shot = com.mtgscanner.scan.ScanPhotos.grab()
         viewModelScope.launch {
-            runCatching {
-                val id = repo.addUnknown(text, s.boxId, s.foil, qty, lang)
-                if (tmp != null && id != null) com.mtgscanner.scan.ScanPhotos.rename(repo.appContext, tmp, com.mtgscanner.scan.ScanPhotos.pendingName(id))
+            val id = com.mtgscanner.util.suspendRunCatching { repo.addUnknown(text, s.boxId, s.foil, qty, lang) }.getOrNull()
+            if (shot == null) return@launch
+            if (id == null) { shot.recycle(); return@launch }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.mtgscanner.scan.ScanPhotos.write(repo.appContext, com.mtgscanner.scan.ScanPhotos.pendingName(id), shot)
             }
         }
     }
@@ -1408,7 +1402,10 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
         val card = st.current ?: return false
         if (st.review.any { it.card.id == card.id }) return false
         markHandled(card)
-        val photo = runCatching { com.mtgscanner.scan.ScanPhotos.save(repo.appContext, "review-${card.id}-${System.currentTimeMillis()}") }.getOrNull()
+        // Taken now, written to a file off the main thread under the name the review item already holds.
+        val shot = com.mtgscanner.scan.ScanPhotos.grab()
+        val photo = shot?.let { "review-${card.id}-${System.currentTimeMillis()}" }
+        if (shot != null && photo != null) viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.mtgscanner.scan.ScanPhotos.write(repo.appContext, photo, shot) }
         _state.update {
             it.copy(
                 current = null, awaiting = false, review = it.review + ReviewItem(card, st.currentLang, photo),

@@ -226,19 +226,12 @@ private fun ModeText(title: String, body: String) = Column {
 @Composable
 fun PackChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val p = state.pack ?: return
-    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text(p.name, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    "${state.packEntries.sumOf { it.count }} cards" + moneySuffix(state.packValue, state.packEur) +
-                        (p.cost?.takeIf { it > 0 && AppSettings.showPrices }?.let { " / " + com.mtgscanner.ui.components.formatUsd(it) } ?: ""),
-                    color = Palette.Gold, style = MaterialTheme.typography.labelMedium,
-                )
-            }
-            TextButton(onClick = vm::finishPack) { Text("Finish", color = Color.White) }
-        }
-    }
+    CameraChip(
+        p.name,
+        "${state.packEntries.sumOf { it.count }} cards" + moneySuffix(state.packValue, state.packEur) +
+            (p.cost?.takeIf { it > 0 && AppSettings.showPrices }?.let { " / " + com.mtgscanner.ui.components.formatUsd(it) } ?: ""),
+        "Finish", vm::finishPack, modifier,
+    )
 }
 
 @Composable
@@ -297,7 +290,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             state.status, color = Color.White, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center,
-            modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = Space.s3, vertical = Space.s2),
+            modifier = Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.CameraChip).padding(horizontal = Space.s3, vertical = Space.s2),
         )
         Spacer(Modifier.height(Space.s3))
         if (state.wantPage || state.wantSpread || state.pageLoading) Row(verticalAlignment = Alignment.CenterVertically) {
@@ -310,7 +303,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
             Spacer(Modifier.width(Space.s2))
             // Two to four loose cards side by side: each one is found and read.
             Row(
-                Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
+                Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.CameraChip)
                     .clickable { vm.captureSpread() }
                     .padding(horizontal = Space.s4, vertical = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,
@@ -321,7 +314,7 @@ fun PageControls(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Mod
             }
             Spacer(Modifier.width(Space.s2))
             Row(
-                Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Color.Black.copy(alpha = 0.7f))
+                Modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.CameraChip)
                     .clickable { runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) } }
                     .padding(horizontal = Space.s4, vertical = Space.s4),
                 verticalAlignment = Alignment.CenterVertically,

@@ -267,7 +267,7 @@ class ScryfallApi(
      */
     private suspend fun request(base: Request): String? = withContext(Dispatchers.IO) {
         val req = base.newBuilder()
-            .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+            .header("User-Agent", com.mtgscanner.util.UserAgent.value)
             .header("Accept", "application/json")
             .build()
         var attempt = 0
