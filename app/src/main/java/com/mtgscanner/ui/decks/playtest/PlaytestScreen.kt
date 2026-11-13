@@ -366,7 +366,8 @@ internal fun PlainFace(title: String, sub: String?, modifier: Modifier) {
         PlainFaceLines.of(title).forEach { line ->
             com.mtgscanner.ui.components.AutoSizeText(line, MaterialTheme.typography.labelSmall, color = Color.White, textAlign = TextAlign.Center, minScale = 0.6f)
         }
-        if (sub != null && !sub.equals(title, true)) Text(sub, style = MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        // The type ("Zombie", "Elf Druid") on one line, shrunk to fit like the name.
+        if (sub != null && !sub.equals(title, true)) com.mtgscanner.ui.components.AutoSizeText(sub, MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, minScale = 0.6f)
     }
 }
 
