@@ -362,9 +362,10 @@ internal fun PlainFace(title: String, sub: String?, modifier: Modifier) {
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Words are packed into up to three short lines, each shrunk to fit, so a long word like "Gravecrawler"
-        // gets smaller instead of breaking mid-word ("Grave / crawl") on a small card.
+        // gets smaller instead of breaking mid-word ("Grave / crawl") on a small card. Battlefield tiles are tiny, so
+        // a name may shrink well below the usual size; tapping the card shows it in full.
         PlainFaceLines.of(title).forEach { line ->
-            com.mtgscanner.ui.components.AutoSizeText(line, MaterialTheme.typography.labelSmall, color = Color.White, textAlign = TextAlign.Center, minScale = 0.6f)
+            com.mtgscanner.ui.components.AutoSizeText(line, MaterialTheme.typography.labelSmall, color = Color.White, textAlign = TextAlign.Center, minScale = 0.4f)
         }
         // The type ("Zombie", "Elf Druid") on one line, shrunk to fit like the name.
         if (sub != null && !sub.equals(title, true)) com.mtgscanner.ui.components.AutoSizeText(sub, MaterialTheme.typography.labelSmall, color = Palette.OnDarkMuted, textAlign = TextAlign.Center, minScale = 0.6f)
