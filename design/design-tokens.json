@@ -52,6 +52,7 @@
     "alwaysDark": {
       "stage": "#07080A", "stagePanel": "#22242B", "artBase": "#15130F",
       "onDarkMuted": "#B4B5BB", "onDarkSuccess": "#4CC38A", "onDarkDanger": "#E5534B",
+      "cameraChip": "black at 75%, white text on it (Palette.CameraChip, ui/scan/CameraChip.kt)",
       "_why": "The camera, card art and the game table stay dark in light mode too: art and a shared table read best dark."
     },
     "domain": {

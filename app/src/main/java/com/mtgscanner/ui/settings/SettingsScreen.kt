@@ -334,15 +334,17 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
     }
 }
 
-/** A one-line mock-up so the chosen colors can be judged at a glance. */
+/** A one-line mock-up so the chosen colors can be judged at a glance, with your own collection's value in it. */
 @Composable
 private fun Preview() {
+    val repo = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.mtgscanner.MtgApp).repository
+    val total by androidx.compose.runtime.produceState(0.0) { value = runCatching { repo.dao.collectionTotal().value }.getOrDefault(0.0) }
     Surface(Modifier.fillMaxWidth().padding(horizontal = Space.s4), shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard) {
         Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Grimoire", style = MaterialTheme.typography.titleLarge, color = Palette.Text)
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
-                Text("$1,234.56", style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
+                Text(com.mtgscanner.ui.components.formatUsd(total), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             }
             SelectPill("Selected", true, onClick = {})
         }

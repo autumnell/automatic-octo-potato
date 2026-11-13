@@ -45,7 +45,7 @@ object DeckLinks {
     /** The body, or null on 404 and other refusals. Throws on network errors. */
     private fun get(url: String): String? {
         val req = Request.Builder().url(url)
-            .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+            .header("User-Agent", com.mtgscanner.util.UserAgent.value)
             .header("Accept", "application/json")
             .build()
         return client.newCall(req).execute().use { if (it.isSuccessful) it.body?.string() else null }

@@ -115,7 +115,6 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
 
     fun start(format: GameFormat, players: Int, life: Int, names: List<String>, partners: Boolean, layout: Int = 0) {
         saveIfWon()
-        autoRecord = null
         val clean = names.mapIndexed { i, n -> n.trim().ifEmpty { GameState.NAMES[i] } }
         val seats = TableLayouts.valid(players, layout)
         val setup = LastSetup(format, players, life, partners, seats)
@@ -147,16 +146,13 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
         set(change(g))
     }
 
-    /** Ends the game. [winner] is saved to the stats when [save] is set and the game wasn't saved already. */
+    /**
+     * Ends the game. [winner] is saved to the stats when [save] is set and the game isn't saved already (a game is
+     * saved the moment one player is left; see [withAutoSave]).
+     */
     fun end(save: Boolean = false, winner: Int? = null) {
         val g = _game.value
-        // A game saved when its winner showed is saved again only if the winner picked is someone else.
-        val auto = autoRecord
-        autoRecord = null
-        if (save && g != null && auto != null && auto.winner != winner?.let { g.players.getOrNull(it)?.name }) {
-            saveRecords(_records.value - auto)
-            addRecord(g.toRecord(winner))
-        } else if (save && g != null && !g.recorded) addRecord(g.toRecord(winner))
+        if (save && g != null && !g.recorded) addRecord(g.toRecord(winner))
         saveJob?.cancel()
         // Locked with flush, so a save already under way can't bring the ended game back.
         synchronized(this) {
@@ -182,10 +178,7 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
         recordPrefs.edit().putString("records", all.toString()).apply()
     }
 
-    /**
-     * Saves a finished game to the stats once, when the table moves on from it (Done, Rematch,
-     * or a new game). Not the moment someone hits 0, so a mis-tap that's undone isn't counted.
-     */
+    /** Saves a won game that isn't in the stats yet, before the table moves on from it (Rematch or a new game). */
     private fun saveIfWon() {
         val g = _game.value ?: return
         if (g.winner != null && !g.recorded) {
@@ -198,30 +191,22 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     private val pending = java.util.concurrent.atomic.AtomicReference<GameState?>(null)
     private var saveJob: Job? = null
 
-    /** The record saved when this game's winner showed, taken back if an Undo brings a player back. */
-    private var autoRecord: GameRecord? = null
-
     /**
      * Saves the game to the stats the moment one player is left, so it counts without tapping Done. An Undo that
-     * brings someone back takes the record away again.
+     * brings someone back takes the record away again. The record is found by the game's start time rather than
+     * kept in memory, so this still works after Android closed the app with the winner showing.
      */
-    private fun withAutoSave(g: GameState): GameState {
-        val auto = autoRecord
-        return when {
-            g.winner != null && auto == null && !g.recorded -> {
-                val r = g.toRecord()
-                addRecord(r)
-                autoRecord = r
-                g.copy(recorded = true)
-            }
-            g.winner != null && auto != null -> g.copy(recorded = true)
-            g.winner == null && auto != null -> {
-                saveRecords(_records.value - auto)
-                autoRecord = null
-                g.copy(recorded = false)
-            }
-            else -> g
+    private fun withAutoSave(g: GameState): GameState = when {
+        g.winner != null && !g.recorded -> {
+            addRecord(g.toRecord())
+            g.copy(recorded = true)
         }
+        g.winner == null && g.recorded -> {
+            val saved = _records.value.firstOrNull { it.startedAt == g.startedAt }
+            if (saved != null) saveRecords(_records.value - saved)
+            g.copy(recorded = false)
+        }
+        else -> g
     }
 
     /** Shows the change right away and writes it a moment later, so a swipe of 20 points is one write. */
@@ -287,7 +272,7 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun counter(i: Int, kind: String, d: Int) = update { Game.counter(it, i, kind, d) }
     fun undo() = update { Game.undo(it) }
     fun nextTurn() = update { Game.nextTurn(it) }
-    fun restart() { saveIfWon(); autoRecord = null; update { Game.restart(it) } }
+    fun restart() { saveIfWon(); update { Game.restart(it) } }
 
     private companion object {
         const val SAVE_DELAY_MS = 300L

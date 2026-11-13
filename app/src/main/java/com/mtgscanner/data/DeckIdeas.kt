@@ -113,7 +113,7 @@ suspend fun edhrecGroups(commanders: List<String>): List<EdhrecGroup>? =
 suspend fun spellbookCombos(commanders: List<String>, main: List<Pair<String, Int>>): DeckCombos? = withContext(Dispatchers.IO) {
     val names = (commanders + main.map { it.first }).map(CardNames::key).toSet()
     val req = Request.Builder().url("https://backend.commanderspellbook.com/find-my-combos")
-        .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+        .header("User-Agent", com.mtgscanner.util.UserAgent.value)
         .post(DeckIdeasMath.spellbookBody(commanders, main).toRequestBody("application/json".toMediaType()))
         .build()
     runCatching {

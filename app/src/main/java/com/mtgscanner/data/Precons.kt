@@ -114,7 +114,7 @@ object Precons {
     private fun dir(ctx: Context) = File(ctx.applicationContext.filesDir, "precons").apply { mkdirs() }
 
     private fun fetch(url: String): String? = runCatching {
-        val req = Request.Builder().url(url).header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
+        val req = Request.Builder().url(url).header("User-Agent", com.mtgscanner.util.UserAgent.value).build()
         client.newCall(req).execute().use { if (it.isSuccessful) it.body?.string() else null }
     }.getOrNull()
 

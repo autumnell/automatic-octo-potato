@@ -160,7 +160,8 @@ internal object BackupIO {
             val now = System.currentTimeMillis()
             val existing = autoBackups(ctx)
             if (existing.firstOrNull()?.let { now - it.at < AUTO_GAP_MS } == true) return@runCatching
-            if (repo.dao.all().isEmpty()) return@runCatching
+            // A count, not every card loaded, just to see the collection isn't empty.
+            if (repo.dao.collectionTotal().n == 0) return@runCatching
             val dir = autoDir(ctx).apply { mkdirs() }
             val slug = reason.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
             exportToFile(repo, File(dir, "${now}_$slug.zip"))
@@ -352,16 +353,8 @@ internal object BackupIO {
      * so the table (and backups) don't grow forever.
      */
     suspend fun prunePriceHistory(db: AppDatabase) = withContext(Dispatchers.IO) {
-        runCatching {
-            val cutoff = LocalDate.now().minusDays(90).toString()
-            db.openHelper.writableDatabase.execSQL(
-                "DELETE FROM price_history WHERE day < ? AND rowid NOT IN " +
-                    "(SELECT MIN(rowid) FROM price_history WHERE day < ? GROUP BY scryfallId, strftime('%Y-%W', day))",
-                arrayOf<Any?>(cutoff, cutoff),
-            )
-        }
+        runCatching { db.cardDao().thinPriceHistory(LocalDate.now().minusDays(90).toString()) }
     }
-
 
     // CSV import
 

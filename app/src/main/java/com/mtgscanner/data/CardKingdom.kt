@@ -114,7 +114,7 @@ object CardKingdom {
         try {
             val req = Request.Builder()
                 .url(URL)
-                .header("User-Agent", "MTGScanner/0.1 (personal collection app)")
+                .header("User-Agent", com.mtgscanner.util.UserAgent.value)
                 .header("Accept", "application/json")
                 .build()
             val out = file() ?: return

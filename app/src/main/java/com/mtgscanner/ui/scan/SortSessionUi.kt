@@ -83,15 +83,7 @@ private fun stacks(session: SortSession, boxes: List<CardBox>): List<SortStack> 
 @Composable
 fun SortChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val s = state.sort ?: return
-    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text("Sorting", color = Color.White, style = MaterialTheme.typography.labelLarge)
-                Text("${s.entries.sumOf { it.count }} cards", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
-            }
-            TextButton(onClick = { vm.showSort(true) }) { Text("Sort", color = Palette.Text) }
-        }
-    }
+    CameraChip("Sorting", "${s.entries.sumOf { it.count }} cards", "Sort", { vm.showSort(true) }, modifier)
 }
 
 /** The pile grouped by box, to file each stack and check it off. */

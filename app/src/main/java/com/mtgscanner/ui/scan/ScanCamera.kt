@@ -291,7 +291,7 @@ internal fun CameraPreview(vm: ScanViewModel, torch: Boolean) {
             Text(
                 z, color = Color.White, style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 210.dp).clip(RoundedCornerShape(Corners.Medium))
-                    .background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = Space.s3, vertical = Space.s1),
+                    .background(Palette.CameraChip).padding(horizontal = Space.s3, vertical = Space.s1),
             )
         }
     }

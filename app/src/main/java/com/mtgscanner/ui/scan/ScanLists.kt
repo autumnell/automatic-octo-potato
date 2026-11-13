@@ -145,30 +145,14 @@ fun BoxPickDialog(boxes: List<CardBox>, vm: ScanViewModel) {
 @Composable
 fun BoxCheckChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     val run = state.boxCheck ?: return
-    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text(run.boxName, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${run.scans.sumOf { it.count }} scanned", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
-            }
-            TextButton(onClick = { vm.showBoxCheck(true) }) { Text("Result", color = Color.White) }
-        }
-    }
+    CameraChip(run.boxName, "${run.scans.sumOf { it.count }} scanned", "Result", { vm.showBoxCheck(true) }, modifier)
 }
 
 /** Scan to remove: how many came out, and a way back to adding. */
 @Composable
 fun RemoveChip(state: ScanUiState, vm: ScanViewModel, modifier: Modifier = Modifier) {
     if (state.target != ScanTarget.REMOVE) return
-    Surface(modifier, shape = RoundedCornerShape(Corners.Medium), color = Color.Black.copy(alpha = 0.75f)) {
-        Row(Modifier.padding(start = Space.s3, end = Space.s1, top = Space.s1, bottom = Space.s1), verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text("Removing", color = Color.White, style = MaterialTheme.typography.labelLarge)
-                Text("${state.removedCount} out", color = Palette.Gold, style = MaterialTheme.typography.labelMedium)
-            }
-            TextButton(onClick = vm::stopTarget) { Text("Done", color = Color.White) }
-        }
-    }
+    CameraChip("Removing", "${state.removedCount} out", "Done", vm::stopTarget, modifier)
 }
 
 private enum class CheckTab { MISSING, NOT_RECORDED, FOUND }

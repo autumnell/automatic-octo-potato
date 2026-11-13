@@ -99,6 +99,8 @@ object Palette {
     /** The game screens' always-dark table and its panels (players face the phone from all sides, so no light mode). */
     val Stage: Color get() = Color(0xFF07080A)
     val StagePanel: Color get() = Color(0xFF22242B)
+    /** Chips and labels floating over the live camera (box check, batch, pack, status), in both modes. Text on it is white. */
+    val CameraChip: Color get() = Color.Black.copy(alpha = 0.75f)
     /** Under card art while it loads, and the back of a scanned card in the fan. */
     val ArtBase: Color get() = Color(0xFF15130F)
     /** Borders of inputs, outlined buttons and chips. */

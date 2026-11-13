@@ -30,19 +30,28 @@ object ScanPhotos {
     }
 
     /** Saves the latest card under [name] when it's fresh; returns the name, or null when there was none. */
-    fun save(ctx: Context, name: String): String? {
+    fun save(ctx: Context, name: String): String? = grab()?.let { write(ctx, name, it) }
+
+    /**
+     * A copy of the latest card when it's fresh, for [write]. Cheap (a 200×280 copy), so it can be taken on the main
+     * thread the moment a card is set aside, and written out later on another thread.
+     */
+    fun grab(): Bitmap? {
         val (at, bmp) = synchronized(this) { last?.let { it.first to it.second.copy(Bitmap.Config.ARGB_8888, false) } } ?: return null
-        return try {
-            if (SystemClock.elapsedRealtime() - at > FRESH_MS) return null
-            val d = dir(ctx).apply { mkdirs() }
-            File(d, "$name.jpg").outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }
-            d.listFiles()?.sortedByDescending { it.lastModified() }?.drop(KEEP)?.forEach { it.delete() }
-            name
-        } catch (_: Exception) {
-            null
-        } finally {
-            bmp.recycle()
-        }
+        if (SystemClock.elapsedRealtime() - at > FRESH_MS) { bmp.recycle(); return null }
+        return bmp
+    }
+
+    /** Writes [bmp] (from [grab], recycled here) as [name] and trims the folder to the newest [KEEP]. File work. */
+    fun write(ctx: Context, name: String, bmp: Bitmap): String? = try {
+        val d = dir(ctx).apply { mkdirs() }
+        File(d, "$name.jpg").outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+        d.listFiles()?.sortedByDescending { it.lastModified() }?.drop(KEEP)?.forEach { it.delete() }
+        name
+    } catch (_: Exception) {
+        null
+    } finally {
+        bmp.recycle()
     }
 
     /** The photo saved as [name], or null when there's none. */

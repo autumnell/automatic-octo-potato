@@ -199,7 +199,7 @@ private fun CardsTab(ui: SearchUi, vm: SearchViewModel, owned: Map<String, Owned
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // The keyboard's search key runs the search, so there's no separate Search button.
-                        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(Space.s3))
                         Box(Modifier.weight(1f)) {
                             if (ui.query.isEmpty()) Text("Search", color = Palette.Muted, style = MaterialTheme.typography.bodyLarge)

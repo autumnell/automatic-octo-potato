@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -106,12 +107,13 @@ private fun PaidRow(p: PaidSummary) {
 
 @Composable
 private fun MoneyRow(month: String, spent: String, sold: String, worth: String, header: Boolean = false) {
-    val style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium
-    val muted = if (header) Palette.Muted else Palette.Text
+    val style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium.merge(TabularNums)
+    // An empty month ("–") is muted in every column; only a real sale is green.
+    fun ink(v: String, filled: Color) = if (header || v == "–") Palette.Muted else filled
     Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
         Text(month, style = style, color = Palette.Muted, modifier = Modifier.width(44.dp))
-        Text(spent, style = style, color = muted, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))
-        Text(sold, style = style, color = if (header) Palette.Muted else Palette.Success, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))
-        Text(worth, style = style, color = if (header) Palette.Muted else Palette.Text, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1.2f))
+        Text(spent, style = style, color = ink(spent, Palette.Text), textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(sold, style = style, color = ink(sold, Palette.Success), textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(worth, style = style, color = ink(worth, Palette.Text), textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1.2f))
     }
 }

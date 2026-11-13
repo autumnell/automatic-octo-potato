@@ -42,7 +42,7 @@ suspend fun edhrecAverageDeck(commanders: List<String>): AverageDeck? = withCont
     val slugs = commanders.map(Edhrec::slug).filter { it.isNotEmpty() }.distinct().take(2).sorted()
     if (slugs.isEmpty()) return@withContext null
     val req = Request.Builder().url("https://json.edhrec.com/pages/average-decks/${slugs.joinToString("-")}.json")
-        .header("User-Agent", "MTGScanner/0.1 (personal collection app)").build()
+        .header("User-Agent", com.mtgscanner.util.UserAgent.value).build()
     runCatching { insightClient.newCall(req).execute().use { if (it.isSuccessful) it.body?.string() else null } }
         .getOrNull()?.let(AverageDeckMath::parse)
 }

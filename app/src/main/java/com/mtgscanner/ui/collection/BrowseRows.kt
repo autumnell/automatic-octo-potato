@@ -578,7 +578,7 @@ private fun PriceRow(
             }
             if (!dense) {
                 Row(Modifier.padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
-                    if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Icon, modifier = Modifier.size(12.dp).padding(end = Space.s1))
+                    if (c.pinned) Icon(Icons.Filled.PushPin, "Stays in this box", tint = Palette.Icon, modifier = Modifier.padding(end = Space.s1).size(12.dp))
                     Text(
                         listOfNotNull("#${c.collectorNumber}", slot).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,

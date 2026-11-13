@@ -80,7 +80,14 @@ class CollectionRepository(
     internal val dao = db.cardDao()
     val appContext: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("collection", Context.MODE_PRIVATE)
-    internal val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * Background work that outlives a screen. A failure there (a full disk, a closed database) is logged instead of
+     * closing the app, since nothing on screen is waiting for it.
+     */
+    internal val appScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO +
+            kotlinx.coroutines.CoroutineExceptionHandler { _, e -> android.util.Log.w("Grimoire", "Background work failed", e) },
+    )
     val nameIndex = NameIndex(context.filesDir, api)
     /** Real set codes, to correct a misread footer. */
     val setCodes = com.mtgscanner.scan.SetCodes(context.filesDir, api)
@@ -855,7 +862,7 @@ class CollectionRepository(
         val wishes = dao.allWishlist()
         if (wishes.isNotEmpty()) {
             val freshWish = runCatching { withBackoff { api.collection(wishes.map { it.scryfallId }) } }.getOrDefault(emptyList()).associateBy { it.id }
-            wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.updateWish(w.copy(priceUsd = f.prices.usd?.toDoubleOrNull())) } }
+            wishes.forEach { w -> freshWish[w.scryfallId]?.let { f -> dao.setWishPrice(w.id, f.prices.usd?.toDoubleOrNull()) } }
             // A price history for wished printings too, so the wishlist can show where a price has been.
             if (freshWish.isNotEmpty()) runCatching { dao.putPricePoints(freshWish.values.map { it.pricePoint() }) }
         }
