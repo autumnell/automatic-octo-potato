@@ -382,18 +382,18 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
                         }
                         HorizontalDivider(color = Palette.Rule)
                         Column(Modifier.padding(horizontal = Space.s4, vertical = Space.s3)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
+                            // How many and where, then what kind of copy: two rows on most phones.
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                                 QuantityStepper(c.quantity, onChange = { vm.changeQuantity(it - c.quantity) })
-                                Spacer(Modifier.weight(1f))
-                                SelectPill("Foil", c.foil, onClick = { vm.setFoil(!c.foil) })
-                                ConditionPicker(c.condition) { vm.setCondition(it) }
+                                val inDeck = places.any { it.id == c.boxId && it.isDeckSlot }
+                                if (boxes.size > 1 || decks.isNotEmpty() || inDeck) Box(Modifier.align(Alignment.CenterVertically)) {
+                                    BoxPicker(boxes, decks, places, c.boxId) { d -> if (c.quantity > 1) moveTarget = d else vm.moveToDest(d) }
+                                }
                             }
                             Spacer(Modifier.height(Space.s2))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
-                                val inDeck = places.any { it.id == c.boxId && it.isDeckSlot }
-                                if (boxes.size > 1 || decks.isNotEmpty() || inDeck) BoxPicker(boxes, decks, places, c.boxId) { d ->
-                                    if (c.quantity > 1) moveTarget = d else vm.moveToDest(d)
-                                }
+                                SelectPill("Foil", c.foil, onClick = { vm.setFoil(!c.foil) })
+                                ConditionPicker(c.condition) { vm.setCondition(it) }
                                 LangPicker(c.lang) { vm.setLang(it) }
                                 SpecialPicker(
                                     c,
