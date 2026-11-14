@@ -174,6 +174,8 @@ fun BrowseScreen(
      */
     embedded: Boolean = false,
     pageQuery: String = "",
+    /** Empties the page search above the tabs, for "Clear filters" on the All tab. */
+    onClearQuery: () -> Unit = {},
 ) {
     val vm: BrowseViewModel = viewModel(key = if (embedded) "browse-all-tab" else "browse-$boxId", factory = AppViewModels.browse(boxId, embedded))
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -368,7 +370,8 @@ fun BrowseScreen(
                     DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                         SortBy.entries.filter { AppSettings.showPrices || !it.isPrice }.forEach { s ->
                             DropdownMenuItem(
-                                text = { Text(s.label, color = if (f.sort == s) Palette.Text else Palette.Text) },
+                                text = { Text(s.label) },
+                                trailingIcon = { if (f.sort == s) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                                 onClick = { vm.update { it.copy(sort = s) }; sortMenu = false },
                             )
                         }
@@ -379,7 +382,8 @@ fun BrowseScreen(
                     DropdownMenu(expanded = groupMenu, onDismissRequest = { groupMenu = false }) {
                         GroupBy.entries.forEach { g ->
                             DropdownMenuItem(
-                                text = { Text(g.label, color = if (f.group == g) Palette.Text else Palette.Text) },
+                                text = { Text(g.label) },
+                                trailingIcon = { if (f.group == g) Icon(Icons.Outlined.Check, null, tint = Palette.Text) },
                                 onClick = { vm.update { it.copy(group = g) }; groupMenu = false },
                             )
                         }
@@ -406,6 +410,8 @@ fun BrowseScreen(
                     if (recent.isNotEmpty()) TextButton(onClick = vm::clearRecent) { Text("Clear recent", color = Palette.Muted) }
                 }
             }
+            // A hairline marks where the scrolling tools end, so a chip cut off at large text reads as "more this way".
+            Box(Modifier.width(1.dp).height(Space.s6).background(Palette.Rule))
             if (ui.totalCards > 0 && !picking) TextButton(onClick = vm::startSelecting, contentPadding = PaddingValues(horizontal = Space.s2)) { Text("Select") }
             IconButton(onClick = vm::cycleView) {
                 // Shows the view you get next.
@@ -423,14 +429,12 @@ fun BrowseScreen(
             ui.totalCards == 0 -> EmptyState(if (boxId < 0) "No cards yet" else "Empty box", Modifier.padding(top = Space.s6), fullScreen = boxId < 0)
             ui.groups.isEmpty() -> EmptyState(
                 "No matches", Modifier.padding(top = Space.s6),
-                action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") } },
+                // On the All tab the words come from the page search, so that box is emptied too.
+                action = "Clear filters", onAction = { vm.clearFilters(); vm.update { it.copy(query = "") }; if (embedded) onClearQuery() },
             )
             ui.pagesView && pagesOn && !picking -> BinderPages(ui.binderCards, ui.unslotted, ui.binder && ui.pocketPerCopy, onNumber = vm::numberSlots, onOpen = { tap(it) })
-            // Pull down to refresh prices: in a box, just its cards; in All cards, the whole collection.
-            else -> com.mtgscanner.ui.components.PriceRefreshBox(
-                Modifier.fillMaxSize(),
-                cards = if (boxId < 0) null else ({ allNow.filter { it.boxId == boxId }.map { it.scryfallId } }),
-            ) { CardGrid(
+            else -> {
+            val cardGrid: @Composable () -> Unit = { CardGrid(
                 ui.groups, grid, selected, picking, dense, week,
                 fresh = fresh,
                 slotOf = { c -> slotLabel(c, kinds[c.boxId], c.boxId in perCopy) },
@@ -444,8 +448,17 @@ fun BrowseScreen(
                 // Pinch out for bigger pictures, in for more cards on screen.
                 modifier = Modifier.pinchToResize(vm::bigger, vm::smaller),
                 onDragSelect = vm::setSelection,
-                scrollKey = "browse-$boxId",
+                // Its own key on the All tab, so Browse all opened from Home doesn't land at the tab's scroll spot.
+                scrollKey = if (embedded) "browse-all-tab" else "browse-$boxId",
             ) }
+            // Pull down to refresh prices: in a box, just its cards; in All cards, the whole collection. The All tab
+            // uses Collection's own pull, so a second, untracked refresh can't start under it.
+            if (embedded) cardGrid()
+            else com.mtgscanner.ui.components.PriceRefreshBox(
+                Modifier.fillMaxSize(),
+                cards = if (boxId < 0) null else ({ allNow.filter { it.boxId == boxId }.map { it.scryfallId } }),
+            ) { cardGrid() }
+            }
         }
     }
 

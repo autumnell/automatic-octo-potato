@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -45,13 +47,21 @@ object Undo {
     /** How many newer changes undoing [id] also undoes; null once it's gone. */
     fun newerThan(id: Long): Int? = synchronized(history) { history.newerThan(id) }
 
+    /** One undo at a time: a second one waits, so its older snapshots can't land while a newer one is still going back. */
+    private val running = Mutex()
+
     /**
      * Undoes [id], first undoing every newer change still listed, newest first, so no older
-     * snapshot lands on top of a newer change. Each step that fails is skipped.
+     * snapshot lands on top of a newer change. Each step that fails is skipped, and a message says so.
      */
     suspend fun undoThrough(id: Long) {
-        val steps = synchronized(history) { history.takeThrough(id).also { _recent.value = history.entries } }
-        for (s in steps) runCatching { s.restore() }
+        running.withLock {
+            val steps = synchronized(history) { history.takeThrough(id).also { _recent.value = history.entries } }
+            var failed = 0
+            for (s in steps) runCatching { s.restore() }.onFailure { failed++ }
+            // The entries are already off the list, so a failure would otherwise pass without a word.
+            if (failed > 0) offer(if (steps.size == 1) "Couldn't undo that" else "Couldn't undo $failed of ${steps.size} changes")
+        }
     }
 
     /** Lives as long as the app, so an undo isn't cut short when a screen or the activity closes. */

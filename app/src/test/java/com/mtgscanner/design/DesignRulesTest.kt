@@ -42,11 +42,29 @@ class DesignRulesTest {
     fun tokensMatchTheCode() {
         val code = File("src/main/java/com/mtgscanner/ui/theme/Theme.kt").readText() +
             File("src/main/java/com/mtgscanner/ui/theme/ThemeSettings.kt").readText()
-        val missing = listOf("dark", "light").flatMap { mode ->
-            colors(mode).filter { (_, hex) -> hex.length == 7 && !code.contains("0xFF" + hex.drop(1), ignoreCase = true) }
+        // The always-dark and true-black colors count too. Pure black is written Color.Black in the code.
+        val missing = listOf("dark", "light", "trueBlack", "alwaysDark").flatMap { mode ->
+            colors(mode).filter { (_, hex) -> hex.length == 7 && hex != "#000000" && !code.contains("0xFF" + hex.drop(1), ignoreCase = true) }
                 .map { (k, hex) -> "$mode.$k $hex" }
         }
         assertTrue("Colors in design-tokens.json the code doesn't use: $missing", missing.isEmpty())
+    }
+
+    /** The spacing steps, corners, animation lengths and the easing curve in design-tokens.json are the ones Theme.kt uses. */
+    @Test
+    fun spacingCornersAndMotionMatchTheCode() {
+        val theme = File("src/main/java/com/mtgscanner/ui/theme/Theme.kt").readText()
+        fun group(name: String) = tokens[name]!!.jsonObject.filterKeys { !it.startsWith("_") }.mapValues { it.value.jsonPrimitive.content }
+        val motion = group("motion")
+        val radius = group("radius")
+        val want = group("spacing").filterKeys { it != "gutter" }.map { (k, v) -> "val $k = ${v.removeSuffix("dp")}.dp" } +
+            listOf("fast", "base", "slow").map { "const val $it = ${motion.getValue(it).removeSuffix("ms")}" } +
+            "val Small = ${radius.getValue("sm").removeSuffix("dp")}.dp" +
+            "val Medium = ${radius.getValue("md").removeSuffix("dp")}.dp" +
+            // "cubic-bezier(0.22, 1, 0.36, 1)" is CubicBezierEasing(0.22f, 1f, 0.36f, 1f) in the code.
+            ("CubicBezierEasing(" + motion.getValue("easing").substringAfter("(").substringBefore(")").split(",").joinToString(", ") { it.trim() + "f" } + ")")
+        val missing = want.filter { it !in theme }
+        assertTrue("design-tokens.json and Theme.kt disagree. Theme.kt has no: $missing", missing.isEmpty())
     }
 
     /** WCAG AA: primary and muted text read at 4.5:1 on every surface, in both modes. */
@@ -139,6 +157,86 @@ class DesignRulesTest {
             call.findAll(f.readText()).filter { "easing" !in it.value }.map { "${f.name}: ${it.value}" }.toList()
         }
         assertTrue("Give these tweens easing = Motion.ease: $bad", bad.isEmpty())
+    }
+
+    /** Motion.ease is the only curve: no second cubic-bezier, and none of Compose's named easings. */
+    @Test
+    fun oneEasingCurve() {
+        val other = Regex("""\bCubicBezierEasing\(|\bLinearOutSlowInEasing\b|\bFastOutLinearInEasing\b|\bEase(In|Out)\w*""")
+        val bad = sources.filter { it.parentFile.name != "theme" && other.containsMatchIn(it.readText()) }.map { it.path }
+        assertTrue("Use Motion.ease in: $bad", bad.isEmpty())
+        val curves = Regex("""\bCubicBezierEasing\(""").findAll(File("src/main/java/com/mtgscanner/ui/theme/Theme.kt").readText()).count()
+        assertTrue("Theme.kt defines $curves easing curves; there is one, Motion.ease", curves == 1)
+    }
+
+    /**
+     * The spacing rule again, for values the one-line check above can't see: inside an if or other brackets, in a
+     * call split over several lines, and in Spacer(Modifier.size(...)). The files in [knownOffGrid] still have such
+     * values (found 2026-11-14); take a file off the list when it is fixed, and add none.
+     */
+    private val knownOffGrid = setOf(
+        "BoxPlanSheet.kt", "BrowseRows.kt", "PlainRows.kt", "HomeScreen.kt", "FilterSheet.kt", "SettingsScreen.kt",
+    )
+
+    @Test
+    fun nestedSpacingIsOnTheGrid() {
+        val call = Regex("""\b(?:padding|spacedBy|PaddingValues|Spacer\(Modifier\.(?:height|width|size))\(""")
+        val bad = sources.filter { it.name !in knownOffGrid }.flatMap { f ->
+            val t = f.readText()
+            call.findAll(t).mapNotNull { m ->
+                // The call's arguments, up to the bracket that closes it.
+                val start = m.range.last + 1
+                var end = start
+                var depth = 1
+                while (end < t.length && depth > 0) {
+                    if (t[end] == '(') depth++ else if (t[end] == ')') depth--
+                    end++
+                }
+                val off = literal.findAll(t.substring(start, end)).map { it.groupValues[1].toInt() }.filter { it > 1 && it < 40 }.toList()
+                if (off.isEmpty()) null
+                else "${f.path}:${t.substring(0, start).count { it == '\n' } + 1} ${off.joinToString { "$it.dp" }} (use Space.*)"
+            }.toList()
+        }
+        assertTrue("Off-grid spacing:\n" + bad.joinToString("\n"), bad.isEmpty())
+    }
+
+    /** Two fonts, fixed: font files are loaded only by the theme and the mana and set symbol fonts. */
+    @Test
+    fun noExtraFonts() {
+        val symbols = setOf("ManaFont.kt", "SetSymbolFont.kt")
+        val loads = Regex("""\bFontFamily\(|\bFont\(R\.font""")
+        val bad = sources.filter { it.parentFile.name != "theme" && it.name !in symbols && loads.containsMatchIn(it.readText()) }.map { it.path }
+        assertTrue("A font loaded outside ui/theme: $bad", bad.isEmpty())
+    }
+
+    /** No emoji anywhere in the code. (Marks like the foil's ✦ are plain symbols, not emoji.) */
+    @Test
+    fun noEmoji() {
+        val emoji = Regex("""[\x{1F000}-\x{1FAFF}\x{FE0F}]""")
+        val bad = sources.filter { emoji.containsMatchIn(it.readText()) }.map { it.path }
+        assertTrue("Emoji in: $bad", bad.isEmpty())
+    }
+
+    /**
+     * Copy outside Text(...) too (snackbars, labels built in view models): no exclamation mark closing a string, no
+     * filler ("Please", "Successfully", "Are you sure", "Oops") and none of the buzzwords Design.md lists.
+     */
+    @Test
+    fun plainCopy() {
+        val shout = Regex(""""[^"\n]*[a-z]!"""")
+        val filler = Regex(""""[^"\n]*\b(?:[Pp]lease|[Ss]uccessfully|Are you sure|Oops|Whoops|[Uu]nlock|[Ss]eamless|[Ee]levate|[Ll]everage|[Ee]mpower)\b[^"\n]*"""")
+        val bad = ui.flatMap { f ->
+            f.readLines().mapIndexedNotNull { i, line ->
+                val code = line.trimStart()
+                when {
+                    code.startsWith("//") || code.startsWith("*") || code.startsWith("/*") -> null
+                    shout.containsMatchIn(line) -> "${f.path}:${i + 1} exclamation mark"
+                    filler.containsMatchIn(line) -> "${f.path}:${i + 1} ${filler.find(line)!!.value.take(60)}"
+                    else -> null
+                }
+            }
+        }
+        assertTrue("Copy rules:\n" + bad.joinToString("\n"), bad.isEmpty())
     }
 
     private fun lum(hex: String): Double {

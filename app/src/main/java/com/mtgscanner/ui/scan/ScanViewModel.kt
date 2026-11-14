@@ -1014,10 +1014,16 @@ class ScanViewModel(internal val repo: CollectionRepository) : ViewModel() {
     /** Adds the card picked for an unknown scan, with its copies and language, and clears the scan. */
     fun resolveUnknown(scan: com.mtgscanner.data.db.PendingScan, card: ScryfallCard) = viewModelScope.launch {
         val foil = scan.foil && card.hasFoil || !card.hasNonFoil
-        val box = if (scan.boxId != Box.AUTO_SORT && repo.box(scan.boxId) != null) scan.boxId
-        else repo.pickBox(card, foil) ?: repo.anythingBox()
         val qty = scan.quantity.coerceAtLeast(1)
-        val row = repo.add(card, foil, qty, box, lang = rowLang(card, scan.lang))
+        // A failed write says so, and the scan stays in the queue, rather than closing the app.
+        val row = com.mtgscanner.util.suspendRunCatching {
+            val box = if (scan.boxId != Box.AUTO_SORT && repo.box(scan.boxId) != null) scan.boxId
+            else repo.pickBox(card, foil) ?: repo.anythingBox()
+            repo.add(card, foil, qty, box, lang = rowLang(card, scan.lang))
+        }.getOrElse {
+            _state.update { s -> s.copy(status = "Couldn't add ${card.name}") }
+            return@launch
+        }
         repo.deletePending(scan.id)
         Undo.offer("Added ${card.name}") {
             repo.remove(row, qty)

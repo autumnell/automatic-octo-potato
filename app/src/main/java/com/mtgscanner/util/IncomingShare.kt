@@ -36,7 +36,7 @@ object IncomingShare {
         if (isZip(type, uri.lastPathSegment)) Incoming.Backup(uri) else Incoming.File(uri)
 
     fun isZip(type: String?, name: String?): Boolean =
-        type?.lowercase()?.let { "zip" in it } == true || name?.lowercase()?.endsWith(".zip") == true
+        type?.lowercase()?.let { "zip" in it && "gzip" !in it } == true || name?.lowercase()?.endsWith(".zip") == true
 }
 
 /** Requests from app shortcuts that a screen acts on once it's showing. */

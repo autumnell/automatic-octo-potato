@@ -309,9 +309,9 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** Copies "Add to collection" would add: every card listed, and only those you don't own. */
-    val addCounts: StateFlow<Pair<Int, Int>?> = combine(_ui.map { it.text }.distinctUntilChanged(), repo.observeAll()) { text, cards ->
+    val addCounts: StateFlow<Pair<Int, Int>?> = combine(_ui.map { it.text }.distinctUntilChanged(), repo.observeOwnedByName()) { text, owned ->
+        // Copies by name come worked out once per collection change (same keys as DeckNames.key), not per keystroke.
         val lines = DecklistParser.parse(text)
-        val owned = cards.groupBy { DeckNames.key(it.name) }.mapValues { (_, v) -> v.sumOf { it.quantity } }
         DeckAdd.rows(lines, owned, false, DeckNames::key).sumOf { it.quantity } to
             DeckAdd.rows(lines, owned, true, DeckNames::key).sumOf { it.quantity }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -334,7 +334,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Undo.offer("Couldn't reach Scryfall")
+                    Undo.offer("Couldn't reach Scryfall. Check your connection and try again")
                     return@launch
                 }
                 Undo.offer(DeckAdd.resultLine(r.added, r.notFound), r.undo)
@@ -418,7 +418,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 com.mtgscanner.util.suspendRunCatching { repo.api.search("$filter $q", order = "edhrec") }.getOrNull()?.take(40)?.map { it.option() }?.distinctBy { it.name }
             }
             _ui.update { it.copy(pickerLoading = false, pickerOptions = options.orEmpty()) }
-            if (options == null) _ui.update { it.copy(message = "Couldn't reach Scryfall") }
+            if (options == null) _ui.update { it.copy(message = "Couldn't reach Scryfall. Check your connection and try again") }
         }
     }
 
@@ -636,7 +636,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             }
             if (_ui.value.printingLine != line) return@launch
             if (list.isNullOrEmpty()) {
-                _ui.update { it.copy(printingLine = null, printings = null, message = "Couldn't reach Scryfall") }
+                _ui.update { it.copy(printingLine = null, printings = null, message = "Couldn't reach Scryfall. Check your connection and try again") }
             } else {
                 _ui.update { it.copy(printings = list) }
             }
@@ -762,13 +762,13 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 val missing = check.lines.filter { it.section in PLAYED && it.missing > 0 }
                     .groupBy { DeckNames.key(it.name) }.values
                     .map { ls -> ls.first() to ls.sumOf { it.missing } }
-                val batch = runCatching {
+                val batch = com.mtgscanner.util.suspendRunCatching {
                     // The printing the list names, when it has one.
                     val wants = missing.map { (l, _) -> PrintingLookup.Wanted(l.name, l.setCode, l.collectorNumber) }
                     val cards = PrintingLookup.resolve(wants) { ids -> repo.api.identify(ids.map(PrintingLookup::json)) }
                     repo.wantAllWithUndo(missing.zip(cards).mapNotNull { (m, c) -> c?.let { it to m.second } })
                 }.getOrNull()
-                if (batch == null) _ui.update { it.copy(message = "Couldn't reach Scryfall") }
+                if (batch == null) _ui.update { it.copy(message = "Couldn't reach Scryfall. Check your connection and try again") }
                 else {
                     val msg = "Added ${batch.count} cards to your wishlist"
                     if (batch.changed > 0) Undo.offer(msg, batch.undo) else _ui.update { it.copy(message = msg) }
@@ -791,11 +791,23 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
             val shelf = DeckShelfStore.state.value
             val folder = shelf.folderOf[id]
             val cover = shelf.cover[id]
+            // Settings tied to the deck go with it (and come back with Undo), so none is left behind for an id
+            // that no longer exists.
+            val ctx = repo.appContext
+            val bracket = BracketChoice.get(ctx, id)
+            val checks = PullChecksStore.state.value[id].orEmpty()
             val undo = repo.deleteDeckAndCards(id, removeCards)
-            if (undo != null) Undo.offer(if (removeCards) "Deck and cards deleted" else "Deck deleted") {
-                repo.undoDeckDelete(undo)
-                if (folder != null) DeckShelfStore.moveDeck(id, folder)
-                if (cover != null) DeckShelfStore.setCover(id, cover)
+            if (undo != null) {
+                BracketChoice.set(ctx, id, null)
+                PullChecksStore.clear(id)
+                DeckDrafts.remove(id)
+                Undo.offer(if (removeCards) "Deck and cards deleted" else "Deck deleted") {
+                    repo.undoDeckDelete(undo)
+                    if (folder != null) DeckShelfStore.moveDeck(id, folder)
+                    if (cover != null) DeckShelfStore.setCover(id, cover)
+                    if (bracket != null) BracketChoice.set(ctx, id, bracket)
+                    if (checks.isNotEmpty()) PullChecksStore.set(id, checks)
+                }
             }
             onDone()
         }

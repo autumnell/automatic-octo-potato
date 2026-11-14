@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -79,7 +79,8 @@ internal fun NotificationsSheet(onOpen: (String) -> Unit, onDismiss: () -> Unit)
             EmptyState("No notifications", Modifier.padding(bottom = Space.s8))
         } else {
             LazyColumn(Modifier.fillMaxWidth().padding(bottom = Space.s4)) {
-                items(entries, key = { "${it.at}|${it.title}" }) { e ->
+                // Counted from the oldest, so two notes in the same millisecond with one title still get keys of their own.
+                itemsIndexed(entries, key = { i, e -> "${e.at}|${e.title}|${entries.size - i}" }) { _, e ->
                     NotificationRow(e, now, onOpen = { onDismiss(); onOpen(e.where) }, onClear = { NotificationLog.remove(ctx, e) })
                     HorizontalDivider(Modifier.padding(horizontal = Space.s4), color = Palette.Rule)
                 }

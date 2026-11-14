@@ -204,7 +204,7 @@ internal fun InsightStrip(items: List<InsightStat>) {
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s2)) {
         rows.forEachIndexed { r, row ->
             if (r > 0) HorizontalDivider(Modifier.padding(horizontal = Space.s2), color = Palette.Rule)
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
                 row.forEachIndexed { i, it ->
                     if (i > 0) VerticalDivider(Modifier.fillMaxHeight().padding(vertical = Space.s1), color = Palette.Rule)
                     Column(
@@ -214,7 +214,7 @@ internal fun InsightStrip(items: List<InsightStat>) {
                     ) {
                         Text(it.label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
                         Text(it.value, style = MaterialTheme.typography.titleMedium.merge(TabularNums), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(it.note ?: "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(it.note ?: "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 // A short last row keeps its cells the same width as the row above.
@@ -341,9 +341,10 @@ private fun BracketScale(level: Int, onPick: (Int) -> Unit = {}) {
                     )
                 }
                 Spacer(Modifier.height(Space.s1))
-                Text(
-                    BRACKET_NAMES[n - 1], style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (on) Palette.Text else Palette.Muted,
+                // Shrinks a little at big text instead of cutting the name off ("Exhibiti…").
+                com.mtgscanner.ui.components.AutoSizeText(
+                    BRACKET_NAMES[n - 1], MaterialTheme.typography.labelSmall,
+                    color = if (on) Palette.Text else Palette.Muted, minScale = 0.8f,
                 )
             }
         }
@@ -547,7 +548,7 @@ private fun CompareView(ui: DeckUi, leads: List<String>, w: CompareWith, onBack:
     }
     val diff = remember(mine, o) { DeckCompare.diff(mine, o.second) }
     val labels = listOf("Only here (${diff.onlyA.sumOf { it.second }})", "Only there (${diff.onlyB.sumOf { it.second }})", "Both (${diff.both.size})")
-    UnderlineTabs(labels, tab, { tab = it }, Modifier.padding(vertical = Space.s1), horizontalPadding = 16.dp)
+    UnderlineTabs(labels, tab, { tab = it }, Modifier.padding(vertical = Space.s1), horizontalPadding = Space.s4)
     val rows: List<String> = when (tab) {
         0 -> diff.onlyA.map { (n, q) -> if (q > 1) "$q $n" else n }
         1 -> diff.onlyB.map { (n, q) -> if (q > 1) "$q $n" else n }

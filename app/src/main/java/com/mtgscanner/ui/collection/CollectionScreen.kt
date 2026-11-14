@@ -299,7 +299,7 @@ fun CollectionScreen(
             if (tabs.size > 1) {
                 com.mtgscanner.ui.components.UnderlineTabs(
                     tabs.map { it.label }, tabs.indexOf(tab), { i -> tabName = tabs[i].name },
-                    horizontalPadding = 16.dp,
+                    horizontalPadding = Space.gutter,
                 )
             }
             MoveListHost()
@@ -310,7 +310,7 @@ fun CollectionScreen(
             when (tab) {
                 CollectionTab.BOXES -> BoxesTab(ui, vm, layout, onBrowse, onTrade, onOpenCard, onEditPage = { editingLayout = true }, query = shownSearch, onQuery = { search = it })
                 // Every card, as Browse shows them; the page search filters them.
-                CollectionTab.ALL -> BrowseScreen(boxId = -1L, onBack = {}, onOpenCard = onOpenCard, onTrade = onTrade, embedded = true, pageQuery = shownSearch)
+                CollectionTab.ALL -> BrowseScreen(boxId = -1L, onBack = {}, onOpenCard = onOpenCard, onTrade = onTrade, embedded = true, pageQuery = shownSearch, onClearQuery = { search = "" })
                 CollectionTab.DECKS -> DecksTab(onOpenDeck, onPasteDeck = onPasteDeck, query = shownSearch, cards = { CardsFound(shownSearch, vm, onBrowse, onOpenCard) })
                 CollectionTab.WISHLIST -> WishlistTab(vm)
                 CollectionTab.TOOLS -> ToolsTab(ui, vm, onBrowse, onTrade, onSets, onExtras, onLoans, onBuylist, showTrade = layout.shows(CollectionPart.TRADE), onOpenCard = onOpenCard)

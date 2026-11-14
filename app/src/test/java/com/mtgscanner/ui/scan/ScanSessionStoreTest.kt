@@ -70,6 +70,16 @@ class ScanSessionStoreTest {
         assertEquals(old.pack, back.pack)
     }
 
+    @Test fun anUnreadableFileIsKeptAside() {
+        val f = File(tmp.root, "scan-session.json")
+        f.writeText("{\"session\": [{\"key\": \"not a number\"}]}")
+        val store = ScanSessionStore(tmp.root)
+        assertNull(store.load())
+        // The next save (often of an empty session) must not wipe the pile that couldn't be read.
+        store.save(SavedScanSession())
+        assertTrue(File(tmp.root, "scan-session.json.bad").readText().contains("not a number"))
+    }
+
     @Test fun sameAsComparesByReference() {
         val list = listOf(entry(1, "Bolt"))
         assertTrue(SavedScanSession(session = list).sameAs(SavedScanSession(session = list)))

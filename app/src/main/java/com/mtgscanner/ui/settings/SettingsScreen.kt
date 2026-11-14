@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,7 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.ui.AppViewModels
-import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -129,7 +129,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                     }
                 }
             } else {
-            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = Space.s1, bottom = Space.s2), horizontalPadding = 16.dp)
+            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = Space.s1, bottom = Space.s2), horizontalPadding = Space.s4)
             // Each branch is its own call site, so each tab keeps its own scroll position.
             when (tab) {
                 0 -> Page { LookTab() }
@@ -288,33 +288,35 @@ internal fun SectionLabel(text: String) {
 
 @Composable
 private fun ModeCard(mode: ThemeMode, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val (bg, fg, icon) = when (mode) {
-        ThemeMode.DARK -> Triple(Color(0xFF161513), Color(0xFFECE8E1), Icons.Outlined.DarkMode)
-        ThemeMode.LIGHT -> Triple(Color(0xFFF4F4F2), Color(0xFF1C1B19), Icons.Outlined.LightMode)
-        ThemeMode.SYSTEM -> Triple(Palette.SurfaceHigh, Palette.Text, Icons.Outlined.PhoneAndroid)
+    val icon = when (mode) {
+        ThemeMode.DARK -> Icons.Outlined.DarkMode
+        ThemeMode.LIGHT -> Icons.Outlined.LightMode
+        ThemeMode.SYSTEM -> Icons.Outlined.PhoneAndroid
     }
+    // The three tiles look alike and the chosen one gets the ink edge, like every other pill. Painted in their own
+    // theme's colors, the tile you hadn't picked (white Light on a dark page) was the loudest thing in the row.
     Row(
         modifier
             .clip(RoundedCornerShape(Corners.Medium))
-            .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Accent else Palette.Outline, RoundedCornerShape(Corners.Medium))
-            .clickable(onClick = onClick)
-            .background(bg)
+            .background(Palette.SurfaceHigh)
+            .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Text else Palette.Outline, RoundedCornerShape(Corners.Medium))
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(vertical = Space.s3),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (selected) Palette.AccentText else fg, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = if (selected) Palette.Text else Palette.Icon, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(Space.s2))
-        Text(mode.label, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
+        Text(mode.label, style = MaterialTheme.typography.labelLarge, color = Palette.Text, maxLines = 1)
     }
 }
 
 @Composable
 private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -> Unit) {
-    // The whole swatch and its label is the tap target (48dp wide and taller), read out by its label.
+    // The whole swatch and its label is the tap target (56dp wide and taller), read out by its label.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(48.dp).clip(RoundedCornerShape(Corners.Small)).selectable(selected = selected, onClick = onClick),
+        modifier = Modifier.width(56.dp).clip(RoundedCornerShape(Corners.Small)).selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
     ) {
         Box(
             Modifier
@@ -330,7 +332,7 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
         }
         Spacer(Modifier.height(Space.s1))
         // Shrinks with large text instead of cutting the name off.
-        com.mtgscanner.ui.components.AutoSizeText(label, MaterialTheme.typography.labelSmall, color = Palette.Muted, minScale = 0.6f)
+        com.mtgscanner.ui.components.AutoSizeText(label, MaterialTheme.typography.labelSmall, color = Palette.Muted, minScale = 0.8f)
     }
 }
 
@@ -346,7 +348,18 @@ private fun Preview() {
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                 Text(com.mtgscanner.ui.components.formatUsd(total), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             }
-            SelectPill("Selected", true, onClick = {})
+            // A picture of a selected pill, not a control: it takes no taps and reads as plain text.
+            Text(
+                "Selected",
+                style = MaterialTheme.typography.labelMedium,
+                color = Palette.Text,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Corners.Small))
+                    .background(Palette.SurfaceHigh)
+                    .border(1.dp, Palette.Text, RoundedCornerShape(Corners.Small))
+                    .padding(horizontal = Space.s4, vertical = Space.s3),
+            )
         }
     }
 }

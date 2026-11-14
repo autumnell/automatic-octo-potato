@@ -153,7 +153,9 @@ class TradeViewModel(private val repo: CollectionRepository) : ViewModel() {
         // Keep the trade as it's built, so Back or leaving the app doesn't lose it.
         viewModelScope.launch {
             _ui.map { TradeDraft(it.give, it.get) }.distinctUntilChanged().collect { d ->
-                draftFor?.let { TradeDrafts.put(it, d) }
+                // The binder is read here on the main thread; the JSON (whole card rows) is written off it, in order.
+                val id = draftFor ?: return@collect
+                withContext(Dispatchers.Default) { TradeDrafts.put(id, d) }
             }
         }
     }

@@ -23,6 +23,8 @@ object SettingsIndex {
         Entry("Automatic backups", "Data", 2, "safety copy before delete sort out restore"),
         Entry("Recent actions", "Data", 2, "undo history"),
         Entry("Offline scans", "Data", 2, "pending waiting connection"),
+        Entry("Skip cards only in decks", "Data", 2, "upgrade from your cards"),
+        Entry("Undo last restore", "Data", 2, "backup back before"),
         Entry("Show tour", "Data", 2, "help intro about"),
         Entry("Crash reports", "Data", 2, "bug log error"),
         Entry("Version", "Data", 2, "about build"),

@@ -146,7 +146,8 @@ private fun PanelFront(
         if (p.life == prevLife) return@LaunchedEffect
         val ev = g.history.lastOrNull()
         // Only this player's own life changes count, not an undo or a restart.
-        val mine = ev != null && ev.player == i && (ev.what == "Life" || ev.what.startsWith("Commander damage")) &&
+        // After an Undo the last line is an older change, even when it's this player's and still fresh.
+        val mine = ev != null && !g.afterUndo && ev.player == i && (ev.what == "Life" || ev.what.startsWith("Commander damage")) &&
             System.currentTimeMillis() - ev.at < 1500
         if (mine) {
             val base = runBase ?: prevLife
@@ -217,6 +218,9 @@ private fun PanelFront(
                 listOf(-1, 1).forEach { sign ->
                     Box(
                         Modifier.weight(1f).fillMaxHeight().combinedClickable(
+                            // For TalkBack: whose life, how much it is now, and what a tap or a hold does.
+                            onClickLabel = if (sign < 0) "take 1 life from ${p.name}, now ${p.life}" else "give ${p.name} 1 life, now ${p.life}",
+                            onLongClickLabel = if (sign < 0) "take $HOLD_STEP life" else "give $HOLD_STEP life",
                             onClick = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove); onLife(sign) },
                             onLongClick = { held = true; haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLife(sign * HOLD_STEP) },
                         ),

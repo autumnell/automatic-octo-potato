@@ -262,7 +262,7 @@ fun DeckScreen(
                 )
                 // Every played card already in the deck: nothing to pull, so the Pull list and the tab row go.
                 val allInDeck = ui.check?.lines?.filter { it.section in PLAYED }?.let { p -> p.isNotEmpty() && p.all { it.inDeck >= it.needed } } == true
-                if (!allInDeck) UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
+                if (!allInDeck) UnderlineTabs(listOf("Cards", "Pull list"), view, { view = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = Space.s4)
                 when (if (allInDeck) 0 else view) {
                     1 -> {
                         val pull by vm.pull.collectAsStateWithLifecycle()
@@ -361,10 +361,10 @@ fun DeckScreen(
     }
 }
 
-/** Opens [url] in the browser; nothing happens when no app can. */
 /** The list section for cards being considered: shown on the deck page, never counted or played. */
 private const val MAYBE = "Maybeboard"
 
+/** Opens [url] in the browser; nothing happens when no app can. */
 internal fun openLink(ctx: android.content.Context, url: String) {
     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }

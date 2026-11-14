@@ -118,10 +118,13 @@ data class ScanLogStats(val lookups: Int, val matchedShare: Double, val medianSe
     }
 
     companion object {
-        fun of(list: List<ScanLogEntry>): ScanLogStats? {
+        fun of(all: List<ScanLogEntry>): ScanLogStats? {
+            // A printing picked by hand ("corrected") is logged too, but it isn't a lookup.
+            val list = all.filter { it.outcome != CORRECTED }
             if (list.isEmpty()) return null
             fun median(xs: List<Long>): Long? = xs.sorted().takeIf { it.isNotEmpty() }?.let { it[it.size / 2] }
-            val matched = list.count { it.outcome == "matched" }
+            // A card found by its art is as much a match as one found by its text.
+            val matched = list.count { it.outcome == "matched" || it.outcome == "art match" }
             return ScanLogStats(
                 lookups = list.size,
                 matchedShare = matched.toDouble() / list.size,
@@ -129,5 +132,7 @@ data class ScanLogStats(val lookups: Int, val matchedShare: Double, val medianSe
                 medianLookupMs = median(list.filter { it.ms > 0 }.map { it.ms }),
             )
         }
+
+        private const val CORRECTED = "corrected"
     }
 }

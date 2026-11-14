@@ -1,5 +1,7 @@
 package com.mtgscanner.ui.game
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -120,7 +122,7 @@ internal fun ArtPicker(current: String?, vm: GameViewModel, onPick: (String?) ->
         if (choices.isEmpty()) Text("No cards with art found. Scan some cards first.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
             choices.take(24).forEach { c ->
-                Column(Modifier.width(96.dp).clip(RoundedCornerShape(Corners.Small)).clickable { onPick(c.art); open = false }) {
+                Column(Modifier.width(96.dp).clip(RoundedCornerShape(Corners.Small)).selectable(selected = c.art == current, role = Role.RadioButton) { onPick(c.art); open = false }) {
                     AsyncImage(c.art, c.name, Modifier.fillMaxWidth().height(70.dp)
                         .border(if (c.art == current) 2.dp else 0.dp, Palette.Accent, RoundedCornerShape(Corners.Small)), contentScale = ContentScale.Crop)
                     Text(c.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = Palette.Muted)
@@ -144,13 +146,14 @@ fun EndGameDialog(g: GameState, onDismiss: () -> Unit, onEnd: (save: Boolean, wi
                 else {
                     Text("Pick the winner to save the game to your stats", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                     g.players.forEachIndexed { i, p ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { winner = i }, verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.RadioButton(winner == i, { winner = i })
+                        // One stop per row for TalkBack: the row is the radio button, the dot is only drawn.
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).selectable(selected = winner == i, role = Role.RadioButton) { winner = i }, verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.RadioButton(winner == i, null, Modifier.size(48.dp))
                             Text(p.name)
                         }
                     }
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).clickable { winner = null }, verticalAlignment = Alignment.CenterVertically) {
-                        androidx.compose.material3.RadioButton(winner == null, { winner = null })
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Corners.Small)).selectable(selected = winner == null, role = Role.RadioButton) { winner = null }, verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(winner == null, null, Modifier.size(48.dp))
                         Text("No winner (draw)")
                     }
                 }

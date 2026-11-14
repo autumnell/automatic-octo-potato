@@ -14,6 +14,7 @@ import com.mtgscanner.game.Game
 import com.mtgscanner.game.GameFormat
 import com.mtgscanner.game.Player
 import com.mtgscanner.game.GameRecord
+import com.mtgscanner.game.GameRecordsCodec
 import com.mtgscanner.game.GameState
 import com.mtgscanner.data.db.CollectionCard
 import kotlinx.coroutines.Dispatchers
@@ -89,18 +90,14 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
 
     /** Reads each saved game on its own, setting aside the ones that don't read. */
     private fun readRecords(text: String?): List<GameRecord> {
-        if (text == null) return emptyList()
-        val items = runCatching { json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonArray }.getOrNull()
-        if (items == null) {
+        val r = GameRecordsCodec.read(text)
+        if (r.notAList) {
             // Not even a list: keep the text as it is under another key rather than overwrite it later.
             recordPrefs.edit().putString("records_unreadable", text).apply()
             return emptyList()
         }
-        val read = mutableListOf<GameRecord>()
-        val bad = mutableListOf<kotlinx.serialization.json.JsonElement>()
-        items.forEach { e -> runCatching { json.decodeFromJsonElement(GameRecord.serializer(), e) }.onSuccess { read += it }.onFailure { bad += e } }
-        unreadable = bad
-        return read
+        unreadable = r.unreadable
+        return r.records
     }
 
     /** Reads saved records, moving them out of the old shared "game" file the first time. */
@@ -166,7 +163,10 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun deleteRecord(r: GameRecord) {
         val before = _records.value
         saveRecords(before - r)
-        com.mtgscanner.ui.components.Undo.offer("Game deleted") { saveRecords(before) }
+        // Put back into the list as it is now, so a game finished since the delete isn't dropped by the Undo.
+        com.mtgscanner.ui.components.Undo.offer("Game deleted") {
+            saveRecords((_records.value + r).sortedByDescending { it.endedAt })
+        }
     }
     fun clearRecords() { unreadable = emptyList(); saveRecords(emptyList()) }
 
@@ -205,6 +205,15 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
             val saved = _records.value.firstOrNull { it.startedAt == g.startedAt }
             if (saved != null) saveRecords(_records.value - saved)
             g.copy(recorded = false)
+        }
+        g.winner != null -> {
+            // Already saved: a name fixed while the winner shows reaches the saved game too.
+            val saved = _records.value.firstOrNull { it.startedAt == g.startedAt }
+            if (saved != null && saved.players != g.players.map { it.name }) {
+                val fresh = g.toRecord(now = saved.endedAt)
+                saveRecords(_records.value.map { if (it === saved) fresh else it })
+            }
+            g
         }
         else -> g
     }

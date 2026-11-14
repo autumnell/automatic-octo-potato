@@ -497,24 +497,27 @@ class CollectionRepository(
      * Moves an entry to another box, merging with identical copies already there. Returns the surviving id.
      * Bulk callers pass the [row] they already read and [names] of places (see [placeNames]), to save reads per card.
      */
-    suspend fun moveToBox(id: Long, boxId: Long, row: CollectionCard? = null, names: Map<Long, String>? = null): Long {
-        val c = row?.takeIf { it.id == id } ?: dao.get(id) ?: return id
-        if (c.boxId == boxId) return id
-        val other = twinOf(c, boxId = boxId)
-        val now = System.currentTimeMillis()
-        suspend fun name(box: Long) = names?.get(box) ?: boxName(box)
-        logEvent(c.scryfallId, c.name, "moved", "${name(c.boxId)} → ${name(boxId)}")
-        return if (other != null) {
-            dao.update(other.mergedWith(c, now = now))
-            dao.delete(c)
-            dao.moveLoans(c.id, other.id)
-            other.id
-        } else {
-            // Its old binder pocket means nothing in the new box.
-            dao.update(c.copy(boxId = boxId, binderSlot = 0, updatedAt = now))
-            id
+    suspend fun moveToBox(id: Long, boxId: Long, row: CollectionCard? = null, names: Map<Long, String>? = null): Long =
+        // The twin check and the writes in one transaction (joined when the caller has one), so an add() landing the
+        // twin in between can't make the move clash with the copy's unique key, and a merge is never half done.
+        db.withTransaction {
+            val c = row?.takeIf { it.id == id } ?: dao.get(id) ?: return@withTransaction id
+            if (c.boxId == boxId) return@withTransaction id
+            val other = twinOf(c, boxId = boxId)
+            val now = System.currentTimeMillis()
+            suspend fun name(box: Long) = names?.get(box) ?: boxName(box)
+            logEvent(c.scryfallId, c.name, "moved", "${name(c.boxId)} → ${name(boxId)}")
+            if (other != null) {
+                dao.update(other.mergedWith(c, now = now))
+                dao.delete(c)
+                dao.moveLoans(c.id, other.id)
+                other.id
+            } else {
+                // Its old binder pocket means nothing in the new box.
+                dao.update(c.copy(boxId = boxId, binderSlot = 0, updatedAt = now))
+                id
+            }
         }
-    }
 
     /** The box chosen last time on the scan screen. */
     var lastBoxId: Long
@@ -628,42 +631,46 @@ class CollectionRepository(
      * the two merge. Returns the id of the row now holding the copies.
      */
     suspend fun update(edited: CollectionCard): Long {
-        val old = dao.get(edited.id)
-        // Edits change details, never the count: copies added while the edit was open (a scan, +1) are kept.
-        val card = if (old != null) edited.copy(quantity = old.quantity) else edited
-        if (old != null && old.condition != card.condition) logEvent(card.scryfallId, card.name, "edited", "${old.condition} → ${card.condition}")
-        val now = System.currentTimeMillis()
-        val twin = if (old != null && !old.sameCopyAs(card)) twinOf(card)?.takeIf { it.id != card.id } else null
-        if (twin != null) {
-            db.withTransaction {
+        // The count read, the twin check and the write in one transaction, so a copy added in between is kept and
+        // a twin added in between is merged into, not clashed with.
+        val kept = db.withTransaction {
+            val old = dao.get(edited.id)
+            // Edits change details, never the count: copies added while the edit was open (a scan, +1) are kept.
+            val card = if (old != null) edited.copy(quantity = old.quantity) else edited
+            if (old != null && old.condition != card.condition) logEvent(card.scryfallId, card.name, "edited", "${old.condition} → ${card.condition}")
+            val now = System.currentTimeMillis()
+            val twin = if (old != null && !old.sameCopyAs(card)) twinOf(card)?.takeIf { it.id != card.id } else null
+            if (twin != null) {
                 dao.update(twin.mergedWith(card, now = now))
                 dao.delete(card)
                 dao.moveLoans(card.id, twin.id)
+                twin.id
+            } else {
+                dao.update(card.copy(updatedAt = now))
+                card.id
             }
-            afterChange()
-            return twin.id
         }
-        dao.update(card.copy(updatedAt = now))
         afterChange()
-        return card.id
+        return kept
     }
 
     /** Switches foil on/off, merging into the other entry if one already exists. Returns the surviving id. */
     suspend fun setFoil(id: Long, foil: Boolean): Long {
-        val c = dao.get(id) ?: return id
-        if (c.foil == foil) return id
-        val other = twinOf(c, foil = foil)
-        val kept = if (other != null) {
-            db.withTransaction {
+        // Read, twin check and write in one transaction, like update().
+        val kept = db.withTransaction {
+            val c = dao.get(id) ?: return@withTransaction null
+            if (c.foil == foil) return@withTransaction null
+            val other = twinOf(c, foil = foil)
+            if (other != null) {
                 dao.update(other.mergedWith(c))
                 dao.delete(c)
                 dao.moveLoans(c.id, other.id)
+                other.id
+            } else {
+                dao.update(c.copy(foil = foil, updatedAt = System.currentTimeMillis()))
+                id
             }
-            other.id
-        } else {
-            dao.update(c.copy(foil = foil, updatedAt = System.currentTimeMillis()))
-            id
-        }
+        } ?: return id
         afterChange()
         return kept
     }
@@ -909,7 +916,8 @@ class CollectionRepository(
             }
             dao.putPricePoints(fresh.map { it.pricePoint() })
             // The card list on the phone gets today's prices too, so scans of owned cards needn't ask Scryfall.
-            localCards.update(fresh)
+            // Off the main thread: a pull to refresh calls this from a screen, and each card is encoded and packed.
+            withContext(Dispatchers.IO) { localCards.update(fresh) }
         }
         return updated
     }
@@ -983,7 +991,7 @@ class CollectionRepository(
         return if (existing != null) existing.id else r
     }
 
-    suspend fun deleteDeck(id: Long) = dao.deleteDeck(id)
+    // Deleting a deck is deleteDeckAndCards (DeckSlots.kt): a bare row delete would leave its cards hidden.
 
     // The deck check (checkDeck) is in DeckCheck.kt.
 

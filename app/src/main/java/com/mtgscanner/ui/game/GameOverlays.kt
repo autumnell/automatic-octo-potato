@@ -3,6 +3,10 @@ package com.mtgscanner.ui.game
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.ScrollableState
@@ -263,13 +267,13 @@ private fun PlayerPicker(
                 Box(
                     mod.height(84.dp).clip(RoundedCornerShape(Corners.Medium)).background(PLAYER_COLORS[p.color % PLAYER_COLORS.size])
                         .border(if (current == k) 4.dp else 0.dp, Color.White, RoundedCornerShape(Corners.Medium))
-                        .clickable { onPick(k) },
+                        .selectable(selected = current == k, role = Role.RadioButton) { onPick(k) },
                     contentAlignment = Alignment.Center,
                 ) { Text(p.name, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             } else Box(
                 mod.height(84.dp).clip(RoundedCornerShape(Corners.Medium)).background(Color.White.copy(alpha = 0.1f))
                     .border(if (current == null) 4.dp else 0.dp, Color.White, RoundedCornerShape(Corners.Medium))
-                    .clickable { onPick(null) },
+                    .selectable(selected = current == null, role = Role.RadioButton) { onPick(null) },
                 contentAlignment = Alignment.Center,
             ) { Text("Nobody", color = Color.White, fontSize = 20.sp) }
         }
@@ -304,7 +308,8 @@ private fun PlayerSettings(g: GameState, i: Int, vm: GameViewModel) {
                     Box(
                         Modifier.size(40.dp).clip(CircleShape).background(c)
                             .border(if (p.color == k) 3.dp else 0.dp, Color.White, CircleShape)
-                            .clickable { vm.update { Game.recolor(it, i, k) } },
+                            .semantics { contentDescription = "Color ${k + 1}" }
+                            .selectable(selected = p.color == k, role = Role.RadioButton) { vm.update { Game.recolor(it, i, k) } },
                     )
                 }
             }
@@ -382,7 +387,11 @@ fun MenuOverlay(
                         g, "Who goes first?", g.firstSeat,
                         onPick = { who -> if (who != null) vm.update { Game.setFirst(it, who) }; choosingFirst = false },
                         onBack = { choosingFirst = false }, allowNobody = false,
-                        onRandom = { vm.update { Game.setFirst(it, Random.nextInt(it.players.size)) }; choosingFirst = false },
+                        // Random picks among the players still in.
+                        onRandom = {
+                            vm.update { s -> Game.setFirst(s, s.players.indices.filter { s.outReason(it) == null }.randomOrNull() ?: Random.nextInt(s.players.size)) }
+                            choosingFirst = false
+                        },
                     )
                 }
             }

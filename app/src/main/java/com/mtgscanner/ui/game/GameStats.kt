@@ -2,6 +2,8 @@ package com.mtgscanner.ui.game
 
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -76,24 +78,29 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
     val fmt = remember { SimpleDateFormat("MMM d", Locale.US) }
     var confirmClear by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
-        Column(Modifier.padding(horizontal = Space.s4).verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-            Text("Game stats", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "${records.size} games" + (avg?.let { " · about $it min each" } ?: ""),
-                style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
-            )
+        // A lazy list: years of saved games open as fast as a handful, since only the rows on screen are built.
+        LazyColumn(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
+            item {
+                Column {
+                    Text("Game stats", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "${records.size} ${if (records.size == 1) "game" else "games"}" + (avg?.let { " · about $it min each" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
+                    )
+                }
+            }
             if (records.isEmpty()) {
-                com.mtgscanner.ui.components.EmptyState("No games yet")
+                item { com.mtgscanner.ui.components.EmptyState("No games yet") }
             } else {
-                Header("Players")
-                players.forEach { p ->
+                item { Header("Players") }
+                items(players) { p ->
                     Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                         Text(p.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                         Text("${p.wins} of ${p.games} won · ${p.winRate}%", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                     }
                 }
-                Header("Past games")
-                records.forEach { r ->
+                item { Header("Past games") }
+                items(records) { r ->
                     Row(Modifier.fillMaxWidth().padding(vertical = Space.s1), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(r.winner?.let { "$it won" } ?: "Draw", style = MaterialTheme.typography.bodyLarge)
@@ -108,14 +115,18 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                         }
                     }
                 }
-                Spacer(Modifier.height(Space.s2))
-                if (confirmClear) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Delete all ${records.size} games?", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { vm.clearRecords(); confirmClear = false }) { Text("Delete all", color = Palette.Danger) }
-                    TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
-                } else TextButton(onClick = { confirmClear = true }) { Text("Clear stats", color = Palette.Muted) }
+                item {
+                    Column {
+                        Spacer(Modifier.height(Space.s2))
+                        if (confirmClear) Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Delete all ${records.size} games?", modifier = Modifier.weight(1f))
+                            TextButton(onClick = { vm.clearRecords(); confirmClear = false }) { Text("Delete all", color = Palette.Danger) }
+                            TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
+                        } else TextButton(onClick = { confirmClear = true }) { Text("Clear stats", color = Palette.Muted) }
+                    }
+                }
             }
-            Spacer(Modifier.height(Space.s6))
+            item { Spacer(Modifier.height(Space.s6)) }
         }
     }
 }

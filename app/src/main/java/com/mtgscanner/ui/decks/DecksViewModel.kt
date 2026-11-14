@@ -289,7 +289,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
         almostJob?.cancel()
         almost.value = AlmostRun(loading = true)
         almostJob = viewModelScope.launch {
-            val decks = runCatching {
+            val decks = com.mtgscanner.util.suspendRunCatching {
                 repo.almostDecks { p -> almost.update { r -> r?.copy(progress = p) } }
             }.getOrDefault(emptyList())
             almost.value = AlmostRun(loading = false, decks = decks, failed = decks.isEmpty())
@@ -307,15 +307,19 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Adds the cards [deck] is missing to the wishlist, one of each (never on top of what's wanted). */
     fun wishAlmost(deck: com.mtgscanner.data.AlmostDeck) = viewModelScope.launch {
         val names = deck.missing
-        val cards = runCatching {
+        val cards = com.mtgscanner.util.suspendRunCatching {
             com.mtgscanner.data.PrintingLookup.resolve(names.map { com.mtgscanner.data.PrintingLookup.Wanted(it) }) { ids ->
                 repo.api.identify(ids.map(com.mtgscanner.data.PrintingLookup::json))
             }
         }.getOrNull()
-        if (cards == null) { Undo.offer("Couldn't reach Scryfall"); return@launch }
-        var n = 0
-        cards.forEach { c -> if (c != null) { repo.wantAtLeast(c, 1); n++ } }
-        Undo.offer(if (n == 1) "1 card on the wishlist" else "$n cards on the wishlist")
+        if (cards == null) { Undo.offer("Couldn't reach Scryfall. Check your connection and try again"); return@launch }
+        offerWishes(repo.wantAllWithUndo(cards.filterNotNull().map { it to 1 }))
+    }
+
+    /** "3 cards on the wishlist", with Undo when the batch added or raised any row. */
+    private fun offerWishes(batch: com.mtgscanner.data.WishlistBatch) {
+        val msg = if (batch.count == 1) "1 card on the wishlist" else "${batch.count} cards on the wishlist"
+        if (batch.changed > 0) Undo.offer(msg, batch.undo) else Undo.offer(msg)
     }
 
     /** Copies owned by card name ([com.mtgscanner.util.CardNames.key]), for the shortages across decks. */
@@ -324,15 +328,13 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     /** Puts the copies short across decks on the wishlist (at least that many wanted of each). */
     fun wishShort(rows: List<DeckShortage>) = viewModelScope.launch {
-        val cards = runCatching {
+        val cards = com.mtgscanner.util.suspendRunCatching {
             com.mtgscanner.data.PrintingLookup.resolve(rows.map { com.mtgscanner.data.PrintingLookup.Wanted(it.name) }) { ids ->
                 repo.api.identify(ids.map(com.mtgscanner.data.PrintingLookup::json))
             }
         }.getOrNull()
-        if (cards == null) { Undo.offer("Couldn't reach Scryfall"); return@launch }
-        var n = 0
-        cards.zip(rows).forEach { (c, r) -> if (c != null) { repo.wantAtLeast(c, r.short); n++ } }
-        Undo.offer(if (n == 1) "1 card on the wishlist" else "$n cards on the wishlist")
+        if (cards == null) { Undo.offer("Couldn't reach Scryfall. Check your connection and try again"); return@launch }
+        offerWishes(repo.wantAllWithUndo(cards.zip(rows).mapNotNull { (c, r) -> c?.let { it to r.short } }))
     }
 
     /** Decks › New › Precon decks: MTGJSON's list (null while loading, empty when it couldn't be read). */

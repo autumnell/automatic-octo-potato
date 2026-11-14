@@ -64,7 +64,7 @@ fun FromPhotoButton(onText: (String) -> Unit, modifier: Modifier = Modifier) {
         if (uri != null) {
             busy = true
             scope.launch {
-                val text = runCatching { readListPhoto(ctx, uri) }.getOrDefault("")
+                val text = com.mtgscanner.util.suspendRunCatching { readListPhoto(ctx, uri) }.getOrDefault("")
                 busy = false
                 if (text.isBlank()) Undo.offer("No cards found") else onText(text)
             }

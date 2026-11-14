@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,8 +44,12 @@ fun ScanVoiceListener(active: Boolean, onCommand: (com.mtgscanner.scan.VoiceComm
         return
     }
     val latest by androidx.compose.runtime.rememberUpdatedState(onCommand)
-    DisposableEffect(active) {
-        if (!active) return@DisposableEffect onDispose { }
+    // Only while the app is in front: in the background Android gives no microphone, and the retries would run on.
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val shown by lifecycle.currentStateFlow.collectAsState()
+    val listening = active && shown.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+    DisposableEffect(listening) {
+        if (!listening) return@DisposableEffect onDispose { }
         val main = Handler(Looper.getMainLooper())
         val recognizer = SpeechRecognizer.createSpeechRecognizer(ctx)
         var stopped = false

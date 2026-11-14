@@ -1,6 +1,9 @@
 package com.mtgscanner.game
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 
 /** Ways to play, with their starting life and which trackers matter. */
 @Serializable
@@ -88,6 +91,8 @@ data class GameState(
     val history: List<GameEvent> = emptyList(),
     /** Earlier states, newest last, for undo. Not saved between runs. */
     @kotlinx.serialization.Transient val undoStack: List<GameState> = emptyList(),
+    /** True right after an Undo: the next change gets its own history line and undo step. Not saved. */
+    @kotlinx.serialization.Transient val afterUndo: Boolean = false,
 ) {
     /** Why a player is out, or null while they're still in. */
     fun outReason(i: Int): String? {
@@ -148,12 +153,14 @@ object Game {
         val last = history.lastOrNull()
         // A run of quick taps keeps one line and one undo step, unless something else (a turn change, which has
         // no line of its own) was saved as an undo step since that line: then the newest step already holds it.
+        // Nor right after an Undo: the line it went back to is an older change, and joining it would leave the new
+        // tap without an undo step of its own.
         val merge = last != null && last.player == player && last.what == what && now - last.at < GameState.MERGE_MS &&
-            !lastStepHasNoLine()
+            !lastStepHasNoLine() && !afterUndo
         val merged = if (merge) history.dropLast(1) + last!!.copy(delta = last.delta + delta, at = now)
         else history + GameEvent(player, what, delta, now)
         val stack = if (merge) undoStack else (undoStack + this.copy(undoStack = emptyList())).takeLast(GameState.MAX_UNDO)
-        return next.copy(history = merged.takeLast(300), undoStack = stack)
+        return next.copy(history = merged.takeLast(300), undoStack = stack, afterUndo = false)
     }
 
     /** True when the newest undo step was saved without a history line (turn order, first player). */
@@ -240,7 +247,7 @@ object Game {
         val newRound = next == anchor
         // Each pass is its own undo step, even when play comes straight back to the same player.
         return s.copy(history = (s.history + GameEvent(next, "Turn", 0, now)).takeLast(300), undoStack = (s.undoStack + s.copy(undoStack = emptyList())).takeLast(GameState.MAX_UNDO))
-            .copy(active = next, turn = s.turn + if (newRound) 1 else 0)
+            .copy(active = next, turn = s.turn + if (newRound) 1 else 0, afterUndo = false)
     }
 
     /** Hands the turn to a player without counting a new round. */
@@ -267,7 +274,7 @@ object Game {
         val players = prev.players.mapIndexed { j, p ->
             s.players.getOrNull(j)?.let { now -> p.copy(name = now.name, color = now.color, art = now.art) } ?: p
         }
-        return prev.copy(players = players, undoStack = s.undoStack.dropLast(1), recorded = s.recorded)
+        return prev.copy(players = players, undoStack = s.undoStack.dropLast(1), recorded = s.recorded, afterUndo = true)
     }
 
     /**
@@ -319,6 +326,27 @@ data class GameRecord(
     val decks: List<Long?> = emptyList(),
 ) {
     val minutes: Long get() = ((endedAt - startedAt) / 60_000).coerceAtLeast(0)
+}
+
+/**
+ * Reads the saved games one by one, so a game that no longer reads (a renamed format, say) is set aside instead of
+ * hiding every other game. Pure, for tests.
+ */
+object GameRecordsCodec {
+    /** What a saved list held: the games that read, the ones that didn't, and whether it was a list at all. */
+    class Read(val records: List<GameRecord>, val unreadable: List<JsonElement>, val notAList: Boolean)
+
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    fun read(text: String?): Read {
+        if (text == null) return Read(emptyList(), emptyList(), notAList = false)
+        val items = runCatching { json.parseToJsonElement(text) as? JsonArray }.getOrNull()
+            ?: return Read(emptyList(), emptyList(), notAList = true)
+        val read = mutableListOf<GameRecord>()
+        val bad = mutableListOf<JsonElement>()
+        items.forEach { e -> runCatching { json.decodeFromJsonElement(GameRecord.serializer(), e) }.onSuccess { read += it }.onFailure { bad += e } }
+        return Read(read, bad, notAList = false)
+    }
 }
 
 /** Wins and games per player name, across saved games. */

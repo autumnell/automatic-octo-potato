@@ -35,4 +35,25 @@ class VideoCountTest {
         val blur = IntArray(w * w) { i -> ((i % w) * 8).coerceAtMost(255) }
         assertTrue(Sharpness.laplacianVariance(sharp, w, w) > 10 * Sharpness.laplacianVariance(blur, w, w))
     }
+
+    @Test fun aFooterReadOnSomeFramesIsStillOneCard() {
+        val k = VideoKeys()
+        val c = VideoCount<String>()
+        c.frame(listOf(k.of("bolt", null) to "a"))
+        c.frame(listOf(k.of("bolt", "M10#146") to "b"))
+        c.frame(listOf(k.of(null, "M10#146") to "c"))
+        c.frame(listOf(k.of("bolt", null) to "d"))
+        assertEquals(listOf("a"), c.result())
+    }
+
+    @Test fun anotherPrintingOfTheSameNameIsAnotherCard() {
+        val k = VideoKeys()
+        val a = k.of("forest", "DMU#277")
+        val b = k.of("forest", "ONE#271")
+        assertTrue(a != b)
+        // A frame with only the name goes with the newest printing.
+        assertEquals(b, k.of("forest", null))
+        assertEquals(a, k.of(null, "DMU#277"))
+        assertEquals(null, k.of(null, null))
+    }
 }

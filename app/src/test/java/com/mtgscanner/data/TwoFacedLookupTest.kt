@@ -6,7 +6,6 @@ import com.mtgscanner.util.CardNames
 import com.mtgscanner.util.DecklistParser
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -118,6 +117,6 @@ class TwoFacedLookupTest {
         fun line(price: Double?, owned: Int = 0) = DeckCheckLine("X", "Main", 1, owned, emptyList(), price, null, null)
         assertTrue(DeckCheck(listOf(line(1.0), line(null))).missingCostPartial)
         assertEquals(false, DeckCheck(listOf(line(1.0), line(null, owned = 1))).missingCostPartial)
-        assertNotNull(DeckCheck(emptyList()).missingCost)
+        assertEquals(0.0, DeckCheck(emptyList()).missingCost, 0.0)
     }
 }

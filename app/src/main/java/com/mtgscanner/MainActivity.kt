@@ -54,6 +54,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -207,6 +208,14 @@ fun NavHostController.popFrom(entry: NavBackStackEntry) {
     if (entry.isResumed) popBackStack()
 }
 
+/**
+ * Opens [route] on top of [from]'s screen. A second tap while the first page is still sliding in is dropped,
+ * so a double tap doesn't open the page twice (and need Back twice).
+ */
+fun NavHostController.openFrom(from: NavBackStackEntry, route: String) {
+    if (from.isResumed) navigate(route)
+}
+
 /** Switches bottom tabs the standard way: one copy of each tab, state kept. */
 fun NavHostController.goToTab(route: String) = navigate(route) {
     popUpTo(graph.findStartDestination().id) { saveState = true }
@@ -217,7 +226,6 @@ fun NavHostController.goToTab(route: String) = navigate(route) {
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
-    com.mtgscanner.util.Haptics.Attach()
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
@@ -303,19 +311,19 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                     fun wishlist() { com.mtgscanner.ui.home.WishlistLaunch.open(); nav.goToTab("collection") }
                     when (tab) {
                         "home" -> listOf(
-                            "Stats" to { nav.navigate("stats") },
-                            "Goals" to { nav.navigate("goals") },
+                            "Stats" to { nav.navigate("stats") { launchSingleTop = true } },
+                            "Goals" to { nav.navigate("goals") { launchSingleTop = true } },
                             "Settings" to { nav.navigate("settings") { launchSingleTop = true } },
                         )
-                        "search" -> listOf("Browse all cards" to { nav.navigate("browse/-1") }, "Wishlist" to { wishlist() })
+                        "search" -> listOf("Browse all cards" to { nav.navigate("browse/-1") { launchSingleTop = true } }, "Wishlist" to { wishlist() })
                         "scan" -> listOf(
                             "Batch scan" to { com.mtgscanner.util.OpenRequests.batch.value = true; nav.goToTab("scan") },
                             "Price check" to { com.mtgscanner.util.OpenRequests.priceCheck.value = true; nav.goToTab("scan") },
                         )
                         "collection" -> listOf(
-                            "Browse all cards" to { nav.navigate("browse/-1") },
+                            "Browse all cards" to { nav.navigate("browse/-1") { launchSingleTop = true } },
                             "Wishlist" to { wishlist() },
-                            "Loans" to { nav.navigate("loans") },
+                            "Loans" to { nav.navigate("loans") { launchSingleTop = true } },
                         )
                         else -> emptyList()
                     }
@@ -345,19 +353,20 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
                 else slideInHorizontally(tween(Motion.slow, easing = Motion.ease)) { -it / 8 } + fadeIn(tween(Motion.slow, easing = Motion.ease), initialAlpha = 0.6f)
             },
         ) {
-            composable("home") {
+            composable("home") { home ->
               ScreenAnimation(this) {
                 HomeScreen(
                     onScan = { nav.goToTab("scan") },
                     onSearch = { nav.goToTab("search") },
                     onCollection = { nav.goToTab("collection") },
-                    onOpenCard = { nav.navigate("card/$it") },
-                    onSettings = { nav.navigate("settings") },
-                    onBrowseAll = { nav.navigate("browse/-1") },
-                    onGoals = { nav.navigate("goals") },
-                    onStats = { nav.navigate("stats") },
-                    onOpenSet = { nav.navigate("set/$it") },
-                    onOpenDeck = { nav.navigate("deck/$it") },
+                    onOpenCard = { nav.openFrom(home, "card/$it") },
+                    onSettings = { nav.openFrom(home, "settings") },
+                    onBrowseAll = { nav.openFrom(home, "browse/-1") },
+                    onGoals = { nav.openFrom(home, "goals") },
+                    onStats = { nav.openFrom(home, "stats") },
+                    onOpenSet = { nav.openFrom(home, "set/$it") },
+                    onOpenDeck = { nav.openFrom(home, "deck/$it") },
+                    onOpenBox = { nav.openFrom(home, "browse/$it") },
                 )
               }
             }
@@ -370,8 +379,8 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
               ScreenAnimation(this) {
                 com.mtgscanner.ui.home.StatsScreen(
                     onBack = { nav.popFrom(it) },
-                    onOpenCard = { id -> nav.navigate("card/$id") },
-                    onBrowseAll = { nav.navigate("browse/-1") },
+                    onOpenCard = { id -> nav.openFrom(it, "card/$id") },
+                    onBrowseAll = { nav.openFrom(it, "browse/-1") },
                 )
               }
             }
@@ -386,7 +395,7 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
               ScreenAnimation(this) {
                 CollectionScreen(
                     onBrowse = { boxId -> nav.navigate("browse/$boxId") },
-                    onSettings = { nav.navigate("settings") },
+                    onSettings = { nav.navigate("settings") { launchSingleTop = true } },
                     onOpenDeck = { id -> nav.navigate("deck/$id") },
                     onPasteDeck = { nav.navigate("deck/0?tab=LIST") },
                     onOpenCard = { id -> nav.navigate("card/$id") },
@@ -643,7 +652,8 @@ private data class TabBadges(val toSort: Int = 0, val waiting: Int = 0)
  */
 private fun Modifier.onHold(enabled: Boolean, onHold: () -> Unit): Modifier = if (!enabled) this else composed {
     val hold by rememberUpdatedState(onHold)
-    pointerInput(Unit) {
+    // TalkBack can't press and hold through the gesture below: it gets the same menu as a long-click action.
+    semantics { onLongClick("Shortcuts") { hold(); true } }.pointerInput(Unit) {
         awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             var ended = false

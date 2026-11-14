@@ -147,7 +147,7 @@ internal fun Card(content: @Composable () -> Unit) {
 }
 
 @Composable
-internal fun ToggleRow(title: String, body: String, checked: Boolean, lines: Int = 1, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(title: String, body: String, checked: Boolean, lines: Int = 3, onChange: (Boolean) -> Unit) {
     // One target for TalkBack: the whole row is the switch.
     Row(
         Modifier.fillMaxWidth()

@@ -23,7 +23,8 @@ class ScanTileService : TileService() {
         // Unlock first when the panel was opened from the lock screen.
         val open = {
             if (Build.VERSION.SDK_INT >= 34) {
-                val pending = PendingIntent.getActivity(this, 7, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                // Its own request code: the same activity with 7 is the price-move note, whose "home" this would replace.
+                val pending = PendingIntent.getActivity(this, 40, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
                 startActivityAndCollapse(pending)
             } else {
                 @Suppress("DEPRECATION")

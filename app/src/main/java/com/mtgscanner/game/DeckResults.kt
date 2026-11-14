@@ -1,8 +1,6 @@
 package com.mtgscanner.game
 
 import android.content.Context
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
 
 /** A deck's games: wins, losses and draws (games saved with nobody picked as the winner). */
 data class DeckResult(val wins: Int = 0, val losses: Int = 0, val draws: Int = 0) {
@@ -36,11 +34,10 @@ object DeckResults {
         return DeckResult(w, l, d)
     }
 
-    private val json = Json { ignoreUnknownKeys = true }
-
-    private fun records(ctx: Context): List<GameRecord> =
-        ctx.applicationContext.getSharedPreferences("game_records", Context.MODE_PRIVATE).getString("records", null)
-            ?.let { runCatching { json.decodeFromString(ListSerializer(GameRecord.serializer()), it) }.getOrNull() }.orEmpty()
+    // One by one, like the Game tab: one game that no longer reads mustn't zero a deck's numbers (and skew [set]).
+    private fun records(ctx: Context): List<GameRecord> = GameRecordsCodec.read(
+        ctx.applicationContext.getSharedPreferences("game_records", Context.MODE_PRIVATE).getString("records", null),
+    ).records
 
     private fun adjust(ctx: Context, deckId: Long): DeckResult {
         val v = ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE).getString(deckId.toString(), null) ?: return DeckResult()

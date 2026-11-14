@@ -68,11 +68,9 @@ import com.mtgscanner.ui.theme.CardShape
 import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.TabularNums
-import java.text.NumberFormat
-import java.util.Locale
 
-private val usd = NumberFormat.getCurrencyInstance(Locale.US)
-fun formatUsd(v: Double?): String = if (v == null) "--" else usd.format(v)
+// Through Money, which locks its formatter: this is also called off the main thread (exports, view models).
+fun formatUsd(v: Double?): String = com.mtgscanner.util.Money.usd(v)
 fun formatUsd(v: String?): String = formatUsd(v?.toDoubleOrNull())
 
 private val MANA_SYMBOL = Regex("""\{([^}]+)\}|(//)""")
@@ -154,7 +152,9 @@ fun CardImage(
             .then(if (zoom) Modifier.cardZoom(url, onTap = onTap) else Modifier),
         placeholder = placeholder,
         error = placeholder,
-        onError = { if (!useBackup && backup != null) useBackup = true },
+        // Only when the server says the picture is gone. With no connection the second try would fail too, and on
+        // a weak one it would send a grid's worth of requests to Scryfall's rate-limited API.
+        onError = { if (!useBackup && backup != null && it.result.throwable is coil.network.HttpException) useBackup = true },
         colorFilter = if (grey) GreyFilter else null,
     )
 }
@@ -196,7 +196,7 @@ fun GradientButton(
                     else -> Modifier.background(Palette.Accent)
                 },
             )
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .padding(horizontal = Space.s4, vertical = Space.s3),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
