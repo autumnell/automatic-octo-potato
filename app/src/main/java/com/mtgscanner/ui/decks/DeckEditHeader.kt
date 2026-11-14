@@ -193,7 +193,8 @@ private fun SlotCell(label: String, value: String?, imageUrl: String?, modifier:
             Spacer(Modifier.width(Space.s2))
         }
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = Palette.Muted, maxLines = 1)
+            // Shrinks a little at big text, where the picture and × leave "Commander" too little room.
+            com.mtgscanner.ui.components.AutoSizeText(label, MaterialTheme.typography.labelMedium, color = Palette.Muted, minScale = 0.8f)
             Text(
                 value ?: "Add", style = MaterialTheme.typography.bodyMedium,
                 color = if (value == null) Palette.AccentText else Palette.Text, maxLines = 2, overflow = TextOverflow.Ellipsis,
