@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.pressScale
 import com.mtgscanner.ui.components.PrintingsSheet
@@ -635,7 +636,7 @@ private fun BoxCard(
 private fun boxCountText(b: BoxSummary, fill: BoxFill): String = when {
     b.capacity > 0 -> "${b.cards} / ${b.capacity}"
     b.cards == 0 -> "No cards"
-    else -> "${b.cards} cards"
+    else -> "${plural(b.cards, "card")}"
 } + (if (fill == BoxFill.FULL) " · Full" else "")
 
 /** The box's cover art filling the whole card, under a flat dark scrim so the text reads; plain card without art. */
@@ -821,7 +822,7 @@ private fun ToolsTab(
                     Spacer(Modifier.width(Space.s3))
                     Column(Modifier.weight(1f)) {
                         Text(b.name, style = MaterialTheme.typography.titleMedium)
-                        Text("${b.cards} cards${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
+                        Text("${plural(b.cards, "card")}${moneySuffix(b.value, b.valueEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                     }
                     TextButton(onClick = { onTrade(b.id) }) { Text("Trade") }
                     IconButton(enabled = b.cards > 0, onClick = { sharing = b }) { Icon(Icons.Outlined.Share, "Share ${b.name}", tint = Palette.Icon) }

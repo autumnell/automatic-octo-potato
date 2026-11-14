@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.data.db.unitEur
 import androidx.compose.material.icons.outlined.Share
@@ -173,7 +174,7 @@ fun StatsScreen(
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Text(
-                if (prices) "${formatMoney(s.value, s.valueEur)} · ${s.cards} cards" else "${s.cards} cards",
+                if (prices) "${formatMoney(s.value, s.valueEur)} · ${plural(s.cards, "card")}" else "${plural(s.cards, "card")}",
                 style = MaterialTheme.typography.titleLarge, color = Palette.Text,
                 modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
             )

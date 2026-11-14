@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -109,7 +110,7 @@ internal fun RestorePreviewDialog(vm: SettingsViewModel) {
             title = { Text("Restore this backup?") },
             text = {
                 Text(
-                    "${p.cards} cards, ${p.boxes} boxes" + (if (p.savedAt > 0) ", saved ${backupDay(p.savedAt, withYear = true)}" else "") +
+                    "${plural(p.cards, "card")}, ${plural(p.boxes, "box", "boxes")}" + (if (p.savedAt > 0) ", saved ${backupDay(p.savedAt, withYear = true)}" else "") +
                         ".\n\nIt replaces everything in the app" + (if (p.restarts) ", which then restarts" else "") +
                         ". A copy of what's here now is kept, so you can undo.",
                 )

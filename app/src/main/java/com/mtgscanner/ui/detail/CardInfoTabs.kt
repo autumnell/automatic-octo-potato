@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import android.content.Intent
 import android.net.Uri
@@ -255,7 +256,7 @@ private fun VersionsTab(c: CollectionCard, vm: CardDetailViewModel) {
             else -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "${all.size} printings · ${all.map { it.set }.distinct().size} sets",
+                        "${plural(all.size, "printing")} · ${plural(all.map { it.set }.distinct().size, "set")}",
                         style = MaterialTheme.typography.labelMedium, color = Palette.Muted, modifier = Modifier.weight(1f),
                     )
                     if (AppSettings.showPrices) {

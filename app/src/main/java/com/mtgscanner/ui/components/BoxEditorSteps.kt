@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.AnimatedVisibility
@@ -415,7 +416,7 @@ internal fun LayoutCards(
             listOf(1, 2, 3, 4, 5, 6, 8).forEach { n -> SelectPill(n.toString(), rows == n, { onRows(n) }) }
         }
     }
-    RuleCard("Capacity", capText.toIntOrNull()?.takeIf { it > 0 }?.let { "$it cards" }, open == "cap", { toggle("cap") }) {
+    RuleCard("Capacity", capText.toIntOrNull()?.takeIf { it > 0 }?.let { "${plural(it, "card")}" }, open == "cap", { toggle("cap") }) {
         OutlinedTextField(
             value = capText, onValueChange = onCap,
             placeholder = { Text("No limit") },

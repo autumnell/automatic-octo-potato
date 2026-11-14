@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -57,8 +58,8 @@ fun DeckShortagesSheet(vm: DecksViewModel, onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text("Shortages across decks", style = MaterialTheme.typography.titleLarge)
             Text(
-                if (rows.isEmpty()) "Enough copies to keep all ${counted.size} decks built at once"
-                else "Short ${rows.sumOf { it.short }} copies to keep all ${counted.size} decks built at once",
+                if (rows.isEmpty()) "Enough copies to keep all ${plural(counted.size, "deck")} built at once"
+                else "Short ${plural(rows.sumOf { it.short }, "copy", "copies")} to keep all ${plural(counted.size, "deck")} built at once",
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = Space.s2), horizontalArrangement = Arrangement.spacedBy(Space.s2)) {

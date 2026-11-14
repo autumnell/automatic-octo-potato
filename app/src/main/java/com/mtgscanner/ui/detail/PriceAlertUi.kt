@@ -177,7 +177,7 @@ private fun PriceAlertDialog(
         },
         dismissButton = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (existing != null) TextButton(onClick = onDelete) { Text("Delete", color = Palette.Danger) }
+                if (existing != null) TextButton(onClick = onDelete) { Text("Delete alert", color = Palette.Danger) }
                 TextButton(onClick = onDismiss) { Text("Cancel") }
             }
         },

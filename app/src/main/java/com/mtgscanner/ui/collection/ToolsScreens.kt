@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -565,7 +566,7 @@ private fun SetHeader(
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    listOfNotNull(code.uppercase(), releasedAt, if (count > 0) "$count cards" else null).joinToString(" · "),
+                    listOfNotNull(code.uppercase(), releasedAt, if (count > 0) "${plural(count, "card")}" else null).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
                 )
             }

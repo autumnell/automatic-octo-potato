@@ -116,7 +116,10 @@ private fun PreconDeckSheet(name: String, deck: PreconDeck?, failed: Boolean, vm
         Column(Modifier.padding(horizontal = Space.s4).navigationBarsPadding()) {
             Text(name, style = MaterialTheme.typography.titleLarge)
             when {
-                failed -> EmptyState("Couldn't get this deck", Modifier.padding(vertical = Space.s6))
+                failed -> EmptyState(
+                    "Couldn't get this deck", Modifier.padding(vertical = Space.s6),
+                    action = "Try again", onAction = { vm.retryPrecon() }, body = "Check your connection",
+                )
                 deck == null -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
                 else -> {
                     val have = deck.ownedCopies(owned)

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.components.formatMoneyShort
@@ -155,7 +156,7 @@ internal fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismis
         AlertDialog(
             onDismissRequest = { confirmForever = false },
             containerColor = Palette.Surface,
-            title = { Text("Permanently delete ${box.cards} cards?") },
+            title = { Text("Permanently delete ${plural(box.cards, "card")}?") },
             text = { Text("${box.name} and every card in it will be removed from your collection") },
             confirmButton = { TextButton(onClick = { onDelete(null) }) { Text("Delete forever", color = Palette.Danger) } },
             dismissButton = { TextButton(onClick = { confirmForever = false }) { Text("Keep them") } },
@@ -172,7 +173,7 @@ internal fun DeleteBoxDialog(box: BoxSummary, others: List<BoxSummary>, onDismis
                 if (box.cards == 0) {
                     Text("It's empty")
                 } else {
-                    Text("What should happen to its ${box.cards} cards?")
+                    Text("What should happen to its ${plural(box.cards, "card")}?")
                     Spacer(Modifier.height(Space.s2))
                     Choice(
                         if (anything != null) "Move them to ${anything.name} (takes any card)" else "Move them to a new Anything box",

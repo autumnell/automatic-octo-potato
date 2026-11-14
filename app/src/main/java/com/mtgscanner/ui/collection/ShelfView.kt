@@ -140,7 +140,7 @@ fun ShelfSheet(onDismiss: () -> Unit) {
         ) {
             Text("Shelf", style = MaterialTheme.typography.titleLarge)
             if (boxes.isEmpty()) {
-                EmptyState("No boxes yet")
+                EmptyState("No boxes yet", body = "Make one from the Boxes tab")
                 return@Column
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

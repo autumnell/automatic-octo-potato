@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.home
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import kotlin.math.roundToInt
 import com.mtgscanner.ui.components.formatPrimary
@@ -380,11 +381,11 @@ private fun HeroCard(ui: HomeUi, onClick: (() -> Unit)?) {
             val big = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = PriceStyle.fontFeatureSettings)
             // AccentText: the raw accent is too faint on the light panel. It shrinks to fit in wide fonts.
             if (prices) RollingText(primaryValue(ui.totalValue, ui.totalEur), { formatPrimary(it, ui.totalEur) }, big, Palette.Text)
-            else RollingText(ui.totalCards.toDouble(), { "${it.toLong()} cards" }, big, Palette.Text)
+            else RollingText(ui.totalCards.toDouble(), { "${plural(it.toLong(), "card")}" }, big, Palette.Text)
             // With large text the change moves to its own line whole, rather than squeezing "since added" into a column.
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
-                if (prices) Text("${ui.totalCards} cards", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text, modifier = Modifier.padding(end = Space.s3))
+                if (prices) Text("${plural(ui.totalCards, "card")}", style = MaterialTheme.typography.bodyMedium.merge(TabularNums), color = Palette.Text, modifier = Modifier.padding(end = Space.s3))
                 else Text("${ui.uniqueCards} different cards", style = MaterialTheme.typography.bodyMedium, color = Palette.Text)
                 if (prices && ui.valueAtAdd > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
