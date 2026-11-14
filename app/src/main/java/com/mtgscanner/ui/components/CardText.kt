@@ -2,6 +2,10 @@ package com.mtgscanner.ui.components
 
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -93,53 +97,72 @@ private val FORMATS = listOf(
     "oathbreaker" to "Oathbreaker", "penny" to "Penny",
 )
 
-/** Card text laid out like Scryfall's: one panel, each part split by a thin line, then a legality grid. */
+/** A panel with a hairline border, like Scryfall's text box: rows inside it are split by [Palette.Rule] lines. */
 @Composable
-fun CardTextBlock(info: CardTextInfo, modifier: Modifier = Modifier) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(Corners.Medium), color = Palette.Surface) {
-        Column {
-            info.faces.forEachIndexed { i, f ->
-                if (i > 0) Divider(thick = true)
-                Row(Modifier.padding(horizontal = Space.s4, vertical = Space.s3), verticalAlignment = Alignment.CenterVertically) {
-                    Text(f.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    ManaCost(f.manaCost, size = 18.dp)
-                }
+fun RuledPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(Corners.Medium)
+    Surface(modifier.fillMaxWidth().border(1.dp, Palette.Rule, shape), shape = shape, color = Palette.Surface) {
+        Column(content = content)
+    }
+}
+
+/**
+ * Card text laid out like Scryfall's: one bordered panel, each part split by a thin line, then a legality grid.
+ * [heading] sets the name in the heading face, for the card page where it is the page's title. Holding the name
+ * calls [onHoldName].
+ */
+@Composable
+fun CardTextBlock(info: CardTextInfo, modifier: Modifier = Modifier, heading: Boolean = false, onHoldName: (() -> Unit)? = null) {
+    RuledPanel(modifier) {
+        info.faces.forEachIndexed { i, f ->
+            if (i > 0) Divider(thick = true)
+            Row(
+                Modifier.fillMaxWidth()
+                    .then(if (onHoldName != null) Modifier.pointerInput(onHoldName) { detectTapGestures(onLongPress = { onHoldName() }) } else Modifier)
+                    .padding(horizontal = Space.s4, vertical = Space.s3),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    f.name, style = if (heading) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                ManaCost(f.manaCost, size = if (heading) 20.dp else 18.dp)
+            }
+            Divider()
+            Text(f.typeLine, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
+            if (f.rules.isNotBlank() || f.flavor != null) {
                 Divider()
-                Text(f.typeLine, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
-                if (f.rules.isNotBlank() || f.flavor != null) {
-                    Divider()
-                    Column(Modifier.padding(horizontal = Space.s4, vertical = Space.s3)) {
-                        f.rules.split('\n').filter { it.isNotBlank() }.forEachIndexed { k, para ->
-                            if (k > 0) Spacer(Modifier.height(Space.s2))
-                            RulesText(para)
-                        }
-                        f.flavor?.let {
-                            if (f.rules.isNotBlank()) Spacer(Modifier.height(Space.s2))
-                            Text(it, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic, color = Palette.Muted)
-                        }
+                Column(Modifier.padding(horizontal = Space.s4, vertical = Space.s3)) {
+                    f.rules.split('\n').filter { it.isNotBlank() }.forEachIndexed { k, para ->
+                        if (k > 0) Spacer(Modifier.height(Space.s2))
+                        RulesText(para)
+                    }
+                    f.flavor?.let {
+                        if (f.rules.isNotBlank()) Spacer(Modifier.height(Space.s2))
+                        Text(it, style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic, color = Palette.Muted)
                     }
                 }
-                f.stats?.let {
-                    Divider()
-                    Text(it, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
-                }
             }
-            info.watermark?.let {
+            f.stats?.let {
                 Divider()
-                Line("Watermark: ", it.replaceFirstChar(Char::uppercase))
+                Text(it, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2))
             }
-            info.artist?.let {
-                Divider()
-                Line("Illustrated by ", it)
-            }
-            if (info.legalities.isNotEmpty()) {
-                Divider(thick = true)
-                Column(Modifier.padding(Space.s3), verticalArrangement = Arrangement.spacedBy(Space.s1)) {
-                    FORMATS.filter { it.first in info.legalities }.chunked(2).forEach { pair ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
-                            pair.forEach { (key, label) -> Legality(info.legalities[key].orEmpty(), label, Modifier.weight(1f)) }
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
-                        }
+        }
+        info.watermark?.let {
+            Divider()
+            Line("Watermark: ", it.replaceFirstChar(Char::uppercase))
+        }
+        info.artist?.let {
+            Divider()
+            Line("Illustrated by ", it)
+        }
+        if (info.legalities.isNotEmpty()) {
+            Divider(thick = true)
+            Column(Modifier.padding(Space.s3), verticalArrangement = Arrangement.spacedBy(Space.s1)) {
+                FORMATS.filter { it.first in info.legalities }.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
+                        pair.forEach { (key, label) -> Legality(info.legalities[key].orEmpty(), label, Modifier.weight(1f)) }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }

@@ -147,68 +147,57 @@ import com.mtgscanner.ui.theme.Corners
 import com.mtgscanner.ui.theme.TabularNums
 import com.mtgscanner.ui.components.PlaceholderPage
 
-/** Purchase price, where it came from and a photo, behind one small menu. */
+/**
+ * Everything on the card page that isn't used every visit, behind the ⋮ in the top bar: share, notes and tags,
+ * splitting, lending and counting copies, what was paid and where from, your photo, and removing the card.
+ */
 @Composable
-internal fun MorePicker(
+internal fun CardPageMenu(
+    open: Boolean,
+    close: () -> Unit,
     c: CollectionCard,
+    onShare: () -> Unit,
+    onNotes: () -> Unit,
+    onTag: () -> Unit,
+    /** Change condition, finish or language for some copies; null with only one copy. */
+    onSplit: (() -> Unit)?,
+    onLend: () -> Unit,
+    /** Count copies from a photo of the stack's edge. */
+    onCountStack: () -> Unit,
     onPaid: () -> Unit,
     onFrom: () -> Unit,
     onCamera: (() -> Unit)?,
     onPick: () -> Unit,
     onRemovePhoto: () -> Unit,
-    /** Change condition, finish or language for some copies; null with only one copy. */
-    onSplit: (() -> Unit)? = null,
-    onLend: (() -> Unit)? = null,
-    /** Count copies from a photo of the stack's edge. */
-    onCountStack: (() -> Unit)? = null,
+    onDelete: () -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        DropChip("More", onClick = { open = true })
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (onSplit != null) DropdownMenuItem(
-                text = { Text("Split copies…") },
-                onClick = { open = false; onSplit() },
-            )
-            if (onLend != null) DropdownMenuItem(
-                text = { Text("Lend…") },
-                onClick = { open = false; onLend() },
-            )
-            if (onCountStack != null) DropdownMenuItem(
-                text = { Text("Count a stack…") },
-                onClick = { open = false; onCountStack() },
-            )
-            DropdownMenuItem(
-                // With several copies, what was paid is their average (copies added later blend in).
-                text = {
-                    Text(
-                        when {
-                            c.purchasePrice == null -> "Paid…"
-                            c.quantity > 1 -> "Paid: ${formatUsd(c.purchasePrice)} each, on average"
-                            else -> "Paid: ${formatUsd(c.purchasePrice)}"
-                        },
-                        color = Palette.Text,
-                    )
-                },
-                onClick = { open = false; onPaid() },
-            )
-            DropdownMenuItem(
-                text = { Text(if (c.acquiredFrom.isBlank()) "From…" else "From: ${c.acquiredFrom}", color = Palette.Text) },
-                onClick = { open = false; onFrom() },
-            )
-            if (onCamera != null) DropdownMenuItem(
-                text = { Text(if (c.photo.isBlank()) "Take photo" else "Retake photo") },
-                onClick = { open = false; onCamera() },
-            )
-            DropdownMenuItem(
-                text = { Text(if (c.photo.isBlank()) "Pick photo" else "Pick new photo") },
-                onClick = { open = false; onPick() },
-            )
-            if (c.photo.isNotBlank()) DropdownMenuItem(
-                text = { Text("Remove photo", color = Palette.Danger) },
-                onClick = { open = false; onRemovePhoto() },
-            )
-        }
+    @Composable
+    fun item(label: String, color: androidx.compose.ui.graphics.Color = Palette.Text, action: () -> Unit) =
+        DropdownMenuItem(text = { Text(label, color = color) }, onClick = { close(); action() })
+    DropdownMenu(expanded = open, onDismissRequest = close) {
+        item("Share", action = onShare)
+        item(if (c.notes.isBlank()) "Add note…" else "Edit note…", action = onNotes)
+        item("Add tag…", action = onTag)
+        HorizontalDivider(color = Palette.Rule)
+        if (onSplit != null) item("Split copies…", action = onSplit)
+        item("Lend…", action = onLend)
+        item("Count a stack…", action = onCountStack)
+        // With several copies, what was paid is their average (copies added later blend in).
+        item(
+            when {
+                c.purchasePrice == null -> "Paid…"
+                c.quantity > 1 -> "Paid: ${formatUsd(c.purchasePrice)} each, on average"
+                else -> "Paid: ${formatUsd(c.purchasePrice)}"
+            },
+            action = onPaid,
+        )
+        item(if (c.acquiredFrom.isBlank()) "From…" else "From: ${c.acquiredFrom}", action = onFrom)
+        HorizontalDivider(color = Palette.Rule)
+        if (onCamera != null) item(if (c.photo.isBlank()) "Take photo" else "Retake photo", action = onCamera)
+        item(if (c.photo.isBlank()) "Pick photo" else "Pick new photo", action = onPick)
+        if (c.photo.isNotBlank()) item("Remove photo", Palette.Danger, onRemovePhoto)
+        HorizontalDivider(color = Palette.Rule)
+        item("Remove from collection", Palette.Danger, onDelete)
     }
 }
 
