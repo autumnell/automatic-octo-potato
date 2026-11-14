@@ -163,7 +163,10 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
     fun deleteRecord(r: GameRecord) {
         val before = _records.value
         saveRecords(before - r)
-        com.mtgscanner.ui.components.Undo.offer("Game deleted") { saveRecords(before) }
+        // Put back into the list as it is now, so a game finished since the delete isn't dropped by the Undo.
+        com.mtgscanner.ui.components.Undo.offer("Game deleted") {
+            saveRecords((_records.value + r).sortedByDescending { it.endedAt })
+        }
     }
     fun clearRecords() { unreadable = emptyList(); saveRecords(emptyList()) }
 
@@ -202,6 +205,15 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
             val saved = _records.value.firstOrNull { it.startedAt == g.startedAt }
             if (saved != null) saveRecords(_records.value - saved)
             g.copy(recorded = false)
+        }
+        g.winner != null -> {
+            // Already saved: a name fixed while the winner shows reaches the saved game too.
+            val saved = _records.value.firstOrNull { it.startedAt == g.startedAt }
+            if (saved != null && saved.players != g.players.map { it.name }) {
+                val fresh = g.toRecord(now = saved.endedAt)
+                saveRecords(_records.value.map { if (it === saved) fresh else it })
+            }
+            g
         }
         else -> g
     }

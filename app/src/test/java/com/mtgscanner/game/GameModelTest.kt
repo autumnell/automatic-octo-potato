@@ -226,6 +226,24 @@ class GameModelTest {
         assertEquals(0, GameRecordsCodec.read(null).records.size)
     }
 
+    @Test fun aTapRightAfterUndoIsItsOwnUndoStep() {
+        // Rae loses 1, Sam loses 1 by mistake, Undo, then Rae loses 1 more, all inside the merge window.
+        var s = Game.life(commander, 0, -1, now = 0)
+        s = Game.life(s, 1, -1, now = 500)
+        s = Game.undo(s)
+        s = Game.life(s, 0, -1, now = 1000)
+        assertEquals(38, s.players[0].life)
+        assertEquals(2, s.history.size)
+        // One Undo takes back only the last tap, not Rae's first one too.
+        s = Game.undo(s)
+        assertEquals(39, s.players[0].life)
+        // And taps after that merge as usual again.
+        s = Game.life(s, 0, -1, now = 1100)
+        s = Game.life(s, 0, -1, now = 1200)
+        assertEquals(37, s.players[0].life)
+        assertEquals(-2, s.history.last().delta)
+    }
+
     @Test fun aGameSavedByThisVersionStillReads() {
         // The game in progress as the app writes it; a field renamed or retyped would lose it on update.
         val text = """{"format":"COMMANDER","players":[{"name":"Rae","color":0,"life":31,"poison":2,""" +

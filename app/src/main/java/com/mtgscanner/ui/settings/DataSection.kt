@@ -233,7 +233,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
         Action(Icons.Outlined.History, "Recent actions", "Undo any of the last 10") { com.mtgscanner.ui.components.Undo.showRecent.value = true }
     }
 
-    RestorePreviewDialog(vm)
+    // The restore and import dialogs are drawn by DataHost, over every screen, so they show wherever a job ends.
 
     if (choosingPlace) AlertDialog(
         onDismissRequest = { choosingPlace = false },
@@ -290,7 +290,7 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
                         "Saved by the app before deleting a box, restoring, moving 50 or more cards, or Sort out. The newest 3 are kept.",
                         style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
                     )
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.size(Space.s2))
                     if (list.isEmpty()) Text("None yet", color = Palette.Muted)
                     list.forEach { a ->
                         Row(
@@ -320,8 +320,6 @@ fun DataSection(vm: SettingsViewModel = viewModel(factory = AppViewModels.Factor
             dismissButton = { TextButton(onClick = { confirmUndo = false }) { Text("Cancel") } },
         )
     }
-
-    ImportDialogs(vm)
 
     if (choosingExport) {
         AlertDialog(
@@ -388,7 +386,8 @@ private fun Action(icon: ImageVector, title: String, body: String, onClick: () -
         Spacer(Modifier.width(Space.s4))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Up to three lines, like the toggle rows, so big text isn't cut off.
+            Text(body, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
     }
 }

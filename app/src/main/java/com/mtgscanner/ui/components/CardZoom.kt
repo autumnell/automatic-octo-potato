@@ -169,16 +169,21 @@ private class CardZoomNode(
             val tracker = VelocityTracker()
             tracker.addPosition(down.uptimeMillis, down.position)
             // Keep this finger: its moves drag the big card, and nothing underneath scrolls or clicks.
-            while (true) {
-                val event = awaitPointerEvent()
-                val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.first()
-                val delta = change.positionChange()
-                if (delta != Offset.Zero) CardZoom.dragBy(delta)
-                tracker.addPosition(change.uptimeMillis, change.position)
-                event.changes.forEach { it.consume() }
-                if (event.changes.none { it.pressed }) break
+            try {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.first()
+                    val delta = change.positionChange()
+                    if (delta != Offset.Zero) CardZoom.dragBy(delta)
+                    tracker.addPosition(change.uptimeMillis, change.position)
+                    event.changes.forEach { it.consume() }
+                    if (event.changes.none { it.pressed }) break
+                }
+            } finally {
+                // Also when the gesture is cut off (the row under the finger was redrawn or scrolled away): without
+                // this the big card stayed wherever it had been dragged to instead of settling.
+                CardZoom.release(tracker.calculateVelocity())
             }
-            CardZoom.release(tracker.calculateVelocity())
         }
     }
 }

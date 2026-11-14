@@ -96,6 +96,10 @@ android {
             isIncludeAndroidResources = true
             all {
                 it.maxHeapSize = "4g"
+                // The screen pictures are drawn only when asked for (CI sets SCREEN_PICTURES=1 when the UI changed).
+                // Left out here, a normal run doesn't start a second Robolectric setup (native graphics) and the
+                // sample app 26 times just to skip each picture.
+                if (System.getenv("SCREEN_PICTURES") != "1") it.exclude("**/ScreenPicturesTest.class")
                 // Full errors in the build log, which is all CI shows from here.
                 it.testLogging {
                     exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

@@ -66,7 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mtgscanner.ui.AppViewModels
-import com.mtgscanner.ui.components.SelectPill
 import com.mtgscanner.ui.components.UnderlineTabs
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
@@ -130,7 +129,7 @@ fun SettingsScreen(onBack: () -> Unit, onScanLog: () -> Unit = {}, onTour: () ->
                     }
                 }
             } else {
-            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = Space.s1, bottom = Space.s2), horizontalPadding = 16.dp)
+            UnderlineTabs(settingsTabs, tab, { tab = it }, Modifier.padding(top = Space.s1, bottom = Space.s2), horizontalPadding = Space.s4)
             // Each branch is its own call site, so each tab keeps its own scroll position.
             when (tab) {
                 0 -> Page { LookTab() }
@@ -349,7 +348,18 @@ private fun Preview() {
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                 Text(com.mtgscanner.ui.components.formatUsd(total), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             }
-            SelectPill("Selected", true, onClick = {})
+            // A picture of a selected pill, not a control: it takes no taps and reads as plain text.
+            Text(
+                "Selected",
+                style = MaterialTheme.typography.labelMedium,
+                color = Palette.Text,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Corners.Small))
+                    .background(Palette.SurfaceHigh)
+                    .border(1.dp, Palette.Text, RoundedCornerShape(Corners.Small))
+                    .padding(horizontal = Space.s4, vertical = Space.s3),
+            )
         }
     }
 }

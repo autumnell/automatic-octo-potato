@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.outlined.Undo
@@ -177,8 +179,16 @@ private fun ImportDialog(rows: List<ImportRow>, boxes: List<Box>, onCancel: () -
 
 @Composable
 internal fun Choice(label: String, selected: Boolean, icon: ImageVector?, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick, colors = RadioButtonDefaults.colors(selectedColor = Palette.Text))
+    // One target for TalkBack: the whole row is the radio button, read with its label and "selected".
+    Row(
+        Modifier.fillMaxWidth().selectable(selected = selected, role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(
+            selected = selected, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = Palette.Text),
+            // Keeps the 48dp row height the button had when it took taps itself.
+            modifier = Modifier.minimumInteractiveComponentSize(),
+        )
         if (icon != null) {
             Icon(icon, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(Space.s2))

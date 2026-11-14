@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -82,7 +85,8 @@ fun PrintingsSheet(
                         Modifier
                             .fillMaxWidth()
                             .background(if (selected) Palette.SurfaceHigh else Color.Transparent)
-                            .clickable { onPick(p) }
+                            // Announced as selected, not only shown with a darker fill.
+                            .selectable(selected = selected, onClick = { onPick(p) })
                             .padding(horizontal = Space.s4)
                             .ruleBelow()
                             .padding(vertical = Space.s3),
@@ -146,20 +150,21 @@ fun AddCardSheet(
     var foil by remember(card.id) { mutableStateOf(!card.hasNonFoil) }
     var qty by remember(card.id) { mutableIntStateOf(1) }
     // The last box used may have been deleted since; fall back to Auto-sort rather than a box that's gone.
-    var boxId by remember { mutableLongStateOf(defaultBoxId) }
+    var pickedBoxId by remember { mutableLongStateOf(defaultBoxId) }
     /** A deck picked instead of a box; 0 when a box is picked. */
-    var deckId by remember { mutableLongStateOf(0L) }
+    var pickedDeckId by remember { mutableLongStateOf(0L) }
     var namingDeck by remember { mutableStateOf(false) }
     LaunchedEffect(pick) {
         when {
             pick == null -> Unit
-            pick.deckId != 0L -> deckId = pick.deckId
-            else -> { boxId = pick.boxId; deckId = 0L }
+            pick.deckId != 0L -> pickedDeckId = pick.deckId
+            else -> { pickedBoxId = pick.boxId; pickedDeckId = 0L }
         }
     }
-    // A box just made may not be in [boxes] yet; it isn't "gone".
-    if (boxId != CardBox.AUTO_SORT && boxId != pick?.boxId && boxes.isNotEmpty() && boxes.none { it.id == boxId }) boxId = CardBox.AUTO_SORT
-    if (deckId != 0L && deckId != pick?.deckId && decks.none { it.id == deckId }) deckId = 0L
+    // A box just made may not be in [boxes] yet; it isn't "gone". Worked out from the pick, not written back to it:
+    // writing state while composing made the sheet compose twice.
+    val boxId = if (pickedBoxId != CardBox.AUTO_SORT && pickedBoxId != pick?.boxId && boxes.isNotEmpty() && boxes.none { it.id == pickedBoxId }) CardBox.AUTO_SORT else pickedBoxId
+    val deckId = if (pickedDeckId != 0L && pickedDeckId != pick?.deckId && decks.none { it.id == pickedDeckId }) 0L else pickedDeckId
     val showDecks = onAddToDeck != null
     if (namingDeck && onCreateDeck != null) {
         NewDeckDialog(onCreate = { onCreateDeck(it); namingDeck = false }, onDismiss = { namingDeck = false })
@@ -213,12 +218,18 @@ fun AddCardSheet(
                 }
             }
             Spacer(Modifier.height(Space.s4))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // One control for the whole row, so a screen reader says "Foil, switch, off" instead of an unnamed switch.
+            val canToggleFoil = card.hasFoil && card.hasNonFoil
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .toggleable(value = foil, enabled = canToggleFoil, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = { foil = it }),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text("Foil", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 Switch(
                     checked = foil,
-                    onCheckedChange = { foil = it },
-                    enabled = card.hasFoil && card.hasNonFoil,
+                    onCheckedChange = null,
+                    enabled = canToggleFoil,
                     colors = SwitchDefaults.colors(checkedTrackColor = Palette.Text),
                 )
             }
@@ -249,13 +260,13 @@ fun AddCardSheet(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                     if (boxes.isNotEmpty()) {
                         val auto = deckId == 0L && boxId == CardBox.AUTO_SORT
-                        SelectPill("Auto-sort", auto, onClick = { boxId = CardBox.AUTO_SORT; deckId = 0L }, leading = {
+                        SelectPill("Auto-sort", auto, onClick = { pickedBoxId = CardBox.AUTO_SORT; pickedDeckId = 0L }, leading = {
                             Icon(Icons.AutoMirrored.Outlined.Sort, null, modifier = Modifier.size(18.dp), tint = if (auto) Palette.AccentText else Palette.Icon)
                         })
                     }
                     boxes.forEach { b ->
                         val on = deckId == 0L && b.id == boxId
-                        SelectPill(b.name, on, onClick = { boxId = b.id; deckId = 0L }, leading = {
+                        SelectPill(b.name, on, onClick = { pickedBoxId = b.id; pickedDeckId = 0L }, leading = {
                             Icon(boxIcon(b.kind), null, modifier = Modifier.size(18.dp), tint = if (on) Palette.AccentText else Palette.Icon)
                         })
                     }
@@ -268,7 +279,7 @@ fun AddCardSheet(
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s2), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
                         decks.forEach { d ->
                             val on = d.id == deckId
-                            SelectPill(d.name, on, onClick = { deckId = if (on) 0L else d.id }, leading = {
+                            SelectPill(d.name, on, onClick = { pickedDeckId = if (on) 0L else d.id }, leading = {
                                 Icon(boxIcon("deck"), null, modifier = Modifier.size(18.dp), tint = if (on) Palette.AccentText else Palette.Icon)
                             })
                         }

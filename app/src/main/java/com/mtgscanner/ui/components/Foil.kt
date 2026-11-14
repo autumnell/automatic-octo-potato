@@ -64,7 +64,10 @@ private object TiltSensor {
             val target = ((e.values[0] / SensorManager.GRAVITY_EARTH) * 1.4f -
                 (e.values[1] / SensorManager.GRAVITY_EARTH) * 0.5f).coerceIn(-1.2f, 1.2f)
             // Smooth out hand shake.
-            tilt.floatValue += (target - tilt.floatValue) * 0.18f
+            val next = tilt.floatValue + (target - tilt.floatValue) * 0.18f
+            // A phone lying still reports tiny changes 50 times a second; skipping them stops every foil on screen
+            // from being redrawn for a move too small to see.
+            if (kotlin.math.abs(next - tilt.floatValue) > 0.002f) tilt.floatValue = next
         }
 
         override fun onAccuracyChanged(s: Sensor?, accuracy: Int) {}

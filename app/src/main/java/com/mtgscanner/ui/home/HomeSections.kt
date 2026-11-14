@@ -8,6 +8,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
@@ -157,8 +160,9 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
             Column(Modifier.verticalScroll(rememberScrollState(), enabled = dragging < 0)) {
                 // Keeps the section changes made so far instead of dropping them.
                 TextButton(onClick = { save(); onTiles() }) { Text("Stat tiles…") }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(colorBar, { colorBar = it }, colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
+                // The whole row is the checkbox, so its label is read with it and a tap on the words works too.
+                Row(Modifier.toggleable(colorBar, role = Role.Checkbox) { colorBar = it }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(colorBar, null, Modifier.size(48.dp).wrapContentSize(), colors = CheckboxDefaults.colors(checkedColor = Palette.Text))
                     Text("Color bar", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Text("Under the value", style = MaterialTheme.typography.labelSmall, color = Palette.Muted, modifier = Modifier.padding(end = Space.s3))
                 }
@@ -171,26 +175,36 @@ internal fun EditHomeDialog(onDismiss: () -> Unit, onTiles: () -> Unit) {
                             .onSizeChanged { rowPx = it.height.toFloat().coerceAtLeast(1f) }
                             .zIndex(if (lifted) 1f else 0f)
                             .graphicsLayer { translationY = if (lifted) dragY else 0f }
-                            .background(if (lifted) Palette.SurfaceHigh else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(Corners.Small))
-                            .semantics {
-                                customActions = listOf(
-                                    CustomAccessibilityAction("Move up") { move(i, -1) },
-                                    CustomAccessibilityAction("Move down") { move(i, 1) },
-                                )
-                            },
+                            .background(if (lifted) Palette.SurfaceHigh else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(Corners.Small)),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(
-                            checked = on,
-                            onCheckedChange = { v -> rows = rows.toMutableList().also { it[i] = section to v } },
-                            colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
-                        )
-                        Text(
-                            section.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            color = if (on) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f),
-                        )
+                        // Checkbox and name are one control: the name is read with it, and a tap on the name works too.
+                        Row(
+                            Modifier
+                                .weight(1f)
+                                .toggleable(on, role = Role.Checkbox) { v -> rows = rows.toMutableList().also { it[i] = section to v } }
+                                .semantics {
+                                    customActions = listOf(
+                                        CustomAccessibilityAction("Move up") { move(i, -1) },
+                                        CustomAccessibilityAction("Move down") { move(i, 1) },
+                                    )
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = on,
+                                onCheckedChange = null,
+                                modifier = Modifier.size(48.dp).wrapContentSize(),
+                                colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
+                            )
+                            Text(
+                                section.label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                color = if (on) Palette.Text else Palette.Muted, modifier = Modifier.weight(1f),
+                            )
+                        }
                         Icon(
-                            Icons.Outlined.DragHandle, "Drag to reorder", tint = Palette.Icon,
+                            // Reordering is offered to TalkBack as "Move up" and "Move down" on the row.
+                            Icons.Outlined.DragHandle, null, tint = Palette.Icon,
                             modifier = Modifier
                                 .size(48.dp)
                                 .padding(Space.s3)

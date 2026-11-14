@@ -161,7 +161,7 @@ internal fun ToSortSection(
             )
             PlainGroup(Modifier.padding(horizontal = Space.s4, vertical = Space.s1)) { ui.unknown.take(5).forEach { p ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { onUnknown(p) }.padding(horizontal = Space.s3, vertical = Space.s2),
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onUnknown(p) }.padding(horizontal = Space.s3, vertical = Space.s2),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Outlined.QuestionMark, null, tint = Palette.Icon, modifier = Modifier.size(18.dp))

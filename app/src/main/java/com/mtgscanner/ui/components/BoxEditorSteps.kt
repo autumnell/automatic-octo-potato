@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,12 +66,16 @@ import com.mtgscanner.data.BOX_PRESETS
 import com.mtgscanner.data.BOX_TEMPLATES
 import com.mtgscanner.data.BoxTemplate
 import com.mtgscanner.data.BoxRules
+import com.mtgscanner.data.CardFacts
+import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.Box as CardBox
 import com.mtgscanner.data.db.boxRules
 import com.mtgscanner.data.db.facts
 import com.mtgscanner.ui.theme.AppSettings
 import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.ui.theme.Corners
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun StepBar(step: Int, showStart: Boolean, canJump: Boolean, onStep: (Int) -> Unit) {
@@ -443,19 +448,34 @@ private fun RuleCard(title: String, summary: String?, expanded: Boolean, onToggl
     }
 }
 
+/** One worked-out preview: the rules it's for, the cards it looked at, and which of them fit. */
+private class BoxFitPreview(val rules: BoxRules, val cards: List<CollectionCard>, val overlap: com.mtgscanner.data.Overlap<CardBox>)
+
 /** "N of your cards fit", with thumbnails, and a warning when boxes earlier in the Auto-sort order take some first. */
 @Composable
 internal fun LivePreview(rules: BoxRules, editingId: Long?) {
     val repo = (LocalContext.current.applicationContext as MtgApp).repository
     val cards by remember { repo.observeAll() }.collectAsStateWithLifecycle(initialValue = null)
     val boxes by remember { repo.observeBoxes() }.collectAsStateWithLifecycle(initialValue = emptyList())
-    val all = cards ?: return
-    val facts = remember(all) { all.map { it.facts() } }
-    val result = remember(rules, facts, boxes, editingId) {
-        val position = boxes.indexOfFirst { it.id == editingId }.let { if (it < 0) boxes.size else it }
-        val ahead = (if (rules.isCatchAll) boxes else boxes.take(position)).filter { it.id != editingId }
-        BoxRules.overlap(rules, ahead.map { it to it.boxRules() }, facts)
+    val owned = cards ?: return
+    // Worked out off the main thread: matching every card against every box on each keystroke made typing in the
+    // rule fields stutter with a big collection. The last preview stays up until the new one is ready.
+    val facts by produceState<Pair<List<CollectionCard>, List<CardFacts>>?>(null, owned) {
+        value = withContext(Dispatchers.Default) { owned to owned.map { it.facts() } }
     }
+    val preview by produceState<BoxFitPreview?>(null, rules, facts, boxes, editingId) {
+        val (list, listFacts) = facts ?: return@produceState
+        val order = boxes
+        value = withContext(Dispatchers.Default) {
+            val position = order.indexOfFirst { it.id == editingId }.let { if (it < 0) order.size else it }
+            val ahead = (if (rules.isCatchAll) order else order.take(position)).filter { it.id != editingId }
+            BoxFitPreview(rules, list, BoxRules.overlap(rules, ahead.map { it to it.boxRules() }, listFacts))
+        }
+    }
+    // The card list the indexes in [result] point into, kept with them so the two can't drift apart.
+    val shown = preview ?: return
+    val all = shown.cards
+    val result = shown.overlap
     val fitCount = result.fits.sumOf { all[it].quantity }
     val takenCount = result.takenBy.sumOf { (_, idx) -> idx.sumOf { all[it].quantity } }
 
@@ -468,7 +488,7 @@ internal fun LivePreview(rules: BoxRules, editingId: Long?) {
                 when {
                     all.isEmpty() -> "Your collection is empty, so nothing to preview yet"
                     fitCount == 0 -> "None of your cards fit these rules yet"
-                    rules.isCatchAll -> "Takes any card. ${fitCount - takenCount} of your cards don't fit another box."
+                    shown.rules.isCatchAll -> "Takes any card. ${fitCount - takenCount} of your cards don't fit another box."
                     else -> "$fitCount of your cards fit this box"
                 },
                 style = MaterialTheme.typography.titleSmall,

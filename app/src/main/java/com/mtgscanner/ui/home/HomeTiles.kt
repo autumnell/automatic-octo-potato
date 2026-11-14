@@ -46,6 +46,10 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import com.mtgscanner.ui.components.RollingText
 import com.mtgscanner.ui.theme.PriceStyle
 import com.mtgscanner.ui.theme.Corners
@@ -141,15 +145,19 @@ internal fun EditTilesDialog(lists: List<String>, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(Space.s1))
                 chosen.forEachIndexed { i, m ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = true,
-                            onCheckedChange = { chosen = chosen - m },
-                            colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
-                        )
-                        Text(
-                            if (m == TileMetric.CUSTOM && listName != null) "List: $listName" else m.label,
-                            style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                        )
+                        // Checkbox and name are one control: the name is read with it, and a tap on the name works too.
+                        Row(Modifier.weight(1f).toggleable(true, role = Role.Checkbox) { chosen = chosen - m }, verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = true,
+                                onCheckedChange = null,
+                                modifier = Modifier.size(48.dp).wrapContentSize(),
+                                colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
+                            )
+                            Text(
+                                if (m == TileMetric.CUSTOM && listName != null) "List: $listName" else m.label,
+                                style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                            )
+                        }
                         IconButton(onClick = { move(i, -1) }, enabled = i > 0) { Icon(Icons.Outlined.KeyboardArrowUp, "Move up") }
                         IconButton(onClick = { move(i, 1) }, enabled = i < chosen.lastIndex) { Icon(Icons.Outlined.KeyboardArrowDown, "Move down") }
                     }
@@ -168,11 +176,12 @@ internal fun EditTilesDialog(lists: List<String>, onDismiss: () -> Unit) {
                     }
                 }
                 TileMetric.entries.filter { it !in chosen }.forEach { m ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.toggleable(false, enabled = !full, role = Role.Checkbox) { chosen = chosen + m }, verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = false,
                             enabled = !full,
-                            onCheckedChange = { chosen = chosen + m },
+                            onCheckedChange = null,
+                            modifier = Modifier.size(48.dp).wrapContentSize(),
                             colors = CheckboxDefaults.colors(checkedColor = Palette.Text),
                         )
                         Text(

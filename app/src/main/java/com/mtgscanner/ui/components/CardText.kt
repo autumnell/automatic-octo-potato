@@ -1,21 +1,16 @@
 package com.mtgscanner.ui.components
 
 import com.mtgscanner.ui.theme.Space
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
@@ -27,17 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import com.mtgscanner.data.ScryfallCard
 import com.mtgscanner.data.db.CollectionCard
 import com.mtgscanner.data.db.tagList
@@ -83,19 +73,12 @@ fun CollectionCard.textInfo(): CardTextInfo {
     return CardTextInfo(
         faces = listOf(FaceText(name, manaCost, typeLine, oracleText)),
         artist = artist,
-        legalities = listOf("standard", "pioneer", "modern", "commander", "pauper").associateWith { if (it in legal) "legal" else "not_legal" },
+        // No tags at all means the card was saved without its legalities (matched from the on-phone card list), not
+        // that it's banned everywhere: say nothing rather than "not legal" five times.
+        legalities = if (legal.isEmpty()) emptyMap()
+        else listOf("standard", "pioneer", "modern", "commander", "pauper").associateWith { if (it in legal) "legal" else "not_legal" },
     )
 }
-
-private val FORMATS = listOf(
-    "standard" to "Standard", "alchemy" to "Alchemy",
-    "pioneer" to "Pioneer", "historic" to "Historic",
-    "modern" to "Modern", "brawl" to "Brawl",
-    "legacy" to "Legacy", "standardbrawl" to "Std. Brawl",
-    "vintage" to "Vintage", "timeless" to "Timeless",
-    "commander" to "Commander", "pauper" to "Pauper",
-    "oathbreaker" to "Oathbreaker", "penny" to "Penny",
-)
 
 /** A panel with a hairline border, like Scryfall's text box: rows inside it are split by [Palette.Rule] lines. */
 @Composable
@@ -107,7 +90,8 @@ fun RuledPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.(
 }
 
 /**
- * Card text laid out like Scryfall's: one bordered panel, each part split by a thin line, then a legality grid.
+ * Card text laid out like Scryfall's: one bordered panel, each part split by a thin line. Legality has its own tab
+ * on the card page (CardInfoTabs), which reads [CardTextInfo.legalities].
  * [heading] sets the name in the heading face, for the card page where it is the page's title. Holding the name
  * calls [onHoldName].
  */
@@ -156,17 +140,6 @@ fun CardTextBlock(info: CardTextInfo, modifier: Modifier = Modifier, heading: Bo
             Divider()
             Line("Illustrated by ", it)
         }
-        if (info.legalities.isNotEmpty()) {
-            Divider(thick = true)
-            Column(Modifier.padding(Space.s3), verticalArrangement = Arrangement.spacedBy(Space.s1)) {
-                FORMATS.filter { it.first in info.legalities }.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s3)) {
-                        pair.forEach { (key, label) -> Legality(info.legalities[key].orEmpty(), label, Modifier.weight(1f)) }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -186,29 +159,6 @@ private fun Line(label: String, value: String) {
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s2),
     )
-}
-
-@Composable
-private fun Legality(status: String, format: String, modifier: Modifier) {
-    val (label, bg) = when (status) {
-        "legal" -> "LEGAL" to Palette.Success
-        "banned" -> "BANNED" to Palette.Danger
-        "restricted" -> "RESTRICTED" to Color(0xFF2F7FB8)
-        else -> "NOT LEGAL" to Palette.SurfaceHigh
-    }
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.width(76.dp).clip(RoundedCornerShape(Corners.Small)).background(bg).padding(vertical = Space.s1),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                label, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, textAlign = TextAlign.Center,
-                color = if (status == "legal" || status == "banned" || status == "restricted") Color.White else Palette.Muted,
-            )
-        }
-        Spacer(Modifier.width(Space.s2))
-        Text(format, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-    }
 }
 
 private val SYMBOL = Regex("""\{([^}]+)\}""")

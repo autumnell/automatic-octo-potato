@@ -112,6 +112,21 @@ object DataJobs {
         return true
     }
 
+    // What a job found, waiting for the user to answer. Kept here and not in a view model: the job outlives the
+    // Settings screen, so its result must too. [DataHost] draws the dialogs for these over every screen.
+    /** Rows read from a CSV or pasted list, waiting for the user to pick a box. */
+    internal val importRows = MutableStateFlow<List<ImportRow>?>(null)
+    /** A backup that's been read, waiting for the user to confirm the restore. */
+    internal val restore = MutableStateFlow<RestorePreview?>(null)
+    /** What an import will add, shown before anything is saved. */
+    internal val importPlan = MutableStateFlow<ImportPlan?>(null)
+    /** The last import lookup couldn't reach Scryfall. */
+    internal val importOffline = MutableStateFlow(false)
+    /** Box id → name and kind, for the import preview. */
+    internal val importBoxes = MutableStateFlow<Map<Long, Box>>(emptyMap())
+    /** A safety copy from before the last restore exists. */
+    internal val canUndoRestore = MutableStateFlow(false)
+
     /** Why a job didn't start: "Wait for "Restoring" to finish". */
     fun waitMessage(): String = "Wait for \"${busy.value?.removeSuffix("…")}\" to finish"
 }
@@ -134,13 +149,13 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     val message: StateFlow<String?> = _message
 
     /** Rows read from a CSV, waiting for the user to pick a box. */
-    private val _importRows = MutableStateFlow<List<ImportRow>?>(null)
+    private val _importRows = DataJobs.importRows
     val importRows: StateFlow<List<ImportRow>?> = _importRows
 
-    private val _restore = MutableStateFlow<RestorePreview?>(null)
+    private val _restore = DataJobs.restore
     val restorePreview: StateFlow<RestorePreview?> = _restore
 
-    private val _canUndoRestore = MutableStateFlow(BackupIO.safetyFile(repo.appContext).exists())
+    private val _canUndoRestore = DataJobs.canUndoRestore.also { it.value = BackupIO.safetyFile(repo.appContext).exists() }
     /** A safety copy from before the last restore exists. */
     val canUndoRestore: StateFlow<Boolean> = _canUndoRestore
 
@@ -231,8 +246,8 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
 
     fun restore(ctx: android.content.Context, preview: RestorePreview) {
         val app = ctx.applicationContext
-        _restore.value = null
-        run("Restoring…") {
+        // Cleared only once the restore starts, so a busy moment doesn't lose the backup that was read.
+        val started = run("Restoring…") {
             val n = BackupIO.restore(repo, preview.backup)
             _canUndoRestore.value = true
             val message = if (n == 1) "Restored 1 card" else "Restored $n cards"
@@ -245,6 +260,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
             com.mtgscanner.ui.components.Undo.offer(message) { undoRestore(app) }
             null
         }
+        if (started) _restore.value = null
     }
 
     /** Puts back what the app held before the last restore. */
@@ -299,15 +315,15 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     suspend fun isEmpty(): Boolean = repo.allCards().isEmpty() && repo.observeBoxes().first().isEmpty()
 
     /** What an import will add, shown before anything is saved. */
-    private val _importPlan = MutableStateFlow<ImportPlan?>(null)
+    private val _importPlan = DataJobs.importPlan
     val importPlan: StateFlow<ImportPlan?> = _importPlan
 
     /** The last lookup couldn't reach Scryfall. */
-    private val _importOffline = MutableStateFlow(false)
+    private val _importOffline = DataJobs.importOffline
     val importOffline: StateFlow<Boolean> = _importOffline
 
     /** Box id → name and kind, for the preview. */
-    private val _importBoxes = MutableStateFlow<Map<Long, Box>>(emptyMap())
+    private val _importBoxes = DataJobs.importBoxes
     val importBoxes: StateFlow<Map<Long, Box>> = _importBoxes
 
     /**
@@ -318,15 +334,21 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val rows = _importRows.value ?: return
         // Keep the rows if something else is still running, so the import can be tried again.
         val started = run("Looking up ${rows.sumOf { it.quantity }} cards…") {
-            val found = try {
-                BackupIO.lookUp(repo, rows).also { _importOffline.value = false }
-            } catch (e: java.io.IOException) {
-                // Offline: show every card as not found, with Retry.
-                _importOffline.value = true
-                List(rows.size) { null }
+            try {
+                val found = try {
+                    BackupIO.lookUp(repo, rows).also { _importOffline.value = false }
+                } catch (e: java.io.IOException) {
+                    // Offline: show every card as not found, with Retry.
+                    _importOffline.value = true
+                    List(rows.size) { null }
+                }
+                showPlan(BackupIO.plan(repo, rows, found, choice))
+                null
+            } catch (e: Exception) {
+                // The lookup broke some other way: put the rows back, so "Try again" has something to try.
+                if (e !is CancellationException && _importPlan.value == null) _importRows.value = rows
+                throw e
             }
-            showPlan(BackupIO.plan(repo, rows, found, choice))
-            null
         }
         if (started) _importRows.value = null
     }

@@ -1,5 +1,8 @@
 package com.mtgscanner.ui.game
 
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import com.mtgscanner.ui.theme.Motion
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -126,6 +129,8 @@ fun RollStage(kind: DieKind?, result: String?, rollKey: Int, modifier: Modifier 
         Text(
             if (kind != null && settled && result != null) "${kind.label}: $result" else " ",
             color = Palette.Gold, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1,
+            // Read out when the roll lands, so TalkBack says the result without hunting for it.
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
     }
 }

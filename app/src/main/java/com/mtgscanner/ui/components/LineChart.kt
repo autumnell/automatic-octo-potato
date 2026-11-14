@@ -37,16 +37,20 @@ fun LineChart(values: List<Double>, modifier: Modifier, line: Color = Palette.Te
             val down = awaitFirstDown()
             down.consume()
             at = index(down.position.x).also { report?.invoke(it) }
-            while (true) {
-                val e = awaitPointerEvent()
-                val ch = e.changes.firstOrNull { it.id == down.id } ?: break
-                if (!ch.pressed) break
-                ch.consume()
-                val i = index(ch.position.x)
-                if (i != at) { at = i; report?.invoke(i); com.mtgscanner.util.Haptics.step() }
+            try {
+                while (true) {
+                    val e = awaitPointerEvent()
+                    val ch = e.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!ch.pressed) break
+                    ch.consume()
+                    val i = index(ch.position.x)
+                    if (i != at) { at = i; report?.invoke(i); com.mtgscanner.util.Haptics.step() }
+                }
+            } finally {
+                // Also when the touch is cut off (new prices arrive mid-scrub): the caller goes back to today's value.
+                at = null
+                report?.invoke(null)
             }
-            at = null
-            report?.invoke(null)
         }
     }
     // A screen reader hears the line's start, end and range instead of nothing.

@@ -63,6 +63,7 @@ import com.mtgscanner.data.db.priceWhenAdded
 import com.mtgscanner.data.db.totalPrice
 import com.mtgscanner.data.db.unitPrice
 import com.mtgscanner.data.observeGoalProgress
+import com.mtgscanner.data.observeLoans
 import com.mtgscanner.ui.AppViewModels
 import com.mtgscanner.ui.collection.BrowseLaunch
 import com.mtgscanner.ui.collection.BrowseViewModel
@@ -81,6 +82,7 @@ import com.mtgscanner.ui.theme.Palette
 import com.mtgscanner.work.CardAlertStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
@@ -175,15 +177,19 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     private val tileList = snapshotFlow { HomePrefs.tileList.takeIf { TileMetric.CUSTOM in HomePrefs.tiles } }
 
     /** Numbers for the stat tiles. */
-    val tiles: StateFlow<TileData> = combine(repo.observeAll(), repo.observeBoxes(), repo.observeWishlist(), searches.saved, tileList) { all, boxes, wish, saved, listName ->
+    val tiles: StateFlow<TileData> = combine(
+        // Loans ride along with the cards: is:lent in a saved search needs the rows with copies out.
+        combine(repo.observeAll(), repo.observeLoans().catch { emit(emptyList()) }) { all, loans -> all to loans },
+        repo.observeBoxes(), repo.observeWishlist(), searches.saved, tileList,
+    ) { (all, loans), boxes, wish, saved, listName ->
         TileData(
             values = TileMath.counts(all, boxes.size, wish.sumOf { it.wanted }, System.currentTimeMillis()),
             lists = run {
                 // Only the one search a tile shows is counted: matching every saved search costs a pass each.
                 val s = saved.firstOrNull { it.name == listName } ?: return@run emptyMap()
-                // box: in a saved search needs the box names.
+                // box: in a saved search needs the box names, and is:lent the rows with copies out, as in Browse.
                 val boxNames = boxes.associate { it.id to it.name }
-                val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] })
+                val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] }, lent = com.mtgscanner.data.LoanMath.outByRow(loans, all).keys)
                 mapOf(s.name to all.filter { (s.boxId == null || it.boxId == s.boxId) && BrowseViewModel.matches(it, s.filters, null, env) }.sumOf { it.quantity })
             },
             eur = TileMath.eurCounts(all),
@@ -204,33 +210,38 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
             .map { it.id to it.name }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** A saved search's filters, by name. */
-    fun savedFilters(name: String): Filters? = searches.saved.value.firstOrNull { it.name == name }?.filters
+    /** A saved search, by name. */
+    fun savedSearch(name: String): com.mtgscanner.ui.collection.SavedSearch? = searches.saved.value.firstOrNull { it.name == name }
 
     val goals: StateFlow<List<GoalProgress>> = repo.observeGoalProgress()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** The list [sortAll] last moved: the same list again is a second tap before the screen caught up. */
+    private var sorted: List<SortItem>? = null
+
     /** Moves every card in "To be sorted" to its box, with Undo. */
     fun sortAll() = viewModelScope.launch {
         val items = toSort.value.items
-        if (items.isEmpty()) return@launch
+        if (items.isEmpty() || items === sorted) return@launch
+        sorted = items
         // Moving merges into rows already in the target box, so undo restores a snapshot instead of moving back.
         val before = repo.snapshot(items.map { it.card.id })
         // Onto the move list too, the same as sorting from Collection, so it says what to pull from which box.
         val added = com.mtgscanner.ui.collection.MoveList.record(repo, items.map { it.card to it.to }, show = items.size > 1)
         repo.applyMoves(items.map { it.card.id to it.to })
         val n = items.sumOf { it.card.quantity }
-        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.restore(before); com.mtgscanner.ui.collection.MoveList.remove(added) }
+        Undo.offer(if (n == 1) "Moved 1 card" else "Moved $n cards") { repo.restore(before); com.mtgscanner.ui.collection.MoveList.remove(added); sorted = null }
     }
 
     /** Cards matching [text]; null when Scryfall couldn't be reached (offline), so it isn't shown as "No match". */
     suspend fun searchCards(text: String): List<ScryfallCard>? {
         val q = text.trim()
         if (q.length < 2) return emptyList()
-        val search = runCatching { repo.api.search(q) }
+        // A newer query cancels this one: that isn't "offline", so the cancel is passed on.
+        val search = com.mtgscanner.util.suspendRunCatching { repo.api.search(q) }
         val found = search.getOrNull().orEmpty().take(20)
         if (found.isNotEmpty()) return found
-        val named = runCatching { repo.api.named(q) }
+        val named = com.mtgscanner.util.suspendRunCatching { repo.api.named(q) }
         named.getOrNull()?.let { return listOf(it) }
         return if (search.isFailure && named.isFailure) null else emptyList()
     }
@@ -238,10 +249,16 @@ class HomeViewModel(private val repo: CollectionRepository) : ViewModel() {
     /** Adds the card picked for an unknown scan and clears the scan. */
     fun resolveUnknown(scan: PendingScan, card: ScryfallCard) = viewModelScope.launch {
         val foil = scan.foil && card.hasFoil || !card.hasNonFoil
-        val box = if (scan.boxId != CardBox.AUTO_SORT && repo.box(scan.boxId) != null) scan.boxId
-        else repo.pickBox(card, foil) ?: repo.anythingBox()
         val qty = scan.quantity.coerceAtLeast(1)
-        val row = repo.add(card, foil, qty, box, lang = if (card.lang != "en") card.lang else scan.lang ?: "en")
+        // A failed write says so, and the scan stays in the list, rather than closing the app.
+        val row = com.mtgscanner.util.suspendRunCatching {
+            val box = if (scan.boxId != CardBox.AUTO_SORT && repo.box(scan.boxId) != null) scan.boxId
+            else repo.pickBox(card, foil) ?: repo.anythingBox()
+            repo.add(card, foil, qty, box, lang = if (card.lang != "en") card.lang else scan.lang ?: "en")
+        }.getOrElse {
+            Undo.offer("Couldn't add ${card.name}")
+            return@launch
+        }
         repo.deletePending(scan.id)
         // The scan's photo stays for Undo; ScanPhotos keeps only the newest few hundred, so it's cleared in time.
         Undo.offer("Added ${card.name}") {

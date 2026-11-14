@@ -173,9 +173,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
                 onPlayer = { playerSheet = i },
             )
         }
-        // Each seat's turn, so the winner's banner can face them.
-        val turns = remember(g.players.size, g.layout) { IntArray(g.players.size) }
-        TableSeats(g.players.size, g.layout, 4.dp) { i, rot, mod -> if (i in turns.indices) turns[i] = rot; panel(i, rot, mod) }
+        TableSeats(g.players.size, g.layout, 4.dp) { i, rot, mod -> panel(i, rot, mod) }
 
         // The middle: the game menu sits dead center, undo just to its right, and day or night (once it's in
         // play) as a small chip just below.
@@ -204,7 +202,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
                 Modifier.align(Alignment.Center).offset(y = 26.dp + Space.s2 + 12.dp)
                     .clip(RoundedCornerShape(Corners.Small)).background(Color.Black.copy(alpha = 0.85f))
                     .border(1.dp, Palette.Gold, RoundedCornerShape(Corners.Small))
-                    .clickable { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
+                    .clickable(onClickLabel = "switch day and night") { vm.update { Game.dayNight(it, nextDayNight(it.dayNight)) } }
                     .padding(horizontal = Space.s3, vertical = Space.s1),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -217,7 +215,7 @@ fun GamePlayScreen(onExit: () -> Unit) {
         g.winner?.let { w ->
             // Turned toward the winner and set off the middle buttons on their side of the table.
             WinnerBanner(
-                g.players[w].name, Modifier.align(Alignment.Center).rotate(turns.getOrElse(w) { 0 }.toFloat()).padding(top = 140.dp),
+                g.players[w].name, Modifier.align(Alignment.Center).rotate(seatRotation(g.players.size, w, g.layout).toFloat()).padding(top = 140.dp),
                 onRestart = vm::restart, onDone = { vm.end(save = true, winner = w); onExit() },
             )
         }
@@ -245,7 +243,7 @@ private fun QuickButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
     Box(
         Modifier.size(40.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.85f))
             .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, label, tint = Color.White.copy(alpha = if (enabled) 1f else 0.3f), modifier = Modifier.size(20.dp))

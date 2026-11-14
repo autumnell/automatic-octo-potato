@@ -120,6 +120,8 @@ fun HomeScreen(
     onOpenSet: (String) -> Unit = {},
     /** Opens a deck (the "is complete" note). */
     onOpenDeck: (Long) -> Unit = {},
+    /** Opens Browse of one box (a "Saved list" tile whose search was saved inside a box). */
+    onOpenBox: (Long) -> Unit = {},
     vm: HomeViewModel = viewModel(factory = AppViewModels.Factory),
 ) {
     val ctx = LocalContext.current
@@ -169,6 +171,7 @@ fun HomeScreen(
     fun browseWith(filters: Filters, title: String? = null) {
         BrowseLaunch.filters = filters
         BrowseLaunch.title = title
+        BrowseLaunch.boxId = null
         if (onBrowseAll != null) onBrowseAll()
         else {
             BrowseLaunch.openAll = true
@@ -187,7 +190,12 @@ fun HomeScreen(
             TileMetric.WEEK -> browseWith(Filters(addedSince = System.currentTimeMillis() - TileMath.WEEK_MS, sort = SortBy.RECENT), m.label)
             TileMetric.VALUE, TileMetric.AVERAGE -> onStats()
             TileMetric.BOXES -> onCollection()
-            TileMetric.CUSTOM -> HomePrefs.tileList?.let { n -> vm.savedFilters(n)?.let { browseWith(it, n) } }
+            // A search saved inside a box opens in that box, so the page shows the cards the tile counts.
+            TileMetric.CUSTOM -> HomePrefs.tileList?.let { n -> vm.savedSearch(n) }?.let { s ->
+                val box = s.boxId
+                if (box == null) browseWith(s.filters, s.name)
+                else { BrowseLaunch.open(s); onOpenBox(box) }
+            }
             // The wishlist is a page of the Collection tab.
             TileMetric.WISHLIST -> { WishlistLaunch.open(); onCollection() }
             TileMetric.COMMANDERS, TileMetric.BULK, TileMetric.FOR_SALE, TileMetric.PROXIES, TileMetric.SIGNED, TileMetric.GRADED ->
@@ -280,6 +288,8 @@ fun HomeScreen(
                 where.startsWith("card/") -> where.removePrefix("card/").toLongOrNull()?.let(onOpenCard)
                 where == "settings" -> onSettings()
                 where == "collection" -> onCollection()
+                // Wishlist target alerts point at the Wishlist, a page of the Collection tab.
+                where == "wishlist" -> { WishlistLaunch.open(); onCollection() }
             }
         },
         onDismiss = { bell = false },

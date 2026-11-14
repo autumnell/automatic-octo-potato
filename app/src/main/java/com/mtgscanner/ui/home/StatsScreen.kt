@@ -135,6 +135,8 @@ fun StatsScreen(
 
     fun browse(filters: Filters) {
         BrowseLaunch.filters = filters
+        BrowseLaunch.title = null
+        BrowseLaunch.boxId = null
         onBrowseAll()
     }
 
@@ -197,7 +199,9 @@ fun StatsScreen(
                 s.byRarity, prices,
                 lead = { RarityDot(it.key, 10.dp) },
                 bar = { MtgColors.rarity(it.key) },
-                onRow = { r -> if (r.key != "special" && r.key != StatsMath.TOKENS) browse(Filters(rarities = setOf(r.key), sort = SortBy.PRICE)) },
+                // "Special" and tokens have no Browse filter, so those rows aren't offered as buttons.
+                canOpen = { it.key != "special" && it.key != StatsMath.TOKENS },
+                onRow = { r -> browse(Filters(rarities = setOf(r.key), sort = SortBy.PRICE)) },
             )
 
             SectionHeader("By set") {
@@ -222,6 +226,7 @@ fun StatsScreen(
                     note = if (prices && s.yearChange.isNotEmpty()) "Up or down from what you paid, or the price when added" else null,
                     lead = null,
                     bar = { Palette.Muted },
+                    canOpen = { false },
                     onRow = {},
                 )
             }
@@ -276,6 +281,8 @@ private fun Breakdown(
     note: String? = null,
     lead: (@Composable (StatRow) -> Unit)?,
     bar: (StatRow) -> Color,
+    /** Rows a tap opens in Browse; the rest are plain text, not buttons that do nothing. */
+    canOpen: (StatRow) -> Boolean = { true },
     onRow: (StatRow) -> Unit,
 ) {
     // Values in the currency Settings › Prices picks (dollars with Both: rows are narrow).
@@ -284,7 +291,7 @@ private fun Breakdown(
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s4).clip(RoundedCornerShape(Corners.Small)).background(Palette.Surface).padding(horizontal = Space.s3, vertical = Space.s1)) {
         Column {
             rows.forEach { r ->
-                Column(Modifier.fillMaxWidth().clickable { onRow(r) }.ruleBelow().padding(horizontal = Space.s1, vertical = Space.s2)) {
+                Column(Modifier.fillMaxWidth().clickable(enabled = canOpen(r)) { onRow(r) }.ruleBelow().padding(horizontal = Space.s1, vertical = Space.s2)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (lead != null) {
                             lead(r)

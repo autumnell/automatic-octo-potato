@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -162,7 +164,7 @@ fun GameSetupScreen(
                             Spacer(Modifier.height(Space.s3))
                             Surface(shape = RoundedCornerShape(Corners.Medium), color = Palette.BoxCard, modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(Space.s3)) {
-                                    Text("${g.format.label} · ${g.players.size} players · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
+                                    Text("${g.format.label} · ${g.players.size} ${if (g.players.size == 1) "player" else "players"} · turn ${g.turn}", style = MaterialTheme.typography.titleSmall)
                                     Text(
                                         g.players.joinToString("  ·  ") { "${it.name} ${it.life}" }, style = MaterialTheme.typography.bodySmall,
                                         color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -315,7 +317,7 @@ private fun Tile(selected: Boolean, modifier: Modifier, center: Boolean = false,
     Box(
         modifier.clip(RoundedCornerShape(Corners.Medium)).background(Palette.Surface)
             .then(if (selected) Modifier.border(2.dp, Palette.Text, RoundedCornerShape(Corners.Medium)) else Modifier)
-            .clickable(onClick = onClick).padding(Space.s4),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick).padding(Space.s4),
         contentAlignment = if (center) Alignment.Center else Alignment.BottomStart,
     ) {
         Column(horizontalAlignment = if (center) Alignment.CenterHorizontally else Alignment.Start) { content() }
@@ -343,7 +345,7 @@ private fun MiniTable(players: Int, layout: Int, selected: Boolean, onClick: () 
     Box(
         Modifier.fillMaxWidth().aspectRatio(0.56f).clip(RoundedCornerShape(Corners.Medium)).background(Palette.Stage)
             .border(if (selected) 2.dp else 1.dp, if (selected) Palette.Text else Palette.Rule, RoundedCornerShape(Corners.Medium))
-            .clickable(onClick = onClick).padding(Space.s1)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick).padding(Space.s1)
             .semantics(mergeDescendants = true) { contentDescription = TableLayouts.label(players, layout) },
     ) {
         TableSeats(players, layout, Space.s1) { i, rot, m ->
@@ -365,7 +367,7 @@ private fun SameAsLast(last: LastSetup, names: List<String>, onStart: () -> Unit
         Column(Modifier.weight(1f)) {
             Text("Same as last time", style = MaterialTheme.typography.titleSmall)
             Text(
-                "${last.format.label} · ${last.players} players · ${last.life} life  ·  " +
+                "${last.format.label} · ${last.players} ${if (last.players == 1) "player" else "players"} · ${last.life} life  ·  " +
                     names.take(last.players).mapIndexed { i, n -> n.ifBlank { "Player ${i + 1}" } }.joinToString(", "),
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
