@@ -252,7 +252,7 @@ fun SetPickSheet(vm: ScanViewModel) {
                 }
                 items(shown, key = { it.code }) { s -> SetRow(s, s.code == lock) { vm.setLock(s.code) } }
                 if (sets.isEmpty() && typed == null) item(key = "empty") {
-                    EmptyState("No sets. Type a code.", Modifier.fillMaxWidth().padding(vertical = Space.s6))
+                    EmptyState("No sets match. Type a set code to lock to it", Modifier.fillMaxWidth().padding(vertical = Space.s6))
                 }
             }
             Spacer(Modifier.height(Space.s3))

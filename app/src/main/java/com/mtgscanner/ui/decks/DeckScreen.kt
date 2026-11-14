@@ -395,7 +395,7 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
         title = { Text("Delete deck?") },
         text = {
             Column {
-                Text(if (copies == 1) "1 card is in this deck" else "$copies cards are in this deck", color = Palette.Muted)
+                Text(if (copies == 1) "1 card is in this deck. Choose where it goes" else "$copies cards are in this deck. Choose where they go", color = Palette.Muted)
                 Spacer(Modifier.height(Space.s3))
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s2)) {
                     SelectPill("Move to boxes", !remove, { remove = false })
@@ -403,7 +403,7 @@ private fun DeleteDeckDialog(copies: Int, onDelete: (removeCards: Boolean) -> Un
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onDelete(remove) }) { Text("Delete", color = Palette.Danger) } },
+        confirmButton = { TextButton(onClick = { onDelete(remove) }) { Text("Delete deck", color = Palette.Danger) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

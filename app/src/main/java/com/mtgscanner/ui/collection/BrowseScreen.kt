@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.focusRequester
@@ -280,8 +281,8 @@ fun BrowseScreen(
                 // In Collection's All tab the totals line above the tabs already has the count; show it only once filtered.
                 val filtered = f.activeCount > 0 || f.query.isNotBlank()
                 if (!embedded || filtered) Text(
-                    if (filtered) "${ui.shownCards} of ${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}"
-                    else "${ui.totalCards} cards${moneySuffix(ui.shownValue, ui.shownEur)}",
+                    if (filtered) "${ui.shownCards} of ${plural(ui.totalCards, "card")}${moneySuffix(ui.shownValue, ui.shownEur)}"
+                    else "${plural(ui.totalCards, "card")}${moneySuffix(ui.shownValue, ui.shownEur)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,
                 )
@@ -411,7 +412,7 @@ fun BrowseScreen(
                 }
             }
             // A hairline marks where the scrolling tools end, so a chip cut off at large text reads as "more this way".
-            Box(Modifier.width(1.dp).height(Space.s6).background(Palette.Rule))
+            Box(Modifier.width(1.dp).height(Space.s6).background(Palette.Faint))
             if (ui.totalCards > 0 && !picking) TextButton(onClick = vm::startSelecting, contentPadding = PaddingValues(horizontal = Space.s2)) { Text("Select") }
             IconButton(onClick = vm::cycleView) {
                 // Shows the view you get next.

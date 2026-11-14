@@ -17,6 +17,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -46,7 +47,11 @@ private data class CombosRun(val combos: List<OwnedCombo>? = null, val failed: B
 fun CollectionCombosSheet(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val repo = (ctx.applicationContext as com.mtgscanner.MtgApp).repository
-    val run by produceState(CombosRun()) { value = repo.ownedCombos()?.let { CombosRun(it) } ?: CombosRun(emptyList(), failed = true) }
+    var attempt by remember { mutableIntStateOf(0) }
+    val run by produceState(CombosRun(), attempt) {
+        value = CombosRun()
+        value = repo.ownedCombos()?.let { CombosRun(it) } ?: CombosRun(emptyList(), failed = true)
+    }
     var query by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
@@ -63,7 +68,10 @@ fun CollectionCombosSheet(onDismiss: () -> Unit) {
                     Spacer(Modifier.height(Space.s2))
                     Text("Checking your cards…", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
-                run.failed -> EmptyState("Couldn't get the combo list", Modifier.padding(vertical = Space.s6))
+                run.failed -> EmptyState(
+                    "Couldn't get the combo list", Modifier.padding(vertical = Space.s6),
+                    action = "Try again", onAction = { attempt++ }, body = "Check your connection",
+                )
                 combos.isEmpty() -> EmptyState("No complete combos in your collection yet", Modifier.padding(vertical = Space.s6))
                 else -> {
                     SearchField(query, { query = it }, Modifier.padding(horizontal = Space.s4), placeholder = "Find a card or result")

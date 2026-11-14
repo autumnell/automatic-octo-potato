@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.util.plural
 import kotlinx.coroutines.flow.catch
 import com.mtgscanner.data.observeLoans
 import com.mtgscanner.data.suggestNames
@@ -770,7 +771,7 @@ class DeckViewModel(private val repo: CollectionRepository, deckId: Long) : View
                 }.getOrNull()
                 if (batch == null) _ui.update { it.copy(message = "Couldn't reach Scryfall. Check your connection and try again") }
                 else {
-                    val msg = "Added ${batch.count} cards to your wishlist"
+                    val msg = "Added ${plural(batch.count, "card")} to your wishlist"
                     if (batch.changed > 0) Undo.offer(msg, batch.undo) else _ui.update { it.copy(message = msg) }
                 }
             } finally {

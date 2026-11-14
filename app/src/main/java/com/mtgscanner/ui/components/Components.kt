@@ -148,7 +148,10 @@ fun CardImage(
         model = if (useBackup) backup else url,
         contentDescription = null,
         contentScale = ContentScale.Crop,
+        // A hairline at 10% of the text color keeps black-bordered cards from melting into a dark page (and white
+        // ones into a light one) without reading as a frame.
         modifier = modifier.aspectRatio(63f / 88f).clip(shape).background(fill)
+            .border(androidx.compose.ui.unit.Dp.Hairline, Palette.Text.copy(alpha = 0.1f), shape)
             .then(if (zoom) Modifier.cardZoom(url, onTap = onTap) else Modifier),
         placeholder = placeholder,
         error = placeholder,
@@ -186,8 +189,10 @@ fun GradientButton(
     enabled: Boolean = true,
     hero: Boolean = false,
 ) {
+    val press = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Row(
         modifier
+            .then(if (enabled) Modifier.pressScale(press) else Modifier)
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(Corners.Medium))
             .then(
@@ -196,7 +201,10 @@ fun GradientButton(
                     else -> Modifier.background(Palette.Accent)
                 },
             )
-            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .clickable(
+                interactionSource = press, indication = androidx.compose.material3.ripple(),
+                enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick,
+            )
             .padding(horizontal = Space.s4, vertical = Space.s3),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,

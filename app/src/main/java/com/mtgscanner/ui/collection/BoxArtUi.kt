@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import com.mtgscanner.ui.components.formatMoneyShort
 import androidx.compose.foundation.Canvas
@@ -145,7 +146,7 @@ fun ValueRing(
                             maxLines = 1,
                         )
                     }
-                    Text("$totalCards cards", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted)
+                    Text("${plural(totalCards, "card")}", style = MaterialTheme.typography.labelSmall.merge(TabularNums), color = Palette.Muted)
                 } else {
                     Text("$totalCards", style = MaterialTheme.typography.headlineMedium.merge(TabularNums), fontWeight = FontWeight.Medium)
                     Text("cards", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)

@@ -678,7 +678,7 @@ private fun pageIn() =
     slideInHorizontally(tween(Motion.slow, easing = Motion.ease)) { it / 3 } +
         fadeIn(tween(Motion.slow, easing = Motion.ease))
 
-/** The same page sliding back out when you go back. */
+/** The same page sliding back out when you go back, a little quicker than it came in. */
 private fun pageOut() =
-    slideOutHorizontally(tween(Motion.slow, easing = Motion.ease)) { it / 3 } +
-        fadeOut(tween(Motion.slow, easing = Motion.ease))
+    slideOutHorizontally(tween(Motion.base, easing = Motion.ease)) { it / 3 } +
+        fadeOut(tween(Motion.base, easing = Motion.ease))

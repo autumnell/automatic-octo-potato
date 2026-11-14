@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.detail
 
+import com.mtgscanner.util.plural
 import androidx.compose.animation.core.tween
 import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
@@ -661,11 +662,11 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
         AlertDialog(
             onDismissRequest = { vm.stackCount.value = null },
             containerColor = Palette.Surface,
-            title = { Text("About ${r.count} cards") },
+            title = { Text("About ${plural(r.count, "card")}") },
             text = {
                 Text(
-                    if (r.sure) "Set this card to ${r.count} copies?"
-                    else "The edges weren't clear, so this may be off. Set this card to ${r.count} copies?",
+                    if (r.sure) "Set this card to ${plural(r.count, "copy", "copies")}?"
+                    else "The edges weren't clear, so this may be off. Set this card to ${plural(r.count, "copy", "copies")}?",
                     color = Palette.Muted,
                 )
             },
@@ -679,7 +680,7 @@ fun CardDetailScreen(id: Long, onBack: () -> Unit, onOpenSet: ((String) -> Unit)
             containerColor = Palette.Surface,
             title = { Text("Couldn't count the edges") },
             text = { Text("Try closer, with the stack filling the picture and light from the side", color = Palette.Muted) },
-            confirmButton = { TextButton(onClick = { vm.stackFailed.value = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { vm.stackFailed.value = false }) { Text("Close") } },
         )
     }
     if (splitting && c != null && c.quantity > 1) {

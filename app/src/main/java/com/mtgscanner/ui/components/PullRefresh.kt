@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.components
 
+import com.mtgscanner.util.plural
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,7 +61,7 @@ fun PriceRefreshBox(
                 refreshing = true
                 scope.launch {
                     val msg = com.mtgscanner.util.suspendRunCatching { if (cards != null) repo.refreshPricesOf(cards()) else repo.refreshPrices() }
-                        .fold({ "Updated prices for $it cards" }, { "Prices not refreshed. Check your connection and pull down to try again" })
+                        .fold({ "Updated prices for ${plural(it, "card")}" }, { "Prices not refreshed. Check your connection and pull down to try again" })
                     refreshing = false
                     Undo.offer(msg)
                 }

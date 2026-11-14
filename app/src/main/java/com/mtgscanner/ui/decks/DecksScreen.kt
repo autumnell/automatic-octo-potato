@@ -276,9 +276,9 @@ fun DecksTab(
             if (decks != null && shown.isEmpty() && folderTiles.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "none") {
                     if (searching) {
-                        EmptyState("No decks found")
+                        EmptyState("No decks match", body = "Try fewer letters or another name")
                     } else if (folder != null) {
-                        EmptyState("Empty folder")
+                        EmptyState("No decks in this folder", body = "Move one here from its menu")
                     } else {
                         EmptyState("No decks here", action = "New deck", onAction = { onOpenDeck(0L) })
                     }

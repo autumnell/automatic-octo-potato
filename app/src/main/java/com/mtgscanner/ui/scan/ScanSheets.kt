@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import android.Manifest
 import android.content.pm.PackageManager
@@ -160,7 +161,7 @@ internal fun SettingsSheet(state: ScanUiState, vm: ScanViewModel) {
             if (state.pendingCount > 0) {
                 HorizontalDivider(color = Palette.Rule)
                 Text(
-                    "${state.pendingCount} cards saved while offline. They're added automatically when you're back online.",
+                    "${plural(state.pendingCount, "card")} saved while offline. They're added automatically when you're back online.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Gold,
                     modifier = Modifier.padding(vertical = Space.s3),
@@ -190,7 +191,7 @@ internal fun ScanListSheet(state: ScanUiState, vm: ScanViewModel, onOpenCard: (L
         Row(Modifier.padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Scan list", style = MaterialTheme.typography.titleLarge)
-                Text("${state.sessionCount} cards${moneySuffix(state.sessionValue, state.sessionEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
+                Text("${plural(state.sessionCount, "card")}${moneySuffix(state.sessionValue, state.sessionEur)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
             }
             if (state.sessionCount >= 2) {
                 val n = minOf(5, state.sessionCount)
