@@ -6,7 +6,9 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.ConnectivityManager
 import com.mtgscanner.scan.CardTextParser
 import com.mtgscanner.util.CardNames
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -23,6 +25,7 @@ import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import java.util.zip.Deflater
 import java.util.zip.Inflater
+import kotlin.coroutines.coroutineContext
 
 /** What the card list on the phone is doing, for Settings. */
 data class LocalCardsStatus(
@@ -79,8 +82,15 @@ object LocalPick {
     /** [cards] without Art Series cards, unless that's all there is. */
     fun realCards(cards: List<ScryfallCard>): List<ScryfallCard> = cards.filterNot(::isArtCard).ifEmpty { cards }
 
-    /** The fields a scan needs, without the ones only the card page shows (it reads those fresh from Scryfall). */
-    fun slim(c: ScryfallCard): ScryfallCard = c.copy(legalities = emptyMap(), relatedUris = emptyMap(), purchaseUris = emptyMap())
+    /**
+     * The fields a scan needs, without the ones only the card page shows (it reads those fresh from Scryfall). The
+     * formats a card is legal or restricted in stay, as in ScanSessionStore's forSession: the `legal:` tags and
+     * "Commander legal" style box rules read them when a card matched here is added.
+     */
+    fun slim(c: ScryfallCard): ScryfallCard = c.copy(
+        legalities = c.legalities.filterValues { it == "legal" || it == "restricted" },
+        relatedUris = emptyMap(), purchaseUris = emptyMap(),
+    )
 
     /** Days to look back when asking for new cards: from the day before the last update, so a late addition isn't missed. */
     fun since(updated: String): String = runCatching { LocalDate.parse(updated).minusDays(1).toString() }.getOrDefault(updated)
@@ -126,7 +136,8 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
     suspend fun sync(force: Boolean = false) = lock.withLock {
         withContext(Dispatchers.IO) {
             if (!enabled) return@withContext
-            tmpFile.delete()
+            // A list left half built by a stopped download, with its journal, so a new one never picks up either.
+            SQLiteDatabase.deleteDatabase(tmpFile)
             val d = open()
             _status.value = LocalCardsStatus(count(d), prefs.getString(KEY_DAY, "").orEmpty(), mb = if (d != null) sizeMb() else 0)
             val today = LocalDate.now().toString()
@@ -136,6 +147,8 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
                 if (!force && !unmetered()) return@withContext
                 runCatching { downloadAll() }.onFailure { e ->
                     SQLiteDatabase.deleteDatabase(tmpFile)
+                    // The job was stopped (Wi-Fi lost, the system needed it): not a failure, and it starts again later.
+                    if (e is CancellationException) { _status.value = _status.value.copy(progress = null); throw e }
                     _status.value = _status.value.copy(progress = null, failed = true, reason = downloadReason(e))
                 }
             } else if (force || updated != today) {
@@ -231,6 +244,9 @@ class LocalCards(private val context: Context, private val api: ScryfallApi) {
                         if (n % 2000 == 0) {
                             // Turned off in Settings while downloading: stop and leave nothing behind.
                             if (!enabled) error("Turned off")
+                            // The background job was stopped (say Wi-Fi went and the phone moved to mobile data):
+                            // stop reading instead of carrying on with a few hundred MB.
+                            coroutineContext.ensureActive()
                             d.setTransactionSuccessful(); d.endTransaction(); d.beginTransaction()
                             // Without any size, progress is shown by cards against a typical count.
                             val p = if (total > 0) counting.count.toFloat() / total else n / 110_000f

@@ -464,8 +464,10 @@ class BrowseViewModel(private val repo: CollectionRepository, private val boxId:
 
     fun moveSelectedToDeck(deckId: Long) {
         val ids = _selected.value.toList()
+        // Counted now: once the rows are in the deck they leave this list, and a stack would count as 1.
+        val n = count(ids)
         clearSelection()
-        moveIntoDeck(ids, deckId) { "Moved ${count(ids)} to $it" }
+        moveIntoDeck(ids, deckId) { "Moved $n to $it" }
     }
 
     fun moveOneToDeck(id: Long, deckId: Long) = moveIntoDeck(listOf(id), deckId) { "Moved to $it" }

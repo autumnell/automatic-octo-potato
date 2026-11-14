@@ -22,6 +22,20 @@ class ScanLogStatsTest {
     }
 
     @Test
+    fun artMatchesCountAndCorrectionsAreNotLookups() {
+        val list = listOf(
+            ScanLogEntry(outcome = "art match", ms = 200),
+            ScanLogEntry(outcome = "matched", ms = 100),
+            ScanLogEntry(outcome = "corrected"),
+            ScanLogEntry(outcome = "no match", ms = 300),
+        )
+        val s = ScanLogStats.of(list)!!
+        assertEquals(3, s.lookups)
+        assertEquals(2.0 / 3, s.matchedShare, 1e-9)
+        assertNull(ScanLogStats.of(listOf(ScanLogEntry(outcome = "corrected"))))
+    }
+
+    @Test
     fun emptyHasNone() {
         assertNull(ScanLogStats.of(emptyList()))
     }

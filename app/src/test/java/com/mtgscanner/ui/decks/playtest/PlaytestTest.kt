@@ -167,6 +167,8 @@ class PlaytestTest {
         assertEquals(1, Playtest.toBottom(1, free = false))
         assertEquals(0, Playtest.toBottom(1, free = true))
         assertEquals(2, Playtest.toBottom(3, free = true))
+        // A 5-card hand from a short library never asks for more than 5, or Keep could never be pressed.
+        assertEquals(5, Playtest.toBottom(7, free = false, hand = 5))
         assertTrue(Playtest.freeMulligan(PlayDeck("a", emptyList(), listOf(cmdr), "commander")))
         assertFalse(Playtest.freeMulligan(PlayDeck("a", emptyList(), emptyList(), "modern")))
         assertTrue(Playtest.freeMulligan(PlayDeck("a", emptyList(), listOf(cmdr), "")))

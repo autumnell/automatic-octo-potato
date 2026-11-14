@@ -12,6 +12,9 @@ import com.mtgscanner.data.wishSnapshot
 import com.mtgscanner.ui.components.moneySuffix
 import com.mtgscanner.ui.components.formatMoneyShort
 import com.mtgscanner.data.db.totalEur
+import com.mtgscanner.data.db.sameCopyAs
+import com.mtgscanner.data.observeLoans
+import kotlinx.coroutines.flow.catch
 import android.content.ContentResolver
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -338,10 +341,13 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     // Smart lists: saved Browse searches that update themselves
 
     private val searches = SavedSearchStore(repo.appContext)
-    val lists: StateFlow<List<SmartList>> = combine(repo.observeAll(), searches.saved, repo.observeBoxes()) { all, saved, boxes ->
-        // box: in a saved search needs the box names.
+    val lists: StateFlow<List<SmartList>> = combine(
+        repo.observeAll(), searches.saved, repo.observeBoxes(),
+        repo.observeLoans().catch { emit(emptyList()) },
+    ) { all, saved, boxes, loans ->
+        // box: in a saved search needs the box names, and is:lent the rows with copies out, as in Browse.
         val boxNames = boxes.associate { it.id to it.name }
-        val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] })
+        val env = com.mtgscanner.data.search.SearchEnv(boxName = { boxNames[it] }, lent = com.mtgscanner.data.LoanMath.outByRow(loans, all).keys)
         saved.map { s -> SmartList.of(s, all, env) }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -361,13 +367,28 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
     fun deleteBox(id: Long, moveTo: Long?) = viewModelScope.launch {
         val undo = repo.boxUndo(id)
         val target = if (moveTo == TO_ANYTHING) repo.anythingBox(except = id) else moveTo
+        // Cards leaving the box go on the physical move list, like any other sort. Names are read before the box goes.
+        val cards = if (target == null) emptyList() else repo.cardsInBox(id)
+        val boxesBefore = if (cards.isEmpty()) emptyList() else repo.observeBoxes().first()
         repo.deleteBox(id, target)
+        val added = if (cards.isEmpty()) emptyList() else {
+            val after = repo.allCards()
+            val byId = after.associateBy { it.id }
+            val moves = cards.mapNotNull { c ->
+                val to = if (target != CardBox.AUTO_SORT) target
+                // Auto-sort picks a box per card: the row's new box, or the one row it merged into.
+                else byId[c.id]?.boxId ?: after.singleOrNull { it.copy(boxId = c.boxId).sameCopyAs(c) }?.boxId
+                to?.let { c to it }
+            }
+            val info = (boxesBefore + repo.observeBoxes().first()).associate { it.id to Triple(it.name, it.kind, it.divider) }
+            MoveList.add(MoveList.linesFor(moves) { info[it] }, show = moves.size > 1)
+        }
         val msg = when (moveTo) {
             null -> "Box and cards deleted"
             TO_ANYTHING -> "Box deleted. Cards in Anything"
             else -> "Box deleted"
         }
-        if (undo == null) _message.value = msg else Undo.offer(msg) { repo.undoBox(undo) }
+        if (undo == null) _message.value = msg else Undo.offer(msg) { repo.undoBox(undo); MoveList.remove(added) }
     }
 
     /** Moves every card in a box into a deck ([deckId]), or a new deck named [name] when it's 0, with Undo. */
@@ -443,7 +464,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         viewModelScope.launch {
             val list = runCatching { repo.api.printingsOf(item.oracleId, item.name) }.getOrDefault(emptyList())
             if (_gotIt.value?.first?.id != item.id) return@launch
-            if (list.isEmpty()) { _gotIt.value = null; _message.value = "Couldn't reach Scryfall"; return@launch }
+            if (list.isEmpty()) { _gotIt.value = null; _message.value = "Couldn't reach Scryfall. Check your connection and try again"; return@launch }
             _gotIt.value = item to list
         }
     }
@@ -507,7 +528,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         _refreshing.value = true
         viewModelScope.launch {
             _message.value = runCatching { repo.refreshPrices() }
-                .fold({ "Updated prices for $it cards" }, { "Couldn't refresh prices: ${it.message}" })
+                .fold({ "Updated prices for $it cards" }, { "Prices not refreshed. Check your connection and pull down to try again" })
             _refreshing.value = false
         }
     }
@@ -527,7 +548,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
                 withContext(Dispatchers.IO) {
                     resolver.openOutputStream(uri, "wt")?.use { BoxLabels.write(boxes, cards, it) } ?: 0
                 }
-            }.fold({ "Saved $it labels" }, { "Labels failed: ${it.message}" })
+            }.fold({ "Saved $it labels" }, { "Labels not saved. Pick another folder and try again" })
         }
     }
 

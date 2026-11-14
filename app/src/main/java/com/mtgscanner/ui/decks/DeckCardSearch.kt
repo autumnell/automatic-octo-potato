@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -154,24 +155,29 @@ fun DeckCardSearchSheet(ui: DeckUi, vm: DeckViewModel, board: String, onDismiss:
     // Only filters and no words or type would list half of Magic: wait for something to look for.
     val ready = text.trim().length >= 2 || type != null
 
+    // "More cards" and "Try again" run outside the search's effect: an answer for a query typed over since is dropped,
+    // so another search's cards and paging never mix into the list.
+    val latestQuery by rememberUpdatedState(query)
     suspend fun load(p: Int) {
+        val q = query
         loading = true
         failed = false
         try {
-            val list = vm.searchCards(query, p)
+            val list = vm.searchCards(q, p)
+            if (q != latestQuery) return
             results = if (p == 1) list.data else (results + list.data).distinctBy { it.id }
             hasMore = list.hasMore
             page = p
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            failed = true
+            if (q == latestQuery) failed = true
         } finally {
-            loading = false
+            if (q == latestQuery) loading = false
         }
     }
     LaunchedEffect(query, ready) {
-        if (!ready) { results = emptyList(); hasMore = false; return@LaunchedEffect }
+        if (!ready) { results = emptyList(); hasMore = false; loading = false; return@LaunchedEffect }
         delay(400)
         load(1)
     }

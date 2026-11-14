@@ -14,6 +14,7 @@ import com.mtgscanner.game.Game
 import com.mtgscanner.game.GameFormat
 import com.mtgscanner.game.Player
 import com.mtgscanner.game.GameRecord
+import com.mtgscanner.game.GameRecordsCodec
 import com.mtgscanner.game.GameState
 import com.mtgscanner.data.db.CollectionCard
 import kotlinx.coroutines.Dispatchers
@@ -89,18 +90,14 @@ class GameViewModel(context: Context, private val repo: CollectionRepository) : 
 
     /** Reads each saved game on its own, setting aside the ones that don't read. */
     private fun readRecords(text: String?): List<GameRecord> {
-        if (text == null) return emptyList()
-        val items = runCatching { json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonArray }.getOrNull()
-        if (items == null) {
+        val r = GameRecordsCodec.read(text)
+        if (r.notAList) {
             // Not even a list: keep the text as it is under another key rather than overwrite it later.
             recordPrefs.edit().putString("records_unreadable", text).apply()
             return emptyList()
         }
-        val read = mutableListOf<GameRecord>()
-        val bad = mutableListOf<kotlinx.serialization.json.JsonElement>()
-        items.forEach { e -> runCatching { json.decodeFromJsonElement(GameRecord.serializer(), e) }.onSuccess { read += it }.onFailure { bad += e } }
-        unreadable = bad
-        return read
+        unreadable = r.unreadable
+        return r.records
     }
 
     /** Reads saved records, moving them out of the old shared "game" file the first time. */

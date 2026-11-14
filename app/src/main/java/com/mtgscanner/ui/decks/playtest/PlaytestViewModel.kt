@@ -103,14 +103,20 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
     }
 
     /**
-     * A precon as cards to play in [format]. Its cards are checked against the format first: an illegal precon gives
-     * null and [illegal] says why.
+     * A precon as cards to play in [format]. Its cards are checked against the format first: an illegal precon, or one
+     * whose cards couldn't be looked up, gives null and [illegal] says why.
      */
     private suspend fun loadPrecon(entry: PreconEntry, format: String, illegal: (String) -> Unit): PlayDeck? {
         val p = Precons.deck(repo.appContext, entry) ?: return null
         val leads = p.commanders.map { it.name }
         val played = p.cards.filter { it.section != "Sideboard" }.map { it.name to it.count }
         val info = com.mtgscanner.util.suspendRunCatching { repo.deckCardInfo(p.cards.map { it.name }, format) }.getOrDefault(emptyMap())
+        // Offline nothing is found: the legality check would pass every card and the opponent would hold blank
+        // cards and never play a land, as with your own deck.
+        if (info.isEmpty() && played.isNotEmpty()) {
+            illegal("Couldn't look up the cards of ${entry.name}. Check the connection")
+            return null
+        }
         if (format.isNotEmpty()) {
             val lines = p.cards.map { DeckLine(it.count, it.name, section = it.section) }
             val issues = CommanderRules.issues(lines, format, DeckCommanders(leads)) { n -> info[DeckNames.key(n)]?.rules() }
@@ -185,7 +191,8 @@ class PlaytestViewModel(private val repo: CollectionRepository, private val deck
     fun toBottom(): Int {
         val u = _ui.value
         val deck = u.deck ?: return 0
-        return Playtest.toBottom(u.table?.sides?.get(0)?.mulligans ?: 0, Playtest.freeMulligan(deck))
+        val me = u.table?.sides?.get(0) ?: return 0
+        return Playtest.toBottom(me.mulligans, Playtest.freeMulligan(deck), me[Zone.HAND].size)
     }
 
     /** Keeps the hand, with [bottom] (the hand's card ids) put on the bottom, and starts play. */

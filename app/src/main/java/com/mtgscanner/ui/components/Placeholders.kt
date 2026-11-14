@@ -38,13 +38,17 @@ import com.mtgscanner.ui.theme.Palette
 
 /** A slow, faint pulse shared by the shapes in one placeholder. */
 @Composable
-private fun pulse(): State<Float> =
-    rememberInfiniteTransition(label = "placeholder").animateFloat(
+private fun pulse(): State<Float> {
+    // With animations turned off in Android's settings the shapes hold still.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    if (androidx.compose.runtime.remember(ctx) { animationsOff(ctx) }) return androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    return rememberInfiniteTransition(label = "placeholder").animateFloat(
         initialValue = 1f,
         targetValue = 0.6f,
         animationSpec = infiniteRepeatable(tween(900, easing = Motion.ease), RepeatMode.Reverse),
         label = "placeholderPulse",
     )
+}
 
 /** [count] rounded bars the height of a list row. */
 @Composable

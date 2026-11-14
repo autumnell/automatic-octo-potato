@@ -44,7 +44,7 @@ object ProxySheet {
     /** A card picture at Scryfall's large size (about 270 dpi at card size). Null on failure. */
     fun fetch(url: String): Bitmap? = runCatching {
         val big = url.replace("/small/", "/large/").replace("/normal/", "/large/")
-        client.newCall(Request.Builder().url(big).build()).execute().use { r ->
+        client.newCall(Request.Builder().url(big).header("User-Agent", UserAgent.value).build()).execute().use { r ->
             if (!r.isSuccessful) return null
             val bytes = r.body?.bytes() ?: return null
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)

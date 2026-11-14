@@ -39,6 +39,9 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
+import org.junit.runners.model.Statement
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -61,7 +64,20 @@ class ShotApp : MtgApp() {
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], application = ShotApp::class, qualifiers = "w393dp-h852dp-xhdpi")
 class ScreenPicturesTest {
-    @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    /**
+     * Skips before the compose rule starts its activity, so a normal test run doesn't launch one activity per
+     * picture just to skip it (an assumption in @Before runs only after the activity is up).
+     */
+    @get:Rule val chain: RuleChain = RuleChain.outerRule(TestRule { base, _ ->
+        object : Statement() {
+            override fun evaluate() {
+                assumeTrue("Set SCREEN_PICTURES=1 to draw the screens", System.getenv("SCREEN_PICTURES") == "1")
+                base.evaluate()
+            }
+        }
+    }).around(rule)
 
     private val out = File("build/screens")
 

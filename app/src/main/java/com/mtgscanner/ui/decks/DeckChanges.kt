@@ -147,7 +147,9 @@ class DeckChangesHost(
     fun quick(deckId: Long, oldText: String, newText: String, revert: () -> Unit) {
         scope.launch {
             val u = prepare(deckId, oldText, newText)
-            if (u == null || u.leaving.isEmpty()) saveList(newText, {}, {}) else { onCancel = revert; ui = u }
+            // A save that didn't happen puts the saved list back, so the page doesn't show a change that isn't kept.
+            if (u == null || u.leaving.isEmpty()) saveList(newText, {}) { revert(); Undo.offer("Couldn't save the list") }
+            else { onCancel = revert; ui = u }
         }
     }
 

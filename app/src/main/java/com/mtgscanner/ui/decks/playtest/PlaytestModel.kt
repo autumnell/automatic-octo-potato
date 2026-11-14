@@ -171,8 +171,11 @@ object Playtest {
         else -> false
     }
 
-    /** Cards to put on the bottom when keeping, by the London mulligan: one for each mulligan but a free one. */
-    fun toBottom(mulligans: Int, free: Boolean): Int = (mulligans - if (free) 1 else 0).coerceIn(0, HAND)
+    /**
+     * Cards to put on the bottom when keeping, by the London mulligan: one for each mulligan but a free one. Never
+     * more than the [hand] holds, so a short library's small hand can still be kept.
+     */
+    fun toBottom(mulligans: Int, free: Boolean, hand: Int = HAND): Int = (mulligans - if (free) 1 else 0).coerceIn(0, hand.coerceIn(0, HAND))
 
     /** Puts [ids] from the hand on the bottom of the library, in that order. */
     fun bottom(t: Table, side: Int, ids: List<Int>): Table =

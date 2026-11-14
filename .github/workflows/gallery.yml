@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "17 6 * * *"
+  # Only main: a branch run takes as long but never publishes.
   push:
+    branches: [main]
     paths:
       - .github/workflows/gallery.yml
       - .github/scripts/build_gallery.py
@@ -53,6 +55,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # No new file when nothing was added: the release keeps the gallery it has.
+          [ -f g/new.bin ] || { echo "Nothing new to publish."; exit 0; }
           ls -l g/new.bin
           cp g/new.bin card-gallery.bin
           gh release view models >/dev/null 2>&1 || gh release create models --prerelease --latest=false \

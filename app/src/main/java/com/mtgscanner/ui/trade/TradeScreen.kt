@@ -185,7 +185,7 @@ fun TradeScreen(binderId: Long, onBack: () -> Unit, onSellList: () -> Unit = {})
                     items(ui.suggestions) { name -> PickRow(name, null, null) { vm.get(name); picking = null } }
                 }
             }
-            Spacer(Modifier.navigationBarsPadding().height(8.dp))
+            Spacer(Modifier.navigationBarsPadding().height(Space.s2))
         }
     }
     val edited = ui.get.firstOrNull { it.key == editing }

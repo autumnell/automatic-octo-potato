@@ -1,6 +1,9 @@
 package com.mtgscanner.game
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 
 /** Ways to play, with their starting life and which trackers matter. */
 @Serializable
@@ -319,6 +322,27 @@ data class GameRecord(
     val decks: List<Long?> = emptyList(),
 ) {
     val minutes: Long get() = ((endedAt - startedAt) / 60_000).coerceAtLeast(0)
+}
+
+/**
+ * Reads the saved games one by one, so a game that no longer reads (a renamed format, say) is set aside instead of
+ * hiding every other game. Pure, for tests.
+ */
+object GameRecordsCodec {
+    /** What a saved list held: the games that read, the ones that didn't, and whether it was a list at all. */
+    class Read(val records: List<GameRecord>, val unreadable: List<JsonElement>, val notAList: Boolean)
+
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    fun read(text: String?): Read {
+        if (text == null) return Read(emptyList(), emptyList(), notAList = false)
+        val items = runCatching { json.parseToJsonElement(text) as? JsonArray }.getOrNull()
+            ?: return Read(emptyList(), emptyList(), notAList = true)
+        val read = mutableListOf<GameRecord>()
+        val bad = mutableListOf<JsonElement>()
+        items.forEach { e -> runCatching { json.decodeFromJsonElement(GameRecord.serializer(), e) }.onSuccess { read += it }.onFailure { bad += e } }
+        return Read(read, bad, notAList = false)
+    }
 }
 
 /** Wins and games per player name, across saved games. */

@@ -1,7 +1,9 @@
 package com.mtgscanner.data
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -10,14 +12,18 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resumeWithException
 
 open class ScryfallException(message: String) : IOException(message)
 
@@ -29,6 +35,25 @@ fun exactNameQuery(name: String): String = "!\"" + name.replace("\\", "\\\\").re
 
 /** One connection pool for the app's HTTP clients; each derives its own timeouts with newBuilder(). */
 internal val sharedHttpClient: OkHttpClient by lazy { OkHttpClient() }
+
+/**
+ * Sends the call and waits for its response without holding a thread. When the coroutine is cancelled (the scanner
+ * moved on, a screen closed) the request is cancelled too, instead of running on for up to its timeout.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal suspend fun Call.await(): Response = suspendCancellableCoroutine { cont ->
+    cont.invokeOnCancellation { runCatching { cancel() } }
+    enqueue(object : Callback {
+        override fun onResponse(call: Call, response: Response) {
+            // A response that arrives just as the wait is cancelled is closed, so its connection isn't leaked.
+            cont.resume(response) { response.close() }
+        }
+
+        override fun onFailure(call: Call, e: IOException) {
+            cont.resumeWithException(e)
+        }
+    })
+}
 
 /**
  * Small client for https://scryfall.com/docs/api.
@@ -289,7 +314,7 @@ class ScryfallApi(
             if (wait > 0) delay(wait)
             lastRequestAt = System.currentTimeMillis()
         }
-        return client.newCall(req).execute().use { resp ->
+        return client.newCall(req).await().use { resp ->
             when {
                 resp.isSuccessful -> Attempt(resp.body?.string())
                 resp.code == 404 -> Attempt(null)

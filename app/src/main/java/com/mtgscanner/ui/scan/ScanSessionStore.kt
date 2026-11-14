@@ -110,9 +110,16 @@ class ScanSessionStore(dir: File) {
     private val file = File(dir, "scan-session.json")
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 
-    fun load(): SavedScanSession? = runCatching {
-        if (!file.exists()) null else json.decodeFromString(SavedScanSession.serializer(), file.readText()).expanded()
-    }.getOrNull()
+    /**
+     * The saved session, or null when there's none. A file that can't be read (say an update changed a card field)
+     * is kept as scan-session.json.bad rather than overwritten by the next save, so the pile in it isn't lost.
+     */
+    fun load(): SavedScanSession? {
+        if (!file.exists()) return null
+        return runCatching { json.decodeFromString(SavedScanSession.serializer(), file.readText()).expanded() }
+            .onFailure { runCatching { val bad = File(file.parentFile, file.name + ".bad"); bad.delete(); file.renameTo(bad) } }
+            .getOrNull()
+    }
 
     /** One write at a time: the delayed save and the save on close share the temp file. */
     @Synchronized

@@ -306,10 +306,14 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
     fun discardTemp(uri: android.net.Uri) = viewModelScope.launch { CardPhotos.discard(repo.appContext, uri) }
     /** Clears the photo with Undo; the file itself is deleted only once Undo has had its time. */
     fun removePhoto() = viewModelScope.launch {
-        val c = card.value ?: return@launch
+        // The stored row, under the same lock as other edits, so a change still saving isn't written back over.
+        val c = quantityLock.withLock {
+            val row = fresh() ?: return@launch
+            if (row.photo.isBlank()) return@launch
+            currentId.value = repo.update(row.copy(photo = ""))
+            row
+        }
         val path = c.photo
-        if (path.isBlank()) return@launch
-        repo.update(c.copy(photo = ""))
         Undo.offer("Photo removed") {
             // From Recent actions this can run after the file was deleted.
             if (!java.io.File(path).exists()) { Undo.offer("Photo is gone"); return@offer }
@@ -350,7 +354,9 @@ class CardDetailViewModel(private val repo: CollectionRepository, id: Long) : Vi
                 try {
                     val px = IntArray(bmp.width * bmp.height)
                     bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-                    com.mtgscanner.scan.StackCount.count(IntArray(px.size) { com.mtgscanner.scan.ImageHash.luma(px[it]) }, bmp.width, bmp.height)
+                    // Brightness written over the pixels in place: a second full-size array can run a small phone out of memory.
+                    for (i in px.indices) px[i] = com.mtgscanner.scan.ImageHash.luma(px[i])
+                    com.mtgscanner.scan.StackCount.count(px, bmp.width, bmp.height)
                 } finally {
                     bmp.recycle()
                 }

@@ -31,9 +31,14 @@ class LocalCardsTest {
     }
 
     @Test fun slimDropsPageOnlyFields() {
-        val c = card("a").copy(legalities = mapOf("modern" to "legal"), relatedUris = mapOf("edhrec" to "x"))
+        val c = card("a").copy(
+            legalities = mapOf("modern" to "legal", "vintage" to "restricted", "standard" to "not_legal", "legacy" to "banned"),
+            relatedUris = mapOf("edhrec" to "x"),
+        )
         val slim = LocalPick.slim(c)
-        assertEquals(emptyMap<String, String>(), slim.legalities)
+        // Legal and restricted formats stay: tags and "Commander legal" box rules read them at scan time.
+        assertEquals(mapOf("modern" to "legal", "vintage" to "restricted"), slim.legalities)
+        assertEquals(setOf("modern", "vintage"), slim.facts(foil = false).formats)
         assertEquals(emptyMap<String, String>(), slim.relatedUris)
         assertEquals("a", slim.id)
     }

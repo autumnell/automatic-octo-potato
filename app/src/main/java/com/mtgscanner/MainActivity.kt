@@ -217,7 +217,6 @@ fun NavHostController.goToTab(route: String) = navigate(route) {
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
-    com.mtgscanner.util.Haptics.Attach()
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route

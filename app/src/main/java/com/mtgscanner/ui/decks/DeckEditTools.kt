@@ -191,7 +191,7 @@ private fun EditCardRow(ui: DeckUi, vm: DeckViewModel, l: DeckLine, board: Strin
                     l.setCode?.let { s ->
                         Text(
                             s.uppercase() + (l.collectorNumber?.let { " #$it" } ?: ""),
-                            style = MaterialTheme.typography.bodySmall, color = Palette.Faint, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

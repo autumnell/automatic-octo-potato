@@ -215,7 +215,7 @@ fun ScanViewModel.addPhoto() {
             val lang = (item.lang?.takeIf { card.lang == "en" }) ?: ScanBarPrefs.langOrNull
             val now = _state.value
             // A batch card keeps the foil setting it was scanned with.
-            val foil = item.foil?.let { f -> f && card.hasFoil || !card.hasNonFoil } ?: now.isFoil(card)
+            val foil = now.photoFoil(item, card)
             // A batch card keeps the copy count it was scanned with too.
             val copies = item.count ?: qty
             addNow(card, copies, now, foil, lang, fromReview = false, auto = true, fromPage = true)

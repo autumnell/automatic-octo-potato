@@ -9,6 +9,9 @@ import java.util.Locale
 
 /** The daily job's wishlist check: "Ragavan is $38.50 · your target $40". */
 object WishTargetAlerts {
+    /** Its own id: 1003 is the backup-failed note, which this one used to replace (and a backup used to clear). */
+    private const val WISH_ID = 1004
+
     suspend fun check(context: Context, repo: CollectionRepository) {
         WishTargets.load(context)
         if (WishTargets.targets.isEmpty()) return
@@ -27,10 +30,10 @@ object WishTargetAlerts {
             .setContentTitle(title)
             .setContentText(line(hits[0]))
             .setStyle(style)
-            .setContentIntent(Notifications.openApp(context, "wishlist", 9))
+            .setContentIntent(Notifications.openApp(context, "wishlist", 10))
             .setAutoCancel(true)
             .build()
-        runCatching { NotificationManagerCompat.from(context).notify(1003, n) }
+        runCatching { NotificationManagerCompat.from(context).notify(WISH_ID, n) }
         runCatching { com.mtgscanner.data.NotificationLog.add(context, title, hits.joinToString("\n") { line(it) }, "wishlist") }
     }
 }

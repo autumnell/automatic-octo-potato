@@ -547,7 +547,7 @@ private fun CompareView(ui: DeckUi, leads: List<String>, w: CompareWith, onBack:
     }
     val diff = remember(mine, o) { DeckCompare.diff(mine, o.second) }
     val labels = listOf("Only here (${diff.onlyA.sumOf { it.second }})", "Only there (${diff.onlyB.sumOf { it.second }})", "Both (${diff.both.size})")
-    UnderlineTabs(labels, tab, { tab = it }, Modifier.padding(vertical = Space.s1), horizontalPadding = 16.dp)
+    UnderlineTabs(labels, tab, { tab = it }, Modifier.padding(vertical = Space.s1), horizontalPadding = Space.s4)
     val rows: List<String> = when (tab) {
         0 -> diff.onlyA.map { (n, q) -> if (q > 1) "$q $n" else n }
         1 -> diff.onlyB.map { (n, q) -> if (q > 1) "$q $n" else n }

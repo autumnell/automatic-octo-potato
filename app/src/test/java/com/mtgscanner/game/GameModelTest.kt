@@ -210,4 +210,33 @@ class GameModelTest {
         // No turns tracked: nobody is picked.
         assertNull(Game.restart(commander).active)
     }
+
+    @Test fun oneUnreadableSavedGameDoesNotHideTheRest() {
+        // The second game names a format that no longer exists.
+        val text = """[
+            {"format":"COMMANDER","players":["Rae","Sam"],"winner":"Rae","turns":7,"startedAt":0,"endedAt":60000},
+            {"format":"PLANECHASE","players":["Rae","Sam"],"winner":null,"turns":0,"startedAt":0,"endedAt":0},
+            {"format":"STANDARD","players":["Kenji"],"winner":null,"turns":0,"startedAt":5,"endedAt":9,"someNewField":1}
+        ]"""
+        val r = GameRecordsCodec.read(text)
+        assertEquals(listOf("Rae", null), r.records.map { it.winner })
+        assertEquals(1, r.unreadable.size)
+        assertFalse(r.notAList)
+        assertTrue(GameRecordsCodec.read("not json").notAList)
+        assertEquals(0, GameRecordsCodec.read(null).records.size)
+    }
+
+    @Test fun aGameSavedByThisVersionStillReads() {
+        // The game in progress as the app writes it; a field renamed or retyped would lose it on update.
+        val text = """{"format":"COMMANDER","players":[{"name":"Rae","color":0,"life":31,"poison":2,""" +
+            """"commanderDamage":[0,0,5,0,0,0,0,0,0,0,0,0],"commanderCasts":1,"art":null,"deckId":null}],""" +
+            """"startingLife":40,"partners":false,"layout":0,"turn":3,"active":0,"firstSeat":0,"startedAt":100,""" +
+            """"history":[{"player":0,"what":"Life","delta":-9,"at":200}]}"""
+        val g = Json { ignoreUnknownKeys = true }.decodeFromString(GameState.serializer(), text)
+        assertEquals(31, g.players[0].life)
+        assertEquals(5, g.players[0].damageFrom(1))
+        assertEquals(2, g.players[0].commanderTax)
+        assertEquals(3, g.turn)
+        assertEquals(-9, g.history.single().delta)
+    }
 }

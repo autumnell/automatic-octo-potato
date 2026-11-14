@@ -83,7 +83,7 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                 else -> LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.7f)) {
                     items(run.items, key = { it.key }) { item ->
                         PhotoRow(
-                            item, item.card?.let { c -> item.foil?.let { f -> f && c.hasFoil || !c.hasNonFoil } ?: state.isFoil(c) } ?: false,
+                            item, item.card?.let { c -> state.photoFoil(item, c) } ?: false,
                             onPrinting = {
                                 item.card?.let { c ->
                                     picking = item
@@ -101,7 +101,8 @@ fun PhotoSheet(state: ScanUiState, vm: ScanViewModel) {
                 TextButton(onClick = vm::closePhoto) { Text("Cancel") }
                 Spacer(Modifier.width(Space.s2))
                 if (!run.loading && found.isNotEmpty()) {
-                    val worth = addWorth(state, found.mapNotNull { it.card }, ScanBarPrefs.quantity)
+                    // A batch card keeps the finish and copies it was scanned with, as Add uses them.
+                    val worth = photoWorth(state, found, ScanBarPrefs.quantity)
                     val verb = when (state.target) {
                         ScanTarget.CHECK -> "Done"
                         ScanTarget.REMOVE -> "Remove ${found.size}"

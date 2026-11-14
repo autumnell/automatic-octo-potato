@@ -78,7 +78,8 @@ suspend fun CollectionRepository.deckCardInfo(names: Collection<String>, format:
     }
     if (missing.isNotEmpty()) {
         // "A // B" names are tried in full, then by the front face (see PrintingLookup).
-        val found = runCatching {
+        // Offline is a failure (nothing found), but a cancelled caller stays cancelled.
+        val found = com.mtgscanner.util.suspendRunCatching {
             PrintingLookup.resolve(missing.map { PrintingLookup.Wanted(it) }) { ids -> api.identify(ids.map(PrintingLookup::json)) }
         }.getOrNull()
         missing.zip(found ?: emptyList()).forEach { (n, c) ->

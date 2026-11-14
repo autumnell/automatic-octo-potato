@@ -149,7 +149,8 @@ def scryfall_cards():
 def main():
     models, prev, out = sys.argv[1], sys.argv[2], sys.argv[3]
     most = int(sys.argv[4]) if len(sys.argv) > 4 else 20000
-    if prev and os.path.exists(prev):
+    had_prev = bool(prev and os.path.exists(prev))
+    if had_prev:
         rows, scales, vecs = read_gallery(prev)
         print(f"Previous gallery: {len(rows)} printings")
     else:
@@ -183,6 +184,10 @@ def main():
             new_rows.append(c[:4]); new_scales.append(s); new_vecs.append(q)
             if k % 500 == 0:
                 print(f"{k} of {len(missing)}")
+    if not new_rows and had_prev:
+        # Nothing to add: no file, so the workflow skips the upload.
+        print("Added 0; the last gallery stays as it is")
+        return
     if new_rows:
         rows = rows + new_rows
         scales = np.concatenate([scales, np.asarray(new_scales, np.float32)])

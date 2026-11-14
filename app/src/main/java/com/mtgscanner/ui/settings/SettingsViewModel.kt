@@ -157,7 +157,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
             } catch (e: BadBackupException) {
                 e.message
             } catch (e: Throwable) {
-                "Something went wrong: ${e.message}"
+                "${label.trimEnd('…')} didn't finish. Try again"
             }
             result?.let { com.mtgscanner.ui.components.Undo.offer(it) }
         }

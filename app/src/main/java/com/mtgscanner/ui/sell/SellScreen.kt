@@ -144,7 +144,9 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> U
     val vm: SellViewModel = viewModel(factory = AppViewModels.Factory)
     val cards by vm.cards.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
-    var tab by rememberSaveable { mutableIntStateOf(if (AppSettings.showPrices) startTab else 0) }
+    var savedTab by rememberSaveable { mutableIntStateOf(if (AppSettings.showPrices) startTab else 0) }
+    // The offers tab needs prices: with them turned off since, the sell list shows.
+    val tab = if (AppSettings.showPrices) savedTab else 0
     Haptics.Attach()
 
     Column(Modifier.fillMaxSize().background(Palette.Background).statusBarsPadding()) {
@@ -159,7 +161,7 @@ fun SellScreen(onBack: () -> Unit, onBrowse: () -> Unit, onOpenCard: (Long) -> U
             }
         }
         if (AppSettings.showPrices) {
-            UnderlineTabs(listOf("My sell list", "Card Kingdom offers"), tab, { tab = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = 16.dp)
+            UnderlineTabs(listOf("My sell list", "Card Kingdom offers"), tab, { savedTab = it }, Modifier.padding(bottom = Space.s1), horizontalPadding = Space.gutter)
         }
         if (tab == 1) BuylistContent(onOpenCard) else SellListContent(vm, onBrowse)
     }

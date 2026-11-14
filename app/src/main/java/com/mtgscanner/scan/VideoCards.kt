@@ -42,6 +42,8 @@ object VideoCards {
             val count = VideoCount<PhotoRead>()
             // Picture keys already seen in this video: a near one (a few values flipped by noise) is the same card.
             val prints = ArrayList<Long>()
+            // The footer is read on some frames only: a footer and a name read together are one card from then on.
+            val names = VideoKeys()
             val all = ArrayList<PhotoRead>()
             var sharpest = 0.0
             var t = 0L
@@ -58,7 +60,7 @@ object VideoCards {
                         if (sharp >= sharpest * 0.45) {
                             val reads = PhotoCards.read(frame, embed, wantsArt, tracks)
                             all += reads
-                            count.frame(reads.map { r -> keyOf(r, prints) to r })
+                            count.frame(reads.map { r -> keyOf(r, prints, names) to r })
                         } else count.frame(emptyList(), skipped = true)
                     } finally {
                         frame.recycle()
@@ -78,9 +80,10 @@ object VideoCards {
     }
 
     /** What makes two reads the same card: the name and printing read, else the card's picture fingerprint. */
-    private fun keyOf(r: PhotoRead, prints: MutableList<Long>): String? {
+    private fun keyOf(r: PhotoRead, prints: MutableList<Long>, names: VideoKeys): String? {
         val g = r.guess
-        g.key?.let { return it }
+        val footer = if (g.setCode != null && g.collectorNumber != null) g.key else null
+        names.of(g.nameKey, footer)?.let { return it }
         val p = g.artOnlyPrints.firstOrNull() ?: return g.artOnly.firstOrNull()?.let { "art:$it" }
         // A coarse picture key: the signs of the first 64 values of the fingerprint. Values near zero flip from
         // frame to frame, so a key within a few bits of one already seen is taken as that card.
@@ -103,6 +106,38 @@ object VideoCards {
             else Bitmap.createScaledBitmap(argb, argb.width * MAX_PX / long, argb.height * MAX_PX / long, true).also { if (it !== argb) argb.recycle() }
         }
     }.getOrNull()
+}
+
+/**
+ * One key per card through a video, though a frame may read its name, its footer ("MOM#123") or both. A frame
+ * with both links them, so frames with only one of the two still count as the same card. Another footer with the
+ * same name is another printing (Forests from two sets): it gets its own key, and the name follows the newest.
+ * Pure, for tests.
+ */
+class VideoKeys {
+    /** Name or footer read, to the card key it belongs to. */
+    private val alias = HashMap<String, String>()
+    /** Card key to the footer linked to it. */
+    private val footerOf = HashMap<String, String>()
+
+    /** The card's key for a frame that read [name] and [footer] (either may be null); null when neither was read. */
+    fun of(name: String?, footer: String?): String? {
+        if (footer == null) {
+            if (name == null) return null
+            return alias.getOrPut(name) { name }
+        }
+        alias[footer]?.let { k -> if (name != null) alias[name] = k; return k }
+        val byName = name?.let { alias[it] }
+        val key = when {
+            byName != null && footerOf[byName] == null -> byName
+            byName == null && name != null -> name
+            else -> footer
+        }
+        footerOf[key] = footer
+        alias[footer] = key
+        if (name != null) alias[name] = key
+        return key
+    }
 }
 
 /** How sharp a frame is: the spread of its brightness changes between neighbours, on a small grey copy. */
