@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.game
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
@@ -59,8 +60,8 @@ fun StatsCard(records: List<GameRecord>, onOpen: () -> Unit) {
                 Text(
                     when {
                         records.isEmpty() -> "No games yet"
-                        top != null && top.wins > 0 -> "${records.size} games · ${top.name} leads with ${top.wins} wins"
-                        else -> "${records.size} games"
+                        top != null && top.wins > 0 -> "${plural(records.size, "game")} · ${top.name} leads with ${plural(top.wins, "win")}"
+                        else -> "${plural(records.size, "game")}"
                     },
                     style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
                 )
@@ -90,7 +91,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                 }
             }
             if (records.isEmpty()) {
-                item { com.mtgscanner.ui.components.EmptyState("No games yet") }
+                item { com.mtgscanner.ui.components.EmptyState("No games yet", body = "Finished games show up here with their winner") }
             } else {
                 item { Header("Players") }
                 items(players) { p ->
@@ -106,7 +107,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                             Text(r.winner?.let { "$it won" } ?: "Draw", style = MaterialTheme.typography.bodyLarge)
                             Text(
                                 "${fmt.format(Date(r.endedAt))} · ${r.format.label} · ${r.players.joinToString(", ")}" +
-                                    (if (r.turns > 0) " · ${r.turns} turns" else "") + (if (r.minutes > 0) " · ${r.minutes} min" else ""),
+                                    (if (r.turns > 0) " · ${plural(r.turns, "turn")}" else "") + (if (r.minutes > 0) " · ${r.minutes} min" else ""),
                                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
                             )
                         }
@@ -119,7 +120,7 @@ fun StatsSheet(records: List<GameRecord>, vm: GameViewModel, onDismiss: () -> Un
                     Column {
                         Spacer(Modifier.height(Space.s2))
                         if (confirmClear) Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Delete all ${records.size} games?", modifier = Modifier.weight(1f))
+                            Text("Delete all ${plural(records.size, "game")}?", modifier = Modifier.weight(1f))
                             TextButton(onClick = { vm.clearRecords(); confirmClear = false }) { Text("Delete all", color = Palette.Danger) }
                             TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
                         } else TextButton(onClick = { confirmClear = true }) { Text("Clear stats", color = Palette.Muted) }

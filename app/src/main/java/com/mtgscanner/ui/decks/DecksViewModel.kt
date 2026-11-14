@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.util.plural
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -206,7 +207,7 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
                 subtitle = when {
                     d.format.isNotEmpty() -> "${DeckFormats.of(d.format).label} · $total"
                     lines.any { it.section == "Commander" } -> "Commander · $total"
-                    else -> "$total cards"
+                    else -> "${plural(total, "card")}"
                 },
                 folderId = shelf.folderOf[d.id]?.takeIf { it in folderIds },
                 identity = meta?.identity.orEmpty(),
@@ -356,6 +357,9 @@ class DecksViewModel(private val repo: CollectionRepository) : ViewModel() {
             if (precon.value?.first == entry) precon.value = Triple(entry, deck, deck == null)
         }
     }
+
+    /** Fetches the open precon again, after it failed. */
+    fun retryPrecon() { precon.value?.first?.let(::openPrecon) }
 
     /** Saves a precon as a deck, each card's printing named, with Undo. */
     fun savePrecon(deck: com.mtgscanner.data.PreconDeck) = viewModelScope.launch {

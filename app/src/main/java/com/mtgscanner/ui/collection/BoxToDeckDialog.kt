@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -31,7 +32,7 @@ internal fun BoxToDeckDialog(box: BoxSummary, decksFlow: Flow<List<Deck>>, onDis
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
-        title = { Text("Move ${box.cards} cards to", maxLines = 1) },
+        title = { Text("Move ${plural(box.cards, "card")} to", maxLines = 1) },
         text = {
             Column {
                 Text(

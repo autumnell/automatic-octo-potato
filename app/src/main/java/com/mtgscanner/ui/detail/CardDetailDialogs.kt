@@ -159,7 +159,7 @@ internal fun PhotoViewer(path: String, onRemove: () -> Unit, onReplace: () -> Un
                     modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).clip(RoundedCornerShape(Corners.Small)).clickable(onClick = onDismiss),
                 )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onRemove) { Text("Remove", color = Palette.Danger) }
+                    TextButton(onClick = onRemove) { Text("Remove photo", color = Palette.Danger) }
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onReplace) { Text("Replace") }
                     TextButton(onClick = onDismiss) { Text("Close") }
@@ -291,8 +291,8 @@ internal fun NotesDialog(initial: String, onSave: (String) -> Unit, onDismiss: (
     if (leaving) AlertDialog(
         onDismissRequest = { leaving = false },
         containerColor = Palette.Surface,
-        title = { Text("Discard changes?") },
-        confirmButton = { TextButton(onClick = { leaving = false; onDismiss() }) { Text("Discard", color = Palette.Danger) } },
+        title = { Text("Discard note changes?") },
+        confirmButton = { TextButton(onClick = { leaving = false; onDismiss() }) { Text("Discard changes", color = Palette.Danger) } },
         dismissButton = { TextButton(onClick = { leaving = false }) { Text("Keep editing") } },
     )
 }

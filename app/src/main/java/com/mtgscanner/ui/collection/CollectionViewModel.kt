@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.decks.DeckOwnership
 import com.mtgscanner.data.suggestNames
 import com.mtgscanner.util.CardNames
@@ -298,7 +299,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
             when (n) {
                 0 -> "Boxes saved"
                 1 -> "Plan applied · 1 card moved"
-                else -> "Plan applied · $n cards moved"
+                else -> "Plan applied · ${plural(n, "card")} moved"
             },
         ) {
             repo.restore(before)
@@ -406,7 +407,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         val moved = moves.sumOf { it.first.quantity }
         val added = recordMoves(moves, show = moves.size > 1)
         if (moved == 0) _message.value = "None of the cards in $name fit another box's rules. Make a box with rules first."
-        else Undo.offer("Sorted $moved cards out of $name") { repo.restore(before); MoveList.remove(added) }
+        else Undo.offer("Sorted ${plural(moved, "card")} out of $name") { repo.restore(before); MoveList.remove(added) }
     }
 
     /** Makes a new box from [d] and moves the cards in [sourceId] that fit its rules into it, onto the move list. */
@@ -417,7 +418,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         val moved = cards.sumOf { it.quantity }
         val added = recordMoves(cards.map { it to newId }, show = cards.size > 1)
         if (moved == 0) _message.value = "Made ${d.name}, but no cards in $name fit its rules"
-        else Undo.offer("Moved $moved cards from $name to ${d.name}") { repo.restore(before); MoveList.remove(added); repo.deleteBox(newId, CardBox.AUTO_SORT) }
+        else Undo.offer("Moved ${plural(moved, "card")} from $name to ${d.name}") { repo.restore(before); MoveList.remove(added); repo.deleteBox(newId, CardBox.AUTO_SORT) }
     }
 
     companion object {
@@ -528,7 +529,7 @@ class CollectionViewModel(private val repo: CollectionRepository) : ViewModel() 
         _refreshing.value = true
         viewModelScope.launch {
             _message.value = runCatching { repo.refreshPrices() }
-                .fold({ "Updated prices for $it cards" }, { "Prices not refreshed. Check your connection and pull down to try again" })
+                .fold({ "Updated prices for ${plural(it, "card")}" }, { "Prices not refreshed. Check your connection and pull down to try again" })
             _refreshing.value = false
         }
     }

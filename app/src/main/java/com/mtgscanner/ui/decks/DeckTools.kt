@@ -158,6 +158,7 @@ class DeckTools(
      * still loading, when they're looked up here (else the deck would count as colorless).
      */
     fun openUpgrade(commanders: List<String>, identity: String?, text: String) {
+        retryUpgrade = { openUpgrade(commanders, identity, text) }
         upgrade = UpgradeUi()
         scope.launch {
             val names = DecklistParser.parse(text).map { it.name }.toSet()
@@ -170,16 +171,25 @@ class DeckTools(
         }
     }
 
+    /** Runs the last Upgrade lookup again, after it failed. */
+    var retryUpgrade: () -> Unit = {}
+        private set
+
     fun closeUpgrade() { upgrade = null }
 
     /** Opens What to cut: the deck's played cards (name to type line) that EDHREC's decks for [commanders] play least. */
     fun openCuts(commanders: List<String>, deck: List<Pair<String, String>>) {
+        retryCuts = { openCuts(commanders, deck) }
         cuts = CutUi()
         scope.launch {
             val ideas = com.mtgscanner.util.suspendRunCatching { com.mtgscanner.data.cutIdeas(commanders, deck) }.getOrNull()
             cuts = cuts?.copy(loading = false, ideas = ideas.orEmpty(), failed = ideas == null)
         }
     }
+
+    /** Runs the last What to cut lookup again, after it failed. */
+    var retryCuts: () -> Unit = {}
+        private set
 
     fun closeCuts() { cuts = null }
 
@@ -330,7 +340,10 @@ private fun UpgradeSheet(state: UpgradeUi, tools: DeckTools) {
             Spacer(Modifier.height(Space.s2))
             when {
                 state.loading -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
-                state.failed -> EmptyState("Couldn't reach EDHREC or Scryfall", Modifier.padding(vertical = Space.s6))
+                state.failed -> EmptyState(
+                    "Couldn't reach EDHREC or Scryfall", Modifier.padding(vertical = Space.s6),
+                    action = "Try again", onAction = tools.retryUpgrade, body = "Check your connection",
+                )
                 state.ideas.isEmpty() -> EmptyState("Nothing new in your boxes", Modifier.padding(vertical = Space.s6))
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
                     // EDHREC's own order: its top cards first, then its lists (Creatures, Mana Artifacts…), most played first.
@@ -371,7 +384,10 @@ private fun CutSheet(state: CutUi, tools: DeckTools, onCut: (String) -> Unit) {
             Spacer(Modifier.height(Space.s2))
             when {
                 state.loading -> com.mtgscanner.ui.components.PlaceholderRows(4, Modifier.padding(vertical = Space.s3))
-                state.failed -> EmptyState("Couldn't reach EDHREC, or it has too little on this commander", Modifier.padding(vertical = Space.s6))
+                state.failed -> EmptyState(
+                    "Couldn't get cuts from EDHREC", Modifier.padding(vertical = Space.s6),
+                    action = "Try again", onAction = tools.retryCuts, body = "Check your connection. A new commander may not have enough EDHREC decks yet",
+                )
                 state.ideas.isEmpty() -> EmptyState("Nothing stands out", Modifier.padding(vertical = Space.s6))
                 else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 560.dp)) {
                     items(state.ideas, key = { it.name }) { idea ->

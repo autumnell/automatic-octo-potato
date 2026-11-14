@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.util.plural
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -178,7 +179,7 @@ internal fun DeckInsightRows(ui: DeckUi, vm: DeckViewModel, leads: List<InsightS
     // One compact strip of figures instead of a row each (unslop: compact stats, not equal cards). Tap one for its sheet.
     val items = buildList {
         addAll(leads)
-        add(InsightStat("Mana base", "${mana.lands} lands", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA })
+        add(InsightStat("Mana base", "${plural(mana.lands, "land")}", mana.advice.firstOrNull() ?: "Looks right") { sheet = InsightSheet.MANA })
         add(InsightStat("Goldfish", goldfish?.let { "Keep ${pct(it.keepable)}" } ?: "…", goldfish?.let { "Turn 4 land ${pct(it.landDrop[3])}" }) { if (goldfish != null) sheet = InsightSheet.GOLDFISH })
     }
     InsightStrip(items)

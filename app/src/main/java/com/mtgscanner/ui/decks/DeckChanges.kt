@@ -235,11 +235,11 @@ fun DeckChangesLayer(host: DeckChangesHost, dirty: Boolean, onDiscard: () -> Uni
         AlertDialog(
             onDismissRequest = { host.askDiscard = false },
             containerColor = Palette.Surface,
-            title = { Text("Discard list?") },
+            title = { Text("Discard deck changes?") },
             confirmButton = {
-                TextButton(onClick = { host.askDiscard = false; onDiscard() }) { Text("Discard", color = Palette.Danger) }
+                TextButton(onClick = { host.askDiscard = false; onDiscard() }) { Text("Discard changes", color = Palette.Danger) }
             },
-            dismissButton = { TextButton(onClick = { host.askDiscard = false }) { Text("Keep") } },
+            dismissButton = { TextButton(onClick = { host.askDiscard = false }) { Text("Keep editing") } },
         )
     }
     if (host.askLink) {

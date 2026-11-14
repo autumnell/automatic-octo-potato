@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.settings
 
+import com.mtgscanner.util.plural
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -387,7 +388,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
         val plan = _importPlan.value ?: return
         val missing = plan.notFound
         if (missing.isEmpty()) return
-        run("Looking up ${missing.size} cards…") {
+        run("Looking up ${plural(missing.size, "card")}…") {
             val found = plan.found.toMutableList()
             try {
                 BackupIO.lookUp(repo, missing.map { plan.rows[it] }).forEachIndexed { k, c -> found[missing[k]] = c }
@@ -430,7 +431,7 @@ class SettingsViewModel(private val repo: CollectionRepository) : ViewModel() {
     fun confirmImport() {
         val plan = _importPlan.value ?: return
         val other = plan.otherPrinting.size
-        val started = run("Importing ${plan.added} cards…") {
+        val started = run("Importing ${plural(plan.added, "card")}…") {
             val newBox: suspend () -> Long = { repo.createBox("Imported", "box") }
             // Undo takes out exactly what the import added, and the "Imported" box once it's empty.
             val r = BackupIO.applyPlan(repo, plan, newBox)

@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.decks
 
+import com.mtgscanner.util.plural
 import androidx.compose.material.icons.outlined.BookmarkBorder
 
 import androidx.compose.material.icons.filled.Bookmark
@@ -150,7 +151,7 @@ fun LazyListScope.deckCardsItems(ui: DeckUi, vm: DeckViewModel, st: CardsTabStat
     val shown = if (q.isEmpty()) lines else lines.filter { it.name.contains(q, ignoreCase = true) }
     if (q.isNotEmpty()) item(key = "found") {
         Text(
-            "${shown.size} of ${lines.size} cards",
+            "${shown.size} of ${plural(lines.size, "card")}",
             style = MaterialTheme.typography.labelLarge.merge(TabularNums), color = Palette.Muted, modifier = Modifier.padding(horizontal = Space.s4, vertical = Space.s1),
         )
     }

@@ -131,7 +131,7 @@ object InsuranceReport {
         y += 6f
         val copies = rows.sumOf { it.quantity }
         val total = rows.sumOf { (it.unitPrice() ?: 0.0) * it.quantity }
-        canvas.drawText("${rows.size} entries · $copies cards", MARGIN, y, bold)
+        canvas.drawText("${rows.size} entries · ${plural(copies, "card")}", MARGIN, y, bold)
         bold.textAlign = Paint.Align.RIGHT
         canvas.drawText("Total ${money.format(total)}", xTotal, y, bold)
         bold.textAlign = Paint.Align.LEFT

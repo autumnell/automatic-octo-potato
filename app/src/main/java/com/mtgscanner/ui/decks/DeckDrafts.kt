@@ -69,7 +69,7 @@ fun DraftOffer(draft: DeckDraft, onRestore: () -> Unit, onDiscard: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall, color = Palette.Muted,
             )
         }
-        TextButton(onClick = onDiscard) { Text("Discard", color = Palette.Muted) }
+        TextButton(onClick = onDiscard) { Text("Discard draft", color = Palette.Muted) }
         TextButton(onClick = onRestore) { Text("Restore") }
     }
 }

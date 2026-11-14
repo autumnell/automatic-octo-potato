@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -112,7 +113,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
                 Spacer(Modifier.width(Space.s3))
                 Column(Modifier.weight(1f)) {
                     Text(names[s.set] ?: s.set.uppercase(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${s.set.uppercase()} · ${s.cards} cards" + if (s.set == lock) " · locked" else "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
+                    Text("${s.set.uppercase()} · ${plural(s.cards, "card")}" + if (s.set == lock) " · locked" else "", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 }
                 IconButton(onClick = { vm.deleteArt(s.set) }) { Icon(Icons.Outlined.Close, "Remove ${s.set.uppercase()}", tint = Palette.Icon, modifier = Modifier.size(18.dp)) }
             }
@@ -140,7 +141,7 @@ fun ArtIndexSection(vm: ScanViewModel) {
         AlertDialog(
             onDismissRequest = { owned = null },
             containerColor = Palette.Surface,
-            title = { Text(if (missing.isEmpty()) "All set" else "Get ${missing.size} sets?") },
+            title = { Text(if (missing.isEmpty()) "All set" else "Get ${plural(missing.size, "set")}?") },
             text = {
                 Text(
                     if (missing.isEmpty()) "Every set you own is here"
@@ -178,7 +179,7 @@ private fun ArtSetPicker(vm: ScanViewModel, onDismiss: () -> Unit) {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                     if (typed != null) item(key = "typed") { PickRow(typed, typed.uppercase(), "Set code") { pick(typed) } }
                     items(shown, key = { it.code }) { s ->
-                        PickRow(s.code, s.name, s.code.uppercase() + " · ${s.cardCount} cards") { pick(s.code) }
+                        PickRow(s.code, s.name, s.code.uppercase() + " · ${plural(s.cardCount, "card")}") { pick(s.code) }
                     }
                     if (sets.isEmpty() && typed == null) item(key = "empty") {
                         Text("Type a set code", color = Palette.Muted, modifier = Modifier.padding(vertical = Space.s4))

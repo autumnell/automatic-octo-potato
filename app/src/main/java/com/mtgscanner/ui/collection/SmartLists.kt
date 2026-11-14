@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -81,7 +82,7 @@ fun SmartListsSection(lists: List<SmartList>, onOpen: (SavedSearch) -> Unit, onD
                 Spacer(Modifier.width(Space.s3))
                 Column(Modifier.weight(1f)) {
                     Text(l.search.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${l.cards} cards${priceSuffix(l.value)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
+                    Text("${plural(l.cards, "card")}${priceSuffix(l.value)}", style = MaterialTheme.typography.bodySmall.merge(TabularNums), color = Palette.Muted)
                 }
                 IconButton(onClick = { onDelete(l.search) }) { Icon(Icons.Outlined.DeleteOutline, "Delete list", tint = Palette.Icon) }
             }

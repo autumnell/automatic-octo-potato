@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.collection
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -74,7 +75,7 @@ fun BoxPlanSheet(plan: PlanUi, onApply: () -> Unit, onDiscard: () -> Unit) {
                 when (r.cardsMoving) {
                     0 -> "No cards would move"
                     1 -> "1 card would move"
-                    else -> "${r.cardsMoving} cards would move"
+                    else -> "${plural(r.cardsMoving, "card")} would move"
                 },
                 style = MaterialTheme.typography.bodyMedium, color = Palette.Muted,
             )
@@ -101,7 +102,7 @@ fun BoxPlanSheet(plan: PlanUi, onApply: () -> Unit, onDiscard: () -> Unit) {
             }
             Spacer(Modifier.height(Space.s4))
             GradientButton("Apply", onApply, Modifier.fillMaxWidth())
-            TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) { Text("Discard", color = Palette.Muted) }
+            TextButton(onClick = onDiscard, modifier = Modifier.fillMaxWidth()) { Text("Discard plan", color = Palette.Muted) }
             Spacer(Modifier.height(Space.s2))
         }
     }

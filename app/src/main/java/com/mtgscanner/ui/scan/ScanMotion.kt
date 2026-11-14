@@ -1,5 +1,6 @@
 package com.mtgscanner.ui.scan
 
+import com.mtgscanner.util.plural
 import com.mtgscanner.ui.theme.Motion
 import com.mtgscanner.ui.theme.Space
 import androidx.compose.animation.core.Animatable
@@ -82,7 +83,7 @@ fun SessionFan(session: List<ScanEntry>, startKey: Long, onClick: () -> Unit, mo
     Box(
         modifier
             .size(width.dp, height.dp)
-            .semantics { contentDescription = "Scan list, $count cards" }
+            .semantics { contentDescription = "Scan list, ${plural(count, "card")}" }
             .clickable(onClickLabel = "Open scan list", onClick = onClick)
             // Fade the bottom edge so the front card tucks away instead of being cut off.
             .graphicsLayer { clip = true; compositingStrategy = CompositingStrategy.Offscreen }
