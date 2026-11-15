@@ -81,7 +81,7 @@ fun DeckQuickAdd(ui: DeckUi, vm: DeckViewModel, board: String, searching: Boolea
     val counts = remember(ui.text, board) { boardCounts(ui.text, board) }
     val where = Board.entries.firstOrNull { it.section == board }?.let { if (it == Board.MAIN) "the deck" else "the ${it.label.lowercase()}" } ?: "the deck"
     Row(verticalAlignment = Alignment.CenterVertically) {
-        SearchField(query, { query = it; added = null }, Modifier.weight(1f), placeholder = "Add a card by name")
+        SearchField(query, { query = it; added = null }, Modifier.weight(1f), placeholder = "Add a card")
         Spacer(Modifier.width(Space.s2))
         TextButton(onClick = { onSearching(true) }, modifier = Modifier.heightIn(min = 48.dp)) {
             Icon(Icons.Outlined.Search, null, tint = Palette.Icon, modifier = Modifier.padding(end = Space.s1).size(18.dp))

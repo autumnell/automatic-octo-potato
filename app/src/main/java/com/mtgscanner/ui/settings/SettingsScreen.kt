@@ -30,6 +30,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DarkMode
@@ -348,18 +350,14 @@ private fun Preview() {
                 Text("Collection value", style = MaterialTheme.typography.labelMedium, color = Palette.Muted)
                 Text(com.mtgscanner.ui.components.formatUsd(total), style = PriceStyle.copy(fontSize = PriceStyle.fontSize * 1.3f), color = Palette.Text)
             }
-            // A picture of a selected pill, not a control: it takes no taps and reads as plain text.
-            Text(
-                "Selected",
-                style = MaterialTheme.typography.labelMedium,
-                color = Palette.Text,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(Corners.Small))
-                    .background(Palette.SurfaceHigh)
-                    .border(1.dp, Palette.Text, RoundedCornerShape(Corners.Small))
-                    .padding(horizontal = Space.s4, vertical = Space.s3),
-            )
+            // The accent where the app uses it, on the Scan button, so the color being picked is actually shown.
+            // A picture, not a control: it takes no taps.
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).background(Palette.Accent).clearAndSetSemantics { },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.CameraAlt, null, tint = Palette.OnAccent, modifier = Modifier.size(24.dp))
+            }
         }
     }
 }

@@ -593,7 +593,8 @@ private fun DeckLineRow(
         Spacer(Modifier.width(Space.s3))
         Column(Modifier.weight(1f)) {
             Text(
-                (if (missingView) "${l.missing}× " else "${minOf(l.owned, l.needed)}/${l.needed} ") + l.name,
+                // "1/1 Atraxa" read like power and toughness, so the count is "1×" and a shortfall goes on the line below.
+                (if (missingView) "${l.missing}× " else "${l.needed}× ") + l.name,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -611,6 +612,7 @@ private fun DeckLineRow(
                 l.otherPrinting -> "No $listed · other printing shown"
                 missingView -> listOfNotNull(if (l.owned > 0) "Have ${l.owned} of ${l.needed}" else l.section, l.printing.takeIf { link == null }).joinToString(" · ")
                 else -> listOfNotNull(
+                    if (l.owned < l.needed) "Have ${l.owned} of ${l.needed}" else null,
                     l.whereText.ifEmpty { null },
                     if (l.ownedOtherPrinting) "Other printing" else l.printing.takeIf { link == null },
                 ).joinToString(" · ")

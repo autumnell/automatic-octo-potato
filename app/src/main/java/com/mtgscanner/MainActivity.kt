@@ -303,8 +303,10 @@ private fun AppRoot(openRequest: String?, onOpened: () -> Unit) {
         bottomBar = {
             if (tabs.any { it.route == route }) androidx.compose.animation.AnimatedVisibility(
                 visible = tabBar.shown || route == "scan" || route == "game",
-                enter = androidx.compose.animation.expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                // No clipping while it grows or shrinks: the round Scan button pokes above the bar, and a clip
+                // would cut it to the bar's rectangle for the length of the animation.
+                enter = androidx.compose.animation.expandVertically(expandFrom = Alignment.Top, clip = false) + fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically(shrinkTowards = Alignment.Top, clip = false) + fadeOut(),
             ) { AppTabBar(
                 route, badges,
                 shortcuts = { tab ->
