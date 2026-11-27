@@ -17,6 +17,8 @@ import java.io.File
  * each the width and height (two big-endian ints) then red, green, blue bytes. Kinds: Clean, Blurred, Dark, Glare
  * (whole card pictures), Photo (the card lying turned on a table: found by the corner model and straightened here)
  * and Your scans (real scans from src/test/resources/scan-photos). A table of results goes to build/scan-accuracy.md.
+ * With fastweb.onnx there too, Photo cards are found as the app finds them: by [FastwebFinder] first, the corner
+ * model when it finds none; and a table compares the two finders on those photos.
  */
 class ScanAccuracyTest {
     private companion object { const val FOLDS = 5 }
@@ -44,10 +46,21 @@ class ScanAccuracyTest {
         println("Gallery: ${gallery.size} printings" + if (built != null) " (built)" else " (published)")
         val card = OnnxNet(File(d, "card.onnx"))
         val corners = File(d, "corners.onnx").takeIf { it.exists() }?.let { OnnxNet(it) }
+        val fastweb = File(d, "fastweb.onnx").takeIf { it.exists() }?.let { runCatching { OnnxNet(it) }.getOrNull() }
 
         fun print(p: Picture): FloatArray {
             val px = resize(p, CardPrintPrep.CARD_W, CardPrintPrep.CARD_H)
             return CardGallery.unit(card.run(CardPrintPrep.cardInput(px), CardPrintPrep.cardShape).values.first())
+        }
+        // Per finder on the Photo samples: found, right (its straightened card's best match is the card).
+        val finderTally = LinkedHashMap<String, IntArray>()
+        fun tallyFinder(name: String, photo: Picture, id: String, q: FloatArray?) {
+            val t = finderTally.getOrPut(name) { IntArray(3) }
+            t[2]++
+            if (q == null) return
+            t[0]++
+            val s = warp(photo, q, CardPrintPrep.CARD_W, CardPrintPrep.CARD_H)
+            if (listOf(s, turned(s)).any { gallery.match(print(it), minScore = 0f, minStandOut = 0f, minLead = -2f)?.id == id }) t[1]++
         }
 
         // First every picture's fingerprints (as it lies, and real scans also turned round, as the scanner tries).
@@ -63,7 +76,15 @@ class ScanAccuracyTest {
             val id = if (fix != null) "" else f.name.substringBefore("__")
             val pic = read(f)
             val start = System.nanoTime()
-            val straight = if (kind == "Photo") corners?.let { findAndStraighten(pic, it) } else pic
+            val straight = if (kind == "Photo") {
+                val byFastweb = fastweb?.let { fastwebQuad(pic, it) }
+                val byPose = corners?.let { poseQuad(pic, it) }
+                if (fastweb != null) {
+                    tallyFinder("fastweb corner detector", pic, id, byFastweb)
+                    tallyFinder("Corner model", pic, id, byPose)
+                }
+                (byFastweb ?: byPose)?.let { warp(pic, it, CardPrintPrep.CARD_W, CardPrintPrep.CARD_H) }
+            } else pic
             val tries = straight?.let { if (kind == "Your scans") listOf(it, turned(it)) else listOf(it) }.orEmpty()
             val prints = tries.map { print(it) }
             if (kind == "Your scans") scanPrints[f.name] = prints
@@ -103,6 +124,10 @@ class ScanAccuracyTest {
         val tuning = tune(shots)
         card.close()
         corners?.close()
+        fastweb?.close()
+        val finders = if (finderTally.isEmpty()) "" else "\n#### Card finders on the Photo samples\n\n| Finder | Found | Right |\n|---|---|---|\n" +
+            finderTally.entries.joinToString("") { (n, t) -> "| $n | ${t[0]} of ${t[2]} | ${t[1]} of ${t[2]} |\n" }
+        println(finders)
 
         val report = StringBuilder(
             (if (shipped != null) "With the photo correction, as the app does it.\n\n" else "No photo correction in the app.\n\n") +
@@ -118,7 +143,7 @@ class ScanAccuracyTest {
         println(tuning)
         File("build").mkdirs()
         File("build/scan-accuracy.md").writeText(
-            "### Knowing cards by picture\n\nGallery: ${gallery.size} printings${if (built != null) " (built)" else " (published)"}\n\n$report\n$tuning\n${trial.first}\n$detail",
+            "### Knowing cards by picture\n\nGallery: ${gallery.size} printings${if (built != null) " (built)" else " (published)"}\n\n$report\n$finders\n$tuning\n${trial.first}\n$detail",
         )
 
         // Clean pictures should all be right; a wrong answer is worse than none, so few wrong anywhere.
@@ -372,13 +397,18 @@ class ScanAccuracyTest {
         })
     }
 
-    /** The corner model's card in [photo], straightened at the card model's size; null when it finds none. */
-    private fun findAndStraighten(photo: Picture, net: OnnxNet): Picture? {
+    /** The corner model's card corners in [photo]; null when it finds none. */
+    private fun poseQuad(photo: Picture, net: OnnxNet): FloatArray? {
         val px = resize(photo, CardPrintPrep.POSE, CardPrintPrep.POSE)
         val out = net.run(CardPrintPrep.poseInput(px), CardPrintPrep.poseShape)
-        val q = CardPrintPrep.corners(out["scores"] ?: return null, out["keypoints"] ?: return null, photo.w, photo.h) ?: return null
-        return warp(photo, q, CardPrintPrep.CARD_W, CardPrintPrep.CARD_H)
+        return CardPrintPrep.corners(out["scores"] ?: return null, out["keypoints"] ?: return null, photo.w, photo.h)
     }
+
+    /** The fastweb finder's card corners in [photo], as the app asks it ([CardPrints.corners]); null when none. */
+    private fun fastwebQuad(photo: Picture, net: OnnxNet): FloatArray? = runCatching {
+        val px = resize(photo, FastwebFinder.SIZE, FastwebFinder.SIZE)
+        FastwebFinder.corners(net.run(FastwebFinder.input(px), FastwebFinder.shape), photo.w, photo.h)
+    }.getOrNull()
 
     /** [p] stretched to [w] x [h], bilinear. */
     private fun resize(p: Picture, w: Int, h: Int): IntArray {

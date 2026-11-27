@@ -30,7 +30,9 @@ import java.util.concurrent.TimeUnit
  *
  * The corner model can be swapped for open-card-collector's YOLO card finder ([Finder.YOLO]),
  * which comes inside the app (the build takes it from the repository's "models" release). It's more exact on
- * photos; it is AGPL-licensed.
+ * photos; it is AGPL-licensed. With YOLO picked, CollectorVision's fastweb corner detector ([FastwebFinder], the one
+ * Mault uses, AGPL-3.0, also inside the app when the build could fetch it) is asked first: it's more exact and
+ * quicker still. YOLO answers when it finds no card or isn't in the build.
  *
  * Models: dhvazquez/mtg_card_identification_embeddings and dhvazquez/mtg_card_pose_estimation (MIT).
  * Gallery: maxhille/mtg-gallery-creator (CC-BY 4.0), built from Scryfall's card images.
@@ -59,6 +61,7 @@ object CardPrints {
     @Volatile private var cardNet: OnnxNet? = null
     @Volatile private var poseNet: OnnxNet? = null
     @Volatile private var yoloNet: OnnxNet? = null
+    @Volatile private var fastwebNet: OnnxNet? = null
 
     /** Which model finds a card's corners. */
     enum class Finder(val label: String) { GRIMOIRE("Grimoire"), YOLO("YOLO") }
@@ -100,6 +103,9 @@ object CardPrints {
     /** The YOLO finder inside the app, and its copy in the models folder (ONNX Runtime opens files). */
     private const val YOLO_ASSET = "card-finder-yolo11n-obb.onnx"
     private const val YOLO_FILE = "finder-yolo.onnx"
+    /** CollectorVision's fastweb corner detector inside the app, and its copy in the models folder. */
+    private const val FASTWEB_ASSET = "card-finder-fastweb.onnx"
+    private const val FASTWEB_FILE = "finder-fastweb.onnx"
     private val ALL = listOf(CARD_MODEL, POSE_MODEL, IDS, META, GALLERY)
     /** Rounded, for the settings row. */
     const val DOWNLOAD_MB = 77
@@ -160,6 +166,22 @@ object CardPrints {
             _finderDownload.value = null
         } catch (t: Throwable) {
             _finderDownload.value = -1
+        }
+        loadFastweb()
+    }
+
+    /** Copies (when missing) and opens the fastweb finder; YOLO alone is used when this build lacks it. */
+    private fun loadFastweb() {
+        if (fastwebNet != null) return
+        runCatching {
+            val file = File(dir, FASTWEB_FILE)
+            if (!file.exists()) {
+                dir.mkdirs()
+                val part = File(dir, "$FASTWEB_FILE.part")
+                appContext.assets.open(FASTWEB_ASSET).use { input -> part.outputStream().use { input.copyTo(it) } }
+                if (!part.renameTo(file)) throw IOException("Couldn't save the finder")
+            }
+            fastwebNet = OnnxNet(file)
         }
     }
 
@@ -289,6 +311,7 @@ object CardPrints {
         cardNet?.close(); cardNet = null
         poseNet?.close(); poseNet = null
         yoloNet?.close(); yoloNet = null
+        fastwebNet?.close(); fastwebNet = null
         gallery = null
     }
 
@@ -311,7 +334,10 @@ object CardPrints {
     /** The four corners of the card in [picture], by the corner model; null when off or no card is clear. */
     fun corners(picture: Bitmap): FloatArray? {
         if (!ready) return null
-        if (_finder.value == Finder.YOLO) yoloNet?.let { return yoloCorners(it, picture) }
+        if (_finder.value == Finder.YOLO) {
+            fastwebNet?.let { net -> fastwebCorners(net, picture)?.let { return it } }
+            yoloNet?.let { return yoloCorners(it, picture) }
+        }
         val net = poseNet ?: return null
         val px = pixelsAt(picture, CardPrintPrep.POSE, CardPrintPrep.POSE)
         return runCatching {
@@ -319,6 +345,12 @@ object CardPrints {
             CardPrintPrep.corners(out["scores"] ?: return null, out["keypoints"] ?: return null, picture.width, picture.height)
         }.getOrNull()
     }
+
+    /** The corners by the fastweb finder: the picture squashed into its square, as it was taught. */
+    private fun fastwebCorners(net: OnnxNet, picture: Bitmap): FloatArray? = runCatching {
+        val px = pixelsAt(picture, FastwebFinder.SIZE, FastwebFinder.SIZE)
+        FastwebFinder.corners(net.run(FastwebFinder.input(px), FastwebFinder.shape), picture.width, picture.height)
+    }.getOrNull()
 
     /** The corners by the YOLO finder: the picture letterboxed into its square. */
     private fun yoloCorners(net: OnnxNet, picture: Bitmap): FloatArray? = runCatching {
