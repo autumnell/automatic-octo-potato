@@ -1,9 +1,17 @@
-"""Grimoire's card models against open-card-collector's, on the same pictures.
+"""Grimoire's card models against open-card-collector's and Mault's (CollectorVision), on the same pictures.
 
 Picture models: Grimoire's card model (card.onnx) and open-card-collector's DINOv3 Small embedder, each finding the
 sample cards among a gallery of the sample cards plus random other printings (Scryfall's pictures). Card finders:
 Grimoire's corner model (corners.onnx) and open-card-collector's YOLO11n OBB detector, on the "Photo" samples (a
 card lying turned on a table), against where its corners really are (samples/corners.json).
+
+Mault (github.com/maultxyz/mault) uses CollectorVision's models (github.com/HanClinto/CollectorVision, AGPL-3.0):
+the Milo embedder (milo.onnx, 128 numbers from the card straightened to 448 x 448) and the fastweb corner detector
+(cornelius.onnx, 384 x 384 in, four corners plus a sharpness score out). Both are run here the way Mault runs them
+(packages/shared/src/vision.ts and packages/mobile/src/features/scanner/lib/inference.ts). Either is left out when
+its file is missing.
+
+Real scans (the "Your scans" samples, straightened by the phone) are looked for too, up to MAX_SCANS different cards.
 
 Usage: compare_models.py <scan-models dir> <distractors> <report.md>
 Expects card.onnx, corners.onnx, gallery_ids.json and samples/ from scan_samples.py in the models folder.
@@ -13,6 +21,7 @@ import numpy as np
 from PIL import Image
 
 models, n_distract, report = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+MAX_SCANS = int(os.environ.get("MAX_SCANS", "150"))
 samples = os.path.join(models, "samples")
 lines = []
 
@@ -118,6 +127,46 @@ def yolo_corners(img):
     return order(r.obb.xyxyxyxy[best].cpu().numpy())
 
 
+def optional_session(name):
+    path = os.path.join(models, name)
+    if not os.path.exists(path):
+        print("no", name)
+        return None
+    try:
+        return ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+    except Exception as e:
+        print("can't load", name, e)
+        return None
+
+
+milo_sess = optional_session("milo.onnx")
+cornelius_sess = optional_session("cornelius.onnx")
+
+
+def imagenet_chw(img, w, h):
+    a = np.asarray(img.convert("RGB").resize((w, h), Image.BILINEAR), dtype=np.float32) / 255.0
+    return ((a - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
+
+
+def milo_embed(img):
+    """Mault's embedding: the straightened card squashed to 448 x 448, ImageNet scaling, made unit length."""
+    return unit(milo_sess.run(None, feed(milo_sess, imagenet_chw(img, 448, 448)))[0].astype(np.float32))
+
+
+def cornelius_corners(img):
+    """Mault's card finder: the whole frame squashed to 384 x 384; corners as fractions, kept when sharp enough."""
+    w, h = img.size
+    outs = cornelius_sess.run(None, feed(cornelius_sess, imagenet_chw(img, 384, 384)))
+    named = {o.name: np.asarray(v, dtype=np.float32).reshape(-1) for o, v in zip(cornelius_sess.get_outputs(), outs)}
+    if "sharpness" in named:
+        if float(named["sharpness"][0]) < 0.02:
+            return None
+    elif "presence" in named and 1 / (1 + math.exp(-float(named["presence"][0]))) < 0.5:
+        return None
+    c = np.clip(named["corners"][:8], 0, 1).reshape(4, 2) * np.array([w, h])
+    return order(c)
+
+
 def warp(img, q, w=320, h=448):
     """The quad q of img drawn straight at w x h."""
     q = order(q)
@@ -131,6 +180,16 @@ def warp(img, q, w=320, h=448):
 truth = json.load(open(os.path.join(samples, "corners.json")))
 files = sorted(f for f in os.listdir(samples) if f.endswith(".rgb"))
 targets = sorted({f.split("__")[0] for f in files if f.endswith("__Clean.rgb")})
+relabeled = set()
+relabel_file = os.path.join(os.path.dirname(__file__), "..", "..", "app/src/test/resources/scan-photos/relabel.txt")
+if os.path.exists(relabel_file):
+    for line in open(relabel_file, encoding="utf-8"):
+        if "=" in line and not line.startswith("#"):
+            relabeled.add(line.split("=")[0].strip())
+scan_files = [f for f in files if "__Your scans__" in f and f[:-4].rsplit("__", 1)[-1] not in relabeled]
+scan_ids = sorted({f.split("__")[0] for f in scan_files} - set(targets))
+scan_ids = random.Random(11).sample(scan_ids, min(MAX_SCANS, len(scan_ids)))
+targets = targets + sorted(scan_ids)
 ids = json.load(open(os.path.join(models, "gallery_ids.json")))
 rnd = random.Random(7)
 others = rnd.sample([i for i in ids if i not in set(targets)], n_distract * 2)
@@ -146,13 +205,15 @@ for cid in targets + others:
         print("skip", cid, e)
 missing = [t for t in targets if t not in gallery_ids]
 
-say("### Picture models: Grimoire's against open-card-collector's DINOv3 Small")
+say("### Picture models: Grimoire's against open-card-collector's DINOv3 Small and Mault's Milo")
 say()
 say(f"Each sample card is looked for among {len(gallery_ids)} printings (the samples and random others). "
     "Right means the best match is the card itself.")
 say()
 
 embedders = {"Grimoire card model": ours_embed, "DINOv3 Small (open-card-collector)": dino_embed}
+if milo_sess is not None:
+    embedders["Milo (Mault)"] = milo_embed
 gal = {}
 for name, fn in embedders.items():
     t0 = time.time()
@@ -168,8 +229,10 @@ def find(name, vec):
 
 kinds = {}
 for f in files:
-    cid, kind = f[:-4].split("__")
-    if cid in missing or kind == "Your scans":
+    cid, kind = f[:-4].split("__")[:2]
+    if cid in missing or cid not in gallery_ids:
+        continue
+    if kind == "Your scans" and f not in scan_files:
         continue
     img = read_rgb(os.path.join(samples, f))
     if kind == "Photo":
@@ -196,21 +259,30 @@ for kind, items in kinds.items():
     say("| " + " | ".join(row) + " |")
 
 say()
-say("### Card finders: Grimoire's corner model against open-card-collector's YOLO11n OBB")
+say("### Card finders: Grimoire's corner model against open-card-collector's YOLO11n OBB and Mault's fastweb")
 say()
 say("On the Photo samples. Found within 3% means every corner lands within 3% of the card's height of where it is; "
-    "Right means the card it finds, straightened and looked up with Grimoire's card model, is the right card.")
+    "Right means the card it finds, straightened and looked up with Grimoire's card model (and with Milo, when "
+    "it's there: corners then Milo is Mault's whole picture path), is the right card.")
 say()
-say("| Finder | Found | Found within 3% | Mean corner error | Right | ms each |")
-say("|---|---|---|---|---|---|")
+with_milo = "Milo (Mault)" in embedders
+say("| Finder | Found | Found within 3% | Mean corner error | Right | " + ("Right with Milo | " if with_milo else "") + "ms each |")
+say("|---|---|---|---|---|---|" + ("---|" if with_milo else ""))
 photos = [(f.split("__")[0], read_rgb(os.path.join(samples, f))) for f in files if f.endswith("__Photo.rgb")]
 photos = [(c, i) for c, i in photos if c in truth and c not in missing]
-for name, fn in {"Grimoire corner model": ours_corners, "YOLO11n OBB (open-card-collector)": yolo_corners}.items():
-    found = close = right = 0
+finders = {"Grimoire corner model": ours_corners, "YOLO11n OBB (open-card-collector)": yolo_corners}
+if cornelius_sess is not None:
+    finders["fastweb corner detector (Mault)"] = cornelius_corners
+for name, fn in finders.items():
+    found = close = right = right_milo = 0
     errs, ms = [], 0.0
     for cid, img in photos:
         t0 = time.time()
-        q = fn(img)
+        try:
+            q = fn(img)
+        except Exception as e:
+            print(name, "failed:", e)
+            q = None
         ms += (time.time() - t0) * 1000
         if q is None:
             continue
@@ -224,9 +296,12 @@ for name, fn in {"Grimoire corner model": ours_corners, "YOLO11n OBB (open-card-
         straight = warp(img, q)
         hits = [find("Grimoire card model", ours_embed(s))[0] for s in (straight, straight.rotate(180))]
         right += cid in hits
+        if with_milo:
+            right_milo += cid in [find("Milo (Mault)", milo_embed(s))[0] for s in (straight, straight.rotate(180))]
     n = max(1, len(photos))
     mean = f"{np.mean(errs) * 100:.1f}%" if errs else "-"
-    say(f"| {name} | {found} of {len(photos)} | {close} | {mean} | {right} of {len(photos)} ({right * 100 // n}%) | {ms / n:.0f} |")
+    milo_cell = f"{right_milo} of {len(photos)} ({right_milo * 100 // n}%) | " if with_milo else ""
+    say(f"| {name} | {found} of {len(photos)} | {close} | {mean} | {right} of {len(photos)} ({right * 100 // n}%) | {milo_cell}{ms / n:.0f} |")
 
 if missing:
     say()
